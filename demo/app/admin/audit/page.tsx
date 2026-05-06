@@ -1,0 +1,125 @@
+"use client";
+
+import { Fragment, useState } from "react";
+import { Search, Download, Filter, ChevronDown, ChevronUp } from "lucide-react";
+import { TopNav } from "@/components/TopNav";
+import { AUDIT_LOG } from "@/lib/mock";
+
+export default function AdminAuditPage() {
+  const [expanded, setExpanded] = useState<number | null>(null);
+
+  return (
+    <>
+      <TopNav />
+      <main className="max-w-[1400px] mx-auto px-6 py-8">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="font-heading text-2xl font-semibold">Audit Log</h1>
+            <p className="text-sm text-ink-500 mt-1">
+              Every change, every actor · last 7 days
+            </p>
+          </div>
+          <button className="btn-ghost border border-ink-200">
+            <Download size={16} className="mr-1.5" /> Export CSV
+          </button>
+        </div>
+
+        <div className="card p-3 mb-6 flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[220px]">
+            <Search
+              size={14}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400"
+            />
+            <input
+              placeholder="Search audit log…"
+              className="w-full pl-9 pr-3 py-1.5 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+            />
+          </div>
+          <button className="btn-ghost text-xs border border-ink-200">
+            <Filter size={14} className="mr-1.5" /> All actors
+          </button>
+          <button className="btn-ghost text-xs border border-ink-200">
+            <Filter size={14} className="mr-1.5" /> All teams
+          </button>
+          <button className="btn-ghost text-xs border border-ink-200">
+            <Filter size={14} className="mr-1.5" /> All actions
+          </button>
+        </div>
+
+        <div className="card overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-ink-500 font-heading font-semibold uppercase tracking-wide border-b border-ink-200 bg-ink-50">
+                <th className="py-3 px-5 w-32">When</th>
+                <th className="py-3 px-3">Who</th>
+                <th className="py-3 px-3">What</th>
+                <th className="py-3 px-3">Where</th>
+                <th className="py-3 px-3">Target</th>
+                <th className="py-3 px-3 w-10"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {AUDIT_LOG.map((e) => (
+                <Fragment key={e.id}>
+                  <tr
+                    onClick={() =>
+                      setExpanded(expanded === e.id ? null : e.id)
+                    }
+                    className="border-b border-ink-100 hover:bg-ink-50 cursor-pointer"
+                  >
+                    <td className="py-3 px-5 text-ink-500 font-mono text-xs">
+                      {e.when}
+                    </td>
+                    <td className="py-3 px-3 text-ink-700">{e.actor}</td>
+                    <td className="py-3 px-3">
+                      <code className="text-xs font-mono text-brand-blue bg-brand-blueBg px-1.5 py-0.5 rounded">
+                        {e.action}
+                      </code>
+                    </td>
+                    <td className="py-3 px-3 text-ink-700">{e.team}</td>
+                    <td className="py-3 px-3 text-ink-900 max-w-[300px] truncate">
+                      {e.taskTitle ?? "—"}
+                    </td>
+                    <td className="py-3 px-3 text-ink-400">
+                      {e.before || e.after ? (
+                        expanded === e.id ? (
+                          <ChevronUp size={14} />
+                        ) : (
+                          <ChevronDown size={14} />
+                        )
+                      ) : null}
+                    </td>
+                  </tr>
+                  {expanded === e.id && (e.before || e.after) && (
+                    <tr className="border-b border-ink-100 bg-ink-50">
+                      <td colSpan={6} className="px-5 py-3">
+                        <div className="grid grid-cols-2 gap-4 text-xs">
+                          <div>
+                            <div className="text-ink-500 font-semibold uppercase tracking-wide mb-1">
+                              Before
+                            </div>
+                            <pre className="bg-brand-redBg text-brand-redText p-2 rounded text-[11px] whitespace-pre-wrap">
+                              {e.before ?? "—"}
+                            </pre>
+                          </div>
+                          <div>
+                            <div className="text-ink-500 font-semibold uppercase tracking-wide mb-1">
+                              After
+                            </div>
+                            <pre className="bg-brand-greenBg text-brand-greenText p-2 rounded text-[11px] whitespace-pre-wrap">
+                              {e.after ?? "—"}
+                            </pre>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </main>
+    </>
+  );
+}

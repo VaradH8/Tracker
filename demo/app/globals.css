@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  @apply bg-ink-50 text-ink-900 font-sans antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  @apply font-heading;
+}
+
+@layer components {
+  .pill {
+    @apply inline-flex items-center px-3 py-1 rounded-pill text-xs font-medium font-sans;
+  }
+  .pill-blue {
+    @apply pill bg-brand-blueBg text-brand-blue;
+  }
+  .pill-red {
+    @apply pill bg-brand-redBg text-brand-redText;
+  }
+  .pill-yellow {
+    @apply pill bg-brand-yellowBg text-brand-yellowText;
+  }
+  .pill-green {
+    @apply pill bg-brand-greenBg text-brand-greenText;
+  }
+  .pill-grey {
+    @apply pill bg-ink-100 text-ink-700;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded text-sm font-medium bg-brand-blue text-white hover:bg-brand-blueHover transition-colors;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded text-sm font-medium text-ink-700 hover:bg-ink-100 transition-colors;
+  }
+  .card {
+    @apply bg-white rounded-card border border-ink-200 shadow-card;
+  }
+}

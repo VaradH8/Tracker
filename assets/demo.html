@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project Tracker — Role-based Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; background: #F1F3F4; min-height: 100vh; font-family: 'Poppins', sans-serif; color: #202124; }
+  .pt-shell { max-width: 1100px; margin: 0 auto; }
+  .pt-page-title { font-family: 'Space Grotesk', sans-serif; font-size: 24px; font-weight: 600; margin: 0 0 4px; letter-spacing: -0.02em; }
+  .pt-page-sub { font-size: 13px; color: #5F6368; margin: 0 0 20px; }
+
+  .pt-app { background: transparent; }
+  .pt-app h1, .pt-app h2, .pt-app h3, .pt-app h4, .pt-app .pt-heading, .pt-app .pt-logo, .pt-app .pt-stat-val, .pt-app .pt-section-title { font-family: 'Space Grotesk', sans-serif; }
+
+  .pt-topbar { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid #DADCE0; background: #FFFFFF; border-radius: 12px 12px 0 0; }
+  .pt-logo { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; display: flex; align-items: center; gap: 6px; }
+  .pt-logo-dot { display: inline-flex; gap: 2px; }
+  .pt-logo-dot span { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .pt-logo-b { background: #4285F4; }
+  .pt-logo-r { background: #EA4335; }
+  .pt-logo-y { background: #FBBC04; }
+  .pt-logo-g { background: #34A853; }
+  .pt-nav { display: flex; gap: 2px; font-size: 13px; }
+  .pt-nav a { padding: 7px 12px; border-radius: 8px; color: #5F6368; cursor: pointer; font-weight: 400; }
+  .pt-nav a:hover { background: #F1F3F4; }
+  .pt-nav a.active { background: #E8F0FE; color: #1967D2; font-weight: 500; }
+  .pt-user-chip { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #5F6368; }
+  .pt-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; font-family: 'Space Grotesk', sans-serif; }
+
+  .pt-role-switcher { display: flex; gap: 8px; padding: 14px 16px; background: #FFFFFF; border: 1px solid #DADCE0; border-radius: 8px; margin-bottom: 14px; align-items: center; flex-wrap: wrap; }
+  .pt-role-switcher span.label { font-size: 12px; color: #5F6368; font-weight: 500; letter-spacing: 0.02em; text-transform: uppercase; }
+  .pt-role-btn { padding: 7px 14px; font-size: 13px; font-family: 'Poppins', sans-serif; border: 1px solid #DADCE0; background: #FFFFFF; border-radius: 20px; cursor: pointer; color: #3C4043; font-weight: 400; transition: all 0.15s; }
+  .pt-role-btn:hover { background: #F1F3F4; border-color: #BDC1C6; }
+  .pt-role-btn.active { background: #1A73E8; color: #FFFFFF; border-color: #1A73E8; font-weight: 500; }
+
+  .pt-page { padding: 20px; background: #F8F9FA; border-radius: 0 0 12px 12px; min-height: 540px; }
+
+  .pt-section-title { font-size: 18px; font-weight: 600; margin: 0 0 4px; letter-spacing: -0.01em; color: #202124; }
+  .pt-section-sub { font-size: 13px; color: #5F6368; margin: 0 0 16px; font-weight: 400; }
+
+  .pt-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 18px; }
+  .pt-stat { background: #FFFFFF; border: 1px solid #DADCE0; border-radius: 8px; padding: 14px; }
+  .pt-stat-lbl { font-size: 12px; color: #5F6368; margin-bottom: 6px; font-weight: 500; letter-spacing: 0.02em; }
+  .pt-stat-val { font-size: 24px; font-weight: 600; color: #202124; letter-spacing: -0.02em; }
+
+  .pt-kanban { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .pt-col { background: #FFFFFF; border: 1px solid #DADCE0; border-radius: 8px; padding: 10px; min-height: 320px; }
+  .pt-col-hdr { font-size: 12px; font-weight: 500; color: #5F6368; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; letter-spacing: 0.02em; text-transform: uppercase; }
+  .pt-col-count { background: #F1F3F4; color: #5F6368; padding: 1px 8px; border-radius: 10px; font-size: 11px; text-transform: none; letter-spacing: 0; }
+
+  .pt-task { background: #FFFFFF; border: 1px solid #DADCE0; border-radius: 8px; padding: 10px; margin-bottom: 8px; font-size: 12px; cursor: pointer; transition: all 0.12s; }
+  .pt-task:hover { border-color: #1A73E8; box-shadow: 0 1px 2px rgba(60,64,67,0.1); }
+  .pt-task.overdue { border-left: 3px solid #EA4335; }
+  .pt-task.important { background: #FEF7E0; border-color: #FDD663; }
+  .pt-task-title { font-weight: 500; margin-bottom: 8px; line-height: 1.45; color: #202124; font-size: 12.5px; }
+
+  .pt-pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 500; font-family: 'Poppins', sans-serif; }
+  .pt-pill.crit { background: #FCE8E6; color: #C5221F; }
+  .pt-pill.high { background: #FEF7E0; color: #B06000; }
+  .pt-pill.med { background: #E8F0FE; color: #1967D2; }
+  .pt-pill.low { background: #F1F3F4; color: #5F6368; }
+  .pt-pill.proj { background: #E6F4EA; color: #137333; }
+  .pt-task-foot { display: flex; gap: 6px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
+  .pt-asg { width: 20px; height: 20px; border-radius: 50%; font-size: 9px; font-weight: 500; display: inline-flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; border: 1.5px solid #FFFFFF; margin-left: -4px; }
+  .pt-asg:first-child { margin-left: 0; }
+  .pt-imp-star { color: #F9AB00; font-size: 12px; margin-right: 2px; }
+
+  .pt-row-actions { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .pt-btn { padding: 8px 16px; font-size: 13px; font-family: 'Poppins', sans-serif; border: 1px solid #DADCE0; background: #FFFFFF; border-radius: 4px; cursor: pointer; color: #3C4043; font-weight: 500; transition: all 0.12s; }
+  .pt-btn:hover { background: #F8F9FA; border-color: #1A73E8; color: #1A73E8; }
+  .pt-btn.primary { background: #1A73E8; color: #FFFFFF; border-color: #1A73E8; }
+  .pt-btn.primary:hover { background: #1967D2; border-color: #1967D2; color: #FFFFFF; }
+  .pt-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .pt-btn:disabled:hover { background: #FFFFFF; border-color: #DADCE0; color: #3C4043; }
+
+  .pt-table { width: 100%; font-size: 13px; border-collapse: collapse; background: #FFFFFF; border: 1px solid #DADCE0; border-radius: 8px; overflow: hidden; }
+  .pt-table th { text-align: left; padding: 12px 14px; font-size: 12px; color: #5F6368; font-weight: 500; border-bottom: 1px solid #DADCE0; background: #F8F9FA; letter-spacing: 0.02em; text-transform: uppercase; font-family: 'Space Grotesk', sans-serif; }
+  .pt-table td { padding: 12px 14px; font-size: 13px; border-bottom: 1px solid #F1F3F4; color: #3C4043; }
+  .pt-table tr:last-child td { border-bottom: none; }
+  .pt-table tr:hover td { background: #F8F9FA; }
+
+  .pt-banner { padding: 12px 14px; background: #E8F0FE; color: #1967D2; border-radius: 8px; font-size: 13px; margin-bottom: 14px; border-left: 3px solid #1A73E8; }
+  .pt-banner.warn { background: #FEF7E0; color: #B06000; border-left-color: #F9AB00; }
+  .pt-banner.danger { background: #FCE8E6; color: #C5221F; border-left-color: #EA4335; }
+
+  .pt-readonly-tag { font-size: 10px; padding: 3px 9px; background: #F1F3F4; color: #5F6368; border-radius: 10px; font-weight: 500; vertical-align: middle; margin-left: 8px; }
+  .pt-section-divider { margin: 18px 0; border: none; border-top: 1px solid #DADCE0; }
+
+  .pt-subhead { font-size: 13px; font-weight: 600; margin: 18px 0 10px; color: #202124; font-family: 'Space Grotesk', sans-serif; }
+  .pt-helper { font-size: 12px; color: #5F6368; line-height: 1.6; }
+
+  @media (max-width: 720px) {
+    .pt-kanban { grid-template-columns: repeat(2, 1fr); }
+    .pt-topbar { flex-direction: column; align-items: flex-start; gap: 12px; }
+    .pt-nav { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+
+<div class="pt-shell">
+  <h1 class="pt-page-title">Project Tracker — MVP Demo</h1>
+  <p class="pt-page-sub">Role-based view of the work-tracking webapp · switch the role below to see what each user gets.</p>
+
+  <div class="pt-app">
+    <div class="pt-role-switcher">
+      <span class="label">View as</span>
+      <button class="pt-role-btn active" data-role="admin">Admin · Varad</button>
+      <button class="pt-role-btn" data-role="manager">Manager · Manasi</button>
+      <button class="pt-role-btn" data-role="user">User · Sanjana</button>
+    </div>
+
+    <div class="pt-topbar">
+      <div style="display: flex; align-items: center; gap: 24px;">
+        <div class="pt-logo">
+          <span class="pt-logo-dot"><span class="pt-logo-b"></span><span class="pt-logo-r"></span><span class="pt-logo-y"></span><span class="pt-logo-g"></span></span>
+          Tracker
+        </div>
+        <div class="pt-nav" id="pt-nav"></div>
+      </div>
+      <div class="pt-user-chip">
+        <span id="pt-user-name"></span>
+        <div class="pt-avatar" id="pt-user-avatar"></div>
+      </div>
+    </div>
+
+    <div class="pt-page" id="pt-page"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const PROJECTS = {
+    saipem:{name:'Saipem'},
+    luggi:{name:'Luggi'},
+    thermax:{name:'Thermax'},
+    kbr:{name:'KBR'}
+  };
+
+  const PEOPLE = {
+    varad:    {name:'Varad',    color:'#1967D2', bg:'#E8F0FE'},
+    manasi:   {name:'Manasi',   color:'#B06000', bg:'#FEF7E0'},
+    sanjana:  {name:'Sanjana',  color:'#137333', bg:'#E6F4EA'},
+    abhishek: {name:'Abhishek', color:'#C5221F', bg:'#FCE8E6'},
+    ankit:    {name:'Ankit',    color:'#1967D2', bg:'#E8F0FE'},
+    priyanka: {name:'Priyanka', color:'#137333', bg:'#E6F4EA'},
+    monika:   {name:'Monika',   color:'#B06000', bg:'#FEF7E0'},
+    vishal:   {name:'Vishal',   color:'#C5221F', bg:'#FCE8E6'}
+  };
+  const initials = id => PEOPLE[id].name.slice(0,2).toUpperCase();
+
+  const TASKS = [
+    {id:1, proj:'luggi', title:'Naviswork API exploration & properties extraction', priority:'High', assignees:['abhishek'], target:'29 Apr', status:'done', important:false},
+    {id:2, proj:'luggi', title:'Frappe Integration of Naviswork properties', priority:'High', assignees:['abhishek'], target:'30 Apr', status:'done', important:false},
+    {id:3, proj:'luggi', title:'Auto + Manual comment classification by criteria', priority:'Medium', assignees:['sanjana'], target:'02 May', status:'done', important:false},
+    {id:4, proj:'luggi', title:'Bulk select checkbox bug', priority:'High', assignees:['sanjana'], target:'04 May', status:'done', important:false},
+    {id:5, proj:'luggi', title:'Comment Classification API bug', priority:'High', assignees:['abhishek'], target:'04 May', status:'todo', important:true, overdue:true},
+    {id:6, proj:'thermax', title:'Design Architecture for AI Framework', priority:'Medium', assignees:['varad','sanjana','ankit'], target:'08 May', status:'todo', important:false},
+    {id:7, proj:'saipem', title:'Vault API tagging philosophy review', priority:'High', assignees:['abhishek','priyanka'], target:'15 May', status:'progress', important:true},
+    {id:8, proj:'saipem', title:'Upgrade Plant 3D Vault API 2026 to 2027', priority:'High', assignees:['priyanka'], target:'12 May', status:'progress', important:false},
+    {id:9, proj:'luggi', title:'Frontend filter polish & QA', priority:'Low', assignees:['sanjana'], target:'10 May', status:'blocked', important:false}
+  ];
+
+  const STATUS_COLS = [
+    {id:'todo',label:'To Do'},
+    {id:'progress',label:'In Progress'},
+    {id:'blocked',label:'Blocked'},
+    {id:'done',label:'Done'}
+  ];
+
+  const ROLES = {
+    admin: {
+      name:'Varad',
+      initials:'VA',
+      avatar_bg:'#E8F0FE',
+      avatar_fg:'#1967D2',
+      label:'Admin',
+      tabs:['Dashboard','Teams','Users','Audit Log','Import']
+    },
+    manager: {
+      name:'Manasi',
+      initials:'MA',
+      avatar_bg:'#FEF7E0',
+      avatar_fg:'#B06000',
+      label:'Manager · Samanvay',
+      tabs:['Dashboard','Team Board','My Tasks','Audit']
+    },
+    user: {
+      name:'Sanjana',
+      initials:'SA',
+      avatar_bg:'#E6F4EA',
+      avatar_fg:'#137333',
+      label:'User · Samanvay',
+      tabs:['My Tasks','Team Boards']
+    }
+  };
+
+  let currentRole = 'admin';
+  let currentTab = 0;
+
+  const navEl = document.getElementById('pt-nav');
+  const pageEl = document.getElementById('pt-page');
+  const userNameEl = document.getElementById('pt-user-name');
+  const userAvEl = document.getElementById('pt-user-avatar');
+
+  function renderTopbar() {
+    const r = ROLES[currentRole];
+    userNameEl.textContent = r.name + ' · ' + r.label;
+    userAvEl.textContent = r.initials;
+    userAvEl.style.background = r.avatar_bg;
+    userAvEl.style.color = r.avatar_fg;
+    navEl.innerHTML = r.tabs.map((t,i) => '<a class="' + (i===currentTab?'active':'') + '" data-tab="' + i + '">' + t + '</a>').join('');
+    navEl.querySelectorAll('a').forEach(a => a.onclick = () => { currentTab = +a.dataset.tab; render(); });
+  }
+
+  function taskCardHTML(t, opts) {
+    opts = opts || {};
+    const proj = PROJECTS[t.proj];
+    const prCls = t.priority === 'High' ? 'high' : t.priority === 'Medium' ? 'med' : t.priority === 'Critical' ? 'crit' : 'low';
+    const cls = ['pt-task'];
+    if (t.overdue) cls.push('overdue');
+    if (t.important && opts.showImportant !== false) cls.push('important');
+    return '<div class="' + cls.join(' ') + '">' +
+      '<div class="pt-task-title">' + (t.important ? '<span class="pt-imp-star">★</span>' : '') + t.title + '</div>' +
+      '<div class="pt-task-foot">' +
+        '<span class="pt-pill proj">' + proj.name + '</span>' +
+        '<span class="pt-pill ' + prCls + '">' + t.priority + '</span>' +
+        '<span style="font-size:11px;color:#5F6368;margin-left:auto;">' + t.target + '</span>' +
+      '</div>' +
+      '<div class="pt-task-foot" style="margin-top:8px;">' +
+        '<div style="display:flex;">' +
+          t.assignees.map(a => '<span class="pt-asg" style="background:' + PEOPLE[a].bg + ';color:' + PEOPLE[a].color + ';" title="' + PEOPLE[a].name + '">' + initials(a) + '</span>').join('') +
+        '</div>' +
+        (t.overdue ? '<span style="font-size:10px;color:#C5221F;margin-left:auto;font-weight:500;">Overdue 1d</span>' : '') +
+      '</div>' +
+    '</div>';
+  }
+
+  function kanbanHTML(tasks, opts) {
+    return '<div class="pt-kanban">' + STATUS_COLS.map(c => {
+      const ts = tasks.filter(t => t.status === c.id);
+      return '<div class="pt-col">' +
+        '<div class="pt-col-hdr"><span>' + c.label + '</span><span class="pt-col-count">' + ts.length + '</span></div>' +
+        (ts.map(t => taskCardHTML(t, opts)).join('') || '<div style="font-size:11px;color:#9AA0A6;text-align:center;padding:20px 0;">No tasks</div>') +
+      '</div>';
+    }).join('') + '</div>';
+  }
+
+  // ------------ ADMIN VIEWS ------------
+  const adminViews = [
+    () => '' +
+      '<div class="pt-section-title">Organization dashboard</div>' +
+      '<div class="pt-section-sub">Cross-team rollup · 7 teams · ' + TASKS.length + ' active tasks</div>' +
+      '<div class="pt-cards">' +
+        '<div class="pt-stat"><div class="pt-stat-lbl">Active tasks</div><div class="pt-stat-val">' + TASKS.filter(t=>t.status!=='done').length + '</div></div>' +
+        '<div class="pt-stat"><div class="pt-stat-lbl">Overdue</div><div class="pt-stat-val" style="color:#C5221F">' + TASKS.filter(t=>t.overdue).length + '</div></div>' +
+        '<div class="pt-stat"><div class="pt-stat-lbl">Important ★</div><div class="pt-stat-val" style="color:#B06000">' + TASKS.filter(t=>t.important).length + '</div></div>' +
+        '<div class="pt-stat"><div class="pt-stat-lbl">Done this week</div><div class="pt-stat-val" style="color:#137333">' + TASKS.filter(t=>t.status==='done').length + '</div></div>' +
+      '</div>' +
+      '<div class="pt-subhead">★ Important across all teams</div>' +
+      '<table class="pt-table">' +
+        '<thead><tr><th>Task</th><th>Team / Project</th><th>Owner</th><th>Status</th><th>Due</th></tr></thead>' +
+        '<tbody>' + TASKS.filter(t=>t.important).map(t =>
+          '<tr><td>' + t.title + '</td><td>Samanvay · ' + PROJECTS[t.proj].name + '</td><td>' + t.assignees.map(a=>PEOPLE[a].name).join(', ') + '</td><td>' + STATUS_COLS.find(s=>s.id===t.status).label + '</td><td>' + t.target + '</td></tr>'
+        ).join('') + '</tbody>' +
+      '</table>',
+    () => '' +
+      '<div class="pt-section-title">Teams</div>' +
+      '<div class="pt-section-sub">Only Admin can create or archive teams</div>' +
+      '<div class="pt-row-actions"><button class="pt-btn primary">+ New team</button><button class="pt-btn">Archive</button></div>' +
+      '<table class="pt-table">' +
+        '<thead><tr><th>Team</th><th>Manager(s)</th><th>Members</th><th>Projects</th><th>Active tasks</th></tr></thead>' +
+        '<tbody>' +
+          '<tr><td>POCs</td><td>Ravish, Poonam</td><td>4</td><td>—</td><td>0</td></tr>' +
+          '<tr><td>Support Automation</td><td>Himanshu, Javed, Poonam</td><td>2</td><td>KBR</td><td>3</td></tr>' +
+          '<tr><td>Thermax P&ID</td><td>Abhishek, Manasi</td><td>3</td><td>—</td><td>3</td></tr>' +
+          '<tr><td>Thermax ENIMAX</td><td>Varad, Monika</td><td>4</td><td>—</td><td>3</td></tr>' +
+          '<tr><td>Thermax QA</td><td>Varad, Monika</td><td>1</td><td>—</td><td>1</td></tr>' +
+          '<tr><td>Samanvay – Engg Memory</td><td>Manasi, Pooja</td><td>2</td><td>Saipem, Luggi, Thermax</td><td>9</td></tr>' +
+          '<tr><td>AMC – Loop Drawing</td><td>Manoj, Monika</td><td>2</td><td>—</td><td>0</td></tr>' +
+        '</tbody>' +
+      '</table>',
+    () => '' +
+      '<div class="pt-section-title">Users</div>' +
+      '<div class="pt-section-sub">Invite people, set role per team</div>' +
+      '<div class="pt-row-actions"><button class="pt-btn primary">+ Invite user</button><button class="pt-btn">Bulk assign</button></div>' +
+      '<table class="pt-table">' +
+        '<thead><tr><th>Name</th><th>Email</th><th>Roles per team</th><th>Last login</th></tr></thead>' +
+        '<tbody>' +
+          '<tr><td>Manasi</td><td>manasi@org.in</td><td>Manager · Samanvay  ·  User · Thermax P&ID</td><td>2h ago</td></tr>' +
+          '<tr><td>Sanjana</td><td>sanjana@org.in</td><td>User · Samanvay</td><td>10m ago</td></tr>' +
+          '<tr><td>Priyanka</td><td>priyanka@org.in</td><td>User · Thermax P&ID  ·  User · Samanvay</td><td>1d ago</td></tr>' +
+          '<tr><td>Ankit</td><td>ankit@org.in</td><td>User · Thermax QA  ·  User · Samanvay</td><td>3h ago</td></tr>' +
+          '<tr><td>Abhishek</td><td>abhishek@org.in</td><td>User · Samanvay · User · Saipem</td><td>4d ago</td></tr>' +
+        '</tbody>' +
+      '</table>',
+    () => '' +
+      '<div class="pt-section-title">Audit log</div>' +
+      '<div class="pt-section-sub">Every change across all teams · last 7 days</div>' +
+      '<table class="pt-table">' +
+        '<thead><tr><th>When</th><th>Who</th><th>What</th><th>Where</th></tr></thead>' +
+        '<tbody>' +
+          '<tr><td>10m ago</td><td>Sanjana</td><td>moved task to Done</td><td>Samanvay › Luggi › Bulk select bug</td></tr>' +
+          '<tr><td>2h ago</td><td>Manasi</td><td>marked task Important</td><td>Samanvay › Luggi › API bug</td></tr>' +
+          '<tr><td>3h ago</td><td>Ankit</td><td>added remark</td><td>Thermax QA › Frappe setup</td></tr>' +
+          '<tr><td>1d ago</td><td>Varad (Admin)</td><td>invited new user</td><td>Adil → Support Automation</td></tr>' +
+          '<tr><td>1d ago</td><td>Manasi</td><td>reassigned task</td><td>Samanvay › Saipem › Vault review</td></tr>' +
+        '</tbody>' +
+      '</table>',
+    () => '' +
+      '<div class="pt-section-title">Excel import</div>' +
+      '<div class="pt-section-sub">Upload Ongoing_Projects.xlsx → dry run → reconcile names → confirm</div>' +
+      '<div class="pt-banner">Last import: 5 May 2026 · 7 teams, 14 projects, 23 tasks · 9 invites sent</div>' +
+      '<div style="background:#FFFFFF;border:2px dashed #DADCE0;border-radius:8px;padding:40px;text-align:center;color:#5F6368;font-size:13px;">' +
+        '<div style="font-size:32px;color:#1A73E8;margin-bottom:8px;font-family:\'Space Grotesk\',sans-serif;font-weight:600;">↑</div>' +
+        'Drag and drop .xlsx here, or <span style="color:#1A73E8;text-decoration:underline;cursor:pointer;font-weight:500;">browse</span>' +
+      '</div>' +
+      '<div class="pt-helper" style="margin-top:10px;">Will preview changes before writing anything to the database.</div>'
+  ];
+
+  // ------------ MANAGER VIEWS ------------
+  const managerViews = [
+    () => '' +
+      '<div class="pt-section-title">Samanvay – Engg Memory · dashboard</div>' +
+      '<div class="pt-section-sub">Your team rollup</div>' +
+      '<div class="pt-cards">' +
+        '<div class="pt-stat"><div class="pt-stat-lbl">Active</div><div class="pt-stat-val">' + TASKS.filter(t=>t.status!=='done').length + '</div></div>' +
+        '<div class="pt-stat"><div class="pt-stat-lbl">Overdue</div><div class="pt-stat-val" style="color:#C5221F">' + TASKS.filter(t=>t.overdue).length + '</div></div>' +
+        '<div class="pt-stat"><div class="pt-stat-lbl">★ Important</div><div class="pt-stat-val" style="color:#B06000">' + TASKS.filter(t=>t.important).length + '</div></div>' +
+        '<div class="pt-stat"><div class="pt-stat-lbl">Blocked</div><div class="pt-stat-val">' + TASKS.filter(t=>t.status==='blocked').length + '</div></div>' +
+      '</div>' +
+      '<div class="pt-banner danger">★ "Comment Classification API bug" is overdue by 1 day · owner Abhishek</div>' +
+      '<div class="pt-subhead">By project</div>' +
+      '<table class="pt-table">' +
+        '<thead><tr><th>Project</th><th>Active</th><th>Done</th><th>Lead user</th></tr></thead>' +
+        '<tbody>' +
+          '<tr><td>Saipem</td><td>2</td><td>0</td><td>Priyanka, Abhishek</td></tr>' +
+          '<tr><td>Luggi</td><td>2</td><td>4</td><td>Sanjana, Abhishek</td></tr>' +
+          '<tr><td>Thermax</td><td>1</td><td>0</td><td>Varad, Sanjana, Ankit</td></tr>' +
+        '</tbody>' +
+      '</table>',
+    () => '' +
+      '<div class="pt-section-title">Team board · Samanvay – Engg Memory</div>' +
+      '<div class="pt-section-sub">Group by status · Manager can edit anything · drag cards between columns</div>' +
+      '<div class="pt-row-actions">' +
+        '<button class="pt-btn primary">+ New task</button>' +
+        '<button class="pt-btn">All projects ▾</button>' +
+        '<button class="pt-btn">Group: Status ▾</button>' +
+        '<button class="pt-btn">Export Excel</button>' +
+      '</div>' +
+      kanbanHTML(TASKS),
+    () => {
+      const mine = TASKS.filter(t => t.assignees.includes('manasi'));
+      const display = mine.length ? mine : TASKS.slice(0,3);
+      return '' +
+        '<div class="pt-section-title">My tasks</div>' +
+        '<div class="pt-section-sub">Tasks where I\'m a Person Responsible · across all teams</div>' +
+        kanbanHTML(display) +
+        (!mine.length ? '<div class="pt-helper" style="margin-top:10px;">Showing sample tasks — Manasi has no direct assignments in this demo dataset.</div>' : '');
+    },
+    () => '' +
+      '<div class="pt-section-title">Audit · Samanvay – Engg Memory</div>' +
+      '<div class="pt-section-sub">Changes in your team only · last 7 days</div>' +
+      '<table class="pt-table">' +
+        '<thead><tr><th>When</th><th>Who</th><th>What</th><th>Task</th></tr></thead>' +
+        '<tbody>' +
+          '<tr><td>10m ago</td><td>Sanjana</td><td>moved to Done</td><td>Luggi › Bulk select bug</td></tr>' +
+          '<tr><td>2h ago</td><td>You</td><td>marked Important</td><td>Luggi › API bug</td></tr>' +
+          '<tr><td>5h ago</td><td>Sanjana</td><td>added remark</td><td>Luggi › Frontend filter polish</td></tr>' +
+          '<tr><td>1d ago</td><td>You</td><td>reassigned</td><td>Saipem › Vault review → Priyanka</td></tr>' +
+          '<tr><td>2d ago</td><td>Priyanka</td><td>moved to In Progress</td><td>Saipem › Vault API upgrade</td></tr>' +
+        '</tbody>' +
+      '</table>'
+  ];
+
+  // ------------ USER VIEWS ------------
+  const userViews = [
+    () => {
+      const mine = TASKS.filter(t => t.assignees.includes('sanjana'));
+      return '' +
+        '<div class="pt-section-title">My tasks</div>' +
+        '<div class="pt-section-sub">Tasks assigned to me · drag between columns to update status</div>' +
+        '<div class="pt-row-actions">' +
+          '<button class="pt-btn">All teams ▾</button>' +
+          '<button class="pt-btn" disabled title="Only Manager can create tasks">+ New task</button>' +
+        '</div>' +
+        kanbanHTML(mine) +
+        '<hr class="pt-section-divider" />' +
+        '<div class="pt-helper">' +
+          'As a User you can: change status of your own tasks · log actual hours when marking Done · add remarks · @mention your Manager.<br/>' +
+          'You cannot: edit description, priority, dates, or assignment. Ask your Manager via remark.' +
+        '</div>';
+    },
+    () => '' +
+      '<div class="pt-section-title">Team boards <span class="pt-readonly-tag">read only</span></div>' +
+      '<div class="pt-section-sub">Browse other teams\' work · view only · all edit affordances disabled</div>' +
+      '<div class="pt-row-actions">' +
+        '<button class="pt-btn">Samanvay – Engg Memory</button>' +
+        '<button class="pt-btn">Thermax P&ID</button>' +
+        '<button class="pt-btn">Thermax ENIMAX</button>' +
+        '<button class="pt-btn">Support Automation</button>' +
+      '</div>' +
+      kanbanHTML(TASKS, {showImportant:true}) +
+      '<div class="pt-helper" style="margin-top:8px;">Cards are not draggable in this view.</div>'
+  ];
+
+  function render() {
+    renderTopbar();
+    let views;
+    if (currentRole === 'admin') views = adminViews;
+    else if (currentRole === 'manager') views = managerViews;
+    else views = userViews;
+    if (currentTab >= views.length) currentTab = 0;
+    pageEl.innerHTML = views[currentTab]();
+  }
+
+  document.querySelectorAll('.pt-role-btn').forEach(b => {
+    b.onclick = () => {
+      document.querySelectorAll('.pt-role-btn').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      currentRole = b.dataset.role;
+      currentTab = 0;
+      render();
+    };
+  });
+
+  render();
+})();
+</script>
+
+</body>
+</html>
