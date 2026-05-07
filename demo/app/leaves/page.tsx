@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Calendar, Clock, X } from "lucide-react";
+import { Plus, Calendar, Clock, X, Lock } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
-import { LEAVES, type LeaveEntry } from "@/lib/mock";
+import { LEAVES, RESOURCES, type LeaveEntry } from "@/lib/mock";
+import { useRole, ROLE_LABELS } from "@/lib/role";
+import { meName } from "@/lib/access";
 
 const TYPE_COLOR: Record<LeaveEntry["type"], string> = {
   Vacation: "bg-brand-blueBg text-brand-blue",
@@ -13,8 +15,123 @@ const TYPE_COLOR: Record<LeaveEntry["type"], string> = {
 };
 
 export default function LeavesPage() {
+  const [role] = useRole();
   const [open, setOpen] = useState(false);
+  const fullVisibility = role === "Admin" || role === "Coordinator";
+  const me = meName(role);
+
+  const myFirstName = me;
+  const myFullName = RESOURCES.find((r) => r.name.startsWith(me))?.name ?? "";
   const sorted = [...LEAVES].sort((a, b) => a.start.localeCompare(b.start));
+
+  if (fullVisibility) {
+    return <FullLeavesView sorted={sorted} open={open} setOpen={setOpen} />;
+  }
+
+  const myLeaves = sorted.filter((l) => l.resourceName === myFullName);
+  const teamOff = sorted
+    .filter((l) => l.resourceName !== myFullName && l.start >= "2026-05-06")
+    .map((l) => ({
+      name: l.resourceName,
+      start: l.start,
+      end: l.end,
+    }));
+
+  return (
+    <AppShell>
+      <div className="max-w-[1100px] mx-auto px-6 py-8">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="font-heading text-3xl font-semibold">Leaves</h1>
+            <p className="text-sm text-ink-500 mt-1">
+              Your leaves · team availability ·{" "}
+              <span className="font-medium">{ROLE_LABELS[role]}</span>
+            </p>
+          </div>
+          <button onClick={() => setOpen(true)} className="btn-primary">
+            <Plus size={16} className="mr-1.5" /> Request leave
+          </button>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6">
+          <div className="card p-5">
+            <h2 className="font-heading text-lg font-semibold mb-4 flex items-center gap-2">
+              <Calendar size={18} className="text-brand-blue" /> My leaves
+              <span className="text-xs text-ink-500 font-normal ml-auto">
+                {myLeaves.length}
+              </span>
+            </h2>
+            {myLeaves.length === 0 ? (
+              <p className="text-sm text-ink-500 italic">
+                You have no leaves on the calendar. Use "Request leave" above.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {myLeaves.map((l) => (
+                  <LeaveRow key={l.id} l={l} hideName />
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="card p-5">
+            <h2 className="font-heading text-lg font-semibold mb-1 flex items-center gap-2">
+              <Calendar size={18} className="text-brand-blue" /> Team
+              availability
+            </h2>
+            <p className="text-xs text-ink-500 mb-4 flex items-center gap-1.5">
+              <Lock size={11} /> Names & dates only · reasons private
+            </p>
+            {teamOff.length === 0 ? (
+              <p className="text-sm text-ink-500 italic">
+                Everyone's at the desk this period.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {teamOff.map((t, i) => (
+                  <li
+                    key={i}
+                    className="flex items-center gap-3 p-3 rounded border border-ink-200 text-sm"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-ink-100 grid place-items-center text-[10px] font-heading font-medium text-ink-700">
+                      {t.name[0]}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-ink-900 font-medium truncate">
+                        {t.name}
+                      </div>
+                      <div className="text-xs text-ink-500">
+                        {t.start === t.end ? t.start : `${t.start} → ${t.end}`}
+                      </div>
+                    </div>
+                    <span className="pill-grey text-[10px] py-0">Out</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {open && (
+        <RequestLeaveModal
+          onClose={() => setOpen(false)}
+          requesterFirstName={myFirstName}
+        />
+      )}
+    </AppShell>
+  );
+}
+
+function FullLeavesView({
+  sorted,
+  open,
+  setOpen,
+}: {
+  sorted: LeaveEntry[];
+  open: boolean;
+  setOpen: (v: boolean) => void;
+}) {
   const upcoming = sorted.filter((l) => l.start >= "2026-05-06");
   const pending = sorted.filter((l) => !l.approved);
 
@@ -106,9 +223,7 @@ export default function LeavesPage() {
                   </td>
                   <td className="py-2.5 pr-4 text-ink-700">{l.start}</td>
                   <td className="py-2.5 pr-4 text-ink-700">{l.end}</td>
-                  <td className="py-2.5 pr-4 text-ink-500">
-                    {l.note ?? "—"}
-                  </td>
+                  <td className="py-2.5 pr-4 text-ink-500">{l.note ?? "—"}</td>
                   <td className="py-2.5 pr-4">
                     {l.approved ? (
                       <span className="pill-green">Approved</span>
@@ -131,19 +246,25 @@ export default function LeavesPage() {
 function LeaveRow({
   l,
   showActions,
+  hideName,
 }: {
   l: LeaveEntry;
   showActions?: boolean;
+  hideName?: boolean;
 }) {
   return (
     <li className="card p-3 flex items-center gap-3">
-      <div className="w-8 h-8 rounded-full bg-ink-100 grid place-items-center text-[10px] font-heading font-medium text-ink-700">
-        {l.resourceName[0]}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-sm text-ink-900 font-medium truncate">
-          {l.resourceName}
+      {!hideName && (
+        <div className="w-8 h-8 rounded-full bg-ink-100 grid place-items-center text-[10px] font-heading font-medium text-ink-700">
+          {l.resourceName[0]}
         </div>
+      )}
+      <div className="flex-1 min-w-0">
+        {!hideName && (
+          <div className="text-sm text-ink-900 font-medium truncate">
+            {l.resourceName}
+          </div>
+        )}
         <div className="text-xs text-ink-500">
           {l.start === l.end ? l.start : `${l.start} → ${l.end}`}
           {l.note && ` · ${l.note}`}
@@ -154,18 +275,27 @@ function LeaveRow({
       >
         {l.type}
       </span>
+      {l.approved ? (
+        <span className="pill-green text-[10px] py-0">Approved</span>
+      ) : (
+        <span className="pill-yellow text-[10px] py-0">Pending</span>
+      )}
       {showActions && (
-        <div className="flex items-center gap-1">
-          <button className="btn-ghost text-xs px-2 py-1 text-brand-greenText hover:bg-brand-greenBg">
-            Approve
-          </button>
-        </div>
+        <button className="btn-ghost text-xs px-2 py-1 text-brand-greenText hover:bg-brand-greenBg">
+          Approve
+        </button>
       )}
     </li>
   );
 }
 
-function RequestLeaveModal({ onClose }: { onClose: () => void }) {
+function RequestLeaveModal({
+  onClose,
+  requesterFirstName,
+}: {
+  onClose: () => void;
+  requesterFirstName?: string;
+}) {
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-ink-900/40 backdrop-blur-sm p-4">
       <div className="card w-full max-w-md p-6">
@@ -176,7 +306,8 @@ function RequestLeaveModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
         <p className="text-sm text-ink-500 mb-5">
-          Mark yourself off so the team can plan around it.
+          {requesterFirstName ? `${requesterFirstName} — ` : ""}mark yourself
+          off so the team can plan around it.
         </p>
 
         <label className="block text-xs font-medium text-ink-700 mb-1.5">
@@ -216,11 +347,11 @@ function RequestLeaveModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <label className="block text-xs font-medium text-ink-700 mb-1.5">
-          Note (optional)
+          Note (optional · visible to your co-ordinator only)
         </label>
         <textarea
           rows={2}
-          placeholder="Anything your team should know"
+          placeholder="Anything your co-ordinator should know"
           className="w-full px-3 py-2 mb-6 rounded border border-ink-200 text-sm"
         />
 

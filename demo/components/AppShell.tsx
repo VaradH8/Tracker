@@ -15,7 +15,7 @@ import {
   LogOut,
   Briefcase,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Logo } from "./Logo";
 import {
   useRole,
@@ -23,6 +23,7 @@ import {
   ROLE_LABELS,
   landingFor,
 } from "@/lib/role";
+import { canAccess } from "@/lib/access";
 import {
   ADMIN_USER,
   BD_USER,
@@ -48,6 +49,7 @@ const NAV: Record<Role, NavItem[]> = {
     { href: "/my-day", label: "My Day", Icon: Sun },
     { href: "/projects", label: "Projects", Icon: FolderKanban },
     { href: "/my-tasks", label: "My Tasks", Icon: ListTodo },
+    { href: "/resources", label: "Resources", Icon: Users },
     { href: "/leaves", label: "Leaves", Icon: CalendarCheck },
   ],
   BusinessDeveloper: [
@@ -94,7 +96,31 @@ const PROFILE: Record<
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [role] = useRole();
+  const router = useRouter();
+  const pathname = usePathname();
   const items = NAV[role];
+
+  useEffect(() => {
+    if (!canAccess(role, pathname)) {
+      router.replace(landingFor(role));
+    }
+  }, [role, pathname, router]);
+
+  if (!canAccess(role, pathname)) {
+    return (
+      <div className="min-h-screen bg-ink-50 grid place-items-center p-6">
+        <div className="card p-8 max-w-md text-center">
+          <h1 className="font-heading text-xl font-semibold mb-2">
+            Redirecting…
+          </h1>
+          <p className="text-sm text-ink-500">
+            That page isn't available for your role ({ROLE_LABELS[role]}).
+            Taking you somewhere you can work.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-ink-50 flex">
