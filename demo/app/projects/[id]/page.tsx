@@ -25,6 +25,11 @@ import {
 } from "@/lib/mock";
 import { useTasks } from "@/lib/tasks-store";
 import { useRole } from "@/lib/role";
+import {
+  canExportData,
+  canSeeProjectAudit,
+  canSeeProjectFinancials,
+} from "@/lib/access";
 
 const COLUMNS: { id: Status; title: string; accent: string }[] = [
   { id: "To Do", title: "To Do", accent: "bg-ink-400" },
@@ -45,8 +50,11 @@ export default function ProjectDetailPage({
   const project = projectById(projectId);
   if (!project) notFound();
 
-  const [tab, setTab] = useState<Tab>("tasks");
   const [role] = useRole();
+  const showFinancials = canSeeProjectFinancials(role);
+  const showAudit = canSeeProjectAudit(role);
+  const showExport = canExportData(role);
+  const [tab, setTab] = useState<Tab>("tasks");
   const { forProject, setStatus, addTask } = useTasks();
 
   const client = clientById(project.clientId);
@@ -54,6 +62,10 @@ export default function ProjectDetailPage({
   const canEdit = role === "Admin" || role === "Coordinator";
 
   const projectAudit = AUDIT_LOG.filter((a) => a.scope === project.name);
+
+  const tabs: Tab[] = ["tasks", "details"];
+  if (showAudit) tabs.push("history");
+  const activeTab = tabs.includes(tab) ? tab : "tasks";
 
   return (
     <AppShell>
@@ -83,9 +95,11 @@ export default function ProjectDetailPage({
             )}
           </div>
           <div className="flex items-center gap-2">
-            <button className="btn-ghost border border-ink-200">
-              <Download size={16} className="mr-1.5" /> Export Excel
-            </button>
+            {showExport && (
+              <button className="btn-ghost border border-ink-200">
+                <Download size={16} className="mr-1.5" /> Export Excel
+              </button>
+            )}
             {canEdit && (
               <button className="btn-primary">
                 <Plus size={16} className="mr-1.5" /> New task
@@ -94,23 +108,29 @@ export default function ProjectDetailPage({
           </div>
         </div>
 
-        <div className="grid md:grid-cols-4 gap-4 mb-6">
+        <div
+          className={`grid gap-4 mb-6 ${
+            showFinancials ? "md:grid-cols-4" : "md:grid-cols-3"
+          }`}
+        >
           <Stat
             label="Progress"
             value={`${project.progress}%`}
             sub="of plan"
             tone="blue"
           />
-          <Stat
-            label="Hours"
-            value={`${project.loggedHours}/${project.budgetHours}`}
-            sub="logged / budget"
-            tone={
-              project.loggedHours > project.budgetHours * 0.9
-                ? "yellow"
-                : "default"
-            }
-          />
+          {showFinancials && (
+            <Stat
+              label="Hours"
+              value={`${project.loggedHours}/${project.budgetHours}`}
+              sub="logged / budget"
+              tone={
+                project.loggedHours > project.budgetHours * 0.9
+                  ? "yellow"
+                  : "default"
+              }
+            />
+          )}
           <Stat
             label="Tasks"
             value={tasks.length}
@@ -136,12 +156,12 @@ export default function ProjectDetailPage({
         </div>
 
         <div className="border-b border-ink-200 mb-6 flex items-center gap-1">
-          {(["tasks", "details", "history"] as Tab[]).map((t) => (
+          {tabs.map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
               className={
-                tab === t
+                activeTab === t
                   ? "px-4 py-2 text-sm font-medium border-b-2 border-brand-blue text-brand-blue capitalize"
                   : "px-4 py-2 text-sm font-medium text-ink-500 hover:text-ink-900 capitalize"
               }
@@ -151,7 +171,7 @@ export default function ProjectDetailPage({
           ))}
         </div>
 
-        {tab === "tasks" && (
+        {activeTab === "tasks" && (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             {COLUMNS.map((col) => {
               const colTasks = tasks.filter((t) => t.status === col.id);
@@ -187,7 +207,7 @@ export default function ProjectDetailPage({
           </div>
         )}
 
-        {tab === "details" && client && (
+        {activeTab === "details" && client && (
           <div className="grid lg:grid-cols-3 gap-6">
             <section className="lg:col-span-2 space-y-6">
               <div className="card p-6">
@@ -201,13 +221,17 @@ export default function ProjectDetailPage({
 
               <div className="card p-6">
                 <h2 className="font-heading text-lg font-semibold mb-3">
-                  Schedule & budget
+                  {showFinancials ? "Schedule & budget" : "Schedule"}
                 </h2>
                 <dl className="grid sm:grid-cols-2 gap-4 text-sm">
                   <Row icon={<Calendar size={14} />} label="Start" value={project.startDate} />
                   <Row icon={<Calendar size={14} />} label="Target" value={project.targetDate} />
-                  <Row icon={<Clock size={14} />} label="Budget" value={`${project.budgetHours} hrs`} />
-                  <Row icon={<Clock size={14} />} label="Logged" value={`${project.loggedHours} hrs`} />
+                  {showFinancials && (
+                    <>
+                      <Row icon={<Clock size={14} />} label="Budget" value={`${project.budgetHours} hrs`} />
+                      <Row icon={<Clock size={14} />} label="Logged" value={`${project.loggedHours} hrs`} />
+                    </>
+                  )}
                   <Row icon={<Users size={14} />} label="Co-ordinator" value={project.coordinator} />
                   <Row icon={<Users size={14} />} label="Business Developer" value={project.bd} />
                 </dl>
@@ -257,7 +281,7 @@ export default function ProjectDetailPage({
           </div>
         )}
 
-        {tab === "history" && (
+        {activeTab === "history" && showAudit && (
           <div className="card p-6">
             <div className="flex items-center gap-2 mb-4">
               <History size={18} className="text-brand-blue" />

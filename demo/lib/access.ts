@@ -1,7 +1,31 @@
 import type { Role } from "./role";
 
+export function canSeeProjectFinancials(role: Role): boolean {
+  return role !== "Developer";
+}
+
+export function canSeeProjectAudit(role: Role): boolean {
+  return role === "Admin" || role === "Coordinator";
+}
+
+export function canExportData(role: Role): boolean {
+  return role !== "Developer";
+}
+
+export function canSeeRemarkAuthor(role: Role, isAssignee: boolean): boolean {
+  return role === "Admin" || role === "Coordinator" || isAssignee;
+}
+
 const ALLOWED: Record<Role, string[]> = {
-  Admin: ["*"],
+  Admin: [
+    "/dashboard",
+    "/projects",
+    "/resources",
+    "/clients",
+    "/leaves",
+    "/settings",
+    "/profile",
+  ],
   Coordinator: [
     "/my-day",
     "/my-tasks",
@@ -16,7 +40,6 @@ const ALLOWED: Record<Role, string[]> = {
 
 export function canAccess(role: Role, pathname: string): boolean {
   const rules = ALLOWED[role];
-  if (rules.includes("*")) return true;
   return rules.some(
     (prefix) => pathname === prefix || pathname.startsWith(prefix + "/"),
   );

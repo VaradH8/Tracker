@@ -21,6 +21,7 @@ import {
 import { useTasks } from "@/lib/tasks-store";
 import { canManageProjects } from "@/lib/role";
 import { useRole } from "@/lib/role";
+import { canSeeProjectFinancials } from "@/lib/access";
 
 const FILTERS: { id: ProjectStatus | "All"; label: string }[] = [
   { id: "All", label: "All" },
@@ -34,6 +35,7 @@ export default function ProjectsPage() {
   const [filter, setFilter] = useState<ProjectStatus | "All">("All");
   const [query, setQuery] = useState("");
   const [role] = useRole();
+  const showFinancials = canSeeProjectFinancials(role);
   const { tasks } = useTasks();
 
   const visible = PROJECTS.filter(
@@ -160,10 +162,12 @@ export default function ProjectsPage() {
                         <UsersIcon size={11} />
                         {p.coordinator}
                       </span>
-                      <span className="inline-flex items-center gap-1">
-                        <Clock size={11} />
-                        {p.loggedHours}/{p.budgetHours}h
-                      </span>
+                      {showFinancials && (
+                        <span className="inline-flex items-center gap-1">
+                          <Clock size={11} />
+                          {p.loggedHours}/{p.budgetHours}h
+                        </span>
+                      )}
                     </div>
                     <span className="inline-flex items-center gap-1">
                       <Calendar size={11} />
