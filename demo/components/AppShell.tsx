@@ -96,18 +96,28 @@ const PROFILE: Record<
 };
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const [role] = useRole();
+  const [role, , hydrated] = useRole();
   const router = useRouter();
   const pathname = usePathname();
   const items = NAV[role];
+  const allowed = canAccess(role, pathname);
 
   useEffect(() => {
-    if (!canAccess(role, pathname)) {
+    if (!hydrated) return;
+    if (!allowed) {
       router.replace(landingFor(role));
     }
-  }, [role, pathname, router]);
+  }, [hydrated, allowed, role, pathname, router]);
 
-  if (!canAccess(role, pathname)) {
+  if (!hydrated) {
+    return (
+      <div className="min-h-screen bg-ink-50 grid place-items-center">
+        <div className="text-sm text-ink-400">Loading…</div>
+      </div>
+    );
+  }
+
+  if (!allowed) {
     return (
       <div className="min-h-screen bg-ink-50 grid place-items-center p-6">
         <div className="card p-8 max-w-md text-center">

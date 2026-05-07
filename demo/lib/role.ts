@@ -13,7 +13,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 
 const KEY = "tracker-demo-role";
 
-export function useRole(): [Role, (r: Role) => void] {
+export function useRole(): [Role, (r: Role) => void, boolean] {
   const [role, setRoleState] = useState<Role>("Coordinator");
   const [hydrated, setHydrated] = useState(false);
 
@@ -35,7 +35,7 @@ export function useRole(): [Role, (r: Role) => void] {
     setRoleState(r);
   }
 
-  return [hydrated ? role : "Coordinator", setRole];
+  return [role, setRole, hydrated];
 }
 
 export function landingFor(role: Role): string {
