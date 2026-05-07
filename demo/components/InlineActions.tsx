@@ -14,7 +14,7 @@ import { Popover } from "./Popover";
 import {
   priorityPill,
   statusPill,
-  USERS,
+  RESOURCES,
   type Priority,
   type Status,
   type Task,
@@ -277,7 +277,7 @@ export function AssigneePicker({
           <li className="px-2 py-1 text-xs text-ink-500 font-semibold uppercase tracking-wide">
             Assign
           </li>
-          {USERS.filter((u) => u.status === "Active" && !u.isAdmin).map((u) => {
+          {RESOURCES.filter((u) => u.status === "Active" && !u.isAdmin).map((u) => {
             const first = u.name.split(" ")[0];
             const checked = selected.includes(first);
             return (

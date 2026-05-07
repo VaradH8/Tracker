@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Space_Grotesk, Poppins } from "next/font/google";
 import "./globals.css";
 import { TaskDrawerProvider } from "@/components/TaskDrawerProvider";
@@ -18,9 +18,49 @@ const body = Poppins({
   display: "swap",
 });
 
+const description =
+  "Run projects, see who's doing what, keep the work moving. Role-aware task and resource management for engineering services teams.";
+
 export const metadata: Metadata = {
-  title: "Task Manager",
-  description: "Run projects, see who's doing what, keep the work moving.",
+  title: {
+    default: "Task Manager",
+    template: "%s · Task Manager",
+  },
+  description,
+  applicationName: "Task Manager",
+  authors: [{ name: "Task Manager" }],
+  keywords: [
+    "task manager",
+    "project tracker",
+    "resource management",
+    "kanban",
+    "engineering services",
+  ],
+  openGraph: {
+    title: "Task Manager",
+    description,
+    type: "website",
+    siteName: "Task Manager",
+  },
+  twitter: {
+    card: "summary",
+    title: "Task Manager",
+    description,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+    },
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#1A73E8",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({

@@ -24,6 +24,7 @@ import {
   landingFor,
 } from "@/lib/role";
 import { canAccess } from "@/lib/access";
+import { DEMO_MODE } from "@/lib/env";
 import {
   ADMIN_USER,
   BD_USER,
@@ -188,44 +189,55 @@ function TopBar() {
         <Logo size="sm" />
       </div>
 
-      <div className="relative">
-        <button
-          onClick={() => setRoleOpen((v) => !v)}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-pill border border-dashed border-ink-200 text-xs text-ink-500 hover:bg-ink-100"
-          title="Demo role switcher"
-        >
-          <span className="text-ink-400">View as</span>
-          <span className="font-medium text-ink-900">
-            {ROLE_LABELS[role]}
-          </span>
-          <ChevronDown size={12} />
-        </button>
-        {roleOpen && (
-          <div
-            className="absolute right-0 mt-2 w-52 card p-1 z-50"
-            onMouseLeave={() => setRoleOpen(false)}
+      {DEMO_MODE && (
+        <>
+          <span
+            className="hidden md:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-pill bg-brand-yellowBg text-brand-yellowText text-[11px] font-medium"
+            title="This build runs on mocked data; role can be switched freely."
           >
-            {(
-              [
-                "Admin",
-                "Coordinator",
-                "BusinessDeveloper",
-                "Developer",
-              ] as Role[]
-            ).map((r) => (
-              <button
-                key={r}
-                onClick={() => switchRole(r)}
-                className={`w-full text-left px-3 py-1.5 rounded text-sm hover:bg-ink-100 ${
-                  role === r ? "bg-brand-blueBg text-brand-blue" : ""
-                }`}
+            <span className="w-1.5 h-1.5 rounded-full bg-brand-yellow" />
+            Demo build
+          </span>
+          <div className="relative">
+            <button
+              onClick={() => setRoleOpen((v) => !v)}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-pill border border-dashed border-ink-200 text-xs text-ink-500 hover:bg-ink-100"
+              title="Demo role switcher"
+            >
+              <span className="text-ink-400">View as</span>
+              <span className="font-medium text-ink-900">
+                {ROLE_LABELS[role]}
+              </span>
+              <ChevronDown size={12} />
+            </button>
+            {roleOpen && (
+              <div
+                className="absolute right-0 mt-2 w-52 card p-1 z-50"
+                onMouseLeave={() => setRoleOpen(false)}
               >
-                {ROLE_LABELS[r]}
-              </button>
-            ))}
+                {(
+                  [
+                    "Admin",
+                    "Coordinator",
+                    "BusinessDeveloper",
+                    "Developer",
+                  ] as Role[]
+                ).map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => switchRole(r)}
+                    className={`w-full text-left px-3 py-1.5 rounded text-sm hover:bg-ink-100 ${
+                      role === r ? "bg-brand-blueBg text-brand-blue" : ""
+                    }`}
+                  >
+                    {ROLE_LABELS[r]}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      )}
 
       <button
         aria-label="Notifications"
