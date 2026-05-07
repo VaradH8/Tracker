@@ -21,7 +21,7 @@ import {
 import { useTasks } from "@/lib/tasks-store";
 import { canManageProjects } from "@/lib/role";
 import { useRole } from "@/lib/role";
-import { canSeeProjectFinancials } from "@/lib/access";
+import { canSeeProjectFinancials, visibleProjects } from "@/lib/access";
 
 const FILTERS: { id: ProjectStatus | "All"; label: string }[] = [
   { id: "All", label: "All" },
@@ -38,16 +38,18 @@ export default function ProjectsPage() {
   const showFinancials = canSeeProjectFinancials(role);
   const { tasks } = useTasks();
 
-  const visible = PROJECTS.filter(
-    (p) => filter === "All" || p.status === filter,
-  ).filter((p) => {
-    if (!query.trim()) return true;
-    const q = query.toLowerCase();
-    return (
-      p.name.toLowerCase().includes(q) ||
-      clientById(p.clientId)?.name.toLowerCase().includes(q)
-    );
-  });
+  const myProjects = visibleProjects(role, PROJECTS, tasks);
+
+  const visible = myProjects
+    .filter((p) => filter === "All" || p.status === filter)
+    .filter((p) => {
+      if (!query.trim()) return true;
+      const q = query.toLowerCase();
+      return (
+        p.name.toLowerCase().includes(q) ||
+        clientById(p.clientId)?.name.toLowerCase().includes(q)
+      );
+    });
 
   return (
     <AppShell>
@@ -56,7 +58,9 @@ export default function ProjectsPage() {
           <div>
             <h1 className="font-heading text-3xl font-semibold">Projects</h1>
             <p className="text-sm text-ink-500 mt-1">
-              {PROJECTS.length} projects across {CLIENTS.length} clients
+              {role === "Admin" || role === "Coordinator"
+                ? `${PROJECTS.length} projects across ${CLIENTS.length} clients`
+                : `${myProjects.length} project${myProjects.length === 1 ? "" : "s"} you're on`}
             </p>
           </div>
           {canManageProjects(role) && (
@@ -96,7 +100,9 @@ export default function ProjectsPage() {
 
         {visible.length === 0 ? (
           <div className="card p-10 text-center text-ink-500">
-            No projects match your filters.
+            {myProjects.length === 0
+              ? "You're not on any projects yet. A co-ordinator can add you."
+              : "No projects match your filters."}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">

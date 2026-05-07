@@ -1,8 +1,8 @@
 "use client";
 
-import { use, useState, type KeyboardEvent } from "react";
+import { use, useEffect, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Building2,
@@ -18,14 +18,16 @@ import { AppShell } from "@/components/AppShell";
 import { TaskCard } from "@/components/TaskCard";
 import {
   AUDIT_LOG,
+  PROJECTS,
   clientById,
   projectById,
   projectStatusPill,
   type Status,
 } from "@/lib/mock";
 import { useTasks } from "@/lib/tasks-store";
-import { useRole } from "@/lib/role";
+import { useRole, landingFor } from "@/lib/role";
 import {
+  canAccessProject,
   canExportData,
   canSeeProjectAudit,
   canSeeProjectFinancials,
@@ -50,12 +52,22 @@ export default function ProjectDetailPage({
   const project = projectById(projectId);
   if (!project) notFound();
 
-  const [role] = useRole();
+  const [role, , hydrated] = useRole();
+  const router = useRouter();
+  const { forProject, addTask, tasks: allTasks } = useTasks();
+
   const showFinancials = canSeeProjectFinancials(role);
   const showAudit = canSeeProjectAudit(role);
   const showExport = canExportData(role);
+  const allowed = canAccessProject(role, projectId, PROJECTS, allTasks);
+
   const [tab, setTab] = useState<Tab>("tasks");
-  const { forProject, setStatus, addTask } = useTasks();
+
+  useEffect(() => {
+    if (hydrated && !allowed) {
+      router.replace(landingFor(role));
+    }
+  }, [hydrated, allowed, role, router]);
 
   const client = clientById(project.clientId);
   const tasks = forProject(projectId);
@@ -66,6 +78,26 @@ export default function ProjectDetailPage({
   const tabs: Tab[] = ["tasks", "details"];
   if (showAudit) tabs.push("history");
   const activeTab = tabs.includes(tab) ? tab : "tasks";
+
+  if (!hydrated || !allowed) {
+    return (
+      <AppShell>
+        <div className="min-h-[60vh] grid place-items-center p-6">
+          <div className="card p-8 max-w-md text-center">
+            <h1 className="font-heading text-xl font-semibold mb-2">
+              {hydrated ? "Not on this project" : "Loading…"}
+            </h1>
+            {hydrated && (
+              <p className="text-sm text-ink-500">
+                You're not assigned to anything on this project. Taking you
+                back.
+              </p>
+            )}
+          </div>
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell>

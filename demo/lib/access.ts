@@ -1,4 +1,5 @@
 import type { Role } from "./role";
+import type { Project, Task } from "./mock";
 
 export function canSeeProjectFinancials(role: Role): boolean {
   return role !== "Developer";
@@ -56,4 +57,36 @@ export function meName(role: Role): string {
     case "Developer":
       return "Sanjana";
   }
+}
+
+export function visibleProjects(
+  role: Role,
+  allProjects: Project[],
+  allTasks: Task[],
+): Project[] {
+  if (role === "Admin" || role === "Coordinator") return allProjects;
+
+  const me = meName(role);
+
+  if (role === "BusinessDeveloper") {
+    return allProjects.filter((p) => p.bd === me);
+  }
+
+  const myProjectIds = new Set(
+    allTasks
+      .filter((t) => t.assignees.includes(me))
+      .map((t) => t.projectId),
+  );
+  return allProjects.filter((p) => myProjectIds.has(p.id));
+}
+
+export function canAccessProject(
+  role: Role,
+  projectId: number,
+  allProjects: Project[],
+  allTasks: Task[],
+): boolean {
+  return visibleProjects(role, allProjects, allTasks).some(
+    (p) => p.id === projectId,
+  );
 }
