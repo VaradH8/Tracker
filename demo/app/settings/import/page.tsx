@@ -8,7 +8,8 @@ import {
   AlertTriangle,
   ChevronRight,
 } from "lucide-react";
-import { TopNav } from "@/components/TopNav";
+import { AppShell } from "@/components/AppShell";
+import { SettingsTabs } from "@/components/SettingsTabs";
 
 type Step = "upload" | "preview" | "done";
 
@@ -19,20 +20,30 @@ const UNMATCHED = [
   { raw: "Manasi K", suggestion: "Manasi Kulkarni" },
 ];
 
-export default function AdminImportPage() {
+export default function SettingsImportPage() {
   const [step, setStep] = useState<Step>("upload");
 
   return (
-    <>
-      <TopNav />
-      <main className="max-w-[1100px] mx-auto px-6 py-8">
+    <AppShell>
+      <div className="max-w-[1100px] mx-auto px-6 py-8">
         <header className="mb-6">
-          <h1 className="font-heading text-2xl font-semibold">Import xlsx</h1>
+          <h1 className="font-heading text-3xl font-semibold">Settings</h1>
           <p className="text-sm text-ink-500 mt-1">
-            Upload <code>Ongoing_Projects.xlsx</code>, reconcile names, confirm.
-            Atomic — nothing persists until you click confirm.
+            Manage users, audit log, imports
           </p>
         </header>
+
+        <SettingsTabs />
+
+        <div className="mb-6">
+          <h2 className="font-heading text-xl font-semibold mb-1">
+            Import xlsx
+          </h2>
+          <p className="text-sm text-ink-500">
+            Upload <code>Ongoing_Projects.xlsx</code>, reconcile names,
+            confirm. Atomic — nothing persists until you click confirm.
+          </p>
+        </div>
 
         <Stepper step={step} />
 
@@ -44,8 +55,8 @@ export default function AdminImportPage() {
           />
         )}
         {step === "done" && <DoneStep onAgain={() => setStep("upload")} />}
-      </main>
-    </>
+      </div>
+    </AppShell>
   );
 }
 
@@ -102,7 +113,7 @@ function UploadStep({ onNext }: { onNext: () => void }) {
       <div className="mt-6 p-4 bg-brand-blueBg rounded-card text-sm text-ink-700">
         <p className="font-medium mb-1">What will happen:</p>
         <ul className="list-disc list-inside space-y-0.5 text-ink-700">
-          <li>System parses each sheet as a Team</li>
+          <li>Each project sheet becomes a Project</li>
           <li>Each row becomes a Task; assignees are matched to existing users</li>
           <li>Unmatched names go to a reconciliation queue (next step)</li>
           <li>Nothing is written until you click Confirm</li>
@@ -122,10 +133,15 @@ function PreviewStep({
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <DryRunStat label="Teams" value={4} note="all new" />
-        <DryRunStat label="Projects" value={7} note="all new" />
+        <DryRunStat label="Clients" value={4} note="all new" />
+        <DryRunStat label="Projects" value={6} note="all new" />
         <DryRunStat label="Tasks" value={42} note="39 valid · 3 warnings" />
-        <DryRunStat label="Names to map" value={4} note="reconcile below" tone="warn" />
+        <DryRunStat
+          label="Names to map"
+          value={4}
+          note="reconcile below"
+          tone="warn"
+        />
       </div>
 
       <div className="card p-5">
@@ -155,9 +171,7 @@ function PreviewStep({
                 className="flex-1 px-3 py-1.5 rounded border border-ink-200 text-sm"
               >
                 {row.suggestion && (
-                  <option value="match">
-                    Match to {row.suggestion}
-                  </option>
+                  <option value="match">Match to {row.suggestion}</option>
                 )}
                 <option value="create">Create new user</option>
                 <option value="skip">Skip (drop these tasks)</option>
@@ -165,29 +179,6 @@ function PreviewStep({
             </div>
           ))}
         </div>
-      </div>
-
-      <div className="card p-5">
-        <h2 className="font-heading text-lg font-semibold mb-3">
-          Warnings ({3})
-        </h2>
-        <ul className="text-sm text-ink-700 space-y-2">
-          <li className="flex gap-2">
-            <AlertTriangle size={14} className="text-brand-yellow mt-0.5 shrink-0" />
-            Sheet "Thermax ENIMAX", row 14: priority "P3" not recognized →
-            defaulting to <span className="font-medium">Medium</span>
-          </li>
-          <li className="flex gap-2">
-            <AlertTriangle size={14} className="text-brand-yellow mt-0.5 shrink-0" />
-            Sheet "POCs", row 4: target_date <code>"TBD"</code> → stored as
-            null
-          </li>
-          <li className="flex gap-2">
-            <AlertTriangle size={14} className="text-brand-yellow mt-0.5 shrink-0" />
-            Sheet "AMC", row 9: effort "8 Hrs(Max)" → parsed as 8 (kept original
-            in <code>effort_note</code>)
-          </li>
-        </ul>
       </div>
 
       <div className="flex justify-between">
@@ -212,16 +203,8 @@ function DoneStep({ onAgain }: { onAgain: () => void }) {
         Import complete
       </h2>
       <p className="text-sm text-ink-500 mb-6">
-        Created 4 teams, 7 projects, 42 tasks. 4 invite emails sent.
+        Created 4 clients, 6 projects, 42 tasks. 4 invite emails sent.
       </p>
-      <div className="grid grid-cols-3 gap-3 max-w-md mx-auto mb-6 text-left">
-        <Stat n={4} label="Teams" />
-        <Stat n={7} label="Projects" />
-        <Stat n={42} label="Tasks" />
-        <Stat n={4} label="Invites sent" />
-        <Stat n={3} label="Warnings" />
-        <Stat n={0} label="Errors" />
-      </div>
       <button onClick={onAgain} className="btn-ghost border border-ink-200">
         Import another file
       </button>
@@ -249,15 +232,6 @@ function DryRunStat({
         {value}
       </div>
       <div className="text-xs text-ink-500 mt-0.5">{note}</div>
-    </div>
-  );
-}
-
-function Stat({ n, label }: { n: number; label: string }) {
-  return (
-    <div className="bg-ink-50 rounded p-3">
-      <div className="font-heading text-xl font-semibold">{n}</div>
-      <div className="text-xs text-ink-500">{label}</div>
     </div>
   );
 }

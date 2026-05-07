@@ -10,30 +10,30 @@ import {
   ArrowRight,
   Sparkles,
 } from "lucide-react";
-import { TopNav } from "@/components/TopNav";
+import { AppShell } from "@/components/AppShell";
 import { StatCard } from "@/components/StatCard";
 import { TaskCard } from "@/components/TaskCard";
 import {
   CURRENT_USER,
-  USER_USER,
+  DEVELOPER_USER,
   RECENT_ACTIVITY,
   type Task,
 } from "@/lib/mock";
 import { useRole } from "@/lib/role";
 import { useTasks } from "@/lib/tasks-store";
 
-const TODAY = "2026-05-05";
+const TODAY = "2026-05-06";
 const isOverdue = (d: string) => d < TODAY;
 const isDueToday = (d: string) => d === TODAY;
 const PRIO_ORDER = { Critical: 0, High: 1, Medium: 2, Low: 3 } as const;
 
 export default function MyDayPage() {
   const [role] = useRole();
-  if (role === "User") return <UserMyDay />;
-  return <ManagerMyDay />;
+  if (role === "Developer") return <DeveloperMyDay />;
+  return <CoordinatorMyDay />;
 }
 
-function ManagerMyDay() {
+function CoordinatorMyDay() {
   const { tasks } = useTasks();
   const myTasks = tasks.filter(
     (t) => t.assignees.includes("Manasi") && t.status !== "Done",
@@ -42,9 +42,7 @@ function ManagerMyDay() {
   const dueToday = myTasks.filter((t) => isDueToday(t.targetDate));
   const overdue = myTasks.filter((t) => isOverdue(t.targetDate));
   const importantMine = myTasks.filter((t) => t.important);
-  const blockedTeam = tasks.filter(
-    (t) => t.team === CURRENT_USER.team && t.status === "Blocked",
-  );
+  const blockedTeam = tasks.filter((t) => t.status === "Blocked");
 
   const myDay = myTasks
     .filter((t) => t.targetDate <= TODAY)
@@ -55,25 +53,15 @@ function ManagerMyDay() {
       return PRIO_ORDER[a.priority] - PRIO_ORDER[b.priority];
     });
 
-  const overdueNoRemark = tasks.filter(
-    (t) =>
-      t.team === CURRENT_USER.team &&
-      t.overdueDays &&
-      t.overdueDays >= 1 &&
-      t.status !== "Done",
-  );
-
   return (
-    <>
-      <TopNav />
-      <main className="max-w-[1400px] mx-auto px-6 py-8">
+    <AppShell>
+      <div className="max-w-[1400px] mx-auto px-6 py-8">
         <header className="mb-6">
           <h1 className="font-heading text-3xl font-semibold">
             Good morning, {CURRENT_USER.firstName}
           </h1>
           <p className="text-sm text-ink-500 mt-1">
-            Tuesday, 5 May 2026 ·{" "}
-            <span className="text-ink-700">{CURRENT_USER.team}</span>
+            Wednesday, 6 May 2026 · Co-ordinator
           </p>
         </header>
 
@@ -101,7 +89,7 @@ function ManagerMyDay() {
             value={blockedTeam.length}
             Icon={Lock}
             variant="red"
-            hint="across teams I manage"
+            hint="across projects I co-ordinate"
           />
         </section>
 
@@ -111,8 +99,8 @@ function ManagerMyDay() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-heading text-lg font-semibold">My Day</h2>
                 <span className="text-xs text-ink-500">
-                  {myDay.length} task{myDay.length === 1 ? "" : "s"} · sorted by
-                  urgency
+                  {myDay.length} task{myDay.length === 1 ? "" : "s"} · sorted
+                  by urgency
                 </span>
               </div>
               <div className="space-y-2">
@@ -133,18 +121,11 @@ function ManagerMyDay() {
                   Things that won't unblock themselves
                 </span>
               </div>
-              <div className="grid md:grid-cols-2 gap-4">
-                <Bucket
-                  title="Blocked by team"
-                  tasks={blockedTeam}
-                  emptyText="No blockers."
-                />
-                <Bucket
-                  title="Overdue, no remark"
-                  tasks={overdueNoRemark}
-                  emptyText="Nothing rotting."
-                />
-              </div>
+              <Bucket
+                title="Blocked tasks"
+                tasks={blockedTeam}
+                emptyText="No blockers."
+              />
             </div>
           </section>
 
@@ -180,7 +161,7 @@ function ManagerMyDay() {
               </h2>
               <div className="space-y-2">
                 <a
-                  href="/team-board"
+                  href="/projects"
                   className="btn-primary w-full justify-start"
                 >
                   <Plus size={16} className="mr-2" /> Plan a task
@@ -189,21 +170,21 @@ function ManagerMyDay() {
                   <Download size={16} className="mr-2" /> Export Excel
                 </button>
                 <a
-                  href="/team-board"
+                  href="/projects"
                   className="btn-ghost w-full justify-start border border-ink-200"
                 >
-                  Open team board <ArrowRight size={14} className="ml-2" />
+                  Open a project <ArrowRight size={14} className="ml-2" />
                 </a>
               </div>
             </div>
           </aside>
         </div>
-      </main>
-    </>
+      </div>
+    </AppShell>
   );
 }
 
-function UserMyDay() {
+function DeveloperMyDay() {
   const { tasks } = useTasks();
   const myTasks = tasks.filter(
     (t) => t.assignees.includes("Sanjana") && t.status !== "Done",
@@ -227,16 +208,14 @@ function UserMyDay() {
     .slice(0, 5);
 
   return (
-    <>
-      <TopNav />
-      <main className="max-w-[1400px] mx-auto px-6 py-8">
+    <AppShell>
+      <div className="max-w-[1400px] mx-auto px-6 py-8">
         <header className="mb-6">
           <h1 className="font-heading text-3xl font-semibold">
-            Good morning, {USER_USER.firstName}
+            Good morning, {DEVELOPER_USER.firstName}
           </h1>
           <p className="text-sm text-ink-500 mt-1">
-            Tuesday, 5 May 2026 ·{" "}
-            <span className="text-ink-700">{USER_USER.team}</span>
+            Wednesday, 6 May 2026 · Developer
           </p>
         </header>
 
@@ -267,7 +246,7 @@ function UserMyDay() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-heading text-lg font-semibold">My Day</h2>
                 <span className="text-xs text-ink-500">
-                  Click any pill or button on a card — no menus, no drawers
+                  Click any pill or button on a card — no menus needed
                 </span>
               </div>
               <div className="space-y-2">
@@ -339,17 +318,17 @@ function UserMyDay() {
                   Open My Tasks <ArrowRight size={14} className="ml-2" />
                 </a>
                 <a
-                  href="/team-board"
+                  href="/projects"
                   className="btn-ghost w-full justify-start border border-ink-200"
                 >
-                  Browse team boards <ArrowRight size={14} className="ml-2" />
+                  Browse projects <ArrowRight size={14} className="ml-2" />
                 </a>
               </div>
             </div>
           </aside>
         </div>
-      </main>
-    </>
+      </div>
+    </AppShell>
   );
 }
 
@@ -374,7 +353,7 @@ function Bucket({
         {tasks.length === 0 ? (
           <p className="text-xs text-ink-400 italic">{emptyText}</p>
         ) : (
-          tasks.slice(0, 3).map((t) => <TaskCard key={t.id} task={t} />)
+          tasks.slice(0, 4).map((t) => <TaskCard key={t.id} task={t} />)
         )}
       </div>
     </div>

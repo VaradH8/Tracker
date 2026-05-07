@@ -1,18 +1,17 @@
 "use client";
 
-import { TopNav } from "@/components/TopNav";
-import { useRole } from "@/lib/role";
+import { AppShell } from "@/components/AppShell";
+import { useRole, ROLE_LABELS } from "@/lib/role";
 
 export default function ProfilePage() {
   const [role] = useRole();
   return (
-    <>
-      <TopNav />
+    <AppShell>
       <main className="max-w-3xl mx-auto px-6 py-8 space-y-6">
         <header>
-          <h1 className="font-heading text-2xl font-semibold">Profile</h1>
+          <h1 className="font-heading text-3xl font-semibold">Profile</h1>
           <p className="text-sm text-ink-500 mt-1">
-            Signed in as <span className="font-medium">{role}</span>
+            Signed in as <span className="font-medium">{ROLE_LABELS[role]}</span>
           </p>
         </header>
 
@@ -40,10 +39,10 @@ export default function ProfilePage() {
           <div className="space-y-2">
             {[
               "Tasks assigned to me",
-              "Manager edits to my tasks",
+              "Co-ordinator edits to my tasks",
               "@mentions in remarks",
               "Daily 9 AM overdue digest",
-              "Weekly Monday team summary (Managers)",
+              "Weekly Monday team summary (Co-ordinators)",
             ].map((label) => (
               <div
                 key={label}
@@ -73,7 +72,7 @@ export default function ProfilePage() {
           </div>
         </section>
       </main>
-    </>
+    </AppShell>
   );
 }
 

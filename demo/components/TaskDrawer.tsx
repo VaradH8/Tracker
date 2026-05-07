@@ -19,11 +19,13 @@ import {
 } from "./InlineActions";
 import { useTasks } from "@/lib/tasks-store";
 import { useRole } from "@/lib/role";
+import { projectById } from "@/lib/mock";
 
 const ROLE_PERSON: Record<string, string> = {
-  Manager: "Manasi",
-  User: "Sanjana",
   Admin: "Manasi",
+  Coordinator: "Manasi",
+  BusinessDeveloper: "Rohit",
+  Developer: "Sanjana",
 };
 
 const AVATAR_COLORS = [
@@ -52,9 +54,10 @@ export function TaskDrawer({
 
   if (!task) return null;
 
-  const me = ROLE_PERSON[role];
+  const me = ROLE_PERSON[role] ?? "Manasi";
   const isAssignee = task.assignees.includes(me);
-  const canEdit = role === "Admin" || role === "Manager";
+  const canEdit = role === "Admin" || role === "Coordinator";
+  const project = projectById(task.projectId);
 
   return (
     <div className="fixed inset-0 z-40 flex">
@@ -70,7 +73,14 @@ export function TaskDrawer({
             onChange={(p) => store.setPriority(task.id, p)}
             readOnly={!canEdit}
           />
-          <span className="pill-grey">{task.project}</span>
+          {project && (
+            <span
+              className="pill-grey truncate max-w-[180px]"
+              title={project.name}
+            >
+              {project.name}
+            </span>
+          )}
           <div className="ml-auto flex items-center gap-1">
             <ImportantToggle
               value={task.important}

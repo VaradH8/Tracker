@@ -1,24 +1,46 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { Search, Download, Filter, ChevronDown, ChevronUp } from "lucide-react";
-import { TopNav } from "@/components/TopNav";
+import {
+  Search,
+  Download,
+  Filter,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
+import { AppShell } from "@/components/AppShell";
+import { SettingsTabs } from "@/components/SettingsTabs";
 import { AUDIT_LOG } from "@/lib/mock";
 
-export default function AdminAuditPage() {
+const ACTION_LABELS: Record<string, string> = {
+  "task.status_change": "Status changed",
+  "task.mark_important": "Marked Important",
+  "task.reassign": "Reassigned",
+  "task.create": "Task created",
+  "project.create": "Project created",
+  "user.invite": "User invited",
+  "user.role_change": "Role changed",
+};
+
+export default function SettingsAuditPage() {
   const [expanded, setExpanded] = useState<number | null>(null);
 
   return (
-    <>
-      <TopNav />
-      <main className="max-w-[1400px] mx-auto px-6 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="font-heading text-2xl font-semibold">Audit Log</h1>
-            <p className="text-sm text-ink-500 mt-1">
-              Every change, every actor · last 7 days
-            </p>
-          </div>
+    <AppShell>
+      <div className="max-w-[1200px] mx-auto px-6 py-8">
+        <header className="mb-6">
+          <h1 className="font-heading text-3xl font-semibold">Settings</h1>
+          <p className="text-sm text-ink-500 mt-1">
+            Manage users, audit log, imports
+          </p>
+        </header>
+
+        <SettingsTabs />
+
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-sm text-ink-500">
+            Every change, every actor · last 7 days
+          </p>
           <button className="btn-ghost border border-ink-200">
             <Download size={16} className="mr-1.5" /> Export CSV
           </button>
@@ -37,9 +59,6 @@ export default function AdminAuditPage() {
           </div>
           <button className="btn-ghost text-xs border border-ink-200">
             <Filter size={14} className="mr-1.5" /> All actors
-          </button>
-          <button className="btn-ghost text-xs border border-ink-200">
-            <Filter size={14} className="mr-1.5" /> All teams
           </button>
           <button className="btn-ghost text-xs border border-ink-200">
             <Filter size={14} className="mr-1.5" /> All actions
@@ -72,11 +91,14 @@ export default function AdminAuditPage() {
                     </td>
                     <td className="py-3 px-3 text-ink-700">{e.actor}</td>
                     <td className="py-3 px-3">
-                      <code className="text-xs font-mono text-brand-blue bg-brand-blueBg px-1.5 py-0.5 rounded">
+                      <span className="text-ink-900 font-medium">
+                        {ACTION_LABELS[e.action] ?? e.action}
+                      </span>
+                      <code className="ml-2 text-[10px] font-mono text-ink-400">
                         {e.action}
                       </code>
                     </td>
-                    <td className="py-3 px-3 text-ink-700">{e.team}</td>
+                    <td className="py-3 px-3 text-ink-700">{e.scope}</td>
                     <td className="py-3 px-3 text-ink-900 max-w-[300px] truncate">
                       {e.taskTitle ?? "—"}
                     </td>
@@ -119,7 +141,7 @@ export default function AdminAuditPage() {
             </tbody>
           </table>
         </div>
-      </main>
-    </>
+      </div>
+    </AppShell>
   );
 }

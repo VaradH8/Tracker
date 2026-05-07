@@ -1,6 +1,6 @@
 "use client";
 
-import { TopNav } from "@/components/TopNav";
+import { AppShell } from "@/components/AppShell";
 import { TaskCard } from "@/components/TaskCard";
 import { type Status } from "@/lib/mock";
 import { useRole } from "@/lib/role";
@@ -13,21 +13,27 @@ const COLUMNS: { id: Status; title: string; accent: string }[] = [
   { id: "Done", title: "Done", accent: "bg-brand-green" },
 ];
 
+const ROLE_PERSON: Record<string, string> = {
+  Admin: "Manasi",
+  Coordinator: "Manasi",
+  BusinessDeveloper: "Rohit",
+  Developer: "Sanjana",
+};
+
 export default function MyTasksPage() {
   const [role] = useRole();
   const { tasks } = useTasks();
 
-  const me = role === "User" ? "Sanjana" : "Manasi";
+  const me = ROLE_PERSON[role] ?? "Manasi";
   const mine = tasks.filter((t) => t.assignees.includes(me));
 
   return (
-    <>
-      <TopNav />
-      <main className="max-w-[1400px] mx-auto px-6 py-8">
+    <AppShell>
+      <div className="max-w-[1400px] mx-auto px-6 py-8">
         <header className="mb-6">
           <h1 className="font-heading text-2xl font-semibold">My Tasks</h1>
           <p className="text-sm text-ink-500 mt-1">
-            All tasks assigned to you, across teams · grouped by status
+            All tasks assigned to you, across projects · grouped by status
           </p>
         </header>
 
@@ -59,13 +65,13 @@ export default function MyTasksPage() {
           })}
         </div>
 
-        {role === "User" && (
+        {role === "Developer" && (
           <p className="text-xs text-ink-400 mt-6 italic text-center">
             Click any pill or button on a card to update status — no menus, no
             drawers needed.
           </p>
         )}
-      </main>
-    </>
+      </div>
+    </AppShell>
   );
 }

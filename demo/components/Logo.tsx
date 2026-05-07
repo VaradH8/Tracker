@@ -17,7 +17,7 @@ export function Logo({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
         ))}
       </div>
       <span className={`font-heading font-semibold ${text} ml-1`}>
-        Project Tracker
+        Task Manager
       </span>
     </div>
   );

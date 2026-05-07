@@ -1,6 +1,7 @@
 "use client";
 
 import type { Task } from "@/lib/mock";
+import { projectById } from "@/lib/mock";
 import { useTaskDrawer } from "./TaskDrawerProvider";
 import { useTasks } from "@/lib/tasks-store";
 import { useRole } from "@/lib/role";
@@ -14,20 +15,28 @@ import {
 } from "./InlineActions";
 
 const ROLE_PERSON: Record<string, string> = {
-  Manager: "Manasi",
-  User: "Sanjana",
   Admin: "Manasi",
+  Coordinator: "Manasi",
+  BusinessDeveloper: "Rohit",
+  Developer: "Sanjana",
 };
 
-export function TaskCard({ task }: { task: Task }) {
+export function TaskCard({
+  task,
+  hideProject = false,
+}: {
+  task: Task;
+  hideProject?: boolean;
+}) {
   const drawer = useTaskDrawer();
   const store = useTasks();
   const [role] = useRole();
 
-  const me = ROLE_PERSON[role];
+  const me = ROLE_PERSON[role] ?? "Manasi";
   const isAssignee = task.assignees.includes(me);
-  const canEdit = role === "Admin" || role === "Manager";
+  const canEdit = role === "Admin" || role === "Coordinator";
   const overdue = !!task.overdueDays && task.status !== "Done";
+  const project = projectById(task.projectId);
 
   const cls = [
     "card p-3 text-left w-full transition-shadow hover:shadow-md",
@@ -39,17 +48,24 @@ export function TaskCard({ task }: { task: Task }) {
 
   return (
     <div className={cls}>
-      <div className="flex items-center gap-1.5 mb-2">
+      <div className="flex items-center gap-1.5 mb-2 flex-wrap">
         <PriorityPicker
           value={task.priority}
           onChange={(p) => store.setPriority(task.id, p)}
           readOnly={!canEdit}
         />
-        <span className="pill-grey">{task.project}</span>
+        {!hideProject && project && (
+          <span
+            className="pill-grey truncate max-w-[160px]"
+            title={project.name}
+          >
+            {project.name}
+          </span>
+        )}
         <div className="ml-auto flex items-center gap-1">
           <ImportantToggle
             value={task.important}
-            onChange={(v) => store.toggleImportant(task.id)}
+            onChange={() => store.toggleImportant(task.id)}
             readOnly={!canEdit}
           />
         </div>

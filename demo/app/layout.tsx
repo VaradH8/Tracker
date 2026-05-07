@@ -19,8 +19,8 @@ const body = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "Project Tracker",
-  description: "Lightweight, role-aware work tracking — MVP demo.",
+  title: "Task Manager",
+  description: "Run projects, see who's doing what, keep the work moving.",
 };
 
 export default function RootLayout({

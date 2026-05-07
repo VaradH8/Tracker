@@ -16,10 +16,9 @@ import {
 
 type AddTaskInput = {
   title: string;
-  team: string;
+  projectId: number;
   status: Status;
   priority?: Priority;
-  project?: string;
   assignees?: string[];
   targetDate?: string;
 };
@@ -27,6 +26,7 @@ type AddTaskInput = {
 type Ctx = {
   tasks: Task[];
   byId: (id: number) => Task | undefined;
+  forProject: (projectId: number) => Task[];
   setStatus: (id: number, status: Status) => void;
   setPriority: (id: number, priority: Priority) => void;
   setTargetDate: (id: number, date: string) => void;
@@ -42,6 +42,11 @@ export function TasksProvider({ children }: { children: ReactNode }) {
 
   const byId = useCallback(
     (id: number) => tasks.find((t) => t.id === id),
+    [tasks],
+  );
+
+  const forProject = useCallback(
+    (projectId: number) => tasks.filter((t) => t.projectId === projectId),
     [tasks],
   );
 
@@ -94,10 +99,9 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       const next: Task = {
         id: Math.max(...prev.map((t) => t.id), 100) + 1,
         title: input.title,
-        team: input.team,
+        projectId: input.projectId,
         status: input.status,
         priority: input.priority ?? "Medium",
-        project: input.project ?? "Internal",
         assignees: input.assignees ?? [],
         targetDate: input.targetDate ?? plusDays(new Date(), 7),
         estimatedHours: null,
@@ -112,6 +116,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       value={{
         tasks,
         byId,
+        forProject,
         setStatus,
         setPriority,
         setTargetDate,
