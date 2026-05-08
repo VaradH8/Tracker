@@ -1,0 +1,148 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  name            String
+  passwordHash    String
+  primaryRole     String
+  isAdmin         Boolean   @default(false)
+  isActive        Boolean   @default(true)
+  designation     String?
+  phone           String?
+  location        String?
+  joined          DateTime?
+  lastLoginAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Performance / efficiency signals
+  hoursLast7      Int       @default(0)
+  hoursLast30     Int       @default(0)
+  capacityPerWeek Int       @default(40)
+  tasksDone30     Int       @default(0)
+  estimateAccuracy Int      @default(100)
+  performance     String    @default("On track")
+  flags           String    @default("[]")
+
+  taskAssignments TaskAssignee[]
+  remarksAuthored Remark[]
+  auditLog        AuditEntry[]   @relation("AuditActor")
+  notifications   Notification[]
+  leaves          Leave[]
+}
+
+model Client {
+  id              Int       @id @default(autoincrement())
+  name            String
+  industry        String
+  primaryContact  String
+  email           String
+  since           DateTime
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  projects        Project[]
+}
+
+model Project {
+  id              Int       @id @default(autoincrement())
+  name            String
+  clientId        Int
+  client          Client    @relation(fields: [clientId], references: [id])
+  status          String
+  coordinatorName String
+  bdName          String
+  startDate       DateTime
+  targetDate      DateTime
+  budgetHours     Int
+  loggedHours     Int       @default(0)
+  progress        Int       @default(0)
+  health          String    @default("green")
+  description     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  tasks           Task[]
+}
+
+model Task {
+  id              Int       @id @default(autoincrement())
+  title           String
+  description     String?
+  projectId       Int
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  priority        String
+  status          String    @default("To Do")
+  startDate       DateTime?
+  targetDate      DateTime
+  estimatedHours  Float?
+  actualHours     Float?
+  important       Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  assignees       TaskAssignee[]
+  remarks         Remark[]
+}
+
+model TaskAssignee {
+  taskId          Int
+  task            Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime  @default(now())
+
+  @@id([taskId, userId])
+}
+
+model Remark {
+  id              Int       @id @default(autoincrement())
+  taskId          Int
+  task            Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorId        String
+  author          User      @relation(fields: [authorId], references: [id])
+  body            String
+  createdAt       DateTime  @default(now())
+}
+
+model AuditEntry {
+  id              Int       @id @default(autoincrement())
+  actorId         String
+  actor           User      @relation("AuditActor", fields: [actorId], references: [id])
+  action          String
+  scope           String?
+  taskTitle       String?
+  before          String?
+  after           String?
+  createdAt       DateTime  @default(now())
+}
+
+model Notification {
+  id              Int       @id @default(autoincrement())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind            String
+  payload         String?
+  isRead          Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+}
+
+model Leave {
+  id              Int       @id @default(autoincrement())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  start           DateTime
+  end             DateTime
+  type            String
+  note            String?
+  approved        Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+}
