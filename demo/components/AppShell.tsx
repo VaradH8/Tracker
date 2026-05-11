@@ -227,7 +227,11 @@ function TopBar({ role }: { role: Role }) {
             )}
             <hr className="my-1 border-ink-100" />
             <button
-              onClick={() => signOut({ callbackUrl: "/login" })}
+              onClick={async () => {
+                setProfileOpen(false);
+                await signOut({ redirect: false });
+                window.location.assign("/login");
+              }}
               className="flex items-center gap-2 px-3 py-1.5 rounded text-sm text-ink-700 hover:bg-ink-100 w-full text-left"
             >
               <LogOut size={14} /> Sign out
