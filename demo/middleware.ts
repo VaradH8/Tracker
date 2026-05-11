@@ -1,5 +1,8 @@
+import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { authConfig } from "./auth.config";
+
+const { auth } = NextAuth(authConfig);
 
 const PUBLIC_PATHS = ["/", "/login", "/api/auth"];
 
@@ -7,6 +10,20 @@ function isPublic(path: string): boolean {
   return PUBLIC_PATHS.some(
     (p) => path === p || path.startsWith(p + "/"),
   );
+}
+
+function landingFor(role: string | undefined): string {
+  switch (role) {
+    case "Admin":
+      return "/dashboard";
+    case "BusinessDeveloper":
+      return "/projects";
+    case "Developer":
+      return "/my-tasks";
+    case "Coordinator":
+    default:
+      return "/my-day";
+  }
 }
 
 export default auth((req) => {
@@ -20,7 +37,8 @@ export default auth((req) => {
   }
 
   if (isAuthed && path === "/login") {
-    return NextResponse.redirect(new URL("/dashboard", req.url));
+    const role = (req.auth?.user as { role?: string } | undefined)?.role;
+    return NextResponse.redirect(new URL(landingFor(role), req.url));
   }
 
   return NextResponse.next();

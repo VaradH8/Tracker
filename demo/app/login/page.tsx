@@ -2,14 +2,22 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { signIn, getSession } from "next-auth/react";
+import { signIn } from "next-auth/react";
 import { AlertCircle } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { landingFor, type Role } from "@/lib/role";
+
+type TestAccount = { label: string; email: string };
+
+const TEST_ACCOUNTS: TestAccount[] = [
+  { label: "Admin", email: "varad@example.com" },
+  { label: "Co-ordinator", email: "manasi@example.com" },
+  { label: "Business Developer", email: "rohit@example.com" },
+  { label: "Developer", email: "sanjana@example.com" },
+];
+
+const DEFAULT_PASSWORD = "ChangeMe2026!";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -32,10 +40,15 @@ export default function LoginPage() {
       return;
     }
 
-    const session = await getSession();
-    const role =
-      ((session?.user as { role?: Role } | undefined)?.role) ?? "Coordinator";
-    router.replace(landingFor(role));
+    // Hard navigation guarantees the new session cookie is read on the next
+    // request, and the middleware routes us to the correct role landing.
+    window.location.assign("/");
+  }
+
+  function quickFill(account: TestAccount) {
+    setEmail(account.email);
+    setPassword(DEFAULT_PASSWORD);
+    setError(null);
   }
 
   return (
@@ -124,6 +137,29 @@ export default function LoginPage() {
           <p className="text-xs text-ink-400 mt-6 text-center">
             Need access? Ask your Admin to send an invite.
           </p>
+
+          <div className="mt-8 pt-6 border-t border-ink-100">
+            <p className="text-[11px] text-ink-500 mb-2 font-semibold uppercase tracking-wide">
+              Seeded accounts (pre-launch)
+            </p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {TEST_ACCOUNTS.map((a) => (
+                <button
+                  key={a.email}
+                  type="button"
+                  onClick={() => quickFill(a)}
+                  className="text-left px-2 py-1.5 rounded border border-ink-200 hover:border-brand-blue hover:bg-brand-blueBg/30 text-[11px]"
+                >
+                  <div className="text-ink-900 font-medium">{a.label}</div>
+                  <div className="text-ink-500 truncate">{a.email}</div>
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-ink-400 mt-2">
+              Click a tile to autofill · default password{" "}
+              <code>{DEFAULT_PASSWORD}</code>
+            </p>
+          </div>
         </form>
       </div>
     </main>
