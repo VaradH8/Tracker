@@ -64,7 +64,7 @@ export default function HomePage() {
             </a>
           </div>
           <p className="text-xs text-ink-500 mt-6">
-            Demo build · pick any role at sign-in · no credentials required
+            Need an account? Ask your Admin to send an invite.
           </p>
         </div>
 
@@ -173,7 +173,7 @@ export default function HomePage() {
       <footer className="border-t border-ink-200">
         <div className="max-w-[1200px] mx-auto px-6 py-8 flex items-center justify-between text-sm text-ink-500">
           <Logo size="sm" />
-          <p>© 2026 · Demo build</p>
+          <p>© 2026 · Task Manager</p>
         </div>
       </footer>
     </div>

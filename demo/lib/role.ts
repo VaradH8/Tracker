@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 
 export type Role = "Admin" | "Coordinator" | "BusinessDeveloper" | "Developer";
 
@@ -11,31 +11,28 @@ export const ROLE_LABELS: Record<Role, string> = {
   Developer: "Developer",
 };
 
-const KEY = "tracker-demo-role";
+const VALID: Role[] = ["Admin", "Coordinator", "BusinessDeveloper", "Developer"];
 
+function isRole(r: unknown): r is Role {
+  return typeof r === "string" && (VALID as string[]).includes(r);
+}
+
+/**
+ * useRole returns the current user's role from the NextAuth session.
+ * The second tuple element is a no-op setRole (kept for source-compat with
+ * earlier code that destructured a setter). Role changes only happen via
+ * sign-in / sign-out now.
+ */
 export function useRole(): [Role, (r: Role) => void, boolean] {
-  const [role, setRoleState] = useState<Role>("Coordinator");
-  const [hydrated, setHydrated] = useState(false);
+  const { data: session, status } = useSession();
+  const hydrated = status !== "loading";
+  const sessionRole = (session?.user as { role?: unknown } | undefined)?.role;
+  const role: Role = isRole(sessionRole) ? sessionRole : "Coordinator";
+  return [role, noop, hydrated];
+}
 
-  useEffect(() => {
-    const stored = window.localStorage.getItem(KEY) as Role | null;
-    if (
-      stored === "Admin" ||
-      stored === "Coordinator" ||
-      stored === "BusinessDeveloper" ||
-      stored === "Developer"
-    ) {
-      setRoleState(stored);
-    }
-    setHydrated(true);
-  }, []);
-
-  function setRole(r: Role) {
-    window.localStorage.setItem(KEY, r);
-    setRoleState(r);
-  }
-
-  return [role, setRole, hydrated];
+function noop() {
+  /* role is read-only; controlled by sign-in */
 }
 
 export function landingFor(role: Role): string {

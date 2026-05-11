@@ -1,5 +1,5 @@
 {
-  "name": "tracker-demo",
+  "name": "tracker",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -27,12 +27,14 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22.9.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.14",
+    "tsx": "^4.21.0",
     "typescript": "^5.6.3"
   }
 }

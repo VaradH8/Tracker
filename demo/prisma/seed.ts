@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
-const DEFAULT_PASSWORD = "demo1234";
+const DEFAULT_PASSWORD = "ChangeMe2026!";
 
 type UserSeed = {
   email: string;
@@ -56,7 +56,8 @@ type TaskSeed = {
   projectName: string;
   priority: "Critical" | "High" | "Medium" | "Low";
   status: "To Do" | "In Progress" | "Blocked" | "Done";
-  assigneeFirstNames: string[];
+  responsibleFirstName: string; // Person Responsible — the assigner
+  assigneeFirstNames: string[]; // Person Accountable — the doers
   startDate?: string;
   targetDate: string;
   estimatedHours?: number;
@@ -66,14 +67,14 @@ type TaskSeed = {
 };
 
 const TASKS: TaskSeed[] = [
-  { title: "Comment Classification API — empty response on 0 results", description: "API returns 200 with `null` instead of `[]`. Frontend crashes on `.map`.", projectName: "Saipem — Comment Classifier v2", priority: "Critical", status: "In Progress", assigneeFirstNames: ["Manasi", "Abhishek"], startDate: "2026-04-30", targetDate: "2026-05-04", estimatedHours: 6, actualHours: 4, important: true, remarks: [{ authorFirstName: "Manasi", body: "@Abhishek please update — promised this for the demo.", offsetMinutes: -120 }, { authorFirstName: "Abhishek", body: "Identified — empty-result branch never gets hit. Pushing fix this afternoon.", offsetMinutes: -60 }] },
-  { title: "Bulk select — checkbox state desync on filter change", description: "Selected row IDs persist when user changes filter; visible rows differ.", projectName: "Lurgi — Bulk Select & Filters", priority: "High", status: "Blocked", assigneeFirstNames: ["Sanjana"], targetDate: "2026-05-04", estimatedHours: 4, important: false, remarks: [{ authorFirstName: "Sanjana", body: "Blocked — need design call on whether selection should clear on filter change.", offsetMinutes: -1440 }] },
-  { title: "Migrate engineering memory store to v2 schema", projectName: "Thermax — Engineering Memory v2", priority: "High", status: "To Do", assigneeFirstNames: ["Manasi", "Adil"], targetDate: "2026-05-12", estimatedHours: 16, important: true },
-  { title: "Update onboarding deck for new hires", projectName: "Internal — Onboarding Refresh", priority: "Low", status: "To Do", assigneeFirstNames: ["Sanjana"], targetDate: "2026-05-06", estimatedHours: 2, important: false },
-  { title: "Auto-tag mechanical drawings on upload", projectName: "Saipem — Comment Classifier v2", priority: "Medium", status: "Done", assigneeFirstNames: ["Abhishek"], targetDate: "2026-05-02", estimatedHours: 5, actualHours: 6, important: false },
-  { title: "Replace legacy P&ID symbol library", projectName: "Thermax — P&ID Symbol Library", priority: "High", status: "In Progress", assigneeFirstNames: ["Priyanka"], targetDate: "2026-05-09", estimatedHours: 8, actualHours: 5, important: true },
-  { title: "QA regression on heat-balance calc engine", projectName: "Thermax — ENIMAX v3 QA", priority: "Critical", status: "Blocked", assigneeFirstNames: ["Kiran"], targetDate: "2026-05-03", estimatedHours: 6, important: true },
-  { title: "Spec out the QA review queue UX", projectName: "Saipem — Comment Classifier v2", priority: "Medium", status: "To Do", assigneeFirstNames: ["Sanjana"], targetDate: "2026-05-08", estimatedHours: 3, important: false },
+  { title: "Comment Classification API — empty response on 0 results", description: "API returns 200 with `null` instead of `[]`. Frontend crashes on `.map`.", projectName: "Saipem — Comment Classifier v2", priority: "Critical", status: "In Progress", responsibleFirstName: "Manasi", assigneeFirstNames: ["Manasi", "Abhishek"], startDate: "2026-04-30", targetDate: "2026-05-04", estimatedHours: 6, actualHours: 4, important: true, remarks: [{ authorFirstName: "Manasi", body: "@Abhishek please update — promised this for the client call.", offsetMinutes: -120 }, { authorFirstName: "Abhishek", body: "Identified — empty-result branch never gets hit. Pushing fix this afternoon.", offsetMinutes: -60 }] },
+  { title: "Bulk select — checkbox state desync on filter change", description: "Selected row IDs persist when user changes filter; visible rows differ.", projectName: "Lurgi — Bulk Select & Filters", priority: "High", status: "Blocked", responsibleFirstName: "Manasi", assigneeFirstNames: ["Sanjana"], targetDate: "2026-05-04", estimatedHours: 4, important: false, remarks: [{ authorFirstName: "Sanjana", body: "Blocked — need design call on whether selection should clear on filter change.", offsetMinutes: -1440 }] },
+  { title: "Migrate engineering memory store to v2 schema", projectName: "Thermax — Engineering Memory v2", priority: "High", status: "To Do", responsibleFirstName: "Manasi", assigneeFirstNames: ["Manasi", "Adil"], targetDate: "2026-05-12", estimatedHours: 16, important: true },
+  { title: "Update onboarding deck for new hires", projectName: "Internal — Onboarding Refresh", priority: "Low", status: "To Do", responsibleFirstName: "Manasi", assigneeFirstNames: ["Sanjana"], targetDate: "2026-05-06", estimatedHours: 2, important: false },
+  { title: "Auto-tag mechanical drawings on upload", projectName: "Saipem — Comment Classifier v2", priority: "Medium", status: "Done", responsibleFirstName: "Manasi", assigneeFirstNames: ["Abhishek"], targetDate: "2026-05-02", estimatedHours: 5, actualHours: 6, important: false },
+  { title: "Replace legacy P&ID symbol library", projectName: "Thermax — P&ID Symbol Library", priority: "High", status: "In Progress", responsibleFirstName: "Priyanka", assigneeFirstNames: ["Priyanka"], targetDate: "2026-05-09", estimatedHours: 8, actualHours: 5, important: true },
+  { title: "QA regression on heat-balance calc engine", projectName: "Thermax — ENIMAX v3 QA", priority: "Critical", status: "Blocked", responsibleFirstName: "Kiran", assigneeFirstNames: ["Kiran"], targetDate: "2026-05-03", estimatedHours: 6, important: true },
+  { title: "Spec out the QA review queue UX", projectName: "Saipem — Comment Classifier v2", priority: "Medium", status: "To Do", responsibleFirstName: "Manasi", assigneeFirstNames: ["Sanjana"], targetDate: "2026-05-08", estimatedHours: 3, important: false },
 ];
 
 const LEAVES = [
@@ -173,6 +174,7 @@ async function main() {
   console.log("Seeding tasks + assignees + remarks…");
   const now = new Date();
   for (const t of TASKS) {
+    const responsibleId = userByFirst[t.responsibleFirstName] ?? null;
     const task = await prisma.task.create({
       data: {
         title: t.title,
@@ -185,6 +187,7 @@ async function main() {
         estimatedHours: t.estimatedHours,
         actualHours: t.actualHours,
         important: t.important,
+        responsibleId,
       },
     });
     for (const first of t.assigneeFirstNames) {

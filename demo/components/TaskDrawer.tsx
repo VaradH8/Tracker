@@ -5,6 +5,7 @@ import {
   Calendar,
   Clock,
   Users,
+  UserCheck,
   MessageSquare,
   History,
 } from "lucide-react";
@@ -139,7 +140,26 @@ export function TaskDrawer({
             </Field>
           )}
 
-          <Field label="Person Responsible" icon={<Users size={14} />}>
+          <Field
+            label="Person Responsible"
+            icon={<UserCheck size={14} />}
+            hint="The person who assigned this task"
+          >
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-full bg-brand-blue text-white grid place-items-center text-[10px] font-heading font-medium shrink-0">
+                {(task.responsible ?? "?")[0]}
+              </div>
+              <span className="text-sm text-ink-900 font-medium">
+                {task.responsible ?? "Unassigned"}
+              </span>
+            </div>
+          </Field>
+
+          <Field
+            label="Person Accountable"
+            icon={<Users size={14} />}
+            hint="The person(s) doing the work"
+          >
             <div className="flex items-center gap-2">
               <AssigneePicker
                 selected={task.assignees}
@@ -255,18 +275,21 @@ export function TaskDrawer({
 function Field({
   label,
   icon,
+  hint,
   children,
 }: {
   label: string;
   icon?: React.ReactNode;
+  hint?: string;
   children: React.ReactNode;
 }) {
   return (
     <div>
-      <label className="flex items-center gap-1.5 text-xs font-semibold text-ink-700 uppercase tracking-wide mb-1.5">
+      <label className="flex items-center gap-1.5 text-xs font-semibold text-ink-700 uppercase tracking-wide mb-1">
         {icon}
         {label}
       </label>
+      {hint && <p className="text-[11px] text-ink-400 mb-1.5">{hint}</p>}
       {children}
     </div>
   );

@@ -3,6 +3,7 @@ import { Space_Grotesk, Poppins } from "next/font/google";
 import "./globals.css";
 import { TaskDrawerProvider } from "@/components/TaskDrawerProvider";
 import { TasksProvider } from "@/lib/tasks-store";
+import { Providers } from "@/components/Providers";
 
 const heading = Space_Grotesk({
   subsets: ["latin"],
@@ -71,9 +72,11 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${heading.variable} ${body.variable}`}>
       <body>
-        <TasksProvider>
-          <TaskDrawerProvider>{children}</TaskDrawerProvider>
-        </TasksProvider>
+        <Providers>
+          <TasksProvider>
+            <TaskDrawerProvider>{children}</TaskDrawerProvider>
+          </TasksProvider>
+        </Providers>
       </body>
     </html>
   );

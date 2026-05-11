@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { signOut, useSession } from "next-auth/react";
 import {
   LayoutDashboard,
   FolderKanban,
@@ -24,13 +25,6 @@ import {
   landingFor,
 } from "@/lib/role";
 import { canAccess } from "@/lib/access";
-import { DEMO_MODE } from "@/lib/env";
-import {
-  ADMIN_USER,
-  BD_USER,
-  CURRENT_USER,
-  DEVELOPER_USER,
-} from "@/lib/mock";
 
 type NavItem = {
   href: string;
@@ -65,35 +59,17 @@ const NAV: Record<Role, NavItem[]> = {
   ],
 };
 
-const PROFILE: Record<
-  Role,
-  { name: string; first: string; initials: string; color: string }
-> = {
-  Admin: {
-    name: ADMIN_USER.name,
-    first: ADMIN_USER.firstName,
-    initials: "VH",
-    color: "bg-brand-red",
-  },
-  Coordinator: {
-    name: CURRENT_USER.name,
-    first: CURRENT_USER.firstName,
-    initials: "MK",
-    color: "bg-brand-blue",
-  },
-  BusinessDeveloper: {
-    name: BD_USER.name,
-    first: BD_USER.firstName,
-    initials: "RM",
-    color: "bg-brand-yellow",
-  },
-  Developer: {
-    name: DEVELOPER_USER.name,
-    first: DEVELOPER_USER.firstName,
-    initials: "SR",
-    color: "bg-brand-green",
-  },
+const ROLE_COLOR: Record<Role, string> = {
+  Admin: "bg-brand-red",
+  Coordinator: "bg-brand-blue",
+  BusinessDeveloper: "bg-brand-yellow",
+  Developer: "bg-brand-green",
 };
+
+function initialsFor(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase();
+}
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [role, , hydrated] = useRole();
@@ -137,7 +113,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-ink-50 flex">
       <Sidebar items={items} />
       <div className="flex-1 min-w-0 flex flex-col">
-        <TopBar />
+        <TopBar role={role} />
         <main className="flex-1">{children}</main>
       </div>
     </div>
@@ -174,80 +150,26 @@ function Sidebar({ items }: { items: NavItem[] }) {
         })}
       </nav>
       <div className="px-5 py-3 border-t border-ink-200 text-xs text-ink-400">
-        v0.2.0 · demo
+        v1.0
       </div>
     </aside>
   );
 }
 
-function TopBar() {
-  const router = useRouter();
-  const [role, setRole] = useRole();
+function TopBar({ role }: { role: Role }) {
+  const { data: session } = useSession();
   const [profileOpen, setProfileOpen] = useState(false);
-  const [roleOpen, setRoleOpen] = useState(false);
-  const profile = PROFILE[role];
 
-  function switchRole(r: Role) {
-    setRole(r);
-    setRoleOpen(false);
-    router.push(landingFor(r));
-  }
+  const name = session?.user?.name ?? ROLE_LABELS[role];
+  const email = session?.user?.email ?? "";
+  const initials = initialsFor(name);
+  const color = ROLE_COLOR[role];
 
   return (
     <header className="h-14 bg-white border-b border-ink-200 flex items-center justify-end gap-2 px-6 sticky top-0 z-30">
       <div className="md:hidden mr-auto">
         <Logo size="sm" />
       </div>
-
-      {DEMO_MODE && (
-        <>
-          <span
-            className="hidden md:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-pill bg-brand-yellowBg text-brand-yellowText text-[11px] font-medium"
-            title="This build runs on mocked data; role can be switched freely."
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-brand-yellow" />
-            Demo build
-          </span>
-          <div className="relative">
-            <button
-              onClick={() => setRoleOpen((v) => !v)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-pill border border-dashed border-ink-200 text-xs text-ink-500 hover:bg-ink-100"
-              title="Demo role switcher"
-            >
-              <span className="text-ink-400">View as</span>
-              <span className="font-medium text-ink-900">
-                {ROLE_LABELS[role]}
-              </span>
-              <ChevronDown size={12} />
-            </button>
-            {roleOpen && (
-              <div
-                className="absolute right-0 mt-2 w-52 card p-1 z-50"
-                onMouseLeave={() => setRoleOpen(false)}
-              >
-                {(
-                  [
-                    "Admin",
-                    "Coordinator",
-                    "BusinessDeveloper",
-                    "Developer",
-                  ] as Role[]
-                ).map((r) => (
-                  <button
-                    key={r}
-                    onClick={() => switchRole(r)}
-                    className={`w-full text-left px-3 py-1.5 rounded text-sm hover:bg-ink-100 ${
-                      role === r ? "bg-brand-blueBg text-brand-blue" : ""
-                    }`}
-                  >
-                    {ROLE_LABELS[r]}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </>
-      )}
 
       <button
         aria-label="Notifications"
@@ -263,12 +185,12 @@ function TopBar() {
           className="flex items-center gap-2 px-2 py-1 rounded hover:bg-ink-100"
         >
           <div
-            className={`w-8 h-8 rounded-full ${profile.color} text-white grid place-items-center font-heading font-medium text-sm`}
+            className={`w-8 h-8 rounded-full ${color} text-white grid place-items-center font-heading font-medium text-sm`}
           >
-            {profile.initials}
+            {initials}
           </div>
           <span className="text-sm text-ink-700 hidden sm:block">
-            {profile.first}
+            {name.split(" ")[0]}
           </span>
           <ChevronDown size={14} className="text-ink-500" />
         </button>
@@ -278,8 +200,11 @@ function TopBar() {
             onMouseLeave={() => setProfileOpen(false)}
           >
             <div className="px-3 py-2 border-b border-ink-100 mb-1">
-              <div className="text-sm font-medium">{profile.name}</div>
-              <div className="text-xs text-ink-500">
+              <div className="text-sm font-medium truncate">{name}</div>
+              {email && (
+                <div className="text-xs text-ink-500 truncate">{email}</div>
+              )}
+              <div className="text-xs text-ink-500 mt-0.5">
                 Signed in as{" "}
                 <span className="font-medium">{ROLE_LABELS[role]}</span>
               </div>
@@ -301,13 +226,12 @@ function TopBar() {
               </Link>
             )}
             <hr className="my-1 border-ink-100" />
-            <Link
-              href="/login"
-              onClick={() => setProfileOpen(false)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded text-sm text-ink-700 hover:bg-ink-100"
+            <button
+              onClick={() => signOut({ callbackUrl: "/login" })}
+              className="flex items-center gap-2 px-3 py-1.5 rounded text-sm text-ink-700 hover:bg-ink-100 w-full text-left"
             >
               <LogOut size={14} /> Sign out
-            </Link>
+            </button>
           </div>
         )}
       </div>

@@ -19,6 +19,9 @@ type AddTaskInput = {
   projectId: number;
   status: Status;
   priority?: Priority;
+  /** Person Responsible — the assigner. Defaults to the creator's first name. */
+  responsible?: string;
+  /** Person Accountable — the doers. */
   assignees?: string[];
   targetDate?: string;
 };
@@ -102,6 +105,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         projectId: input.projectId,
         status: input.status,
         priority: input.priority ?? "Medium",
+        responsible: input.responsible ?? "Manasi",
         assignees: input.assignees ?? [],
         targetDate: input.targetDate ?? plusDays(new Date(), 7),
         estimatedHours: null,

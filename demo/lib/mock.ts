@@ -35,6 +35,9 @@ export type Task = {
   projectId: number;
   priority: Priority;
   status: Status;
+  /** Person Responsible — who assigned / created the task (single, by first name) */
+  responsible: string;
+  /** Person Accountable — the doer(s), by first name */
   assignees: string[];
   startDate?: string;
   targetDate: string;
@@ -243,6 +246,7 @@ export const TASKS: Task[] = [
     projectId: 1,
     priority: "Critical",
     status: "In Progress",
+    responsible: "Manasi",
     assignees: ["Manasi", "Abhishek"],
     startDate: "2026-04-30",
     targetDate: "2026-05-04",
@@ -254,7 +258,7 @@ export const TASKS: Task[] = [
       {
         id: 1,
         author: "Manasi",
-        body: "@Abhishek please update — promised this for the demo.",
+        body: "@Abhishek please update — promised this for the client call.",
         when: "2h ago",
       },
       {
@@ -273,6 +277,7 @@ export const TASKS: Task[] = [
     projectId: 2,
     priority: "High",
     status: "Blocked",
+    responsible: "Manasi",
     assignees: ["Sanjana"],
     targetDate: "2026-05-04",
     estimatedHours: 4,
@@ -293,6 +298,7 @@ export const TASKS: Task[] = [
     projectId: 3,
     priority: "High",
     status: "To Do",
+    responsible: "Manasi",
     assignees: ["Manasi", "Adil"],
     targetDate: "2026-05-12",
     estimatedHours: 16,
@@ -304,6 +310,7 @@ export const TASKS: Task[] = [
     projectId: 6,
     priority: "Low",
     status: "To Do",
+    responsible: "Manasi",
     assignees: ["Sanjana"],
     targetDate: "2026-05-06",
     estimatedHours: 2,
@@ -315,6 +322,7 @@ export const TASKS: Task[] = [
     projectId: 1,
     priority: "Medium",
     status: "Done",
+    responsible: "Manasi",
     assignees: ["Abhishek"],
     targetDate: "2026-05-02",
     estimatedHours: 5,
@@ -327,6 +335,7 @@ export const TASKS: Task[] = [
     projectId: 4,
     priority: "High",
     status: "In Progress",
+    responsible: "Priyanka",
     assignees: ["Priyanka"],
     targetDate: "2026-05-09",
     estimatedHours: 8,
@@ -339,6 +348,7 @@ export const TASKS: Task[] = [
     projectId: 5,
     priority: "Critical",
     status: "Blocked",
+    responsible: "Kiran",
     assignees: ["Kiran"],
     targetDate: "2026-05-03",
     estimatedHours: 6,
@@ -351,6 +361,7 @@ export const TASKS: Task[] = [
     projectId: 1,
     priority: "Medium",
     status: "To Do",
+    responsible: "Manasi",
     assignees: ["Sanjana"],
     targetDate: "2026-05-08",
     estimatedHours: 3,

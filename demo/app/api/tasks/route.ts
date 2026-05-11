@@ -35,6 +35,7 @@ export async function GET(req: Request) {
     where,
     include: {
       assignees: { include: { user: true } },
+      responsible: true,
       project: true,
     },
     orderBy: [{ important: "desc" }, { targetDate: "asc" }],
@@ -49,6 +50,7 @@ const createSchema = z.object({
   status: z.enum(["To Do", "In Progress", "Blocked", "Done"]).optional(),
   priority: z.enum(["Critical", "High", "Medium", "Low"]).optional(),
   targetDate: z.string().optional(),
+  responsibleId: z.string().optional(),
   assigneeIds: z.array(z.string()).optional(),
 });
 
@@ -85,6 +87,8 @@ export async function POST(req: Request) {
         ? new Date(body.targetDate)
         : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       important: false,
+      // Person Responsible defaults to the creator (the assigner).
+      responsibleId: body.responsibleId ?? user.id,
       assignees: body.assigneeIds?.length
         ? {
             create: body.assigneeIds.map((userId) => ({ userId })),
@@ -93,6 +97,7 @@ export async function POST(req: Request) {
     },
     include: {
       assignees: { include: { user: true } },
+      responsible: true,
       project: true,
     },
   });

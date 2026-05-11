@@ -13,6 +13,7 @@ async function loadTask(id: number) {
     where: { id },
     include: {
       assignees: { include: { user: true } },
+      responsible: true,
       project: true,
       remarks: { include: { author: true }, orderBy: { createdAt: "asc" } },
     },
@@ -50,6 +51,7 @@ const patchSchema = z.object({
   priority: z.enum(["Critical", "High", "Medium", "Low"]).optional(),
   targetDate: z.string().optional(),
   important: z.boolean().optional(),
+  responsibleId: z.string().nullish(),
   assigneeIds: z.array(z.string()).optional(),
 });
 
@@ -105,9 +107,12 @@ export async function PATCH(
       priority: body.priority,
       targetDate: body.targetDate ? new Date(body.targetDate) : undefined,
       important: body.important,
+      responsibleId:
+        body.responsibleId === undefined ? undefined : body.responsibleId,
     },
     include: {
       assignees: { include: { user: true } },
+      responsible: true,
       project: true,
       remarks: { include: { author: true }, orderBy: { createdAt: "asc" } },
     },
@@ -119,6 +124,18 @@ export async function PATCH(
       taskTitle: existing.title,
       before: String(existing.important),
       after: String(body.important),
+    });
+  }
+
+  if (
+    body.responsibleId !== undefined &&
+    body.responsibleId !== existing.responsibleId
+  ) {
+    await writeAudit(user.id, "task.responsible_change", {
+      scope: existing.project.name,
+      taskTitle: existing.title,
+      before: existing.responsibleId ?? "—",
+      after: body.responsibleId ?? "—",
     });
   }
 

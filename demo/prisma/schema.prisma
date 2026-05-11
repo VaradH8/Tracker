@@ -32,11 +32,12 @@ model User {
   performance     String    @default("On track")
   flags           String    @default("[]")
 
-  taskAssignments TaskAssignee[]
-  remarksAuthored Remark[]
-  auditLog        AuditEntry[]   @relation("AuditActor")
-  notifications   Notification[]
-  leaves          Leave[]
+  taskAssignments       TaskAssignee[]
+  tasksResponsibleFor   Task[]         @relation("TaskResponsible")
+  remarksAuthored       Remark[]
+  auditLog              AuditEntry[]   @relation("AuditActor")
+  notifications         Notification[]
+  leaves                Leave[]
 }
 
 model Client {
@@ -86,6 +87,12 @@ model Task {
   estimatedHours  Float?
   actualHours     Float?
   important       Boolean   @default(false)
+
+  // Person Responsible: the user who created / assigned this task (singular).
+  // Person Accountable: the users actually performing it (many) — see TaskAssignee.
+  responsibleId   String?
+  responsible     User?     @relation("TaskResponsible", fields: [responsibleId], references: [id])
+
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
