@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { signOutAction } from "@/app/actions/auth";
 import {
   LayoutDashboard,
   FolderKanban,
@@ -227,7 +226,7 @@ function TopBar({ role }: { role: Role }) {
               </Link>
             )}
             <hr className="my-1 border-ink-100" />
-            <form action={signOutAction}>
+            <form action="/api/signout" method="POST">
               <button
                 type="submit"
                 onClick={() => setProfileOpen(false)}
