@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { signOut, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { signOutAction } from "@/app/actions/auth";
 import {
   LayoutDashboard,
   FolderKanban,
@@ -226,16 +227,15 @@ function TopBar({ role }: { role: Role }) {
               </Link>
             )}
             <hr className="my-1 border-ink-100" />
-            <button
-              onClick={async () => {
-                setProfileOpen(false);
-                await signOut({ redirect: false });
-                window.location.assign("/login");
-              }}
-              className="flex items-center gap-2 px-3 py-1.5 rounded text-sm text-ink-700 hover:bg-ink-100 w-full text-left"
-            >
-              <LogOut size={14} /> Sign out
-            </button>
+            <form action={signOutAction}>
+              <button
+                type="submit"
+                onClick={() => setProfileOpen(false)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded text-sm text-ink-700 hover:bg-ink-100 w-full text-left"
+              >
+                <LogOut size={14} /> Sign out
+              </button>
+            </form>
           </div>
         )}
       </div>
