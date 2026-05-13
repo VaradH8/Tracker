@@ -226,15 +226,13 @@ function TopBar({ role }: { role: Role }) {
               </Link>
             )}
             <hr className="my-1 border-ink-100" />
-            <form action="/api/signout" method="POST">
-              <button
-                type="submit"
-                onClick={() => setProfileOpen(false)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded text-sm text-ink-700 hover:bg-ink-100 w-full text-left"
-              >
-                <LogOut size={14} /> Sign out
-              </button>
-            </form>
+            <a
+              href="/api/signout"
+              onClick={() => setProfileOpen(false)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded text-sm text-ink-700 hover:bg-ink-100 w-full text-left"
+            >
+              <LogOut size={14} /> Sign out
+            </a>
           </div>
         )}
       </div>
