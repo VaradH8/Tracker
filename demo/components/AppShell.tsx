@@ -94,16 +94,14 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [role, , hydrated] = useRole();
   const router = useRouter();
   const pathname = usePathname();
-  const [isSignedIn, setIsSignedIn] = useState(false);
 
-  // Check sign-in state once hydrated.
-  useEffect(() => {
-    if (!hydrated) return;
-    setIsSignedIn(readStoredRole() !== null);
-  }, [hydrated]);
-
-  const items = NAV[role];
+  // Read signed-in state DIRECTLY from localStorage on every render after
+  // hydration. Using a separate useState for this caused a race with the
+  // redirect effect — the effect would read the stale `false` and bounce
+  // back to /login before the state update from a sibling effect landed.
+  const isSignedIn = hydrated && readStoredRole() !== null;
   const allowed = canAccess(role, pathname);
+  const items = NAV[role];
 
   useEffect(() => {
     if (!hydrated) return;
