@@ -12,20 +12,6 @@ function isPublic(path: string): boolean {
   );
 }
 
-function landingFor(role: string | undefined): string {
-  switch (role) {
-    case "Admin":
-      return "/dashboard";
-    case "BusinessDeveloper":
-      return "/projects";
-    case "Developer":
-      return "/my-tasks";
-    case "Coordinator":
-    default:
-      return "/my-day";
-  }
-}
-
 export default auth((req) => {
   const path = req.nextUrl.pathname;
   const isAuthed = !!req.auth;
@@ -36,10 +22,10 @@ export default auth((req) => {
     return NextResponse.redirect(url);
   }
 
-  if (isAuthed && path === "/login") {
-    const role = (req.auth?.user as { role?: string } | undefined)?.role;
-    return NextResponse.redirect(new URL(landingFor(role), req.url));
-  }
+  // Deliberately do NOT redirect authed users away from /login.
+  // The login page is also the role-switcher: an already-signed-in user
+  // visits /login when they want to switch role. Auto-redirecting away
+  // strands users with a stale session and no way to recover.
 
   return NextResponse.next();
 });
