@@ -1,10 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
-import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import {
-  AlertCircle,
   Shield,
   Users,
   Briefcase,
@@ -12,11 +11,12 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { landingFor, writeStoredRole, type Role } from "@/lib/role";
 
 type RoleTile = {
-  key: "Admin" | "Coordinator" | "BusinessDeveloper" | "Developer";
+  key: Role;
   label: string;
-  email: string;
+  who: string;
   blurb: string;
   lands: string;
   Icon: typeof Shield;
@@ -27,7 +27,7 @@ const TILES: RoleTile[] = [
   {
     key: "Admin",
     label: "Admin",
-    email: "varad@example.com",
+    who: "Varad Hadawale",
     blurb: "Org-wide health · users · settings",
     lands: "/dashboard",
     Icon: Shield,
@@ -36,7 +36,7 @@ const TILES: RoleTile[] = [
   {
     key: "Coordinator",
     label: "Co-ordinator",
-    email: "manasi@example.com",
+    who: "Manasi Kulkarni",
     blurb: "Plan projects · resources · unblock the team",
     lands: "/my-day",
     Icon: Users,
@@ -45,7 +45,7 @@ const TILES: RoleTile[] = [
   {
     key: "BusinessDeveloper",
     label: "Business Developer",
-    email: "rohit@example.com",
+    who: "Rohit Mehra",
     blurb: "Project pipeline · clients · intake",
     lands: "/projects",
     Icon: Briefcase,
@@ -54,7 +54,7 @@ const TILES: RoleTile[] = [
   {
     key: "Developer",
     label: "Developer",
-    email: "sanjana@example.com",
+    who: "Sanjana Rao",
     blurb: "Today's tasks · status updates · remarks",
     lands: "/my-tasks",
     Icon: Code,
@@ -62,70 +62,20 @@ const TILES: RoleTile[] = [
   },
 ];
 
-const DEFAULT_PASSWORD = "ChangeMe2026!";
-
 export default function LoginPage() {
-  const [busyKey, setBusyKey] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
-  // Email/password fallback for real users (collapsed by default)
-  const [showEmail, setShowEmail] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  // Clear any stale auth cookies from previous deploys when the page loads,
+  // just to be safe. localStorage is the source of truth now.
+  useEffect(() => {
+    fetch("/api/signout", { method: "GET", redirect: "manual" }).catch(
+      () => {},
+    );
+  }, []);
 
-  async function pickRole(tile: RoleTile) {
-    setError(null);
-    setBusyKey(tile.key);
-
-    // 1. Hard-clear any stale auth cookies first so we never end up with
-    //    a JWT for a different role from a previous session.
-    await fetch("/api/signout", {
-      method: "GET",
-      redirect: "manual",
-    }).catch(() => {});
-
-    // 2. Sign in with this tile's seeded credentials.
-    const result = await signIn("credentials", {
-      email: tile.email,
-      password: DEFAULT_PASSWORD,
-      redirect: false,
-    });
-
-    if (!result || result.error) {
-      setError(
-        `Couldn't sign in (${result?.error ?? "no response"}). Check that the database is reachable and seeded.`,
-      );
-      setBusyKey(null);
-      return;
-    }
-
-    // 3. Hard nav so the new cookie is read on the next request.
-    window.location.assign(tile.lands);
-  }
-
-  async function submitEmail(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setBusyKey("__email");
-
-    await fetch("/api/signout", {
-      method: "GET",
-      redirect: "manual",
-    }).catch(() => {});
-
-    const result = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-    });
-
-    if (!result || result.error) {
-      setError("Invalid email or password.");
-      setBusyKey(null);
-      return;
-    }
-
-    window.location.assign("/");
+  function pickRole(tile: RoleTile) {
+    writeStoredRole(tile.key);
+    router.replace(landingFor(tile.key));
   }
 
   return (
@@ -154,27 +104,14 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {error && (
-          <div className="max-w-md mx-auto mb-6 px-4 py-3 rounded bg-brand-redBg text-brand-redText text-sm flex items-center gap-2">
-            <AlertCircle size={16} className="shrink-0" /> {error}
-          </div>
-        )}
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
           {TILES.map((tile) => {
             const Icon = tile.Icon;
-            const busy = busyKey === tile.key;
-            const disabled = busyKey !== null;
             return (
               <button
                 key={tile.key}
-                disabled={disabled}
                 onClick={() => pickRole(tile)}
-                className={`card p-5 text-left transition group ${
-                  disabled
-                    ? "opacity-60 cursor-wait"
-                    : "hover:shadow-md hover:-translate-y-0.5"
-                }`}
+                className="card p-5 text-left transition group hover:shadow-md hover:-translate-y-0.5"
               >
                 <div className="flex items-start gap-4">
                   <div
@@ -193,85 +130,19 @@ export default function LoginPage() {
                       />
                     </div>
                     <p className="text-xs text-ink-500 mb-2">{tile.blurb}</p>
-                    <div className="text-[11px] text-ink-400 font-mono truncate">
-                      {tile.email}
-                    </div>
                     <div className="text-[11px] text-ink-400">
-                      Lands on <code>{tile.lands}</code>
+                      Signed in as <span className="text-ink-700">{tile.who}</span>{" "}
+                      · lands on <code>{tile.lands}</code>
                     </div>
                   </div>
                 </div>
-                {busy && (
-                  <div className="mt-3 text-xs text-brand-blue">
-                    Signing in…
-                  </div>
-                )}
               </button>
             );
           })}
         </div>
 
-        <div className="max-w-md mx-auto">
-          {!showEmail ? (
-            <button
-              onClick={() => setShowEmail(true)}
-              className="w-full text-sm text-ink-500 hover:text-brand-blue py-2 border-t border-ink-200"
-            >
-              Or sign in with email and password →
-            </button>
-          ) : (
-            <form
-              onSubmit={submitEmail}
-              className="card p-5 border-t-2 border-t-brand-blue"
-            >
-              <h3 className="font-heading text-sm font-semibold mb-4">
-                Sign in with email
-              </h3>
-              <label className="block text-xs font-medium text-ink-700 mb-1.5">
-                Email
-              </label>
-              <input
-                type="email"
-                required
-                autoFocus
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={busyKey !== null}
-                className="w-full px-3 py-2 mb-3 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue disabled:bg-ink-50"
-                placeholder="you@company.com"
-              />
-              <label className="block text-xs font-medium text-ink-700 mb-1.5">
-                Password
-              </label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={busyKey !== null}
-                className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue disabled:bg-ink-50"
-              />
-              <button
-                type="submit"
-                disabled={busyKey !== null}
-                className="btn-primary w-full disabled:opacity-60 disabled:cursor-wait"
-              >
-                {busyKey === "__email" ? "Signing in…" : "Sign in"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowEmail(false)}
-                className="w-full text-xs text-ink-500 hover:text-ink-900 mt-3"
-              >
-                Hide form
-              </button>
-            </form>
-          )}
-        </div>
-
-        <p className="text-center text-xs text-ink-400 mt-8">
-          Pre-launch seeded accounts · default password{" "}
-          <code>{DEFAULT_PASSWORD}</code>
+        <p className="text-center text-xs text-ink-400">
+          Pre-launch build · session is browser-local · pick a role to enter
         </p>
       </div>
     </main>

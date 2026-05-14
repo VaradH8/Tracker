@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useEffect, useState } from "react";
 
 export type Role = "Admin" | "Coordinator" | "BusinessDeveloper" | "Developer";
 
@@ -12,27 +12,62 @@ export const ROLE_LABELS: Record<Role, string> = {
 };
 
 const VALID: Role[] = ["Admin", "Coordinator", "BusinessDeveloper", "Developer"];
+const KEY = "tracker-role";
 
 function isRole(r: unknown): r is Role {
   return typeof r === "string" && (VALID as string[]).includes(r);
 }
 
-/**
- * useRole returns the current user's role from the NextAuth session.
- * The second tuple element is a no-op setRole (kept for source-compat with
- * earlier code that destructured a setter). Role changes only happen via
- * sign-in / sign-out now.
- */
-export function useRole(): [Role, (r: Role) => void, boolean] {
-  const { data: session, status } = useSession();
-  const hydrated = status !== "loading";
-  const sessionRole = (session?.user as { role?: unknown } | undefined)?.role;
-  const role: Role = isRole(sessionRole) ? sessionRole : "Coordinator";
-  return [role, noop, hydrated];
+export function readStoredRole(): Role | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(KEY);
+  return isRole(raw) ? raw : null;
 }
 
-function noop() {
-  /* role is read-only; controlled by sign-in */
+export function writeStoredRole(r: Role | null) {
+  if (typeof window === "undefined") return;
+  if (r === null) {
+    window.localStorage.removeItem(KEY);
+  } else {
+    window.localStorage.setItem(KEY, r);
+  }
+}
+
+/**
+ * useRole reads the role from localStorage. Returns:
+ *   [role, setRole, hydrated]
+ * where `role` defaults to "Coordinator" before hydration to keep the
+ * shape stable; consumers that need to know whether the user is *actually*
+ * signed in should use useIsSignedIn() instead of trusting the role tuple.
+ */
+export function useRole(): [Role, (r: Role | null) => void, boolean] {
+  const [role, setRoleState] = useState<Role>("Coordinator");
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    const stored = readStoredRole();
+    if (stored) setRoleState(stored);
+    setHydrated(true);
+  }, []);
+
+  function setRole(r: Role | null) {
+    writeStoredRole(r);
+    if (r) setRoleState(r);
+  }
+
+  return [role, setRole, hydrated];
+}
+
+export function useIsSignedIn(): { isSignedIn: boolean; hydrated: boolean } {
+  const [isSignedIn, setIsSignedIn] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setIsSignedIn(readStoredRole() !== null);
+    setHydrated(true);
+  }, []);
+
+  return { isSignedIn, hydrated };
 }
 
 export function landingFor(role: Role): string {

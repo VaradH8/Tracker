@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
 import {
   LayoutDashboard,
   FolderKanban,
@@ -23,6 +22,8 @@ import {
   type Role,
   ROLE_LABELS,
   landingFor,
+  readStoredRole,
+  writeStoredRole,
 } from "@/lib/role";
 import { canAccess } from "@/lib/access";
 
@@ -59,36 +60,79 @@ const NAV: Record<Role, NavItem[]> = {
   ],
 };
 
-const ROLE_COLOR: Record<Role, string> = {
-  Admin: "bg-brand-red",
-  Coordinator: "bg-brand-blue",
-  BusinessDeveloper: "bg-brand-yellow",
-  Developer: "bg-brand-green",
+const ROLE_PROFILE: Record<
+  Role,
+  { name: string; email: string; initials: string; color: string }
+> = {
+  Admin: {
+    name: "Varad Hadawale",
+    email: "varad@example.com",
+    initials: "VH",
+    color: "bg-brand-red",
+  },
+  Coordinator: {
+    name: "Manasi Kulkarni",
+    email: "manasi@example.com",
+    initials: "MK",
+    color: "bg-brand-blue",
+  },
+  BusinessDeveloper: {
+    name: "Rohit Mehra",
+    email: "rohit@example.com",
+    initials: "RM",
+    color: "bg-brand-yellow",
+  },
+  Developer: {
+    name: "Sanjana Rao",
+    email: "sanjana@example.com",
+    initials: "SR",
+    color: "bg-brand-green",
+  },
 };
-
-function initialsFor(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase();
-}
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [role, , hydrated] = useRole();
   const router = useRouter();
   const pathname = usePathname();
+  const [isSignedIn, setIsSignedIn] = useState(false);
+
+  // Check sign-in state once hydrated.
+  useEffect(() => {
+    if (!hydrated) return;
+    setIsSignedIn(readStoredRole() !== null);
+  }, [hydrated]);
+
   const items = NAV[role];
   const allowed = canAccess(role, pathname);
 
   useEffect(() => {
     if (!hydrated) return;
+    if (!isSignedIn) {
+      router.replace("/login");
+      return;
+    }
     if (!allowed) {
       router.replace(landingFor(role));
     }
-  }, [hydrated, allowed, role, pathname, router]);
+  }, [hydrated, isSignedIn, allowed, role, router]);
 
   if (!hydrated) {
     return (
       <div className="min-h-screen bg-ink-50 grid place-items-center">
         <div className="text-sm text-ink-400">Loading…</div>
+      </div>
+    );
+  }
+
+  if (!isSignedIn) {
+    return (
+      <div className="min-h-screen bg-ink-50 grid place-items-center p-6">
+        <div className="card p-8 max-w-md text-center">
+          <h1 className="font-heading text-xl font-semibold mb-2">
+            Sign in required
+          </h1>
+          <p className="text-sm text-ink-500">Taking you to the login page…</p>
+        </div>
       </div>
     );
   }
@@ -157,13 +201,20 @@ function Sidebar({ items }: { items: NavItem[] }) {
 }
 
 function TopBar({ role }: { role: Role }) {
-  const { data: session } = useSession();
+  const router = useRouter();
   const [profileOpen, setProfileOpen] = useState(false);
+  const profile = ROLE_PROFILE[role];
 
-  const name = session?.user?.name ?? ROLE_LABELS[role];
-  const email = session?.user?.email ?? "";
-  const initials = initialsFor(name);
-  const color = ROLE_COLOR[role];
+  function signOut() {
+    setProfileOpen(false);
+    writeStoredRole(null);
+    // Clear any stray NextAuth cookies from earlier deploys, then redirect.
+    fetch("/api/signout", { method: "GET", redirect: "manual" }).finally(
+      () => {
+        router.replace("/login");
+      },
+    );
+  }
 
   return (
     <header className="h-14 bg-white border-b border-ink-200 flex items-center justify-end gap-2 px-6 sticky top-0 z-30">
@@ -185,12 +236,12 @@ function TopBar({ role }: { role: Role }) {
           className="flex items-center gap-2 px-2 py-1 rounded hover:bg-ink-100"
         >
           <div
-            className={`w-8 h-8 rounded-full ${color} text-white grid place-items-center font-heading font-medium text-sm`}
+            className={`w-8 h-8 rounded-full ${profile.color} text-white grid place-items-center font-heading font-medium text-sm`}
           >
-            {initials}
+            {profile.initials}
           </div>
           <span className="text-sm text-ink-700 hidden sm:block">
-            {name.split(" ")[0]}
+            {profile.name.split(" ")[0]}
           </span>
           <ChevronDown size={14} className="text-ink-500" />
         </button>
@@ -200,10 +251,10 @@ function TopBar({ role }: { role: Role }) {
             onMouseLeave={() => setProfileOpen(false)}
           >
             <div className="px-3 py-2 border-b border-ink-100 mb-1">
-              <div className="text-sm font-medium truncate">{name}</div>
-              {email && (
-                <div className="text-xs text-ink-500 truncate">{email}</div>
-              )}
+              <div className="text-sm font-medium truncate">{profile.name}</div>
+              <div className="text-xs text-ink-500 truncate">
+                {profile.email}
+              </div>
               <div className="text-xs text-ink-500 mt-0.5">
                 Signed in as{" "}
                 <span className="font-medium">{ROLE_LABELS[role]}</span>
@@ -226,13 +277,13 @@ function TopBar({ role }: { role: Role }) {
               </Link>
             )}
             <hr className="my-1 border-ink-100" />
-            <a
-              href="/api/signout"
-              onClick={() => setProfileOpen(false)}
+            <button
+              type="button"
+              onClick={signOut}
               className="flex items-center gap-2 px-3 py-1.5 rounded text-sm text-ink-700 hover:bg-ink-100 w-full text-left"
             >
               <LogOut size={14} /> Sign out
-            </a>
+            </button>
           </div>
         )}
       </div>
