@@ -79,8 +79,40 @@ export type Resource = {
   performance: PerformanceFlag;
   flags: string[];
 
+  /** Internal hourly cost, INR. Admin-only. */
+  hourlyRate: number;
+
   upcomingLeaveStart?: string;
   upcomingLeaveEnd?: string;
+};
+
+/** A single logged block of work against a task. */
+export type TimeEntry = {
+  id: number;
+  taskId: number;
+  person: string; // first name
+  date: string; // YYYY-MM-DD
+  hours: number;
+  note?: string;
+};
+
+export type NotificationKind =
+  | "assigned"
+  | "status_change"
+  | "mention"
+  | "blocked"
+  | "important"
+  | "overdue";
+
+export type AppNotification = {
+  id: number;
+  recipient: string; // first name
+  kind: NotificationKind;
+  title: string;
+  body: string;
+  taskId?: number;
+  when: string;
+  read: boolean;
 };
 
 export type LeaveEntry = {
@@ -396,6 +428,7 @@ export const RESOURCES: Resource[] = [
     tasksOpen: 4,
     tasksOverdue: 1,
     estimateAccuracy: 92,
+    hourlyRate: 1400,
     lastStatusChange: "2h ago",
     performance: "On track",
     flags: [],
@@ -419,6 +452,7 @@ export const RESOURCES: Resource[] = [
     tasksOpen: 3,
     tasksOverdue: 1,
     estimateAccuracy: 78,
+    hourlyRate: 900,
     lastStatusChange: "10m ago",
     performance: "On track",
     flags: [],
@@ -442,6 +476,7 @@ export const RESOURCES: Resource[] = [
     tasksOpen: 2,
     tasksOverdue: 1,
     estimateAccuracy: 65,
+    hourlyRate: 1200,
     lastStatusChange: "1h ago",
     performance: "Watch",
     flags: ["Estimates run ~40% over actual on last 3 tasks", "1 task overdue"],
@@ -465,6 +500,7 @@ export const RESOURCES: Resource[] = [
     tasksOpen: 1,
     tasksOverdue: 0,
     estimateAccuracy: 88,
+    hourlyRate: 850,
     lastStatusChange: "5d ago",
     performance: "Idle",
     flags: [
@@ -493,6 +529,7 @@ export const RESOURCES: Resource[] = [
     tasksOpen: 3,
     tasksOverdue: 0,
     estimateAccuracy: 90,
+    hourlyRate: 1200,
     lastStatusChange: "1h ago",
     performance: "On track",
     flags: [],
@@ -516,6 +553,7 @@ export const RESOURCES: Resource[] = [
     tasksOpen: 2,
     tasksOverdue: 1,
     estimateAccuracy: 72,
+    hourlyRate: 1150,
     lastStatusChange: "3d ago",
     performance: "Watch",
     flags: [
@@ -542,6 +580,7 @@ export const RESOURCES: Resource[] = [
     tasksOpen: 0,
     tasksOverdue: 0,
     estimateAccuracy: 100,
+    hourlyRate: 1300,
     lastStatusChange: "yesterday",
     performance: "On track",
     flags: [],
@@ -565,6 +604,7 @@ export const RESOURCES: Resource[] = [
     tasksOpen: 0,
     tasksOverdue: 0,
     estimateAccuracy: 100,
+    hourlyRate: 0,
     lastStatusChange: "—",
     performance: "On track",
     flags: [],
@@ -665,6 +705,43 @@ export const AUDIT_LOG: AuditEntry[] = [
   },
 ];
 
+export const TIME_ENTRIES: TimeEntry[] = [
+  { id: 1, taskId: 101, person: "Abhishek", date: "2026-05-06", hours: 3.5, note: "Traced the null-vs-empty branch" },
+  { id: 2, taskId: 101, person: "Abhishek", date: "2026-05-05", hours: 4, note: "Repro on staging" },
+  { id: 3, taskId: 101, person: "Manasi", date: "2026-05-05", hours: 1.5, note: "Review + planning" },
+  { id: 4, taskId: 103, person: "Manasi", date: "2026-05-04", hours: 2 },
+  { id: 5, taskId: 103, person: "Adil", date: "2026-05-02", hours: 4, note: "Schema mapping draft" },
+  { id: 6, taskId: 103, person: "Adil", date: "2026-04-29", hours: 3 },
+  { id: 7, taskId: 102, person: "Sanjana", date: "2026-05-06", hours: 2.5, note: "Filter edge cases" },
+  { id: 8, taskId: 102, person: "Sanjana", date: "2026-05-05", hours: 5 },
+  { id: 9, taskId: 102, person: "Sanjana", date: "2026-05-04", hours: 4 },
+  { id: 10, taskId: 104, person: "Sanjana", date: "2026-05-03", hours: 1.5 },
+  { id: 11, taskId: 108, person: "Sanjana", date: "2026-05-02", hours: 3 },
+  { id: 12, taskId: 105, person: "Abhishek", date: "2026-05-02", hours: 6, note: "Shipped" },
+  { id: 13, taskId: 105, person: "Abhishek", date: "2026-04-30", hours: 4 },
+  { id: 14, taskId: 106, person: "Priyanka", date: "2026-05-06", hours: 3 },
+  { id: 15, taskId: 106, person: "Priyanka", date: "2026-05-05", hours: 4 },
+  { id: 16, taskId: 106, person: "Priyanka", date: "2026-04-30", hours: 5 },
+  { id: 17, taskId: 107, person: "Kiran", date: "2026-05-01", hours: 4, note: "Blocked pending physics review" },
+  { id: 18, taskId: 107, person: "Kiran", date: "2026-04-28", hours: 3 },
+  { id: 19, taskId: 101, person: "Abhishek", date: "2026-04-30", hours: 2 },
+  { id: 20, taskId: 103, person: "Manasi", date: "2026-04-28", hours: 2.5 },
+];
+
+export const NOTIFICATIONS: AppNotification[] = [
+  { id: 1, recipient: "Manasi", kind: "blocked", title: "Task blocked", body: "Sanjana marked “Bulk select — checkbox desync” as Blocked", taskId: 102, when: "10m ago", read: false },
+  { id: 2, recipient: "Manasi", kind: "status_change", title: "Status changed", body: "Abhishek moved “Comment Classification API” to In Progress", taskId: 101, when: "1h ago", read: false },
+  { id: 3, recipient: "Manasi", kind: "overdue", title: "Task overdue", body: "“Comment Classification API” is 2 days overdue", taskId: 101, when: "2h ago", read: true },
+  { id: 4, recipient: "Sanjana", kind: "assigned", title: "New task assigned", body: "Manasi assigned you “Spec out the QA review queue UX”", taskId: 108, when: "1h ago", read: false },
+  { id: 5, recipient: "Sanjana", kind: "important", title: "Marked Important", body: "Manasi marked a task on your plate as Important", taskId: 102, when: "3h ago", read: false },
+  { id: 6, recipient: "Sanjana", kind: "mention", title: "You were mentioned", body: "Abhishek mentioned you in a remark", taskId: 101, when: "yesterday", read: true },
+  { id: 7, recipient: "Abhishek", kind: "mention", title: "You were mentioned", body: "Manasi: “@Abhishek please update — promised this for the client call.”", taskId: 101, when: "2h ago", read: false },
+  { id: 8, recipient: "Abhishek", kind: "assigned", title: "New task assigned", body: "Manasi assigned you “Comment Classification API”", taskId: 101, when: "yesterday", read: true },
+  { id: 9, recipient: "Adil", kind: "assigned", title: "New task assigned", body: "Manasi assigned you “Migrate engineering memory store”", taskId: 103, when: "yesterday", read: false },
+  { id: 10, recipient: "Varad", kind: "overdue", title: "3 tasks overdue org-wide", body: "Comment Classification API, Bulk select, QA regression", when: "2h ago", read: false },
+  { id: 11, recipient: "Rohit", kind: "status_change", title: "Project update", body: "Internal — Onboarding Refresh moved to Discovery", when: "2d ago", read: true },
+];
+
 export const CURRENT_USER = {
   name: "Manasi Kulkarni",
   firstName: "Manasi",
@@ -721,6 +798,98 @@ export function statusPill(s: Status): string {
     case "Done":
       return "pill-green";
   }
+}
+
+/** Reference "today" for the mock dataset. */
+export const TODAY_ISO = "2026-05-06";
+
+export function firstNameOf(fullName: string): string {
+  return fullName.trim().split(/\s+/)[0];
+}
+
+export function formatINR(n: number): string {
+  return "₹" + Math.round(n).toLocaleString("en-IN");
+}
+
+function daysAgo(iso: string): number {
+  const today = new Date(TODAY_ISO + "T00:00:00");
+  const d = new Date(iso + "T00:00:00");
+  return Math.round((today.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+/** Hours a person logged, optionally only within the last `withinDays`. */
+export function loggedHours(
+  person: string,
+  entries: TimeEntry[],
+  withinDays?: number,
+): number {
+  return entries
+    .filter((e) => e.person === person)
+    .filter((e) => withinDays == null || daysAgo(e.date) < withinDays)
+    .reduce((sum, e) => sum + e.hours, 0);
+}
+
+/** Total hours logged against a single task by anyone. */
+export function loggedHoursForTask(
+  taskId: number,
+  entries: TimeEntry[],
+): number {
+  return entries
+    .filter((e) => e.taskId === taskId)
+    .reduce((sum, e) => sum + e.hours, 0);
+}
+
+/** Estimate accuracy for a resource's done tasks: 100 = perfect, <100 = overran. */
+export function estimateAccuracyFor(
+  person: string,
+  tasks: Task[],
+  entries: TimeEntry[],
+): number | null {
+  const done = tasks.filter(
+    (t) => t.status === "Done" && t.assignees.includes(person) && t.estimatedHours,
+  );
+  if (done.length === 0) return null;
+  let est = 0;
+  let act = 0;
+  for (const t of done) {
+    est += t.estimatedHours ?? 0;
+    const logged = loggedHoursForTask(t.id, entries);
+    act += t.actualHours ?? (logged || t.estimatedHours || 0);
+  }
+  if (act === 0) return 100;
+  return Math.round((est / act) * 100);
+}
+
+/** Share of a person's done tasks delivered on or before target date. */
+export function onTimeRate(person: string, tasks: Task[]): number | null {
+  const done = tasks.filter(
+    (t) => t.status === "Done" && t.assignees.includes(person),
+  );
+  if (done.length === 0) return null;
+  const onTime = done.filter((t) => !t.overdueDays).length;
+  return Math.round((onTime / done.length) * 100);
+}
+
+export function resourceByFirstName(name: string): Resource | undefined {
+  return RESOURCES.find((r) => firstNameOf(r.name) === name);
+}
+
+/** Labour cost of a project: Σ (logged hours × that person's hourly rate). */
+export function projectLaborCost(
+  projectId: number,
+  tasks: Task[],
+  entries: TimeEntry[],
+): number {
+  const taskIds = new Set(
+    tasks.filter((t) => t.projectId === projectId).map((t) => t.id),
+  );
+  let cost = 0;
+  for (const e of entries) {
+    if (!taskIds.has(e.taskId)) continue;
+    const r = resourceByFirstName(e.person);
+    cost += e.hours * (r?.hourlyRate ?? 0);
+  }
+  return cost;
 }
 
 export function projectStatusPill(s: ProjectStatus): string {

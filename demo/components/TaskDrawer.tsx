@@ -8,6 +8,8 @@ import {
   UserCheck,
   MessageSquare,
   History,
+  Timer,
+  Plus,
 } from "lucide-react";
 import { useState } from "react";
 import {
@@ -20,7 +22,7 @@ import {
 } from "./InlineActions";
 import { useTasks } from "@/lib/tasks-store";
 import { useRole } from "@/lib/role";
-import { projectById } from "@/lib/mock";
+import { projectById, loggedHoursForTask, TODAY_ISO } from "@/lib/mock";
 
 const ROLE_PERSON: Record<string, string> = {
   Admin: "Manasi",
@@ -51,6 +53,10 @@ export function TaskDrawer({
   const store = useTasks();
   const [role] = useRole();
   const [newRemark, setNewRemark] = useState("");
+  const [logOpen, setLogOpen] = useState(false);
+  const [logHours, setLogHours] = useState("");
+  const [logDate, setLogDate] = useState(TODAY_ISO);
+  const [logNote, setLogNote] = useState("");
   const task = store.byId(taskId);
 
   if (!task) return null;
@@ -58,7 +64,26 @@ export function TaskDrawer({
   const me = ROLE_PERSON[role] ?? "Manasi";
   const isAssignee = task.assignees.includes(me);
   const canEdit = role === "Admin" || role === "Coordinator";
+  const canLogTime = isAssignee || canEdit;
   const project = projectById(task.projectId);
+  const entries = store.entriesForTask(task.id);
+  const totalLogged = loggedHoursForTask(task.id, store.timeEntries);
+
+  function submitLog() {
+    const hrs = Number(logHours);
+    if (!hrs || hrs <= 0) return;
+    store.logTime({
+      taskId: task!.id,
+      person: me,
+      hours: hrs,
+      date: logDate || TODAY_ISO,
+      note: logNote.trim() || undefined,
+    });
+    setLogHours("");
+    setLogNote("");
+    setLogDate(TODAY_ISO);
+    setLogOpen(false);
+  }
 
   return (
     <div className="fixed inset-0 z-40 flex">
@@ -189,6 +214,129 @@ export function TaskDrawer({
               </span>
             </Field>
           </div>
+
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xs font-semibold text-ink-700 uppercase tracking-wide flex items-center gap-2">
+                <Timer size={12} /> Time logged
+                <span className="font-medium normal-case text-ink-400">
+                  {totalLogged}h
+                  {task.estimatedHours != null &&
+                    ` of ${task.estimatedHours}h est.`}
+                </span>
+              </h3>
+              {canLogTime && !logOpen && (
+                <button
+                  onClick={() => setLogOpen(true)}
+                  className="text-xs text-brand-blue hover:underline inline-flex items-center gap-1"
+                >
+                  <Plus size={12} /> Log time
+                </button>
+              )}
+            </div>
+
+            {task.estimatedHours != null && task.estimatedHours > 0 && (
+              <div className="h-1.5 bg-ink-100 rounded-full overflow-hidden mb-3">
+                <div
+                  className={
+                    totalLogged > task.estimatedHours
+                      ? "h-full bg-brand-red"
+                      : "h-full bg-brand-blue"
+                  }
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      (totalLogged / task.estimatedHours) * 100,
+                    )}%`,
+                  }}
+                />
+              </div>
+            )}
+
+            {logOpen && (
+              <div className="border border-ink-200 rounded-card p-3 mb-3 space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] font-medium text-ink-700 mb-1">
+                      Hours
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      autoFocus
+                      value={logHours}
+                      onChange={(e) => setLogHours(e.target.value)}
+                      placeholder="e.g. 3"
+                      className="w-full px-2 py-1.5 rounded border border-ink-200 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-ink-700 mb-1">
+                      Date
+                    </label>
+                    <input
+                      type="date"
+                      value={logDate}
+                      onChange={(e) => setLogDate(e.target.value)}
+                      className="w-full px-2 py-1.5 rounded border border-ink-200 text-sm"
+                    />
+                  </div>
+                </div>
+                <input
+                  type="text"
+                  value={logNote}
+                  onChange={(e) => setLogNote(e.target.value)}
+                  placeholder="Note (optional)"
+                  className="w-full px-2 py-1.5 rounded border border-ink-200 text-sm"
+                />
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => {
+                      setLogOpen(false);
+                      setLogHours("");
+                      setLogNote("");
+                    }}
+                    className="btn-ghost text-xs py-1 px-3"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={submitLog}
+                    disabled={!Number(logHours)}
+                    className="btn-primary text-xs py-1 px-3 disabled:opacity-50"
+                  >
+                    Log {logHours ? `${logHours}h` : "time"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <ul className="space-y-1.5 mb-1">
+              {entries.map((e) => (
+                <li
+                  key={e.id}
+                  className="flex items-center gap-2 text-sm py-1"
+                >
+                  <span className="w-12 shrink-0 font-heading font-medium text-ink-900">
+                    {e.hours}h
+                  </span>
+                  <span className="text-ink-700">{e.person}</span>
+                  {e.note && (
+                    <span className="text-ink-400 truncate">· {e.note}</span>
+                  )}
+                  <span className="ml-auto text-xs text-ink-400 shrink-0">
+                    {e.date}
+                  </span>
+                </li>
+              ))}
+              {entries.length === 0 && (
+                <li className="text-xs text-ink-400 italic">
+                  No time logged yet.
+                </li>
+              )}
+            </ul>
+          </section>
 
           <section>
             <h3 className="text-xs font-semibold text-ink-700 uppercase tracking-wide mb-2 flex items-center gap-2">

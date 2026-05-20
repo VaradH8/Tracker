@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Logo } from "./Logo";
+import { NotificationsPanel } from "./NotificationsPanel";
 import {
   useRole,
   type Role,
@@ -26,6 +27,7 @@ import {
   writeStoredRole,
 } from "@/lib/role";
 import { canAccess } from "@/lib/access";
+import { useNotifications } from "@/lib/notifications-store";
 
 type NavItem = {
   href: string;
@@ -201,7 +203,11 @@ function Sidebar({ items }: { items: NavItem[] }) {
 function TopBar({ role }: { role: Role }) {
   const router = useRouter();
   const [profileOpen, setProfileOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const profile = ROLE_PROFILE[role];
+  const person = profile.name.split(" ")[0];
+  const { unreadCount } = useNotifications();
+  const unread = unreadCount(person);
 
   function signOut() {
     setProfileOpen(false);
@@ -220,13 +226,26 @@ function TopBar({ role }: { role: Role }) {
         <Logo size="sm" />
       </div>
 
-      <button
-        aria-label="Notifications"
-        className="p-2 rounded-full text-ink-500 hover:bg-ink-100 relative"
-      >
-        <Bell size={18} />
-        <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-brand-red" />
-      </button>
+      <div className="relative">
+        <button
+          aria-label="Notifications"
+          onClick={() => setNotifOpen((v) => !v)}
+          className="p-2 rounded-full text-ink-500 hover:bg-ink-100 relative"
+        >
+          <Bell size={18} />
+          {unread > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-brand-red text-white text-[10px] font-medium grid place-items-center">
+              {unread}
+            </span>
+          )}
+        </button>
+        {notifOpen && (
+          <NotificationsPanel
+            person={person}
+            onClose={() => setNotifOpen(false)}
+          />
+        )}
+      </div>
 
       <div className="relative">
         <button
