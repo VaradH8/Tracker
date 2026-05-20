@@ -45,9 +45,11 @@ type Ctx = {
   setStatus: (id: number, status: Status) => void;
   setPriority: (id: number, priority: Priority) => void;
   setTargetDate: (id: number, date: string) => void;
+  setDescription: (id: number, description: string) => void;
   toggleAssignee: (id: number, name: string) => void;
   toggleImportant: (id: number) => void;
   addTask: (input: AddTaskInput) => void;
+  addRemark: (taskId: number, author: string, body: string) => void;
   logTime: (input: LogTimeInput) => void;
 };
 
@@ -122,6 +124,36 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  const setDescription = useCallback((id: number, description: string) => {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, description } : t)),
+    );
+  }, []);
+
+  const addRemark = useCallback(
+    (taskId: number, author: string, body: string) => {
+      setTasks((prev) =>
+        prev.map((t) => {
+          if (t.id !== taskId) return t;
+          const remarks = t.remarks ?? [];
+          return {
+            ...t,
+            remarks: [
+              ...remarks,
+              {
+                id: Math.max(0, ...remarks.map((r) => r.id)) + 1,
+                author,
+                body,
+                when: "just now",
+              },
+            ],
+          };
+        }),
+      );
+    },
+    [],
+  );
+
   const toggleAssignee = useCallback((id: number, name: string) => {
     setTasks((prev) =>
       prev.map((t) => {
@@ -172,9 +204,11 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         setStatus,
         setPriority,
         setTargetDate,
+        setDescription,
         toggleAssignee,
         toggleImportant,
         addTask,
+        addRemark,
         logTime,
       }}
     >

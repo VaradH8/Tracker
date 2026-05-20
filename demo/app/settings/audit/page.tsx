@@ -1,16 +1,12 @@
 "use client";
 
-import { Fragment, useState } from "react";
-import {
-  Search,
-  Download,
-  Filter,
-  ChevronDown,
-  ChevronUp,
-} from "lucide-react";
+import { Fragment, useMemo, useState } from "react";
+import { Search, Download, ChevronDown, ChevronUp } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { SettingsTabs } from "@/components/SettingsTabs";
 import { AUDIT_LOG } from "@/lib/mock";
+import { toCsv, downloadCsv } from "@/lib/csv";
+import { useToast } from "@/components/Toast";
 
 const ACTION_LABELS: Record<string, string> = {
   "task.status_change": "Status changed",
@@ -24,6 +20,49 @@ const ACTION_LABELS: Record<string, string> = {
 
 export default function SettingsAuditPage() {
   const [expanded, setExpanded] = useState<number | null>(null);
+  const [query, setQuery] = useState("");
+  const [actor, setActor] = useState<string>("All");
+  const [action, setAction] = useState<string>("All");
+  const toast = useToast();
+
+  const actors = useMemo(
+    () => ["All", ...Array.from(new Set(AUDIT_LOG.map((e) => e.actor)))],
+    [],
+  );
+  const actions = useMemo(
+    () => ["All", ...Array.from(new Set(AUDIT_LOG.map((e) => e.action)))],
+    [],
+  );
+
+  const rows = AUDIT_LOG.filter((e) => actor === "All" || e.actor === actor)
+    .filter((e) => action === "All" || e.action === action)
+    .filter((e) => {
+      if (!query.trim()) return true;
+      const q = query.toLowerCase();
+      return (
+        e.actor.toLowerCase().includes(q) ||
+        e.scope.toLowerCase().includes(q) ||
+        (e.taskTitle ?? "").toLowerCase().includes(q) ||
+        (ACTION_LABELS[e.action] ?? e.action).toLowerCase().includes(q)
+      );
+    });
+
+  function exportCsv() {
+    const csv = toCsv(
+      ["When", "Who", "Action", "Where", "Target", "Before", "After"],
+      rows.map((e) => [
+        e.when,
+        e.actor,
+        ACTION_LABELS[e.action] ?? e.action,
+        e.scope,
+        e.taskTitle ?? "",
+        e.before ?? "",
+        e.after ?? "",
+      ]),
+    );
+    downloadCsv(`audit-log-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+    toast.show(`Exported ${rows.length} audit entries to CSV.`);
+  }
 
   return (
     <AppShell>
@@ -39,9 +78,13 @@ export default function SettingsAuditPage() {
 
         <div className="flex items-center justify-between mb-4">
           <p className="text-sm text-ink-500">
-            Every change, every actor · last 7 days
+            {rows.length} of {AUDIT_LOG.length}{" "}
+            {AUDIT_LOG.length === 1 ? "entry" : "entries"}
           </p>
-          <button className="btn-ghost border border-ink-200">
+          <button
+            onClick={exportCsv}
+            className="btn-ghost border border-ink-200"
+          >
             <Download size={16} className="mr-1.5" /> Export CSV
           </button>
         </div>
@@ -53,16 +96,34 @@ export default function SettingsAuditPage() {
               className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400"
             />
             <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
               placeholder="Search audit log…"
               className="w-full pl-9 pr-3 py-1.5 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
             />
           </div>
-          <button className="btn-ghost text-xs border border-ink-200">
-            <Filter size={14} className="mr-1.5" /> All actors
-          </button>
-          <button className="btn-ghost text-xs border border-ink-200">
-            <Filter size={14} className="mr-1.5" /> All actions
-          </button>
+          <select
+            value={actor}
+            onChange={(e) => setActor(e.target.value)}
+            className="px-3 py-1.5 rounded border border-ink-200 text-sm"
+          >
+            {actors.map((a) => (
+              <option key={a} value={a}>
+                {a === "All" ? "All actors" : a}
+              </option>
+            ))}
+          </select>
+          <select
+            value={action}
+            onChange={(e) => setAction(e.target.value)}
+            className="px-3 py-1.5 rounded border border-ink-200 text-sm"
+          >
+            {actions.map((a) => (
+              <option key={a} value={a}>
+                {a === "All" ? "All actions" : (ACTION_LABELS[a] ?? a)}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="card overflow-hidden">
@@ -78,7 +139,17 @@ export default function SettingsAuditPage() {
               </tr>
             </thead>
             <tbody>
-              {AUDIT_LOG.map((e) => (
+              {rows.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="py-8 text-center text-sm text-ink-500"
+                  >
+                    No audit entries match your filters.
+                  </td>
+                </tr>
+              )}
+              {rows.map((e) => (
                 <Fragment key={e.id}>
                   <tr
                     onClick={() =>

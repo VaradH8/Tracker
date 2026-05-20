@@ -150,6 +150,11 @@ export function TaskDrawer({
             <Field label="Description">
               <textarea
                 defaultValue={task.description ?? ""}
+                onBlur={(e) => {
+                  if (e.target.value !== (task.description ?? "")) {
+                    store.setDescription(task.id, e.target.value);
+                  }
+                }}
                 placeholder="What needs to be done?"
                 rows={3}
                 className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
@@ -384,7 +389,12 @@ export function TaskDrawer({
                 />
                 <div className="flex justify-end pt-1.5 border-t border-ink-100 mt-1.5">
                   <button
-                    onClick={() => setNewRemark("")}
+                    onClick={() => {
+                      const body = newRemark.trim();
+                      if (!body) return;
+                      store.addRemark(task.id, me, body);
+                      setNewRemark("");
+                    }}
                     disabled={!newRemark.trim()}
                     className="btn-primary text-xs py-1 px-3 disabled:opacity-50"
                   >

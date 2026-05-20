@@ -6,6 +6,7 @@ import { AppShell } from "@/components/AppShell";
 import { LEAVES, RESOURCES, type LeaveEntry } from "@/lib/mock";
 import { useRole, ROLE_LABELS } from "@/lib/role";
 import { meName } from "@/lib/access";
+import { useToast } from "@/components/Toast";
 
 const TYPE_COLOR: Record<LeaveEntry["type"], string> = {
   Vacation: "bg-brand-blueBg text-brand-blue",
@@ -252,6 +253,7 @@ function LeaveRow({
   showActions?: boolean;
   hideName?: boolean;
 }) {
+  const toast = useToast();
   return (
     <li className="card p-3 flex items-center gap-3">
       {!hideName && (
@@ -281,7 +283,12 @@ function LeaveRow({
         <span className="pill-yellow text-[10px] py-0">Pending</span>
       )}
       {showActions && (
-        <button className="btn-ghost text-xs px-2 py-1 text-brand-greenText hover:bg-brand-greenBg">
+        <button
+          onClick={() =>
+            toast.show(`${l.resourceName}'s ${l.type} leave approved.`)
+          }
+          className="btn-ghost text-xs px-2 py-1 text-brand-greenText hover:bg-brand-greenBg"
+        >
           Approve
         </button>
       )}
@@ -296,6 +303,16 @@ function RequestLeaveModal({
   onClose: () => void;
   requesterFirstName?: string;
 }) {
+  const toast = useToast();
+  const [type, setType] = useState("Vacation");
+
+  function submit() {
+    toast.show(
+      `${type} leave requested. Your co-ordinator will see it for approval.`,
+    );
+    onClose();
+  }
+
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-ink-900/40 backdrop-blur-sm p-4">
       <div className="card w-full max-w-md p-6">
@@ -314,7 +331,8 @@ function RequestLeaveModal({
           Type
         </label>
         <select
-          defaultValue="Vacation"
+          value={type}
+          onChange={(e) => setType(e.target.value)}
           className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm"
         >
           <option>Vacation</option>
@@ -359,7 +377,7 @@ function RequestLeaveModal({
           <button onClick={onClose} className="btn-ghost">
             Cancel
           </button>
-          <button onClick={onClose} className="btn-primary">
+          <button onClick={submit} className="btn-primary">
             Submit request
           </button>
         </div>

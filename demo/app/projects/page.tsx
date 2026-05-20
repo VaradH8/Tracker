@@ -22,6 +22,7 @@ import { useTasks } from "@/lib/tasks-store";
 import { canManageProjects } from "@/lib/role";
 import { useRole } from "@/lib/role";
 import { canSeeProjectFinancials, visibleProjects } from "@/lib/access";
+import { useToast } from "@/components/Toast";
 
 const FILTERS: { id: ProjectStatus | "All"; label: string }[] = [
   { id: "All", label: "All" },
@@ -34,9 +35,11 @@ const FILTERS: { id: ProjectStatus | "All"; label: string }[] = [
 export default function ProjectsPage() {
   const [filter, setFilter] = useState<ProjectStatus | "All">("All");
   const [query, setQuery] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
   const [role] = useRole();
   const showFinancials = canSeeProjectFinancials(role);
   const { tasks } = useTasks();
+  const toast = useToast();
 
   const myProjects = visibleProjects(role, PROJECTS, tasks);
 
@@ -64,7 +67,10 @@ export default function ProjectsPage() {
             </p>
           </div>
           {canManageProjects(role) && (
-            <button className="btn-primary">
+            <button
+              onClick={() => setCreateOpen(true)}
+              className="btn-primary"
+            >
               <Plus size={16} className="mr-1.5" /> New project
             </button>
           )}
@@ -193,7 +199,91 @@ export default function ProjectsPage() {
           </div>
         )}
       </div>
+
+      {createOpen && (
+        <CreateProjectModal
+          onClose={() => setCreateOpen(false)}
+          onCreate={(name) => {
+            setCreateOpen(false);
+            toast.show(`Project “${name}” created.`);
+          }}
+        />
+      )}
     </AppShell>
+  );
+}
+
+function CreateProjectModal({
+  onClose,
+  onCreate,
+}: {
+  onClose: () => void;
+  onCreate: (name: string) => void;
+}) {
+  const [name, setName] = useState("");
+  const [clientId, setClientId] = useState(CLIENTS[0]?.id ?? 1);
+  const [target, setTarget] = useState("");
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-ink-900/40 backdrop-blur-sm p-4">
+      <div className="card w-full max-w-md p-6">
+        <h2 className="font-heading text-lg font-semibold mb-1">
+          New project
+        </h2>
+        <p className="text-sm text-ink-500 mb-5">
+          Create a project under a client.
+        </p>
+
+        <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          Project name
+        </label>
+        <input
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Saipem — Phase 2"
+          className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+        />
+
+        <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          Client
+        </label>
+        <select
+          value={clientId}
+          onChange={(e) => setClientId(Number(e.target.value))}
+          className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm"
+        >
+          {CLIENTS.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+
+        <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          Target date
+        </label>
+        <input
+          type="date"
+          value={target}
+          onChange={(e) => setTarget(e.target.value)}
+          className="w-full px-3 py-2 mb-6 rounded border border-ink-200 text-sm"
+        />
+
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className="btn-ghost">
+            Cancel
+          </button>
+          <button
+            onClick={() => onCreate(name.trim() || "Untitled project")}
+            disabled={!name.trim()}
+            className="btn-primary disabled:opacity-50"
+          >
+            Create project
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -3,8 +3,10 @@
 import { CheckCircle2, Database, Mail } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { SettingsTabs } from "@/components/SettingsTabs";
+import { useToast } from "@/components/Toast";
 
 export default function SettingsGeneralPage() {
+  const toast = useToast();
   return (
     <AppShell>
       <div className="max-w-4xl mx-auto px-6 py-8">
@@ -28,7 +30,12 @@ export default function SettingsGeneralPage() {
               <Field label="User" value="AKIA..." />
               <Field label="From address" value="tracker@yourcompany.com" />
             </div>
-            <button className="btn-ghost mt-4 border border-ink-200">
+            <button
+              onClick={() =>
+                toast.show("Test email sent to the From address.")
+              }
+              className="btn-ghost mt-4 border border-ink-200"
+            >
               Send test email
             </button>
           </section>
@@ -66,8 +73,18 @@ export default function SettingsGeneralPage() {
           </section>
 
           <div className="flex gap-2">
-            <button className="btn-primary">Save changes</button>
-            <button className="btn-ghost">Cancel</button>
+            <button
+              onClick={() => toast.show("Settings saved.")}
+              className="btn-primary"
+            >
+              Save changes
+            </button>
+            <button
+              onClick={() => toast.show("Changes discarded.", "info")}
+              className="btn-ghost"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       </div>

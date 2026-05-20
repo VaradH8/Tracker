@@ -21,6 +21,9 @@ import {
 } from "@/lib/mock";
 import { useRole } from "@/lib/role";
 import { useTasks } from "@/lib/tasks-store";
+import { useToast } from "@/components/Toast";
+import { toCsv, downloadCsv } from "@/lib/csv";
+import { projectById } from "@/lib/mock";
 
 const TODAY = "2026-05-06";
 const isOverdue = (d: string) => d < TODAY;
@@ -35,9 +38,25 @@ export default function MyDayPage() {
 
 function CoordinatorMyDay() {
   const { tasks } = useTasks();
+  const toast = useToast();
   const myTasks = tasks.filter(
     (t) => t.assignees.includes("Manasi") && t.status !== "Done",
   );
+
+  function exportMyTasks() {
+    const csv = toCsv(
+      ["Task", "Project", "Status", "Priority", "Target date"],
+      myTasks.map((t) => [
+        t.title,
+        projectById(t.projectId)?.name ?? "",
+        t.status,
+        t.priority,
+        t.targetDate,
+      ]),
+    );
+    downloadCsv("my-tasks.csv", csv);
+    toast.show(`Exported ${myTasks.length} tasks to CSV.`);
+  }
 
   const dueToday = myTasks.filter((t) => isDueToday(t.targetDate));
   const overdue = myTasks.filter((t) => isOverdue(t.targetDate));
@@ -166,7 +185,10 @@ function CoordinatorMyDay() {
                 >
                   <Plus size={16} className="mr-2" /> Plan a task
                 </a>
-                <button className="btn-ghost w-full justify-start border border-ink-200">
+                <button
+                  onClick={exportMyTasks}
+                  className="btn-ghost w-full justify-start border border-ink-200"
+                >
                   <Download size={16} className="mr-2" /> Export Excel
                 </button>
                 <a

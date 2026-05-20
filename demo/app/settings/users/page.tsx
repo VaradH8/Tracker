@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Plus, Search, Upload, Mail, KeyRound, UserX } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { SettingsTabs } from "@/components/SettingsTabs";
+import { useToast } from "@/components/Toast";
 import { RESOURCES, ROLE_LABELS_BY_PRIMARY } from "./labels";
 
 export default function SettingsUsersPage() {
@@ -11,10 +12,20 @@ export default function SettingsUsersPage() {
   const [filter, setFilter] = useState<"All" | "Active" | "Deactivated">(
     "All",
   );
+  const [query, setQuery] = useState("");
+  const toast = useToast();
 
   const visible = RESOURCES.filter((u) =>
     filter === "All" ? true : u.status === filter,
-  );
+  ).filter((u) => {
+    if (!query.trim()) return true;
+    const q = query.toLowerCase();
+    return (
+      u.name.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q) ||
+      u.designation.toLowerCase().includes(q)
+    );
+  });
 
   return (
     <AppShell>
@@ -35,7 +46,15 @@ export default function SettingsUsersPage() {
             deactivated
           </p>
           <div className="flex items-center gap-2">
-            <button className="btn-ghost border border-ink-200">
+            <button
+              onClick={() =>
+                toast.show(
+                  "Bulk assign: upload a CSV to invite many users at once. Wired up once the database is connected.",
+                  "info",
+                )
+              }
+              className="btn-ghost border border-ink-200"
+            >
               <Upload size={16} className="mr-1.5" /> Bulk Assign (CSV)
             </button>
             <button onClick={() => setInviteOpen(true)} className="btn-primary">
@@ -51,6 +70,8 @@ export default function SettingsUsersPage() {
               className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-400"
             />
             <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
               placeholder="Search by name or email…"
               className="w-full pl-9 pr-3 py-1.5 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
             />
@@ -84,6 +105,16 @@ export default function SettingsUsersPage() {
               </tr>
             </thead>
             <tbody>
+              {visible.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="py-8 text-center text-sm text-ink-500"
+                  >
+                    No users match your search.
+                  </td>
+                </tr>
+              )}
               {visible.map((u) => (
                 <tr
                   key={u.id}
@@ -117,7 +148,12 @@ export default function SettingsUsersPage() {
                   <td className="py-3 px-3">
                     <div className="flex items-center gap-1 justify-end">
                       <button
-                        title="Reset password link"
+                        title="Send password reset link"
+                        onClick={() =>
+                          toast.show(
+                            `Password reset link sent to ${u.email}.`,
+                          )
+                        }
                         className="p-1.5 rounded text-ink-400 hover:text-brand-blue hover:bg-brand-blueBg"
                       >
                         <KeyRound size={14} />
@@ -125,6 +161,14 @@ export default function SettingsUsersPage() {
                       <button
                         title={
                           u.status === "Active" ? "Deactivate" : "Reactivate"
+                        }
+                        onClick={() =>
+                          toast.show(
+                            u.status === "Active"
+                              ? `${u.name} deactivated. Their history is preserved.`
+                              : `${u.name} reactivated.`,
+                            u.status === "Active" ? "info" : "success",
+                          )
                         }
                         className="p-1.5 rounded text-ink-400 hover:text-brand-redText hover:bg-brand-redBg"
                       >
@@ -139,12 +183,29 @@ export default function SettingsUsersPage() {
         </div>
       </div>
 
-      {inviteOpen && <InviteModal onClose={() => setInviteOpen(false)} />}
+      {inviteOpen && (
+        <InviteModal
+          onClose={() => setInviteOpen(false)}
+          onSent={(email) => {
+            setInviteOpen(false);
+            toast.show(`Invite sent to ${email}. Magic link valid 24 hours.`);
+          }}
+        />
+      )}
     </AppShell>
   );
 }
 
-function InviteModal({ onClose }: { onClose: () => void }) {
+function InviteModal({
+  onClose,
+  onSent,
+}: {
+  onClose: () => void;
+  onSent: (email: string) => void;
+}) {
+  const [email, setEmail] = useState("newhire@example.com");
+  const [name, setName] = useState("");
+
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-ink-900/40 backdrop-blur-sm p-4">
       <div className="card w-full max-w-md p-6">
@@ -153,7 +214,7 @@ function InviteModal({ onClose }: { onClose: () => void }) {
           <h2 className="font-heading text-lg font-semibold">Invite User</h2>
         </div>
         <p className="text-sm text-ink-500 mb-5">
-          They'll receive a magic link valid for 24 hours.
+          They&apos;ll receive a magic link valid for 24 hours.
         </p>
 
         <label className="block text-xs font-medium text-ink-700 mb-1.5">
@@ -161,7 +222,8 @@ function InviteModal({ onClose }: { onClose: () => void }) {
         </label>
         <input
           type="email"
-          defaultValue="newhire@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
           className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
         />
 
@@ -170,6 +232,8 @@ function InviteModal({ onClose }: { onClose: () => void }) {
         </label>
         <input
           type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
           placeholder="New Hire"
           className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
         />
@@ -191,7 +255,11 @@ function InviteModal({ onClose }: { onClose: () => void }) {
           <button onClick={onClose} className="btn-ghost">
             Cancel
           </button>
-          <button onClick={onClose} className="btn-primary">
+          <button
+            onClick={() => onSent(email.trim() || "newhire@example.com")}
+            disabled={!email.trim()}
+            className="btn-primary disabled:opacity-50"
+          >
             Send invite
           </button>
         </div>

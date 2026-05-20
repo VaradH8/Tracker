@@ -34,6 +34,8 @@ import {
   canSeeProjectAudit,
   canSeeProjectFinancials,
 } from "@/lib/access";
+import { useToast } from "@/components/Toast";
+import { toCsv, downloadCsv } from "@/lib/csv";
 
 const COLUMNS: { id: Status; title: string; accent: string }[] = [
   { id: "To Do", title: "To Do", accent: "bg-ink-400" },
@@ -56,6 +58,8 @@ export default function ProjectDetailPage({
 
   const [role, , hydrated] = useRole();
   const router = useRouter();
+  const toast = useToast();
+  const [createOpen, setCreateOpen] = useState(false);
   const { forProject, addTask, tasks: allTasks, timeEntries } = useTasks();
 
   const showFinancials = canSeeProjectFinancials(role);
@@ -132,12 +136,35 @@ export default function ProjectDetailPage({
           </div>
           <div className="flex items-center gap-2">
             {showExport && (
-              <button className="btn-ghost border border-ink-200">
+              <button
+                onClick={() => {
+                  const csv = toCsv(
+                    ["Task", "Status", "Priority", "Responsible", "Accountable", "Target date"],
+                    tasks.map((t) => [
+                      t.title,
+                      t.status,
+                      t.priority,
+                      t.responsible,
+                      t.assignees.join("; "),
+                      t.targetDate,
+                    ]),
+                  );
+                  downloadCsv(
+                    `${project.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-tasks.csv`,
+                    csv,
+                  );
+                  toast.show(`Exported ${tasks.length} tasks to CSV.`);
+                }}
+                className="btn-ghost border border-ink-200"
+              >
                 <Download size={16} className="mr-1.5" /> Export Excel
               </button>
             )}
             {canEdit && (
-              <button className="btn-primary">
+              <button
+                onClick={() => setCreateOpen(true)}
+                className="btn-primary"
+              >
                 <Plus size={16} className="mr-1.5" /> New task
               </button>
             )}
@@ -407,7 +434,86 @@ export default function ProjectDetailPage({
           </div>
         )}
       </div>
+
+      {createOpen && (
+        <CreateTaskModal
+          projectName={project.name}
+          onClose={() => setCreateOpen(false)}
+          onCreate={(title, status) => {
+            addTask({ title, projectId, status });
+            setCreateOpen(false);
+            toast.show(`Task “${title}” created.`);
+          }}
+        />
+      )}
     </AppShell>
+  );
+}
+
+function CreateTaskModal({
+  projectName,
+  onClose,
+  onCreate,
+}: {
+  projectName: string;
+  onClose: () => void;
+  onCreate: (title: string, status: Status) => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [status, setStatus] = useState<Status>("To Do");
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-ink-900/40 backdrop-blur-sm p-4">
+      <div className="card w-full max-w-md p-6">
+        <h2 className="font-heading text-lg font-semibold mb-1">New task</h2>
+        <p className="text-sm text-ink-500 mb-5 truncate">
+          In {projectName}
+        </p>
+
+        <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          Task title
+        </label>
+        <input
+          autoFocus
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && title.trim()) {
+              onCreate(title.trim(), status);
+            }
+          }}
+          placeholder="What needs to be done?"
+          className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+        />
+
+        <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          Start in column
+        </label>
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value as Status)}
+          className="w-full px-3 py-2 mb-6 rounded border border-ink-200 text-sm"
+        >
+          <option>To Do</option>
+          <option>In Progress</option>
+          <option>Blocked</option>
+          <option>Done</option>
+        </select>
+
+        <div className="flex justify-end gap-2">
+          <button onClick={onClose} className="btn-ghost">
+            Cancel
+          </button>
+          <button
+            onClick={() => onCreate(title.trim() || "Untitled task", status)}
+            disabled={!title.trim()}
+            className="btn-primary disabled:opacity-50"
+          >
+            Create task
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

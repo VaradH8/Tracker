@@ -5,6 +5,7 @@ import { TaskDrawerProvider } from "@/components/TaskDrawerProvider";
 import { TasksProvider } from "@/lib/tasks-store";
 import { NotificationsProvider } from "@/lib/notifications-store";
 import { Providers } from "@/components/Providers";
+import { ToastProvider } from "@/components/Toast";
 
 const heading = Space_Grotesk({
   subsets: ["latin"],
@@ -74,11 +75,13 @@ export default function RootLayout({
     <html lang="en" className={`${heading.variable} ${body.variable}`}>
       <body>
         <Providers>
-          <NotificationsProvider>
-            <TasksProvider>
-              <TaskDrawerProvider>{children}</TaskDrawerProvider>
-            </TasksProvider>
-          </NotificationsProvider>
+          <ToastProvider>
+            <NotificationsProvider>
+              <TasksProvider>
+                <TaskDrawerProvider>{children}</TaskDrawerProvider>
+              </TasksProvider>
+            </NotificationsProvider>
+          </ToastProvider>
         </Providers>
       </body>
     </html>
