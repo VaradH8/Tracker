@@ -10,11 +10,22 @@ import {
 import {
   TASKS as SEED_TASKS,
   TIME_ENTRIES as SEED_TIME_ENTRIES,
+  AUDIT_LOG as SEED_AUDIT,
+  projectById,
+  type AuditEntry,
   type Priority,
   type Status,
   type Task,
   type TimeEntry,
 } from "./mock";
+import { useRole, type Role } from "./role";
+
+const ROLE_PERSON: Record<Role, string> = {
+  Admin: "Varad Hadawale",
+  Coordinator: "Manasi Kulkarni",
+  BusinessDeveloper: "Rohit Mehra",
+  Developer: "Sanjana Rao",
+};
 
 type AddTaskInput = {
   title: string;
@@ -39,6 +50,7 @@ type LogTimeInput = {
 type Ctx = {
   tasks: Task[];
   timeEntries: TimeEntry[];
+  auditLog: AuditEntry[];
   byId: (id: number) => Task | undefined;
   forProject: (projectId: number) => Task[];
   entriesForTask: (taskId: number) => TimeEntry[];
@@ -62,6 +74,23 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const [tasks, setTasks] = useState<Task[]>(SEED_TASKS);
   const [timeEntries, setTimeEntries] =
     useState<TimeEntry[]>(SEED_TIME_ENTRIES);
+  const [auditLog, setAuditLog] = useState<AuditEntry[]>(SEED_AUDIT);
+  const [role] = useRole();
+  const actor = ROLE_PERSON[role];
+
+  const logAudit = useCallback(
+    (entry: Omit<AuditEntry, "id" | "when">) => {
+      setAuditLog((prev) => [
+        {
+          ...entry,
+          id: Math.max(0, ...prev.map((a) => a.id)) + 1,
+          when: "just now",
+        },
+        ...prev,
+      ]);
+    },
+    [],
+  );
 
   const byId = useCallback(
     (id: number) => tasks.find((t) => t.id === id),
@@ -104,16 +133,29 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
-  const setStatus = useCallback((id: number, status: Status) => {
-    setTasks((prev) =>
-      prev.map((t) => {
-        if (t.id !== id) return t;
-        const next: Task = { ...t, status };
-        if (status === "Done") next.overdueDays = undefined;
-        return next;
-      }),
-    );
-  }, []);
+  const setStatus = useCallback(
+    (id: number, status: Status) => {
+      setTasks((prev) =>
+        prev.map((t) => {
+          if (t.id !== id) return t;
+          if (t.status !== status) {
+            logAudit({
+              actor,
+              action: "task.status_change",
+              scope: projectById(t.projectId)?.name ?? "—",
+              taskTitle: t.title,
+              before: t.status,
+              after: status,
+            });
+          }
+          const next: Task = { ...t, status };
+          if (status === "Done") next.overdueDays = undefined;
+          return next;
+        }),
+      );
+    },
+    [actor, logAudit],
+  );
 
   const setPriority = useCallback((id: number, priority: Priority) => {
     setTasks((prev) =>
@@ -225,6 +267,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       value={{
         tasks,
         timeEntries,
+        auditLog,
         byId,
         forProject,
         entriesForTask,

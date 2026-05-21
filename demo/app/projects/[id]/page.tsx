@@ -17,7 +17,6 @@ import {
 import { AppShell } from "@/components/AppShell";
 import { TaskCard } from "@/components/TaskCard";
 import {
-  AUDIT_LOG,
   PROJECTS,
   clientById,
   projectById,
@@ -41,6 +40,7 @@ const COLUMNS: { id: Status; title: string; accent: string }[] = [
   { id: "To Do", title: "To Do", accent: "bg-ink-400" },
   { id: "In Progress", title: "In Progress", accent: "bg-brand-blue" },
   { id: "Blocked", title: "Blocked", accent: "bg-brand-red" },
+  { id: "In review", title: "In review", accent: "bg-brand-yellow" },
   { id: "Done", title: "Done", accent: "bg-brand-green" },
 ];
 
@@ -60,7 +60,13 @@ export default function ProjectDetailPage({
   const router = useRouter();
   const toast = useToast();
   const [createOpen, setCreateOpen] = useState(false);
-  const { forProject, addTask, tasks: allTasks, timeEntries } = useTasks();
+  const {
+    forProject,
+    addTask,
+    tasks: allTasks,
+    timeEntries,
+    auditLog,
+  } = useTasks();
 
   const showFinancials = canSeeProjectFinancials(role);
   const showAudit = canSeeProjectAudit(role);
@@ -81,7 +87,7 @@ export default function ProjectDetailPage({
   const tasks = forProject(projectId);
   const canEdit = role === "Admin" || role === "Coordinator";
 
-  const projectAudit = AUDIT_LOG.filter((a) => a.scope === project.name);
+  const projectAudit = auditLog.filter((a) => a.scope === project.name);
 
   const tabs: Tab[] = ["tasks", "details"];
   if (showAudit) tabs.push("history");
@@ -235,7 +241,7 @@ export default function ProjectDetailPage({
         </div>
 
         {activeTab === "tasks" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
             {COLUMNS.map((col) => {
               const colTasks = tasks.filter((t) => t.status === col.id);
               return (

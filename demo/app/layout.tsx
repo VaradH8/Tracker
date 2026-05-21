@@ -6,6 +6,7 @@ import { TasksProvider } from "@/lib/tasks-store";
 import { NotificationsProvider } from "@/lib/notifications-store";
 import { Providers } from "@/components/Providers";
 import { ToastProvider } from "@/components/Toast";
+import { BlockDialogProvider } from "@/components/BlockDialogProvider";
 
 const heading = Space_Grotesk({
   subsets: ["latin"],
@@ -78,7 +79,9 @@ export default function RootLayout({
           <ToastProvider>
             <NotificationsProvider>
               <TasksProvider>
-                <TaskDrawerProvider>{children}</TaskDrawerProvider>
+                <BlockDialogProvider>
+                  <TaskDrawerProvider>{children}</TaskDrawerProvider>
+                </BlockDialogProvider>
               </TasksProvider>
             </NotificationsProvider>
           </ToastProvider>

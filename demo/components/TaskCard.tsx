@@ -1,11 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import type { Task } from "@/lib/mock";
 import { projectById } from "@/lib/mock";
 import { useTaskDrawer } from "./TaskDrawerProvider";
 import { useTasks } from "@/lib/tasks-store";
 import { useRole } from "@/lib/role";
 import { useToast } from "./Toast";
+import { useBlockDialog } from "./BlockDialogProvider";
 import {
   AssigneePicker,
   DateField,
@@ -33,6 +35,7 @@ export function TaskCard({
   const store = useTasks();
   const [role] = useRole();
   const toast = useToast();
+  const blockDialog = useBlockDialog();
 
   function reassign(name: string) {
     const wasAssigned = task.assignees.includes(name);
@@ -69,12 +72,13 @@ export function TaskCard({
           readOnly={!canEdit}
         />
         {!hideProject && project && (
-          <span
-            className="pill-grey truncate max-w-[160px]"
-            title={project.name}
+          <Link
+            href={`/projects/${project.id}`}
+            title={`Open ${project.name}`}
+            className="pill-grey truncate max-w-[160px] hover:bg-ink-200 hover:text-ink-900 transition-colors"
           >
             {project.name}
-          </span>
+          </Link>
         )}
         <div className="ml-auto flex items-center gap-1">
           <ImportantToggle
@@ -118,6 +122,7 @@ export function TaskCard({
         <StatusPicker
           value={task.status}
           onChange={(s) => store.setStatus(task.id, s)}
+          onBlock={() => blockDialog.requestBlock(task.id)}
           readOnly={!isAssignee && !canEdit}
         />
         <QuickActions
@@ -125,6 +130,7 @@ export function TaskCard({
           isAssignee={isAssignee}
           canEdit={canEdit}
           onStatus={(s) => store.setStatus(task.id, s)}
+          onBlock={() => blockDialog.requestBlock(task.id)}
         />
       </div>
     </div>

@@ -4,9 +4,9 @@ import { Fragment, useMemo, useState } from "react";
 import { Search, Download, ChevronDown, ChevronUp } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { SettingsTabs } from "@/components/SettingsTabs";
-import { AUDIT_LOG } from "@/lib/mock";
 import { toCsv, downloadCsv } from "@/lib/csv";
 import { useToast } from "@/components/Toast";
+import { useTasks } from "@/lib/tasks-store";
 
 const ACTION_LABELS: Record<string, string> = {
   "task.status_change": "Status changed",
@@ -24,17 +24,19 @@ export default function SettingsAuditPage() {
   const [actor, setActor] = useState<string>("All");
   const [action, setAction] = useState<string>("All");
   const toast = useToast();
+  const { auditLog } = useTasks();
 
   const actors = useMemo(
-    () => ["All", ...Array.from(new Set(AUDIT_LOG.map((e) => e.actor)))],
-    [],
+    () => ["All", ...Array.from(new Set(auditLog.map((e) => e.actor)))],
+    [auditLog],
   );
   const actions = useMemo(
-    () => ["All", ...Array.from(new Set(AUDIT_LOG.map((e) => e.action)))],
-    [],
+    () => ["All", ...Array.from(new Set(auditLog.map((e) => e.action)))],
+    [auditLog],
   );
 
-  const rows = AUDIT_LOG.filter((e) => actor === "All" || e.actor === actor)
+  const rows = auditLog
+    .filter((e) => actor === "All" || e.actor === actor)
     .filter((e) => action === "All" || e.action === action)
     .filter((e) => {
       if (!query.trim()) return true;
@@ -78,8 +80,8 @@ export default function SettingsAuditPage() {
 
         <div className="flex items-center justify-between mb-4">
           <p className="text-sm text-ink-500">
-            {rows.length} of {AUDIT_LOG.length}{" "}
-            {AUDIT_LOG.length === 1 ? "entry" : "entries"}
+            {rows.length} of {auditLog.length}{" "}
+            {auditLog.length === 1 ? "entry" : "entries"}
           </p>
           <button
             onClick={exportCsv}

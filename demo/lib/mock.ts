@@ -1,5 +1,10 @@
 export type Priority = "Critical" | "High" | "Medium" | "Low";
-export type Status = "To Do" | "In Progress" | "Blocked" | "Done";
+export type Status =
+  | "To Do"
+  | "In Progress"
+  | "Blocked"
+  | "In review"
+  | "Done";
 export type ProjectStatus = "Discovery" | "Active" | "On Hold" | "Delivered";
 export type PerformanceFlag = "On track" | "Watch" | "Idle";
 
@@ -795,6 +800,8 @@ export function statusPill(s: Status): string {
       return "pill-blue";
     case "Blocked":
       return "pill-red";
+    case "In review":
+      return "pill-yellow";
     case "Done":
       return "pill-green";
   }

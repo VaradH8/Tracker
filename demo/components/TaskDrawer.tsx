@@ -23,6 +23,7 @@ import {
 import { useTasks } from "@/lib/tasks-store";
 import { useRole } from "@/lib/role";
 import { projectById, loggedHoursForTask, TODAY_ISO } from "@/lib/mock";
+import { useBlockDialog } from "./BlockDialogProvider";
 
 const ROLE_PERSON: Record<string, string> = {
   Admin: "Manasi",
@@ -52,6 +53,7 @@ export function TaskDrawer({
 }) {
   const store = useTasks();
   const [role] = useRole();
+  const blockDialog = useBlockDialog();
   const [newRemark, setNewRemark] = useState("");
   const [logOpen, setLogOpen] = useState(false);
   const [logHours, setLogHours] = useState("");
@@ -135,6 +137,7 @@ export function TaskDrawer({
                 <StatusPicker
                   value={task.status}
                   onChange={(s) => store.setStatus(task.id, s)}
+                  onBlock={() => blockDialog.requestBlock(task.id)}
                 />
               </div>
               <QuickActions
@@ -142,6 +145,7 @@ export function TaskDrawer({
                 isAssignee={isAssignee}
                 canEdit={canEdit}
                 onStatus={(s) => store.setStatus(task.id, s)}
+                onBlock={() => blockDialog.requestBlock(task.id)}
               />
             </div>
           )}

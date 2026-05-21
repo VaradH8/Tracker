@@ -20,7 +20,13 @@ import {
   type Task,
 } from "@/lib/mock";
 
-const STATUSES: Status[] = ["To Do", "In Progress", "Blocked", "Done"];
+const STATUSES: Status[] = [
+  "To Do",
+  "In Progress",
+  "Blocked",
+  "In review",
+  "Done",
+];
 const PRIORITIES: Priority[] = ["Critical", "High", "Medium", "Low"];
 
 const AVATAR_COLORS = [
@@ -38,10 +44,13 @@ function initials(name: string) {
 export function StatusPicker({
   value,
   onChange,
+  onBlock,
   readOnly,
 }: {
   value: Status;
   onChange: (s: Status) => void;
+  /** If provided, picking "Blocked" calls this instead (to collect a reason). */
+  onBlock?: () => void;
   readOnly?: boolean;
 }) {
   if (readOnly) {
@@ -67,7 +76,8 @@ export function StatusPicker({
             <li key={s}>
               <button
                 onClick={() => {
-                  onChange(s);
+                  if (s === "Blocked" && onBlock) onBlock();
+                  else onChange(s);
                   close();
                 }}
                 className={`w-full text-left px-2 py-1.5 rounded hover:bg-ink-100 flex items-center gap-2 ${
@@ -352,21 +362,32 @@ function Avatar({
   );
 }
 
+type QuickButton = {
+  label: string;
+  tip: string;
+  icon: typeof Play;
+  tone: string;
+  next: Status | "BLOCK";
+};
+
 export function QuickActions({
   task,
   onStatus,
+  onBlock,
   isAssignee,
   canEdit,
 }: {
   task: Task;
   onStatus: (s: Status) => void;
+  /** Picking "Block" calls this (to collect a reason) instead of onStatus. */
+  onBlock?: () => void;
   isAssignee: boolean;
   canEdit: boolean;
 }) {
   const allowed = isAssignee || canEdit;
   if (!allowed) return null;
 
-  const buttons: { label: string; tip: string; icon: typeof Play; tone: string; next: Status }[] = [];
+  const buttons: QuickButton[] = [];
   switch (task.status) {
     case "To Do":
       buttons.push({
@@ -379,6 +400,22 @@ export function QuickActions({
       break;
     case "In Progress":
       buttons.push({
+        label: "Review",
+        tip: "Send to In review",
+        icon: Check,
+        tone: "text-brand-yellowText hover:bg-brand-yellowBg",
+        next: "In review",
+      });
+      buttons.push({
+        label: "Block",
+        tip: "Mark as Blocked",
+        icon: Lock,
+        tone: "text-brand-redText hover:bg-brand-redBg",
+        next: "BLOCK",
+      });
+      break;
+    case "In review":
+      buttons.push({
         label: "Done",
         tip: "Mark as Done",
         icon: Check,
@@ -386,11 +423,11 @@ export function QuickActions({
         next: "Done",
       });
       buttons.push({
-        label: "Block",
-        tip: "Mark as Blocked",
-        icon: Lock,
-        tone: "text-brand-redText hover:bg-brand-redBg",
-        next: "Blocked",
+        label: "Back",
+        tip: "Move back to In Progress",
+        icon: RotateCcw,
+        tone: "text-ink-500 hover:bg-ink-100",
+        next: "In Progress",
       });
       break;
     case "Blocked":
@@ -423,7 +460,12 @@ export function QuickActions({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              onStatus(b.next);
+              if (b.next === "BLOCK") {
+                if (onBlock) onBlock();
+                else onStatus("Blocked");
+              } else {
+                onStatus(b.next);
+              }
             }}
             title={b.tip}
             className={`px-1.5 py-0.5 rounded text-[10px] font-medium inline-flex items-center gap-1 ${b.tone}`}
