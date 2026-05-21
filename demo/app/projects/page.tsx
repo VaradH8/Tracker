@@ -8,9 +8,11 @@ import {
   Users as UsersIcon,
   Clock,
   Calendar,
+  FolderKanban,
 } from "lucide-react";
 import { useState } from "react";
 import { AppShell } from "@/components/AppShell";
+import { EmptyState } from "@/components/EmptyState";
 import {
   CLIENTS,
   PROJECTS,
@@ -105,11 +107,30 @@ export default function ProjectsPage() {
         </div>
 
         {visible.length === 0 ? (
-          <div className="card p-10 text-center text-ink-500">
-            {myProjects.length === 0
-              ? "You're not on any projects yet. A co-ordinator can add you."
-              : "No projects match your filters."}
-          </div>
+          myProjects.length === 0 ? (
+            <EmptyState
+              Icon={FolderKanban}
+              title="You're not on any projects yet"
+              message="Once a co-ordinator adds you to a project, it shows up here."
+            />
+          ) : (
+            <EmptyState
+              Icon={Search}
+              title="No projects match"
+              message="Try a different search term or clear the status filter."
+              action={
+                <button
+                  onClick={() => {
+                    setQuery("");
+                    setFilter("All");
+                  }}
+                  className="btn-ghost border border-ink-200"
+                >
+                  Clear filters
+                </button>
+              }
+            />
+          )
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {visible.map((p) => {

@@ -1,7 +1,9 @@
 "use client";
 
+import { CheckSquare } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { TaskCard } from "@/components/TaskCard";
+import { EmptyState } from "@/components/EmptyState";
 import { type Status } from "@/lib/mock";
 import { useRole } from "@/lib/role";
 import { useTasks } from "@/lib/tasks-store";
@@ -37,6 +39,13 @@ export default function MyTasksPage() {
           </p>
         </header>
 
+        {mine.length === 0 ? (
+          <EmptyState
+            Icon={CheckSquare}
+            title="No tasks assigned to you"
+            message="When a co-ordinator assigns you a task it lands here, grouped by status."
+          />
+        ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
           {COLUMNS.map((col) => {
             const cards = mine.filter((t) => t.status === col.id);
@@ -64,8 +73,9 @@ export default function MyTasksPage() {
             );
           })}
         </div>
+        )}
 
-        {role === "Developer" && (
+        {role === "Developer" && mine.length > 0 && (
           <p className="text-xs text-ink-400 mt-6 italic text-center">
             Click any pill or button on a card to update status — no menus, no
             drawers needed.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   Mail,
@@ -12,8 +12,10 @@ import {
   X,
   Activity,
   Briefcase,
+  Users as UsersIcon,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { EmptyState } from "@/components/EmptyState";
 import {
   RESOURCES,
   performancePill,
@@ -28,14 +30,29 @@ import { useRole } from "@/lib/role";
 
 const FILTERS: PerformanceFlag[] = ["On track", "Watch", "Idle"];
 
+type ActiveFilter = PerformanceFlag | "Flagged" | null;
+
 export default function ResourcesPage() {
-  const [active, setActive] = useState<PerformanceFlag | null>(null);
+  const [active, setActive] = useState<ActiveFilter>(null);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Resource | null>(null);
   const { tasks } = useTasks();
 
+  // Honour deep-links like /resources?filter=flagged from the dashboard.
+  useEffect(() => {
+    const f = new URLSearchParams(window.location.search).get("filter");
+    if (f === "flagged") setActive("Flagged");
+    else if (f === "watch") setActive("Watch");
+    else if (f === "idle") setActive("Idle");
+    else if (f === "ontrack") setActive("On track");
+  }, []);
+
   const visible = RESOURCES.filter((r) => r.status === "Active")
-    .filter((r) => (active ? r.performance === active : true))
+    .filter((r) => {
+      if (!active) return true;
+      if (active === "Flagged") return r.performance !== "On track";
+      return r.performance === active;
+    })
     .filter((r) => {
       if (!query.trim()) return true;
       const q = query.toLowerCase();
@@ -123,27 +140,47 @@ export default function ResourcesPage() {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {visible.map((r) => {
-            const myTasks = tasks.filter((t) =>
-              t.assignees.includes(r.name.split(" ")[0]),
-            );
-            const open = myTasks.filter((t) => t.status !== "Done").length;
-            return (
-              <ResourceCard
-                key={r.id}
-                r={r}
-                openTasks={open}
-                onOpen={() => setSelected(r)}
-              />
-            );
-          })}
-          {visible.length === 0 && (
-            <div className="card p-10 text-center text-ink-500 col-span-full">
-              No resources match the filters.
-            </div>
-          )}
-        </div>
+        {active === "Flagged" && (
+          <div className="mb-4 flex items-center gap-2 px-3 py-2 rounded-card bg-brand-yellowBg text-brand-yellowText text-sm">
+            <AlertTriangle size={14} />
+            Showing flagged resources (Watch + Idle).
+            <button
+              onClick={() => setActive(null)}
+              className="ml-auto text-xs underline hover:no-underline"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
+        {visible.length === 0 ? (
+          <EmptyState
+            Icon={UsersIcon}
+            title="No resources match"
+            message={
+              query.trim()
+                ? `Nothing matches “${query}”. Try a different name or role.`
+                : "No resources in this view. Clear the filter to see everyone."
+            }
+          />
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {visible.map((r) => {
+              const myTasks = tasks.filter((t) =>
+                t.assignees.includes(r.name.split(" ")[0]),
+              );
+              const open = myTasks.filter((t) => t.status !== "Done").length;
+              return (
+                <ResourceCard
+                  key={r.id}
+                  r={r}
+                  openTasks={open}
+                  onOpen={() => setSelected(r)}
+                />
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {selected && (

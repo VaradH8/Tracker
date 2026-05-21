@@ -13,6 +13,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 
 const VALID: Role[] = ["Admin", "Coordinator", "BusinessDeveloper", "Developer"];
 const KEY = "tracker-role";
+const LAST_KEY = "tracker-last-role";
 
 function isRole(r: unknown): r is Role {
   return typeof r === "string" && (VALID as string[]).includes(r);
@@ -30,7 +31,16 @@ export function writeStoredRole(r: Role | null) {
     window.localStorage.removeItem(KEY);
   } else {
     window.localStorage.setItem(KEY, r);
+    window.localStorage.setItem(LAST_KEY, r);
   }
+}
+
+/** The role the user last signed in as — survives sign-out, used to
+ *  highlight the same card on the login screen for muscle memory. */
+export function readLastRole(): Role | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(LAST_KEY);
+  return isRole(raw) ? raw : null;
 }
 
 /**

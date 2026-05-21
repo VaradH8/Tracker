@@ -240,7 +240,7 @@ export default function OrgDashboardPage() {
                 that need a look
               </h2>
               <button
-                onClick={() => router.push("/resources")}
+                onClick={() => router.push("/resources?filter=flagged")}
                 className="text-xs text-brand-blue hover:underline"
               >
                 See all <ArrowRight size={12} className="inline ml-0.5" />
@@ -257,7 +257,7 @@ export default function OrgDashboardPage() {
                   return (
                     <li
                       key={r.id}
-                      onClick={() => router.push("/resources")}
+                      onClick={() => router.push("/resources?filter=flagged")}
                       className="py-3 flex items-start gap-3 cursor-pointer hover:bg-ink-50 -mx-3 px-3 rounded"
                     >
                       <div className="w-8 h-8 rounded-full bg-brand-blue text-white grid place-items-center text-[10px] font-heading font-medium shrink-0">
