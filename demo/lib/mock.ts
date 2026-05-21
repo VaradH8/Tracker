@@ -811,6 +811,17 @@ export function formatINR(n: number): string {
   return "₹" + Math.round(n).toLocaleString("en-IN");
 }
 
+/**
+ * Rough number of days a relative label like "5d ago" / "yesterday" /
+ * "3h ago" / "just now" represents. Used to detect idle resources.
+ */
+export function daysSince(label: string): number {
+  const d = label.match(/^(\d+)\s*d/);
+  if (d) return Number(d[1]);
+  if (/^(yesterday|1\s*day)/i.test(label)) return 1;
+  return 0;
+}
+
 function daysAgo(iso: string): number {
   const today = new Date(TODAY_ISO + "T00:00:00");
   const d = new Date(iso + "T00:00:00");

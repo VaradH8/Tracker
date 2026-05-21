@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import {
   Play,
   Check,
@@ -272,35 +272,63 @@ export function AssigneePicker({
         </div>
       )}
     >
-      {() => (
-        <ul className="text-sm max-h-64 overflow-y-auto min-w-[200px]">
-          <li className="px-2 py-1 text-xs text-ink-500 font-semibold uppercase tracking-wide">
-            Assign
-          </li>
-          {RESOURCES.filter((u) => u.status === "Active" && !u.isAdmin).map((u) => {
-            const first = u.name.split(" ")[0];
-            const checked = selected.includes(first);
-            return (
-              <li key={u.id}>
-                <button
-                  onClick={() => onToggle(first)}
-                  className="w-full text-left px-2 py-1.5 rounded hover:bg-ink-100 flex items-center gap-2"
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    readOnly
-                    className="accent-brand-blue"
-                  />
-                  <Avatar name={first} colorIdx={u.id} size="sm" />
-                  <span className="flex-1">{u.name}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      {() => <AssigneeMenu selected={selected} onToggle={onToggle} />}
     </Popover>
+  );
+}
+
+function AssigneeMenu({
+  selected,
+  onToggle,
+}: {
+  selected: string[];
+  onToggle: (name: string) => void;
+}) {
+  const [q, setQ] = useState("");
+  const people = RESOURCES.filter(
+    (u) => u.status === "Active" && !u.isAdmin,
+  ).filter((u) => u.name.toLowerCase().includes(q.toLowerCase()));
+
+  return (
+    <div className="min-w-[220px]">
+      <div className="p-1.5 border-b border-ink-100">
+        <input
+          autoFocus
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search people…"
+          className="w-full px-2 py-1 text-sm rounded border border-ink-200 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+        />
+      </div>
+      <ul className="text-sm max-h-56 overflow-y-auto py-1">
+        {people.length === 0 && (
+          <li className="px-3 py-2 text-xs text-ink-400 italic">
+            No one matches.
+          </li>
+        )}
+        {people.map((u) => {
+          const first = u.name.split(" ")[0];
+          const checked = selected.includes(first);
+          return (
+            <li key={u.id}>
+              <button
+                onClick={() => onToggle(first)}
+                className="w-full text-left px-2 py-1.5 rounded hover:bg-ink-100 flex items-center gap-2"
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  readOnly
+                  className="accent-brand-blue"
+                />
+                <Avatar name={first} colorIdx={u.id} size="sm" />
+                <span className="flex-1">{u.name}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 

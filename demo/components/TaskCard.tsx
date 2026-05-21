@@ -5,6 +5,7 @@ import { projectById } from "@/lib/mock";
 import { useTaskDrawer } from "./TaskDrawerProvider";
 import { useTasks } from "@/lib/tasks-store";
 import { useRole } from "@/lib/role";
+import { useToast } from "./Toast";
 import {
   AssigneePicker,
   DateField,
@@ -31,6 +32,19 @@ export function TaskCard({
   const drawer = useTaskDrawer();
   const store = useTasks();
   const [role] = useRole();
+  const toast = useToast();
+
+  function reassign(name: string) {
+    const wasAssigned = task.assignees.includes(name);
+    store.toggleAssignee(task.id, name);
+    toast.show(
+      wasAssigned
+        ? `${name} removed from “${task.title}”.`
+        : `${name} assigned to “${task.title}”.`,
+      "success",
+      { label: "Undo", onClick: () => store.toggleAssignee(task.id, name) },
+    );
+  }
 
   const me = ROLE_PERSON[role] ?? "Manasi";
   const isAssignee = task.assignees.includes(me);
@@ -82,7 +96,7 @@ export function TaskCard({
       <div className="flex items-center justify-between gap-2 mb-2">
         <AssigneePicker
           selected={task.assignees}
-          onToggle={(name) => store.toggleAssignee(task.id, name)}
+          onToggle={reassign}
           readOnly={!canEdit}
         />
         <div className="flex items-center gap-2">

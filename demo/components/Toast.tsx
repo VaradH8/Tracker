@@ -10,9 +10,21 @@ import {
 import { CheckCircle2, Info, AlertTriangle, X } from "lucide-react";
 
 type ToastKind = "success" | "info" | "error";
-type Toast = { id: number; kind: ToastKind; message: string };
+type ToastAction = { label: string; onClick: () => void };
+type Toast = {
+  id: number;
+  kind: ToastKind;
+  message: string;
+  action?: ToastAction;
+};
 
-type Ctx = { show: (message: string, kind?: ToastKind) => void };
+type Ctx = {
+  show: (
+    message: string,
+    kind?: ToastKind,
+    action?: ToastAction,
+  ) => void;
+};
 
 const ToastCtx = createContext<Ctx | null>(null);
 
@@ -24,12 +36,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const show = useCallback(
-    (message: string, kind: ToastKind = "success") => {
+    (message: string, kind: ToastKind = "success", action?: ToastAction) => {
       const id = Date.now() + Math.random();
-      setToasts((prev) => [...prev, { id, kind, message }]);
-      setTimeout(() => {
-        setToasts((prev) => prev.filter((t) => t.id !== id));
-      }, 3800);
+      setToasts((prev) => [...prev, { id, kind, message, action }]);
+      setTimeout(
+        () => {
+          setToasts((prev) => prev.filter((t) => t.id !== id));
+        },
+        action ? 6000 : 3800,
+      );
     },
     [],
   );
@@ -59,9 +74,20 @@ function ToastCard({ toast, onClose }: { toast: Toast; onClose: () => void }) {
       <div className={`w-1 shrink-0 ${tone.bar}`} />
       <div className="flex items-start gap-2.5 p-3 flex-1">
         <Icon size={16} className={`${tone.color} shrink-0 mt-0.5`} />
-        <p className="text-sm text-ink-900 flex-1 leading-snug">
-          {toast.message}
-        </p>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-ink-900 leading-snug">{toast.message}</p>
+          {toast.action && (
+            <button
+              onClick={() => {
+                toast.action?.onClick();
+                onClose();
+              }}
+              className="mt-1 text-xs font-medium text-brand-blue hover:underline"
+            >
+              {toast.action.label}
+            </button>
+          )}
+        </div>
         <button
           onClick={onClose}
           className="text-ink-400 hover:text-ink-700 shrink-0"

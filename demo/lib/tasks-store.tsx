@@ -46,11 +46,14 @@ type Ctx = {
   setPriority: (id: number, priority: Priority) => void;
   setTargetDate: (id: number, date: string) => void;
   setDescription: (id: number, description: string) => void;
+  setAssignees: (id: number, names: string[]) => void;
   toggleAssignee: (id: number, name: string) => void;
   toggleImportant: (id: number) => void;
   addTask: (input: AddTaskInput) => void;
   addRemark: (taskId: number, author: string, body: string) => void;
   logTime: (input: LogTimeInput) => void;
+  bulkReassign: (ids: number[], name: string) => void;
+  bulkSetTargetDate: (ids: number[], date: string) => void;
 };
 
 const TasksCtx = createContext<Ctx | null>(null);
@@ -169,6 +172,30 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  const setAssignees = useCallback((id: number, names: string[]) => {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, assignees: names } : t)),
+    );
+  }, []);
+
+  const bulkReassign = useCallback((ids: number[], name: string) => {
+    const idSet = new Set(ids);
+    setTasks((prev) =>
+      prev.map((t) =>
+        idSet.has(t.id) ? { ...t, assignees: [name] } : t,
+      ),
+    );
+  }, []);
+
+  const bulkSetTargetDate = useCallback((ids: number[], date: string) => {
+    const idSet = new Set(ids);
+    setTasks((prev) =>
+      prev.map((t) =>
+        idSet.has(t.id) ? { ...t, targetDate: date } : t,
+      ),
+    );
+  }, []);
+
   const toggleImportant = useCallback((id: number) => {
     setTasks((prev) =>
       prev.map((t) => (t.id === id ? { ...t, important: !t.important } : t)),
@@ -205,11 +232,14 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         setPriority,
         setTargetDate,
         setDescription,
+        setAssignees,
         toggleAssignee,
         toggleImportant,
         addTask,
         addRemark,
         logTime,
+        bulkReassign,
+        bulkSetTargetDate,
       }}
     >
       {children}

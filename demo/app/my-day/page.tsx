@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   CalendarClock,
   AlertTriangle,
@@ -9,7 +10,11 @@ import {
   Download,
   ArrowRight,
   Sparkles,
+  Activity,
+  Truck,
+  UserMinus,
 } from "lucide-react";
+import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { StatCard } from "@/components/StatCard";
 import { TaskCard } from "@/components/TaskCard";
@@ -17,18 +22,25 @@ import {
   CURRENT_USER,
   DEVELOPER_USER,
   RECENT_ACTIVITY,
+  RESOURCES,
+  PROJECTS,
+  projectById,
+  daysSince,
   type Task,
 } from "@/lib/mock";
 import { useRole } from "@/lib/role";
 import { useTasks } from "@/lib/tasks-store";
 import { useToast } from "@/components/Toast";
 import { toCsv, downloadCsv } from "@/lib/csv";
-import { projectById } from "@/lib/mock";
 
 const TODAY = "2026-05-06";
 const isOverdue = (d: string) => d < TODAY;
 const isDueToday = (d: string) => d === TODAY;
 const PRIO_ORDER = { Critical: 0, High: 1, Medium: 2, Low: 3 } as const;
+
+const REASSIGN_PEOPLE = RESOURCES.filter(
+  (r) => r.status === "Active" && !r.isAdmin,
+).map((r) => r.name.split(" ")[0]);
 
 export default function MyDayPage() {
   const [role] = useRole();
@@ -36,41 +48,53 @@ export default function MyDayPage() {
   return <CoordinatorMyDay />;
 }
 
+/* ------------------------------------------------------------------ */
+/* Co-ordinator — a TEAM view: what does my team need from me today.  */
+/* ------------------------------------------------------------------ */
+
 function CoordinatorMyDay() {
   const { tasks } = useTasks();
   const toast = useToast();
-  const myTasks = tasks.filter(
-    (t) => t.assignees.includes("Manasi") && t.status !== "Done",
+  const [idleDays, setIdleDays] = useState(3);
+
+  // "My team" = tasks on projects this co-ordinator runs.
+  const myProjectIds = new Set(
+    PROJECTS.filter((p) => p.coordinator === "Manasi").map((p) => p.id),
+  );
+  const teamTasks = tasks.filter((t) => myProjectIds.has(t.projectId));
+
+  const deliveries = teamTasks
+    .filter((t) => isDueToday(t.targetDate) && t.status !== "Done")
+    .sort((a, b) => PRIO_ORDER[a.priority] - PRIO_ORDER[b.priority]);
+
+  const overdue = teamTasks
+    .filter((t) => isOverdue(t.targetDate) && t.status !== "Done")
+    .sort((a, b) => a.targetDate.localeCompare(b.targetDate));
+
+  const blocked = teamTasks.filter((t) => t.status === "Blocked");
+
+  const idle = RESOURCES.filter(
+    (r) =>
+      r.status === "Active" &&
+      !r.isAdmin &&
+      daysSince(r.lastStatusChange) >= idleDays,
   );
 
-  function exportMyTasks() {
+  function exportTeam() {
     const csv = toCsv(
-      ["Task", "Project", "Status", "Priority", "Target date"],
-      myTasks.map((t) => [
+      ["Task", "Project", "Status", "Priority", "Accountable", "Target date"],
+      teamTasks.map((t) => [
         t.title,
         projectById(t.projectId)?.name ?? "",
         t.status,
         t.priority,
+        t.assignees.join("; "),
         t.targetDate,
       ]),
     );
-    downloadCsv("my-tasks.csv", csv);
-    toast.show(`Exported ${myTasks.length} tasks to CSV.`);
+    downloadCsv("team-tasks.csv", csv);
+    toast.show(`Exported ${teamTasks.length} team tasks to CSV.`);
   }
-
-  const dueToday = myTasks.filter((t) => isDueToday(t.targetDate));
-  const overdue = myTasks.filter((t) => isOverdue(t.targetDate));
-  const importantMine = myTasks.filter((t) => t.important);
-  const blockedTeam = tasks.filter((t) => t.status === "Blocked");
-
-  const myDay = myTasks
-    .filter((t) => t.targetDate <= TODAY)
-    .sort((a, b) => {
-      const aOver = isOverdue(a.targetDate);
-      const bOver = isOverdue(b.targetDate);
-      if (aOver !== bOver) return aOver ? -1 : 1;
-      return PRIO_ORDER[a.priority] - PRIO_ORDER[b.priority];
-    });
 
   return (
     <AppShell>
@@ -80,78 +104,125 @@ function CoordinatorMyDay() {
             Good morning, {CURRENT_USER.firstName}
           </h1>
           <p className="text-sm text-ink-500 mt-1">
-            Wednesday, 6 May 2026 · Co-ordinator
+            Wednesday, 6 May 2026 · Co-ordinator · what your team needs today
           </p>
         </header>
 
         <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <StatCard
             label="Due Today"
-            value={dueToday.length}
+            value={deliveries.length}
             Icon={CalendarClock}
             variant="blue"
+            hint="team deliveries"
           />
           <StatCard
             label="Overdue"
             value={overdue.length}
             Icon={AlertTriangle}
             variant="red"
+            hint="across your projects"
           />
           <StatCard
-            label="Important — mine"
-            value={importantMine.length}
-            Icon={Star}
-            variant="yellow"
-          />
-          <StatCard
-            label="Blocked — team"
-            value={blockedTeam.length}
+            label="Blocked"
+            value={blocked.length}
             Icon={Lock}
             variant="red"
-            hint="across projects I co-ordinate"
+            hint="need unblocking"
+          />
+          <StatCard
+            label="Idle resources"
+            value={idle.length}
+            Icon={UserMinus}
+            variant="yellow"
+            hint={`no update in ${idleDays}+ days`}
           />
         </section>
 
         <div className="grid lg:grid-cols-3 gap-6">
           <section className="lg:col-span-2 space-y-6">
-            <div className="card p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="font-heading text-lg font-semibold">My Day</h2>
-                <span className="text-xs text-ink-500">
-                  {myDay.length} task{myDay.length === 1 ? "" : "s"} · sorted
-                  by urgency
-                </span>
-              </div>
-              <div className="space-y-2">
-                {myDay.length === 0 ? (
-                  <EmptyState />
-                ) : (
-                  myDay.map((t) => <TaskCard key={t.id} task={t} />)
-                )}
-              </div>
-            </div>
+            <PlainTaskSection
+              title="Today's deliveries"
+              Icon={Truck}
+              tasks={deliveries}
+              emptyText="Nothing due today across your projects."
+            />
 
-            <div className="card p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="font-heading text-lg font-semibold">
-                  Team needs attention
-                </h2>
-                <span className="text-xs text-ink-500">
-                  Things that won't unblock themselves
-                </span>
-              </div>
-              <Bucket
-                title="Blocked tasks"
-                tasks={blockedTeam}
-                emptyText="No blockers."
-              />
-            </div>
+            <BulkTaskSection
+              title="Overdue"
+              Icon={AlertTriangle}
+              tasks={overdue}
+              emptyText="Nothing overdue — your team is current."
+            />
+
+            <BulkTaskSection
+              title="Blocked — needs unblocking today"
+              Icon={Lock}
+              tasks={blocked}
+              emptyText="No blocked tasks. Nothing waiting on you."
+            />
           </section>
 
           <aside className="space-y-6">
             <div className="card p-5">
-              <h2 className="font-heading text-lg font-semibold mb-3">
-                Recent activity
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-heading text-lg font-semibold flex items-center gap-2">
+                  <UserMinus size={18} className="text-brand-yellow" /> Idle
+                  resources
+                </h2>
+                <select
+                  value={idleDays}
+                  onChange={(e) => setIdleDays(Number(e.target.value))}
+                  className="text-xs rounded border border-ink-200 px-1.5 py-1"
+                  title="Idle threshold"
+                >
+                  <option value={2}>2+ days</option>
+                  <option value={3}>3+ days</option>
+                  <option value={5}>5+ days</option>
+                  <option value={7}>7+ days</option>
+                </select>
+              </div>
+              {idle.length === 0 ? (
+                <p className="text-sm text-ink-500 italic">
+                  Everyone's posted an update recently.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {idle.map((r) => (
+                    <li key={r.id}>
+                      <Link
+                        href="/resources?filter=flagged"
+                        className="flex items-center gap-3 p-2 -mx-2 rounded hover:bg-ink-50"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-brand-yellow text-white grid place-items-center text-[10px] font-heading font-medium shrink-0">
+                          {r.name
+                            .split(" ")
+                            .map((p) => p[0])
+                            .slice(0, 2)
+                            .join("")}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm text-ink-900 font-medium truncate">
+                            {r.name}
+                          </div>
+                          <div className="text-xs text-ink-500">
+                            {r.designation}
+                          </div>
+                        </div>
+                        <span className="pill-yellow text-[10px] py-0 shrink-0">
+                          idle {r.lastStatusChange}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="card p-5">
+              <h2 className="font-heading text-lg font-semibold mb-3 flex items-center gap-2">
+                <Activity size={18} className="text-brand-blue" /> Recent
+                activity
               </h2>
               <ul className="space-y-3 text-sm">
                 {RECENT_ACTIVITY.map((a, i) => (
@@ -179,24 +250,24 @@ function CoordinatorMyDay() {
                 Quick actions
               </h2>
               <div className="space-y-2">
-                <a
+                <Link
                   href="/projects"
                   className="btn-primary w-full justify-start"
                 >
                   <Plus size={16} className="mr-2" /> Plan a task
-                </a>
+                </Link>
                 <button
-                  onClick={exportMyTasks}
+                  onClick={exportTeam}
                   className="btn-ghost w-full justify-start border border-ink-200"
                 >
-                  <Download size={16} className="mr-2" /> Export Excel
+                  <Download size={16} className="mr-2" /> Export team tasks
                 </button>
-                <a
-                  href="/projects"
+                <Link
+                  href="/my-tasks"
                   className="btn-ghost w-full justify-start border border-ink-200"
                 >
-                  Open a project <ArrowRight size={14} className="ml-2" />
-                </a>
+                  Your own tasks <ArrowRight size={14} className="ml-2" />
+                </Link>
               </div>
             </div>
           </aside>
@@ -205,6 +276,150 @@ function CoordinatorMyDay() {
     </AppShell>
   );
 }
+
+/* A non-selectable titled list of task cards. */
+function PlainTaskSection({
+  title,
+  Icon,
+  tasks,
+  emptyText,
+}: {
+  title: string;
+  Icon: typeof Truck;
+  tasks: Task[];
+  emptyText: string;
+}) {
+  return (
+    <div className="card p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <Icon size={18} className="text-brand-blue" />
+        <h2 className="font-heading text-lg font-semibold">{title}</h2>
+        <span className="text-xs text-ink-500">({tasks.length})</span>
+      </div>
+      {tasks.length === 0 ? (
+        <p className="text-sm text-ink-500 italic">{emptyText}</p>
+      ) : (
+        <div className="space-y-2">
+          {tasks.map((t) => (
+            <TaskCard key={t.id} task={t} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* A titled list with multi-select + bulk reassign / bulk due-date. */
+function BulkTaskSection({
+  title,
+  Icon,
+  tasks,
+  emptyText,
+}: {
+  title: string;
+  Icon: typeof Truck;
+  tasks: Task[];
+  emptyText: string;
+}) {
+  const { bulkReassign, bulkSetTargetDate } = useTasks();
+  const toast = useToast();
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+
+  const ids = [...selected].filter((id) => tasks.some((t) => t.id === id));
+
+  function toggle(id: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function clear() {
+    setSelected(new Set());
+  }
+
+  function doReassign(name: string) {
+    bulkReassign(ids, name);
+    toast.show(`${ids.length} task(s) reassigned to ${name}.`);
+    clear();
+  }
+
+  function doDate(date: string) {
+    bulkSetTargetDate(ids, date);
+    toast.show(`${ids.length} task(s) moved to ${date}.`);
+    clear();
+  }
+
+  return (
+    <div className="card p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <Icon size={18} className="text-brand-red" />
+        <h2 className="font-heading text-lg font-semibold">{title}</h2>
+        <span className="text-xs text-ink-500">({tasks.length})</span>
+      </div>
+
+      {tasks.length === 0 ? (
+        <p className="text-sm text-ink-500 italic">{emptyText}</p>
+      ) : (
+        <>
+          {ids.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 mb-3 p-2 rounded-card bg-brand-blueBg">
+              <span className="text-xs font-medium text-brand-blue px-1">
+                {ids.length} selected
+              </span>
+              <select
+                value=""
+                onChange={(e) => e.target.value && doReassign(e.target.value)}
+                className="text-xs rounded border border-ink-200 px-2 py-1 bg-white"
+              >
+                <option value="">Reassign to…</option>
+                {REASSIGN_PEOPLE.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="date"
+                onChange={(e) => e.target.value && doDate(e.target.value)}
+                className="text-xs rounded border border-ink-200 px-2 py-1 bg-white"
+                title="Set due date for selected"
+              />
+              <button
+                onClick={clear}
+                className="text-xs text-ink-500 hover:text-ink-900 px-1"
+              >
+                Clear
+              </button>
+            </div>
+          )}
+          <div className="space-y-2">
+            {tasks.map((t) => (
+              <div key={t.id} className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={selected.has(t.id)}
+                  onChange={() => toggle(t.id)}
+                  className="mt-4 accent-brand-blue shrink-0"
+                  aria-label={`Select ${t.title}`}
+                />
+                <div className="flex-1 min-w-0">
+                  <TaskCard task={t} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Developer — a personal day: my tasks, sorted by urgency.           */
+/* ------------------------------------------------------------------ */
 
 function DeveloperMyDay() {
   const { tasks } = useTasks();
@@ -273,7 +488,7 @@ function DeveloperMyDay() {
               </div>
               <div className="space-y-2">
                 {myDay.length === 0 ? (
-                  <EmptyState />
+                  <InboxZero />
                 ) : (
                   myDay.map((t) => <TaskCard key={t.id} task={t} />)
                 )}
@@ -333,18 +548,18 @@ function DeveloperMyDay() {
                 Quick actions
               </h2>
               <div className="space-y-2">
-                <a
+                <Link
                   href="/my-tasks"
                   className="btn-primary w-full justify-start"
                 >
                   Open My Tasks <ArrowRight size={14} className="ml-2" />
-                </a>
-                <a
+                </Link>
+                <Link
                   href="/projects"
                   className="btn-ghost w-full justify-start border border-ink-200"
                 >
                   Browse projects <ArrowRight size={14} className="ml-2" />
-                </a>
+                </Link>
               </div>
             </div>
           </aside>
@@ -354,35 +569,7 @@ function DeveloperMyDay() {
   );
 }
 
-function Bucket({
-  title,
-  tasks,
-  emptyText,
-}: {
-  title: string;
-  tasks: Task[];
-  emptyText: string;
-}) {
-  return (
-    <div>
-      <h3 className="text-xs font-semibold text-ink-700 uppercase tracking-wide mb-3">
-        {title}{" "}
-        <span className="text-ink-400 font-medium normal-case">
-          ({tasks.length})
-        </span>
-      </h3>
-      <div className="space-y-2">
-        {tasks.length === 0 ? (
-          <p className="text-xs text-ink-400 italic">{emptyText}</p>
-        ) : (
-          tasks.slice(0, 4).map((t) => <TaskCard key={t.id} task={t} />)
-        )}
-      </div>
-    </div>
-  );
-}
-
-function EmptyState() {
+function InboxZero() {
   return (
     <div className="py-10 text-center">
       <Sparkles size={28} className="mx-auto text-brand-yellow mb-2" />
