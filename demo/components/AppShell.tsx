@@ -14,6 +14,8 @@ import {
   ChevronDown,
   LogOut,
   Briefcase,
+  ScrollText,
+  Eye,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Logo } from "./Logo";
@@ -25,6 +27,9 @@ import {
   landingFor,
   readStoredRole,
   writeStoredRole,
+  readImpersonator,
+  startImpersonation,
+  stopImpersonation,
 } from "@/lib/role";
 import { canAccess } from "@/lib/access";
 import { useNotifications } from "@/lib/notifications-store";
@@ -40,6 +45,8 @@ const NAV: Record<Role, NavItem[]> = {
     { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
     { href: "/projects", label: "Projects", Icon: FolderKanban },
     { href: "/resources", label: "Resources", Icon: Users },
+    { href: "/users", label: "Users", Icon: Users },
+    { href: "/audit", label: "Audit log", Icon: ScrollText },
     { href: "/leaves", label: "Leaves", Icon: CalendarCheck },
     { href: "/settings", label: "Settings", Icon: Settings },
   ],
@@ -97,11 +104,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  // Read signed-in state DIRECTLY from localStorage on every render after
-  // hydration. Using a separate useState for this caused a race with the
-  // redirect effect — the effect would read the stale `false` and bounce
-  // back to /login before the state update from a sibling effect landed.
   const isSignedIn = hydrated && readStoredRole() !== null;
+  const impersonator = hydrated ? readImpersonator() : null;
   const allowed = canAccess(role, pathname);
   const items = NAV[role];
 
@@ -115,6 +119,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       router.replace(landingFor(role));
     }
   }, [hydrated, isSignedIn, allowed, role, router]);
+
+  function exitImpersonation() {
+    const original = impersonator;
+    stopImpersonation();
+    router.replace(landingFor(original ?? "Admin"));
+  }
 
   if (!hydrated) {
     return (
@@ -154,11 +164,28 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-ink-50 flex">
-      <Sidebar items={items} />
-      <div className="flex-1 min-w-0 flex flex-col">
-        <TopBar role={role} />
-        <main className="flex-1">{children}</main>
+    <div className="min-h-screen bg-ink-50 flex flex-col">
+      {impersonator && (
+        <div className="sticky top-0 z-40 h-9 bg-brand-yellowText text-white flex items-center justify-center gap-3 px-4 text-xs">
+          <span className="inline-flex items-center gap-1.5">
+            <Eye size={13} />
+            Viewing as <strong>{ROLE_PROFILE[role].name}</strong> (
+            {ROLE_LABELS[role]})
+          </span>
+          <button
+            onClick={exitImpersonation}
+            className="underline hover:no-underline font-medium"
+          >
+            Exit view
+          </button>
+        </div>
+      )}
+      <div className="flex flex-1 min-h-0">
+        <Sidebar items={items} />
+        <div className="flex-1 min-w-0 flex flex-col">
+          <TopBar role={role} impersonating={!!impersonator} />
+          <main className="flex-1">{children}</main>
+        </div>
       </div>
     </div>
   );
@@ -200,19 +227,34 @@ function Sidebar({ items }: { items: NavItem[] }) {
   );
 }
 
-function TopBar({ role }: { role: Role }) {
+function TopBar({
+  role,
+  impersonating,
+}: {
+  role: Role;
+  impersonating: boolean;
+}) {
   const router = useRouter();
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [viewAsOpen, setViewAsOpen] = useState(false);
   const profile = ROLE_PROFILE[role];
   const person = profile.name.split(" ")[0];
   const { unreadCount } = useNotifications();
   const unread = unreadCount(person);
 
+  // Real Admin (not already impersonating) can View as another role.
+  const canViewAs = role === "Admin" && !impersonating;
+
+  function viewAs(target: Role) {
+    setViewAsOpen(false);
+    startImpersonation(target);
+    router.replace(landingFor(target));
+  }
+
   function signOut() {
     setProfileOpen(false);
     writeStoredRole(null);
-    // Clear any stray NextAuth cookies from earlier deploys, then redirect.
     fetch("/api/signout", { method: "GET", redirect: "manual" }).finally(
       () => {
         router.replace("/login");
@@ -221,10 +263,50 @@ function TopBar({ role }: { role: Role }) {
   }
 
   return (
-    <header className="h-14 bg-white border-b border-ink-200 flex items-center justify-end gap-2 px-6 sticky top-0 z-30">
+    <header
+      className={`h-14 bg-white border-b border-ink-200 flex items-center justify-end gap-2 px-6 sticky z-30 ${
+        impersonating ? "top-9" : "top-0"
+      }`}
+    >
       <div className="md:hidden mr-auto">
         <Logo size="sm" />
       </div>
+
+      {canViewAs && (
+        <div className="relative">
+          <button
+            onClick={() => setViewAsOpen((v) => !v)}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-pill border border-dashed border-ink-200 text-xs text-ink-500 hover:bg-ink-100"
+            title="See the app as another role"
+          >
+            <Eye size={13} />
+            View as
+            <ChevronDown size={12} />
+          </button>
+          {viewAsOpen && (
+            <div
+              className="absolute right-0 mt-2 w-52 card p-1 z-50"
+              onMouseLeave={() => setViewAsOpen(false)}
+            >
+              <div className="px-3 py-1.5 text-[11px] text-ink-400 uppercase tracking-wide font-semibold">
+                Impersonate
+              </div>
+              {(
+                ["Coordinator", "BusinessDeveloper", "Developer"] as Role[]
+              ).map((r) => (
+                <button
+                  key={r}
+                  onClick={() => viewAs(r)}
+                  className="w-full text-left px-3 py-1.5 rounded text-sm hover:bg-ink-100"
+                >
+                  {ROLE_PROFILE[r].name}
+                  <span className="text-ink-400"> · {ROLE_LABELS[r]}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="relative">
         <button

@@ -23,6 +23,8 @@ const ALLOWED: Record<Role, string[]> = {
     "/projects",
     "/resources",
     "/clients",
+    "/users",
+    "/audit",
     "/leaves",
     "/settings",
     "/profile",

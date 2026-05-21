@@ -14,6 +14,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 const VALID: Role[] = ["Admin", "Coordinator", "BusinessDeveloper", "Developer"];
 const KEY = "tracker-role";
 const LAST_KEY = "tracker-last-role";
+const IMPERSONATOR_KEY = "tracker-impersonator";
 
 function isRole(r: unknown): r is Role {
   return typeof r === "string" && (VALID as string[]).includes(r);
@@ -29,10 +30,38 @@ export function writeStoredRole(r: Role | null) {
   if (typeof window === "undefined") return;
   if (r === null) {
     window.localStorage.removeItem(KEY);
+    window.localStorage.removeItem(IMPERSONATOR_KEY);
   } else {
     window.localStorage.setItem(KEY, r);
     window.localStorage.setItem(LAST_KEY, r);
   }
+}
+
+/* --- Admin "View as" impersonation -------------------------------- */
+
+/** The real role behind an impersonation session (null = not impersonating). */
+export function readImpersonator(): Role | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(IMPERSONATOR_KEY);
+  return isRole(raw) ? raw : null;
+}
+
+/** Admin starts viewing the app as another role. */
+export function startImpersonation(target: Role) {
+  if (typeof window === "undefined") return;
+  if (!readImpersonator()) {
+    const current = readStoredRole();
+    if (current) window.localStorage.setItem(IMPERSONATOR_KEY, current);
+  }
+  window.localStorage.setItem(KEY, target);
+}
+
+/** Return to the real (admin) role. */
+export function stopImpersonation() {
+  if (typeof window === "undefined") return;
+  const original = readImpersonator();
+  window.localStorage.removeItem(IMPERSONATOR_KEY);
+  if (original) window.localStorage.setItem(KEY, original);
 }
 
 /** The role the user last signed in as — survives sign-out, used to
