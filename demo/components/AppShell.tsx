@@ -16,10 +16,12 @@ import {
   Briefcase,
   ScrollText,
   Eye,
+  Search,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Logo } from "./Logo";
 import { NotificationsPanel } from "./NotificationsPanel";
+import { CommandPalette } from "./CommandPalette";
 import {
   useRole,
   type Role,
@@ -187,6 +189,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <main className="flex-1">{children}</main>
         </div>
       </div>
+      <CommandPalette />
     </div>
   );
 }
@@ -271,6 +274,20 @@ function TopBar({
       <div className="md:hidden mr-auto">
         <Logo size="sm" />
       </div>
+
+      <button
+        onClick={() =>
+          window.dispatchEvent(new Event("open-command-palette"))
+        }
+        className="hidden md:flex items-center gap-2 mr-auto px-3 py-1.5 rounded border border-ink-200 text-xs text-ink-400 hover:bg-ink-100"
+        title="Search (Ctrl/Cmd + K)"
+      >
+        <Search size={14} />
+        <span>Search…</span>
+        <kbd className="border border-ink-200 rounded px-1 text-[10px]">
+          ⌘K
+        </kbd>
+      </button>
 
       {canViewAs && (
         <div className="relative">

@@ -11,6 +11,7 @@ import { useTasks } from "@/lib/tasks-store";
 import { useRole, type Role } from "@/lib/role";
 import { RESOURCES } from "@/lib/mock";
 import { useToast } from "./Toast";
+import { useNotifications } from "@/lib/notifications-store";
 
 type Ctx = { requestBlock: (taskId: number) => void };
 
@@ -34,6 +35,7 @@ const PEOPLE = RESOURCES.filter(
 export function BlockDialogProvider({ children }: { children: ReactNode }) {
   const store = useTasks();
   const toast = useToast();
+  const { notify } = useNotifications();
   const [role] = useRole();
   const [taskId, setTaskId] = useState<number | null>(null);
 
@@ -55,7 +57,19 @@ export function BlockDialogProvider({ children }: { children: ReactNode }) {
             const author = ROLE_PERSON[role];
             const suffix = blockedBy ? ` — blocked by ${blockedBy}` : "";
             store.addRemark(task.id, author, `🚫 Blocked: ${reason}${suffix}`);
-            toast.show(`“${task.title}” marked Blocked. Co-ordinator notified.`);
+            // Notify the Person Responsible (the one who assigned the task).
+            if (task.responsible && task.responsible !== author) {
+              notify({
+                recipient: task.responsible,
+                kind: "blocked",
+                title: "A task you assigned is blocked",
+                body: `${task.title} — ${reason}`,
+                taskId: task.id,
+              });
+            }
+            toast.show(
+              `“${task.title}” marked Blocked. ${task.responsible} notified.`,
+            );
             close();
           }}
         />

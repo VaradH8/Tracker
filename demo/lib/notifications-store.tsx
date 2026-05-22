@@ -7,7 +7,19 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { NOTIFICATIONS as SEED, type AppNotification } from "./mock";
+import {
+  NOTIFICATIONS as SEED,
+  type AppNotification,
+  type NotificationKind,
+} from "./mock";
+
+type NewNotification = {
+  recipient: string;
+  kind: NotificationKind;
+  title: string;
+  body: string;
+  taskId?: number;
+};
 
 type Ctx = {
   all: AppNotification[];
@@ -15,6 +27,7 @@ type Ctx = {
   unreadCount: (person: string) => number;
   markRead: (id: number) => void;
   markAllRead: (person: string) => void;
+  notify: (n: NewNotification) => void;
 };
 
 const NotifCtx = createContext<Ctx | null>(null);
@@ -45,9 +58,21 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  const notify = useCallback((n: NewNotification) => {
+    setAll((prev) => [
+      {
+        ...n,
+        id: Math.max(0, ...prev.map((x) => x.id)) + 1,
+        when: "just now",
+        read: false,
+      },
+      ...prev,
+    ]);
+  }, []);
+
   return (
     <NotifCtx.Provider
-      value={{ all, forPerson, unreadCount, markRead, markAllRead }}
+      value={{ all, forPerson, unreadCount, markRead, markAllRead, notify }}
     >
       {children}
     </NotifCtx.Provider>

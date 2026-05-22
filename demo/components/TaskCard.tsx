@@ -8,6 +8,8 @@ import { useTasks } from "@/lib/tasks-store";
 import { useRole } from "@/lib/role";
 import { useToast } from "./Toast";
 import { useBlockDialog } from "./BlockDialogProvider";
+import { useNotifications } from "@/lib/notifications-store";
+import type { Status } from "@/lib/mock";
 import {
   AssigneePicker,
   DateField,
@@ -36,10 +38,20 @@ export function TaskCard({
   const [role] = useRole();
   const toast = useToast();
   const blockDialog = useBlockDialog();
+  const { notify } = useNotifications();
 
   function reassign(name: string) {
     const wasAssigned = task.assignees.includes(name);
     store.toggleAssignee(task.id, name);
+    if (!wasAssigned) {
+      notify({
+        recipient: name,
+        kind: "assigned",
+        title: "Assigned to a task",
+        body: task.title,
+        taskId: task.id,
+      });
+    }
     toast.show(
       wasAssigned
         ? `${name} removed from “${task.title}”.`
@@ -47,6 +59,16 @@ export function TaskCard({
       "success",
       { label: "Undo", onClick: () => store.toggleAssignee(task.id, name) },
     );
+  }
+
+  function changeStatus(next: Status) {
+    const prev = task.status;
+    if (next === prev) return;
+    store.setStatus(task.id, next);
+    toast.show(`“${task.title}” → ${next}`, "success", {
+      label: "Undo",
+      onClick: () => store.setStatus(task.id, prev),
+    });
   }
 
   const me = ROLE_PERSON[role] ?? "Manasi";
@@ -121,7 +143,7 @@ export function TaskCard({
       <div className="flex items-center justify-between pt-2 border-t border-ink-100">
         <StatusPicker
           value={task.status}
-          onChange={(s) => store.setStatus(task.id, s)}
+          onChange={changeStatus}
           onBlock={() => blockDialog.requestBlock(task.id)}
           readOnly={!isAssignee && !canEdit}
         />
@@ -129,7 +151,7 @@ export function TaskCard({
           task={task}
           isAssignee={isAssignee}
           canEdit={canEdit}
-          onStatus={(s) => store.setStatus(task.id, s)}
+          onStatus={changeStatus}
           onBlock={() => blockDialog.requestBlock(task.id)}
         />
       </div>
