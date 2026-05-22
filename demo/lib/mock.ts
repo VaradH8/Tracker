@@ -274,6 +274,40 @@ export const PROJECTS: Project[] = [
   },
 ];
 
+/* --- Sales pipeline (deals before they become active projects) ----- */
+
+export type PipelineStage = "Lead" | "Quoted" | "Won" | "Kicked off";
+
+export type PipelineDeal = {
+  id: number;
+  name: string;
+  client: string;
+  stage: PipelineStage;
+  /** estimated contract value, INR */
+  estimatedValue: number;
+  expectedStart: string;
+  /** win probability, percent */
+  probability: number;
+  bd: string;
+};
+
+export const PIPELINE_STAGES: PipelineStage[] = [
+  "Lead",
+  "Quoted",
+  "Won",
+  "Kicked off",
+];
+
+export const PIPELINE: PipelineDeal[] = [
+  { id: 1, name: "Reliance — DCS migration", client: "Reliance Industries", stage: "Lead", estimatedValue: 1800000, expectedStart: "2026-07-01", probability: 20, bd: "Rohit" },
+  { id: 2, name: "BPCL — P&ID digitization", client: "BPCL", stage: "Lead", estimatedValue: 900000, expectedStart: "2026-06-15", probability: 25, bd: "Rohit" },
+  { id: 3, name: "Saipem — Classifier Phase 3", client: "Saipem", stage: "Quoted", estimatedValue: 2400000, expectedStart: "2026-06-01", probability: 55, bd: "Rohit" },
+  { id: 4, name: "Thermax — ENIMAX v4", client: "Thermax", stage: "Quoted", estimatedValue: 3200000, expectedStart: "2026-07-15", probability: 60, bd: "Rohit" },
+  { id: 5, name: "Lurgi — Reporting suite", client: "Lurgi GmbH", stage: "Won", estimatedValue: 1400000, expectedStart: "2026-05-25", probability: 95, bd: "Rohit" },
+  { id: 6, name: "Thermax — QA automation", client: "Thermax", stage: "Won", estimatedValue: 2000000, expectedStart: "2026-06-10", probability: 90, bd: "Rohit" },
+  { id: 7, name: "Saipem — Comment Classifier v2", client: "Saipem", stage: "Kicked off", estimatedValue: 2800000, expectedStart: "2026-04-01", probability: 100, bd: "Rohit" },
+];
+
 export const TASKS: Task[] = [
   {
     id: 101,

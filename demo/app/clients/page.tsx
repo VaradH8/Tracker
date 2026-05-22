@@ -47,9 +47,12 @@ export default function ClientsPage() {
                     <Building2 size={18} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-heading text-lg font-semibold">
+                    <Link
+                      href={`/clients/${c.id}`}
+                      className="font-heading text-lg font-semibold hover:text-brand-blue"
+                    >
                       {c.name}
-                    </h3>
+                    </Link>
                     <p className="text-xs text-ink-500">{c.industry}</p>
                   </div>
                   <span className="pill-grey text-[11px]">
