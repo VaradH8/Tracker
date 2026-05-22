@@ -85,7 +85,9 @@
       "Bash(git -C c:/Users/Varad/Downloads/Projects/Varad/project-tracker-prd/project-tracker-prd commit -m 'Internal-tool spec Session 3: Developer daily-driver \\(D1, D2, D4\\) *)",
       "Bash(git -C c:/Users/Varad/Downloads/Projects/Varad/project-tracker-prd/project-tracker-prd commit -m 'Internal-tool spec Session 4: Admin tooling \\(A2, A3, A5\\) *)",
       "Bash(git -C c:/Users/Varad/Downloads/Projects/Varad/project-tracker-prd/project-tracker-prd commit -m 'Internal-tool spec Session 5: BD pipeline \\(B1, B2\\) *)",
-      "Bash(git -C c:/Users/Varad/Downloads/Projects/Varad/project-tracker-prd/project-tracker-prd commit -m 'Internal-tool spec Session 6: cross-cutting polish \\(X1, X3, X5, X6\\) *)"
+      "Bash(git -C c:/Users/Varad/Downloads/Projects/Varad/project-tracker-prd/project-tracker-prd commit -m 'Internal-tool spec Session 6: cross-cutting polish \\(X1, X3, X5, X6\\) *)",
+      "Bash(git commit -m '@ *)",
+      "Bash(git commit *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Varad\\Downloads\\Projects\\Varad\\project-tracker-prd\\project-tracker-prd\\demo\\lib"

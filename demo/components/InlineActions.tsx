@@ -530,8 +530,8 @@ export function TimeLogChip({
               : "Log time on this task"
           }
         >
-          <Clock size={11} />
-          {loggedHours > 0 ? `${loggedHours}h` : "Log time"}
+          <Clock size={12} />
+          {loggedHours > 0 && `${loggedHours}h`}
         </span>
       )}
     >

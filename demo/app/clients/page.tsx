@@ -12,6 +12,7 @@ import {
 import { AppShell } from "@/components/AppShell";
 import { CLIENTS, PROJECTS } from "@/lib/mock";
 import { useToast } from "@/components/Toast";
+import { Modal } from "@/components/Modal";
 
 export default function ClientsPage() {
   const [createOpen, setCreateOpen] = useState(false);
@@ -158,73 +159,70 @@ function AddClientModal({
   const [email, setEmail] = useState("");
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-ink-900/40 backdrop-blur-sm p-4">
-      <div className="card w-full max-w-md p-6">
-        <h2 className="font-heading text-lg font-semibold mb-1">Add client</h2>
-        <p className="text-sm text-ink-500 mb-5">
-          Register a new client to attach projects to.
-        </p>
+    <Modal title="Add client" onClose={onClose}>
+      <p className="text-sm text-ink-500 mb-5">
+        Register a new client to attach projects to.
+      </p>
 
-        <label className="block text-xs font-medium text-ink-700 mb-1.5">
-          Client name
-        </label>
-        <input
-          autoFocus
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Reliance Industries"
-          className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
-        />
+      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+        Client name
+      </label>
+      <input
+        autoFocus
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="e.g. Reliance Industries"
+        className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+      />
 
-        <label className="block text-xs font-medium text-ink-700 mb-1.5">
-          Industry
-        </label>
-        <input
-          value={industry}
-          onChange={(e) => setIndustry(e.target.value)}
-          placeholder="e.g. Petrochemicals"
-          className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
-        />
+      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+        Industry
+      </label>
+      <input
+        value={industry}
+        onChange={(e) => setIndustry(e.target.value)}
+        placeholder="e.g. Petrochemicals"
+        className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+      />
 
-        <div className="grid grid-cols-2 gap-3 mb-6">
-          <div>
-            <label className="block text-xs font-medium text-ink-700 mb-1.5">
-              Primary contact
-            </label>
-            <input
-              value={contact}
-              onChange={(e) => setContact(e.target.value)}
-              placeholder="Name"
-              className="w-full px-3 py-2 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-ink-700 mb-1.5">
-              Contact email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@client.com"
-              className="w-full px-3 py-2 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
-            />
-          </div>
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Primary contact
+          </label>
+          <input
+            value={contact}
+            onChange={(e) => setContact(e.target.value)}
+            placeholder="Name"
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+          />
         </div>
-
-        <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="btn-ghost">
-            Cancel
-          </button>
-          <button
-            onClick={() => onCreate(name.trim() || "New client")}
-            disabled={!name.trim()}
-            className="btn-primary disabled:opacity-50"
-          >
-            Add client
-          </button>
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Contact email
+          </label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="name@client.com"
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+          />
         </div>
       </div>
-    </div>
+
+      <div className="flex justify-end gap-2">
+        <button onClick={onClose} className="btn-ghost">
+          Cancel
+        </button>
+        <button
+          onClick={() => onCreate(name.trim() || "New client")}
+          disabled={!name.trim()}
+          className="btn-primary"
+        >
+          Add client
+        </button>
+      </div>
+    </Modal>
   );
 }

@@ -95,7 +95,9 @@ export default function LoginPage() {
           <h1 className="font-heading text-2xl font-semibold mb-1">
             Pick your name
           </h1>
-          <p className="text-sm text-ink-400">Internal tool · pick your name</p>
+          <p className="text-sm text-ink-400">
+            Internal tool · choose an account to sign in
+          </p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

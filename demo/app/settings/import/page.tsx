@@ -29,7 +29,7 @@ export default function SettingsImportPage() {
         <header className="mb-6">
           <h1 className="font-heading text-3xl font-semibold">Settings</h1>
           <p className="text-sm text-ink-500 mt-1">
-            Manage users, audit log, imports
+            Org-wide configuration · Admin only
           </p>
         </header>
 

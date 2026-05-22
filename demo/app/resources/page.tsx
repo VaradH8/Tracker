@@ -63,11 +63,13 @@ export default function ResourcesPage() {
       );
     });
 
+  const activeResources = RESOURCES.filter((r) => r.status === "Active");
   const stats = {
-    total: RESOURCES.filter((r) => r.status === "Active").length,
-    onTrack: RESOURCES.filter((r) => r.performance === "On track").length,
-    watch: RESOURCES.filter((r) => r.performance === "Watch").length,
-    idle: RESOURCES.filter((r) => r.performance === "Idle").length,
+    total: activeResources.length,
+    onTrack: activeResources.filter((r) => r.performance === "On track")
+      .length,
+    watch: activeResources.filter((r) => r.performance === "Watch").length,
+    idle: activeResources.filter((r) => r.performance === "Idle").length,
   };
 
   return (

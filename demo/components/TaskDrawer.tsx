@@ -70,6 +70,7 @@ export function TaskDrawer({
   const project = projectById(task.projectId);
   const entries = store.entriesForTask(task.id);
   const totalLogged = loggedHoursForTask(task.id, store.timeEntries);
+  const taskAudit = store.auditLog.filter((a) => a.taskTitle === task.title);
 
   function submitLog() {
     const hrs = Number(logHours);
@@ -412,26 +413,53 @@ export function TaskDrawer({
           <details>
             <summary className="text-xs font-semibold text-ink-700 uppercase tracking-wide cursor-pointer flex items-center gap-2">
               <History size={12} /> Audit timeline
+              <span className="font-medium normal-case text-ink-400">
+                ({taskAudit.length})
+              </span>
             </summary>
             <ul className="mt-2 space-y-1.5 text-xs text-ink-500 pl-5">
-              <li>
-                <span className="font-medium text-ink-900">Manasi</span>{" "}
-                marked Important · 2h ago
-              </li>
-              <li>
-                <span className="font-medium text-ink-900">Abhishek</span>{" "}
-                added remark · 1h ago
-              </li>
-              <li>
-                <span className="font-medium text-ink-900">Manasi</span>{" "}
-                created task · 2 days ago
-              </li>
+              {taskAudit.length === 0 ? (
+                <li className="italic">No tracked changes yet.</li>
+              ) : (
+                taskAudit.map((a) => (
+                  <li key={a.id}>
+                    <span className="font-medium text-ink-900">
+                      {a.actor}
+                    </span>{" "}
+                    {auditVerb(a.action)}
+                    {a.before && a.after && (
+                      <span className="text-ink-400">
+                        {" "}
+                        · {a.before} → {a.after}
+                      </span>
+                    )}{" "}
+                    · {a.when}
+                  </li>
+                ))
+              )}
             </ul>
           </details>
         </div>
       </aside>
     </div>
   );
+}
+
+function auditVerb(action: string): string {
+  switch (action) {
+    case "task.status_change":
+      return "changed status";
+    case "task.mark_important":
+      return "marked Important";
+    case "task.reassign":
+      return "reassigned";
+    case "task.responsible_change":
+      return "changed who's responsible";
+    case "task.create":
+      return "created task";
+    default:
+      return action;
+  }
 }
 
 function Field({

@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Calendar, Clock, X, Lock } from "lucide-react";
+import { Plus, Calendar, Clock, Lock } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { LEAVES, RESOURCES, type LeaveEntry } from "@/lib/mock";
 import { useRole, ROLE_LABELS } from "@/lib/role";
 import { meName } from "@/lib/access";
 import { useToast } from "@/components/Toast";
+import { Modal } from "@/components/Modal";
 
 const TYPE_COLOR: Record<LeaveEntry["type"], string> = {
   Vacation: "bg-brand-blueBg text-brand-blue",
@@ -314,74 +315,66 @@ function RequestLeaveModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-ink-900/40 backdrop-blur-sm p-4">
-      <div className="card w-full max-w-md p-6">
-        <div className="flex items-start justify-between mb-1">
-          <h2 className="font-heading text-lg font-semibold">Request leave</h2>
-          <button onClick={onClose} className="p-1 -m-1 rounded hover:bg-ink-100">
-            <X size={16} />
-          </button>
+    <Modal title="Request leave" onClose={onClose}>
+      <p className="text-sm text-ink-500 mb-5">
+        {requesterFirstName ? `${requesterFirstName} — ` : ""}mark yourself
+        off so the team can plan around it.
+      </p>
+
+      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+        Type
+      </label>
+      <select
+        value={type}
+        onChange={(e) => setType(e.target.value)}
+        className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm"
+      >
+        <option>Vacation</option>
+        <option>Sick</option>
+        <option>WFH</option>
+        <option>Personal</option>
+      </select>
+
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            From
+          </label>
+          <input
+            type="date"
+            defaultValue="2026-05-10"
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          />
         </div>
-        <p className="text-sm text-ink-500 mb-5">
-          {requesterFirstName ? `${requesterFirstName} — ` : ""}mark yourself
-          off so the team can plan around it.
-        </p>
-
-        <label className="block text-xs font-medium text-ink-700 mb-1.5">
-          Type
-        </label>
-        <select
-          value={type}
-          onChange={(e) => setType(e.target.value)}
-          className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm"
-        >
-          <option>Vacation</option>
-          <option>Sick</option>
-          <option>WFH</option>
-          <option>Personal</option>
-        </select>
-
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div>
-            <label className="block text-xs font-medium text-ink-700 mb-1.5">
-              From
-            </label>
-            <input
-              type="date"
-              defaultValue="2026-05-10"
-              className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-ink-700 mb-1.5">
-              To
-            </label>
-            <input
-              type="date"
-              defaultValue="2026-05-10"
-              className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
-            />
-          </div>
-        </div>
-
-        <label className="block text-xs font-medium text-ink-700 mb-1.5">
-          Note (optional · visible to your co-ordinator only)
-        </label>
-        <textarea
-          rows={2}
-          placeholder="Anything your co-ordinator should know"
-          className="w-full px-3 py-2 mb-6 rounded border border-ink-200 text-sm"
-        />
-
-        <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="btn-ghost">
-            Cancel
-          </button>
-          <button onClick={submit} className="btn-primary">
-            Submit request
-          </button>
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            To
+          </label>
+          <input
+            type="date"
+            defaultValue="2026-05-10"
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          />
         </div>
       </div>
-    </div>
+
+      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+        Note (optional · visible to your co-ordinator only)
+      </label>
+      <textarea
+        rows={2}
+        placeholder="Anything your co-ordinator should know"
+        className="w-full px-3 py-2 mb-6 rounded border border-ink-200 text-sm"
+      />
+
+      <div className="flex justify-end gap-2">
+        <button onClick={onClose} className="btn-ghost">
+          Cancel
+        </button>
+        <button onClick={submit} className="btn-primary">
+          Submit request
+        </button>
+      </div>
+    </Modal>
   );
 }

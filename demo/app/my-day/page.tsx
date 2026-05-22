@@ -210,7 +210,7 @@ function CoordinatorMyDay() {
                           </div>
                         </div>
                         <span className="pill-yellow text-[10px] py-0 shrink-0">
-                          idle {r.lastStatusChange}
+                          idle {daysSince(r.lastStatusChange)}d
                         </span>
                       </Link>
                     </li>

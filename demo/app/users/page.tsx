@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Plus, Search, ScrollText, UserX, UserCheck } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { EmptyState } from "@/components/EmptyState";
+import { Modal } from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { RESOURCES, type Resource } from "@/lib/mock";
 import { ROLE_LABELS, type Role } from "@/lib/role";
@@ -261,52 +262,49 @@ function AddUserModal({
   const [role, setRole] = useState<Role>("Developer");
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-ink-900/40 backdrop-blur-sm p-4">
-      <div className="card w-full max-w-md p-6">
-        <h2 className="font-heading text-lg font-semibold mb-1">Add user</h2>
-        <p className="text-sm text-ink-500 mb-5">
-          Internal tool — the user is created directly, no email invite.
-        </p>
+    <Modal title="Add user" onClose={onClose}>
+      <p className="text-sm text-ink-500 mb-5">
+        Internal tool — the user is created directly, no email invite.
+      </p>
 
-        <label className="block text-xs font-medium text-ink-700 mb-1.5">
-          Full name
-        </label>
-        <input
-          autoFocus
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Neha Sharma"
-          className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
-        />
+      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+        Full name
+      </label>
+      <input
+        autoFocus
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="e.g. Neha Sharma"
+        className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+      />
 
-        <label className="block text-xs font-medium text-ink-700 mb-1.5">
-          Role
-        </label>
-        <select
-          value={role}
-          onChange={(e) => setRole(e.target.value as Role)}
-          className="w-full px-3 py-2 mb-6 rounded border border-ink-200 text-sm"
+      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+        Role
+      </label>
+      <select
+        value={role}
+        onChange={(e) => setRole(e.target.value as Role)}
+        className="w-full px-3 py-2 mb-6 rounded border border-ink-200 text-sm"
+      >
+        {ROLES.map((r) => (
+          <option key={r} value={r}>
+            {ROLE_LABELS[r]}
+          </option>
+        ))}
+      </select>
+
+      <div className="flex justify-end gap-2">
+        <button onClick={onClose} className="btn-ghost">
+          Cancel
+        </button>
+        <button
+          onClick={() => onAdd(name.trim() || "New User", role)}
+          disabled={!name.trim()}
+          className="btn-primary"
         >
-          {ROLES.map((r) => (
-            <option key={r} value={r}>
-              {ROLE_LABELS[r]}
-            </option>
-          ))}
-        </select>
-
-        <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="btn-ghost">
-            Cancel
-          </button>
-          <button
-            onClick={() => onAdd(name.trim() || "New User", role)}
-            disabled={!name.trim()}
-            className="btn-primary disabled:opacity-50"
-          >
-            Add user
-          </button>
-        </div>
+          Add user
+        </button>
       </div>
-    </div>
+    </Modal>
   );
 }

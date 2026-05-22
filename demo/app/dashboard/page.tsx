@@ -125,7 +125,7 @@ export default function OrgDashboardPage() {
                   <tr className="text-left text-xs text-ink-500 font-heading font-semibold uppercase tracking-wide border-b border-ink-200">
                     <th className="py-2 pr-4">Task</th>
                     <th className="py-2 pr-4">Project</th>
-                    <th className="py-2 pr-4">Owner</th>
+                    <th className="py-2 pr-4">Accountable</th>
                     <th className="py-2 pr-4">Status</th>
                     <th className="py-2 pr-4">Due</th>
                     <th className="py-2"></th>

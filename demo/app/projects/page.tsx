@@ -30,6 +30,7 @@ import { useTasks } from "@/lib/tasks-store";
 import { canManageProjects, useRole, type Role } from "@/lib/role";
 import { canSeeProjectFinancials, visibleProjects } from "@/lib/access";
 import { useToast } from "@/components/Toast";
+import { Modal } from "@/components/Modal";
 
 export default function ProjectsPage() {
   const [role, , hydrated] = useRole();
@@ -468,111 +469,108 @@ function NewDealModal({
   const [probability, setProbability] = useState("20");
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-ink-900/40 backdrop-blur-sm p-4">
-      <div className="card w-full max-w-md p-6">
-        <h2 className="font-heading text-lg font-semibold mb-1">New deal</h2>
-        <p className="text-sm text-ink-500 mb-5">
-          Add a prospect to the pipeline.
-        </p>
+    <Modal title="New deal" onClose={onClose}>
+      <p className="text-sm text-ink-500 mb-5">
+        Add a prospect to the pipeline.
+      </p>
 
-        <label className="block text-xs font-medium text-ink-700 mb-1.5">
-          Deal name
-        </label>
-        <input
-          autoFocus
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Reliance — DCS migration"
-          className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
-        />
+      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+        Deal name
+      </label>
+      <input
+        autoFocus
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="e.g. Reliance — DCS migration"
+        className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+      />
 
-        <label className="block text-xs font-medium text-ink-700 mb-1.5">
-          Client / prospect
-        </label>
-        <input
-          value={client}
-          onChange={(e) => setClient(e.target.value)}
-          placeholder="Company name"
-          className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
-        />
+      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+        Client / prospect
+      </label>
+      <input
+        value={client}
+        onChange={(e) => setClient(e.target.value)}
+        placeholder="Company name"
+        className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+      />
 
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div>
-            <label className="block text-xs font-medium text-ink-700 mb-1.5">
-              Est. value (₹)
-            </label>
-            <input
-              type="number"
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              placeholder="1500000"
-              className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-ink-700 mb-1.5">
-              Probability %
-            </label>
-            <input
-              type="number"
-              value={probability}
-              onChange={(e) => setProbability(e.target.value)}
-              className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
-            />
-          </div>
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Est. value (₹)
+          </label>
+          <input
+            type="number"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="1500000"
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          />
         </div>
-
-        <div className="grid grid-cols-2 gap-3 mb-6">
-          <div>
-            <label className="block text-xs font-medium text-ink-700 mb-1.5">
-              Stage
-            </label>
-            <select
-              value={stage}
-              onChange={(e) => setStage(e.target.value as PipelineStage)}
-              className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
-            >
-              {PIPELINE_STAGES.map((s) => (
-                <option key={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-ink-700 mb-1.5">
-              Expected start
-            </label>
-            <input
-              type="date"
-              value={start}
-              onChange={(e) => setStart(e.target.value)}
-              className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="btn-ghost">
-            Cancel
-          </button>
-          <button
-            onClick={() =>
-              onCreate({
-                name: name.trim() || "Untitled deal",
-                client: client.trim() || "Unnamed prospect",
-                estimatedValue: Number(value) || 0,
-                probability: Number(probability) || 0,
-                stage,
-                expectedStart: start || "2026-07-01",
-              })
-            }
-            disabled={!name.trim()}
-            className="btn-primary disabled:opacity-50"
-          >
-            Add deal
-          </button>
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Probability %
+          </label>
+          <input
+            type="number"
+            value={probability}
+            onChange={(e) => setProbability(e.target.value)}
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          />
         </div>
       </div>
-    </div>
+
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Stage
+          </label>
+          <select
+            value={stage}
+            onChange={(e) => setStage(e.target.value as PipelineStage)}
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          >
+            {PIPELINE_STAGES.map((s) => (
+              <option key={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Expected start
+          </label>
+          <input
+            type="date"
+            value={start}
+            onChange={(e) => setStart(e.target.value)}
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-2">
+        <button onClick={onClose} className="btn-ghost">
+          Cancel
+        </button>
+        <button
+          onClick={() =>
+            onCreate({
+              name: name.trim() || "Untitled deal",
+              client: client.trim() || "Unnamed prospect",
+              estimatedValue: Number(value) || 0,
+              probability: Number(probability) || 0,
+              stage,
+              expectedStart: start || "2026-07-01",
+            })
+          }
+          disabled={!name.trim()}
+          className="btn-primary"
+        >
+          Add deal
+        </button>
+      </div>
+    </Modal>
   );
 }
 
@@ -598,75 +596,70 @@ function CreateProjectModal({
     : (clientById(Number(clientId))?.name ?? "a client");
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-ink-900/40 backdrop-blur-sm p-4">
-      <div className="card w-full max-w-md p-6">
-        <h2 className="font-heading text-lg font-semibold mb-1">
-          New project
-        </h2>
-        <p className="text-sm text-ink-500 mb-5">
-          Create a project under a client.
-        </p>
+    <Modal title="New project" onClose={onClose}>
+      <p className="text-sm text-ink-500 mb-5">
+        Create a project under a client.
+      </p>
 
-        <label className="block text-xs font-medium text-ink-700 mb-1.5">
-          Project name
-        </label>
+      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+        Project name
+      </label>
+      <input
+        autoFocus
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="e.g. Saipem — Phase 2"
+        className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+      />
+
+      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+        Client
+      </label>
+      <select
+        value={clientId}
+        onChange={(e) => setClientId(e.target.value)}
+        className="w-full px-3 py-2 mb-3 rounded border border-ink-200 text-sm"
+      >
+        {CLIENTS.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.name}
+          </option>
+        ))}
+        <option value="__new__">+ Add new client…</option>
+      </select>
+      {addingClient && (
         <input
           autoFocus
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Saipem — Phase 2"
-          className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+          value={newClient}
+          onChange={(e) => setNewClient(e.target.value)}
+          placeholder="New client name"
+          className="w-full px-3 py-2 mb-3 rounded border border-brand-blue text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
         />
+      )}
 
-        <label className="block text-xs font-medium text-ink-700 mb-1.5">
-          Client
-        </label>
-        <select
-          value={clientId}
-          onChange={(e) => setClientId(e.target.value)}
-          className="w-full px-3 py-2 mb-3 rounded border border-ink-200 text-sm"
+      <label className="block text-xs font-medium text-ink-700 mb-1.5 mt-1">
+        Target date
+      </label>
+      <input
+        type="date"
+        value={target}
+        onChange={(e) => setTarget(e.target.value)}
+        className="w-full px-3 py-2 mb-6 rounded border border-ink-200 text-sm"
+      />
+
+      <div className="flex justify-end gap-2">
+        <button onClick={onClose} className="btn-ghost">
+          Cancel
+        </button>
+        <button
+          onClick={() => onCreate(name.trim() || "Untitled project", clientName)}
+          disabled={!name.trim() || (addingClient && !newClient.trim())}
+          className="btn-primary"
         >
-          {CLIENTS.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-          <option value="__new__">+ Add new client…</option>
-        </select>
-        {addingClient && (
-          <input
-            autoFocus
-            value={newClient}
-            onChange={(e) => setNewClient(e.target.value)}
-            placeholder="New client name"
-            className="w-full px-3 py-2 mb-3 rounded border border-brand-blue text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
-          />
-        )}
-
-        <label className="block text-xs font-medium text-ink-700 mb-1.5 mt-1">
-          Target date
-        </label>
-        <input
-          type="date"
-          value={target}
-          onChange={(e) => setTarget(e.target.value)}
-          className="w-full px-3 py-2 mb-6 rounded border border-ink-200 text-sm"
-        />
-
-        <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="btn-ghost">
-            Cancel
-          </button>
-          <button
-            onClick={() => onCreate(name.trim() || "Untitled project", clientName)}
-            disabled={!name.trim() || (addingClient && !newClient.trim())}
-            className="btn-primary disabled:opacity-50"
-          >
-            Create project
-          </button>
-        </div>
+          Create project
+        </button>
       </div>
-    </div>
+    </Modal>
   );
 }
 

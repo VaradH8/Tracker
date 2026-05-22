@@ -246,6 +246,28 @@ function TopBar({
   const { unreadCount } = useNotifications();
   const unread = unreadCount(person);
 
+  // Close any open top-bar dropdown on an outside click or Escape.
+  useEffect(() => {
+    if (!profileOpen && !notifOpen && !viewAsOpen) return;
+    function closeAll() {
+      setProfileOpen(false);
+      setNotifOpen(false);
+      setViewAsOpen(false);
+    }
+    function onDown(e: MouseEvent) {
+      if (!(e.target as HTMLElement).closest("[data-tb-dropdown]")) closeAll();
+    }
+    function onEsc(e: KeyboardEvent) {
+      if (e.key === "Escape") closeAll();
+    }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [profileOpen, notifOpen, viewAsOpen]);
+
   // Real Admin (not already impersonating) can View as another role.
   const canViewAs = role === "Admin" && !impersonating;
 
@@ -286,7 +308,7 @@ function TopBar({
       </button>
 
       {canViewAs && (
-        <div className="relative">
+        <div className="relative" data-tb-dropdown>
           <button
             onClick={() => setViewAsOpen((v) => !v)}
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-pill border border-dashed border-ink-200 text-xs text-ink-500 hover:bg-ink-100"
@@ -297,10 +319,7 @@ function TopBar({
             <ChevronDown size={12} />
           </button>
           {viewAsOpen && (
-            <div
-              className="absolute right-0 mt-2 w-52 card p-1 z-50"
-              onMouseLeave={() => setViewAsOpen(false)}
-            >
+            <div className="absolute right-0 mt-2 w-52 card p-1 z-50">
               <div className="px-3 py-1.5 text-[11px] text-ink-400 uppercase tracking-wide font-semibold">
                 Impersonate
               </div>
@@ -321,7 +340,7 @@ function TopBar({
         </div>
       )}
 
-      <div className="relative">
+      <div className="relative" data-tb-dropdown>
         <button
           aria-label="Notifications"
           onClick={() => setNotifOpen((v) => !v)}
@@ -342,7 +361,7 @@ function TopBar({
         )}
       </div>
 
-      <div className="relative">
+      <div className="relative" data-tb-dropdown>
         <button
           onClick={() => setProfileOpen((v) => !v)}
           className="flex items-center gap-2 px-2 py-1 rounded hover:bg-ink-100"
@@ -358,10 +377,7 @@ function TopBar({
           <ChevronDown size={14} className="text-ink-500" />
         </button>
         {profileOpen && (
-          <div
-            className="absolute right-0 mt-2 w-64 card p-2 z-50"
-            onMouseLeave={() => setProfileOpen(false)}
-          >
+          <div className="absolute right-0 mt-2 w-64 card p-2 z-50">
             <div className="px-3 py-2 border-b border-ink-100 mb-1">
               <div className="text-sm font-medium truncate">{profile.name}</div>
               <div className="text-xs text-ink-500 truncate">

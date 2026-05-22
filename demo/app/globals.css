@@ -38,10 +38,10 @@ h4 {
     @apply pill bg-ink-100 text-ink-700;
   }
   .btn-primary {
-    @apply inline-flex items-center justify-center px-4 py-2 rounded text-sm font-medium bg-brand-blue text-white hover:bg-brand-blueHover transition-colors;
+    @apply inline-flex items-center justify-center px-4 py-2 rounded text-sm font-medium bg-brand-blue text-white hover:bg-brand-blueHover transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue focus-visible:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-ghost {
-    @apply inline-flex items-center justify-center px-4 py-2 rounded text-sm font-medium text-ink-700 hover:bg-ink-100 transition-colors;
+    @apply inline-flex items-center justify-center px-4 py-2 rounded text-sm font-medium text-ink-700 hover:bg-ink-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .card {
     @apply bg-white rounded-card border border-ink-200 shadow-card;
