@@ -9,6 +9,7 @@ import {
   Calendar,
   Users,
   Star,
+  Clock,
 } from "lucide-react";
 import { Popover } from "./Popover";
 import {
@@ -474,6 +475,124 @@ export function QuickActions({
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * Compact time-log control for a task card. Shows hours logged so far and,
+ * for the people allowed to log (assignees + coordinators/admin), opens a
+ * quick "+Nh today" popover. Read-only viewers see just the running total.
+ */
+export function TimeLogChip({
+  loggedHours,
+  estimatedHours,
+  canLog,
+  onLog,
+}: {
+  loggedHours: number;
+  estimatedHours?: number | null;
+  canLog: boolean;
+  onLog: (hours: number) => void;
+}) {
+  const over =
+    estimatedHours != null && estimatedHours > 0 && loggedHours > estimatedHours;
+
+  if (!canLog) {
+    if (loggedHours <= 0) return null;
+    return (
+      <span
+        className={`inline-flex items-center gap-1 text-xs ${
+          over ? "text-brand-redText" : "text-ink-500"
+        }`}
+        title={`${loggedHours}h logged${
+          estimatedHours != null ? ` of ${estimatedHours}h estimated` : ""
+        }`}
+      >
+        <Clock size={11} />
+        {loggedHours}h
+      </span>
+    );
+  }
+
+  return (
+    <Popover
+      trigger={() => (
+        <span
+          className={`inline-flex items-center gap-1 text-xs cursor-pointer hover:underline ${
+            over
+              ? "text-brand-redText"
+              : "text-ink-500 hover:text-brand-blue"
+          }`}
+          title={
+            loggedHours > 0
+              ? `${loggedHours}h logged — click to log more`
+              : "Log time on this task"
+          }
+        >
+          <Clock size={11} />
+          {loggedHours > 0 ? `${loggedHours}h` : "Log time"}
+        </span>
+      )}
+    >
+      {(close) => (
+        <QuickLogMenu
+          onLog={(h) => {
+            onLog(h);
+            close();
+          }}
+        />
+      )}
+    </Popover>
+  );
+}
+
+function QuickLogMenu({ onLog }: { onLog: (hours: number) => void }) {
+  const [custom, setCustom] = useState("");
+  const presets = [0.5, 1, 2, 4];
+
+  return (
+    <div className="min-w-[208px]">
+      <div className="px-2 py-1 text-[11px] text-ink-400 uppercase tracking-wide font-semibold">
+        Log time — today
+      </div>
+      <div className="flex flex-wrap gap-1 px-1 py-1">
+        {presets.map((h) => (
+          <button
+            key={h}
+            type="button"
+            onClick={() => onLog(h)}
+            className="px-2.5 py-1 rounded border border-ink-200 text-xs font-medium hover:bg-brand-blueBg hover:border-brand-blue hover:text-brand-blue"
+          >
+            +{h}h
+          </button>
+        ))}
+      </div>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          const h = Number(custom);
+          if (h > 0) onLog(h);
+        }}
+        className="flex items-center gap-1 px-1 pt-1"
+      >
+        <input
+          type="number"
+          step="0.5"
+          min="0"
+          value={custom}
+          onChange={(e) => setCustom(e.target.value)}
+          placeholder="Custom hours"
+          className="flex-1 w-full px-2 py-1 rounded border border-ink-200 text-xs focus:outline-none focus:ring-2 focus:ring-brand-blue"
+        />
+        <button
+          type="submit"
+          disabled={!Number(custom)}
+          className="btn-primary text-xs py-1 px-2.5 disabled:opacity-50"
+        >
+          Log
+        </button>
+      </form>
     </div>
   );
 }

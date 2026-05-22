@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { Task } from "@/lib/mock";
-import { projectById } from "@/lib/mock";
+import { projectById, loggedHoursForTask, TODAY_ISO } from "@/lib/mock";
 import { useTaskDrawer } from "./TaskDrawerProvider";
 import { useTasks } from "@/lib/tasks-store";
 import { useRole } from "@/lib/role";
@@ -17,6 +17,7 @@ import {
   PriorityPicker,
   QuickActions,
   StatusPicker,
+  TimeLogChip,
 } from "./InlineActions";
 
 const ROLE_PERSON: Record<string, string> = {
@@ -76,6 +77,12 @@ export function TaskCard({
   const canEdit = role === "Admin" || role === "Coordinator";
   const overdue = !!task.overdueDays && task.status !== "Done";
   const project = projectById(task.projectId);
+  const loggedHours = loggedHoursForTask(task.id, store.timeEntries);
+
+  function quickLog(hours: number) {
+    store.logTime({ taskId: task.id, person: me, hours, date: TODAY_ISO });
+    toast.show(`Logged ${hours}h on “${task.title}”.`, "success");
+  }
 
   const cls = [
     "card p-3 text-left w-full transition-shadow hover:shadow-md",
@@ -140,20 +147,28 @@ export function TaskCard({
         </div>
       </div>
 
-      <div className="flex items-center justify-between pt-2 border-t border-ink-100">
+      <div className="flex items-center justify-between gap-2 pt-2 border-t border-ink-100">
         <StatusPicker
           value={task.status}
           onChange={changeStatus}
           onBlock={() => blockDialog.requestBlock(task.id)}
           readOnly={!isAssignee && !canEdit}
         />
-        <QuickActions
-          task={task}
-          isAssignee={isAssignee}
-          canEdit={canEdit}
-          onStatus={changeStatus}
-          onBlock={() => blockDialog.requestBlock(task.id)}
-        />
+        <div className="flex items-center gap-2">
+          <TimeLogChip
+            loggedHours={loggedHours}
+            estimatedHours={task.estimatedHours}
+            canLog={isAssignee || canEdit}
+            onLog={quickLog}
+          />
+          <QuickActions
+            task={task}
+            isAssignee={isAssignee}
+            canEdit={canEdit}
+            onStatus={changeStatus}
+            onBlock={() => blockDialog.requestBlock(task.id)}
+          />
+        </div>
       </div>
     </div>
   );

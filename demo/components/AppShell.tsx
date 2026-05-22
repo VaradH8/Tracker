@@ -166,9 +166,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-ink-50 flex flex-col">
+    <div className="h-screen overflow-hidden bg-ink-50 flex flex-col">
       {impersonator && (
-        <div className="sticky top-0 z-40 h-9 bg-brand-yellowText text-white flex items-center justify-center gap-3 px-4 text-xs">
+        <div className="shrink-0 h-9 bg-brand-yellowText text-white flex items-center justify-center gap-3 px-4 text-xs">
           <span className="inline-flex items-center gap-1.5">
             <Eye size={13} />
             Viewing as <strong>{ROLE_PROFILE[role].name}</strong> (
@@ -184,9 +184,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       )}
       <div className="flex flex-1 min-h-0">
         <Sidebar items={items} />
-        <div className="flex-1 min-w-0 flex flex-col">
+        <div className="flex-1 min-w-0 flex flex-col min-h-0">
           <TopBar role={role} impersonating={!!impersonator} />
-          <main className="flex-1">{children}</main>
+          <main className="flex-1 overflow-y-auto">{children}</main>
         </div>
       </div>
       <CommandPalette />
@@ -201,7 +201,7 @@ function Sidebar({ items }: { items: NavItem[] }) {
       <div className="h-14 flex items-center px-5 border-b border-ink-200">
         <Logo />
       </div>
-      <nav className="flex-1 px-3 py-4 space-y-0.5">
+      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
         {items.map((item) => {
           const active =
             pathname === item.href ||
@@ -266,11 +266,7 @@ function TopBar({
   }
 
   return (
-    <header
-      className={`h-14 bg-white border-b border-ink-200 flex items-center justify-end gap-2 px-6 sticky z-30 ${
-        impersonating ? "top-9" : "top-0"
-      }`}
-    >
+    <header className="h-14 shrink-0 bg-white border-b border-ink-200 flex items-center justify-end gap-2 px-6 z-30">
       <div className="md:hidden mr-auto">
         <Logo size="sm" />
       </div>
