@@ -37,7 +37,7 @@ const PROFILE_NAME: Record<Role, { name: string; email: string }> = {
   Admin: { name: "Varad Hadawale", email: "varad@example.com" },
   Coordinator: { name: "Manasi Kulkarni", email: "manasi@example.com" },
   BusinessDeveloper: { name: "Rohit Mehra", email: "rohit@example.com" },
-  Developer: { name: "Sanjana Rao", email: "sanjana@example.com" },
+  Developer: { name: "Sanjana Jadhav", email: "sanjana@example.com" },
 };
 
 export default function ProfilePage() {

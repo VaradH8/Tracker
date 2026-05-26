@@ -49,7 +49,7 @@ const TILES: RoleTile[] = [
   },
   {
     key: "Developer",
-    who: "Sanjana Rao",
+    who: "Sanjana Jadhav",
     role: "Developer",
     Icon: CheckSquare,
     border: "border-l-brand-green",

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Plus, Search, ScrollText, UserX, UserCheck } from "lucide-react";
+import { Plus, Search, ScrollText, UserX, UserCheck, Pencil } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { EmptyState } from "@/components/EmptyState";
 import { Modal } from "@/components/Modal";
@@ -43,6 +43,7 @@ export default function UsersPage() {
     "All" | "Active" | "Deactivated"
   >("All");
   const [addOpen, setAddOpen] = useState(false);
+  const [editing, setEditing] = useState<Row | null>(null);
   const toast = useToast();
 
   const visible = rows
@@ -83,6 +84,15 @@ export default function UsersPage() {
         r.status === "Active" ? "info" : "success",
       );
     }
+  }
+
+  function saveEdit(updated: { name: string; email: string; designation: string }) {
+    if (!editing) return;
+    setRows((prev) =>
+      prev.map((r) => (r.id === editing.id ? { ...r, ...updated } : r)),
+    );
+    toast.show(`${updated.name}'s details updated.`);
+    setEditing(null);
   }
 
   function addUser(name: string, role: Role) {
@@ -205,6 +215,13 @@ export default function UsersPage() {
                     </td>
                     <td className="py-3 px-3">
                       <div className="flex items-center gap-1 justify-end">
+                        <button
+                          onClick={() => setEditing(u)}
+                          title="Edit name, email, designation"
+                          className="p-1.5 rounded text-ink-400 hover:text-brand-blue hover:bg-brand-blueBg"
+                        >
+                          <Pencil size={14} />
+                        </button>
                         <Link
                           href={`/audit?actor=${encodeURIComponent(u.name)}`}
                           title="View this user's audit trail"
@@ -247,7 +264,90 @@ export default function UsersPage() {
           onAdd={addUser}
         />
       )}
+
+      {editing && (
+        <EditUserModal
+          row={editing}
+          onClose={() => setEditing(null)}
+          onSave={saveEdit}
+        />
+      )}
     </AppShell>
+  );
+}
+
+function EditUserModal({
+  row,
+  onClose,
+  onSave,
+}: {
+  row: Row;
+  onClose: () => void;
+  onSave: (u: { name: string; email: string; designation: string }) => void;
+}) {
+  const [name, setName] = useState(row.name);
+  const [email, setEmail] = useState(row.email);
+  const [designation, setDesignation] = useState(row.designation);
+  const dirty =
+    name.trim() !== row.name ||
+    email.trim() !== row.email ||
+    designation.trim() !== row.designation;
+
+  return (
+    <Modal title="Edit user" onClose={onClose}>
+      <p className="text-sm text-ink-500 mb-5">
+        Update the display name, email, or designation.
+      </p>
+
+      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+        Full name
+      </label>
+      <input
+        autoFocus
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+      />
+
+      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+        Email
+      </label>
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+      />
+
+      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+        Designation
+      </label>
+      <input
+        value={designation}
+        onChange={(e) => setDesignation(e.target.value)}
+        placeholder="e.g. Senior Developer"
+        className="w-full px-3 py-2 mb-6 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+      />
+
+      <div className="flex justify-end gap-2">
+        <button onClick={onClose} className="btn-ghost">
+          Cancel
+        </button>
+        <button
+          onClick={() =>
+            onSave({
+              name: name.trim() || row.name,
+              email: email.trim() || row.email,
+              designation: designation.trim() || row.designation,
+            })
+          }
+          disabled={!dirty || !name.trim()}
+          className="btn-primary"
+        >
+          Save changes
+        </button>
+      </div>
+    </Modal>
   );
 }
 

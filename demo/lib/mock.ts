@@ -474,7 +474,7 @@ export const RESOURCES: Resource[] = [
   },
   {
     id: 2,
-    name: "Sanjana Rao",
+    name: "Sanjana Jadhav",
     email: "sanjana@example.com",
     phone: "+91 98200 22222",
     location: "Bengaluru",
@@ -662,7 +662,7 @@ export const LEAVES: LeaveEntry[] = [
   },
   {
     id: 2,
-    resourceName: "Sanjana Rao",
+    resourceName: "Sanjana Jadhav",
     start: "2026-05-09",
     end: "2026-05-09",
     type: "WFH",
@@ -690,7 +690,7 @@ export const AUDIT_LOG: AuditEntry[] = [
   {
     id: 1,
     when: "10m ago",
-    actor: "Sanjana Rao",
+    actor: "Sanjana Jadhav",
     action: "task.status_change",
     scope: "Lurgi — Bulk Select & Filters",
     taskTitle: "Bulk select — checkbox desync",
@@ -794,7 +794,7 @@ export const ADMIN_USER = {
 };
 
 export const DEVELOPER_USER = {
-  name: "Sanjana Rao",
+  name: "Sanjana Jadhav",
   firstName: "Sanjana",
   email: "sanjana@example.com",
 };

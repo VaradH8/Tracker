@@ -24,7 +24,7 @@ const ROLE_PERSON: Record<Role, string> = {
   Admin: "Varad Hadawale",
   Coordinator: "Manasi Kulkarni",
   BusinessDeveloper: "Rohit Mehra",
-  Developer: "Sanjana Rao",
+  Developer: "Sanjana Jadhav",
 };
 
 type AddTaskInput = {

@@ -17,6 +17,8 @@ import {
   ScrollText,
   Eye,
   Search,
+  Menu,
+  X,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Logo } from "./Logo";
@@ -94,7 +96,7 @@ const ROLE_PROFILE: Record<
     color: "bg-brand-yellow",
   },
   Developer: {
-    name: "Sanjana Rao",
+    name: "Sanjana Jadhav",
     email: "sanjana@example.com",
     initials: "SR",
     color: "bg-brand-green",
@@ -105,6 +107,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [role, , hydrated] = useRole();
   const router = useRouter();
   const pathname = usePathname();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const isSignedIn = hydrated && readStoredRole() !== null;
   const impersonator = hydrated ? readImpersonator() : null;
@@ -185,13 +188,31 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="flex flex-1 min-h-0">
         <Sidebar items={items} />
         <div className="flex-1 min-w-0 flex flex-col min-h-0">
-          <TopBar role={role} impersonating={!!impersonator} />
+          <TopBar
+            role={role}
+            impersonating={!!impersonator}
+            onOpenNav={() => setMobileNavOpen(true)}
+          />
           <main className="flex-1 overflow-y-auto">{children}</main>
         </div>
       </div>
+      <MobileNav
+        items={items}
+        open={mobileNavOpen}
+        onClose={() => setMobileNavOpen(false)}
+      />
       <CommandPalette />
     </div>
   );
+}
+
+const NAV_ACTIVE =
+  "flex items-center gap-3 px-3 py-2 rounded text-sm font-medium bg-brand-blueBg text-brand-blue";
+const NAV_IDLE =
+  "flex items-center gap-3 px-3 py-2 rounded text-sm font-medium text-ink-700 hover:bg-ink-100";
+
+function navIsActive(pathname: string, href: string): boolean {
+  return pathname === href || (href !== "/" && pathname.startsWith(href));
 }
 
 function Sidebar({ items }: { items: NavItem[] }) {
@@ -203,18 +224,13 @@ function Sidebar({ items }: { items: NavItem[] }) {
       </div>
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
         {items.map((item) => {
-          const active =
-            pathname === item.href ||
-            (item.href !== "/" && pathname.startsWith(item.href));
           const Icon = item.Icon;
           return (
             <Link
               key={item.href}
               href={item.href}
               className={
-                active
-                  ? "flex items-center gap-3 px-3 py-2 rounded text-sm font-medium bg-brand-blueBg text-brand-blue"
-                  : "flex items-center gap-3 px-3 py-2 rounded text-sm font-medium text-ink-700 hover:bg-ink-100"
+                navIsActive(pathname, item.href) ? NAV_ACTIVE : NAV_IDLE
               }
             >
               <Icon size={16} />
@@ -230,12 +246,81 @@ function Sidebar({ items }: { items: NavItem[] }) {
   );
 }
 
+/* Slide-in navigation for phones — the desktop sidebar is hidden below md. */
+function MobileNav({
+  items,
+  open,
+  onClose,
+}: {
+  items: NavItem[];
+  open: boolean;
+  onClose: () => void;
+}) {
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (!open) return;
+    function onEsc(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onEsc);
+    return () => document.removeEventListener("keydown", onEsc);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <div className="md:hidden fixed inset-0 z-[70] flex">
+      <aside className="w-64 max-w-[82vw] bg-white border-r border-ink-200 flex flex-col h-full animate-in slide-in-from-left">
+        <div className="h-14 flex items-center justify-between px-5 border-b border-ink-200">
+          <Logo size="sm" />
+          <button
+            onClick={onClose}
+            aria-label="Close navigation"
+            className="p-1.5 -mr-1.5 rounded text-ink-500 hover:text-ink-900 hover:bg-ink-100"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
+          {items.map((item) => {
+            const Icon = item.Icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onClose}
+                className={
+                  navIsActive(pathname, item.href) ? NAV_ACTIVE : NAV_IDLE
+                }
+              >
+                <Icon size={16} />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+        <div className="px-5 py-3 border-t border-ink-200 text-xs text-ink-400">
+          v1.0
+        </div>
+      </aside>
+      <div
+        className="flex-1 bg-ink-900/40 backdrop-blur-sm"
+        onClick={onClose}
+        aria-hidden
+      />
+    </div>
+  );
+}
+
 function TopBar({
   role,
   impersonating,
+  onOpenNav,
 }: {
   role: Role;
   impersonating: boolean;
+  onOpenNav: () => void;
 }) {
   const router = useRouter();
   const [profileOpen, setProfileOpen] = useState(false);
@@ -289,7 +374,14 @@ function TopBar({
 
   return (
     <header className="h-14 shrink-0 bg-white border-b border-ink-200 flex items-center justify-end gap-2 px-6 z-30">
-      <div className="md:hidden mr-auto">
+      <div className="md:hidden flex items-center gap-1 mr-auto">
+        <button
+          onClick={onOpenNav}
+          aria-label="Open navigation"
+          className="p-2 -ml-2 rounded text-ink-700 hover:bg-ink-100"
+        >
+          <Menu size={20} />
+        </button>
         <Logo size="sm" />
       </div>
 
