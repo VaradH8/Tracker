@@ -45,18 +45,35 @@ export function TaskCard({
     const wasAssigned = task.assignees.includes(name);
     store.toggleAssignee(task.id, name);
     if (!wasAssigned) {
-      notify({
-        recipient: name,
-        kind: "assigned",
-        title: "Assigned to a task",
-        body: task.title,
-        taskId: task.id,
-      });
+      // Notify the new assignee — skip if it's the actor themselves
+      // (no point emailing yourself).
+      if (name !== me) {
+        notify({
+          recipient: name,
+          kind: "assigned",
+          title: "Assigned to a task",
+          body: task.title,
+          taskId: task.id,
+        });
+      }
+      // Self-assign: tell the lead (Person Responsible) someone on their
+      // team picked it up.
+      if (name === me && task.responsible && task.responsible !== me) {
+        notify({
+          recipient: task.responsible,
+          kind: "assigned",
+          title: `${me} self-assigned to a task`,
+          body: task.title,
+          taskId: task.id,
+        });
+      }
     }
     toast.show(
       wasAssigned
         ? `${name} removed from “${task.title}”.`
-        : `${name} assigned to “${task.title}”.`,
+        : name === me && task.responsible && task.responsible !== me
+          ? `You picked up “${task.title}”. ${task.responsible} notified.`
+          : `${name} assigned to “${task.title}”.`,
       "success",
       { label: "Undo", onClick: () => store.toggleAssignee(task.id, name) },
     );

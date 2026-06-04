@@ -16,6 +16,7 @@ import {
   type Priority,
   type Status,
   type Task,
+  type TaskAttachment,
   type TimeEntry,
 } from "./mock";
 import { useRole, type Role } from "./role";
@@ -32,6 +33,8 @@ type AddTaskInput = {
   projectId: number;
   status: Status;
   priority?: Priority;
+  description?: string;
+  estimatedHours?: number | null;
   /** Person Responsible — the assigner. Defaults to the creator's first name. */
   responsible?: string;
   /** Person Accountable — the doers. */
@@ -61,6 +64,13 @@ type Ctx = {
   setAssignees: (id: number, names: string[]) => void;
   toggleAssignee: (id: number, name: string) => void;
   toggleImportant: (id: number) => void;
+  setEstimatedHours: (id: number, hours: number | null) => void;
+  toggleDependency: (id: number, depId: number) => void;
+  addAttachment: (
+    id: number,
+    attachment: Omit<TaskAttachment, "id" | "when">,
+  ) => void;
+  removeAttachment: (id: number, attId: number) => void;
   addTask: (input: AddTaskInput) => void;
   addRemark: (taskId: number, author: string, body: string) => void;
   logTime: (input: LogTimeInput) => void;
@@ -244,18 +254,80 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  const setEstimatedHours = useCallback(
+    (id: number, hours: number | null) => {
+      setTasks((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, estimatedHours: hours } : t)),
+      );
+    },
+    [],
+  );
+
+  const toggleDependency = useCallback((id: number, depId: number) => {
+    if (id === depId) return;
+    setTasks((prev) =>
+      prev.map((t) => {
+        if (t.id !== id) return t;
+        const current = t.dependsOn ?? [];
+        return {
+          ...t,
+          dependsOn: current.includes(depId)
+            ? current.filter((d) => d !== depId)
+            : [...current, depId],
+        };
+      }),
+    );
+  }, []);
+
+  const addAttachment = useCallback(
+    (id: number, attachment: Omit<TaskAttachment, "id" | "when">) => {
+      setTasks((prev) =>
+        prev.map((t) => {
+          if (t.id !== id) return t;
+          const list = t.attachments ?? [];
+          return {
+            ...t,
+            attachments: [
+              ...list,
+              {
+                ...attachment,
+                id: Math.max(0, ...list.map((a) => a.id)) + 1,
+                when: "just now",
+              },
+            ],
+          };
+        }),
+      );
+    },
+    [],
+  );
+
+  const removeAttachment = useCallback((id: number, attId: number) => {
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === id
+          ? {
+              ...t,
+              attachments: (t.attachments ?? []).filter((a) => a.id !== attId),
+            }
+          : t,
+      ),
+    );
+  }, []);
+
   const addTask = useCallback((input: AddTaskInput) => {
     setTasks((prev) => {
       const next: Task = {
         id: Math.max(...prev.map((t) => t.id), 100) + 1,
         title: input.title,
+        description: input.description,
         projectId: input.projectId,
         status: input.status,
         priority: input.priority ?? "Medium",
         responsible: input.responsible ?? "Manasi",
         assignees: input.assignees ?? [],
         targetDate: input.targetDate ?? plusDays(new Date(), 7),
-        estimatedHours: null,
+        estimatedHours: input.estimatedHours ?? null,
         important: false,
       };
       return [...prev, next];
@@ -278,6 +350,10 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         setAssignees,
         toggleAssignee,
         toggleImportant,
+        setEstimatedHours,
+        toggleDependency,
+        addAttachment,
+        removeAttachment,
         addTask,
         addRemark,
         logTime,

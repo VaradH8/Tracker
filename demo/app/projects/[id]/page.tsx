@@ -18,11 +18,13 @@ import { AppShell } from "@/components/AppShell";
 import { TaskCard } from "@/components/TaskCard";
 import {
   PROJECTS,
+  TASK_TEMPLATES,
   clientById,
   projectById,
   projectStatusPill,
   projectLaborCost,
   formatINR,
+  type Priority,
   type Status,
 } from "@/lib/mock";
 import { useTasks } from "@/lib/tasks-store";
@@ -446,10 +448,10 @@ export default function ProjectDetailPage({
         <CreateTaskModal
           projectName={project.name}
           onClose={() => setCreateOpen(false)}
-          onCreate={(title, status) => {
-            addTask({ title, projectId, status });
+          onCreate={(input) => {
+            addTask({ projectId, ...input });
             setCreateOpen(false);
-            toast.show(`Task “${title}” created.`);
+            toast.show(`Task “${input.title}” created.`);
           }}
         />
       )}
@@ -464,14 +466,75 @@ function CreateTaskModal({
 }: {
   projectName: string;
   onClose: () => void;
-  onCreate: (title: string, status: Status) => void;
+  onCreate: (input: {
+    title: string;
+    status: Status;
+    description?: string;
+    priority?: Priority;
+    estimatedHours?: number | null;
+  }) => void;
 }) {
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [status, setStatus] = useState<Status>("To Do");
+  const [priority, setPriority] = useState<Priority>("Medium");
+  const [estHours, setEstHours] = useState("");
+  const [templateId, setTemplateId] = useState<string>("");
+
+  function applyTemplate(id: string) {
+    setTemplateId(id);
+    if (!id) return;
+    const t = TASK_TEMPLATES.find((x) => String(x.id) === id);
+    if (!t) return;
+    if (!title.trim()) setTitle(t.name);
+    setDescription(t.description);
+    setStatus(t.defaultStatus);
+    setPriority(t.priority);
+    setEstHours(String(t.estimatedHours));
+  }
+
+  function submit() {
+    const t = title.trim() || "Untitled task";
+    const n = estHours.trim() === "" ? null : Number(estHours);
+    onCreate({
+      title: t,
+      status,
+      description: description.trim() || undefined,
+      priority,
+      estimatedHours: n != null && Number.isFinite(n) ? n : null,
+    });
+  }
+
+  const chosenTemplate = TASK_TEMPLATES.find(
+    (x) => String(x.id) === templateId,
+  );
 
   return (
-    <Modal title="New task" onClose={onClose}>
+    <Modal title="New task" onClose={onClose} size="lg">
       <p className="text-sm text-ink-500 mb-5 truncate">In {projectName}</p>
+
+      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+        Start from a template{" "}
+        <span className="text-ink-400 font-normal">(optional)</span>
+      </label>
+      <select
+        value={templateId}
+        onChange={(e) => applyTemplate(e.target.value)}
+        className="w-full px-3 py-2 mb-1 rounded border border-ink-200 text-sm"
+      >
+        <option value="">Blank task</option>
+        {TASK_TEMPLATES.map((t) => (
+          <option key={t.id} value={t.id}>
+            {t.name}
+          </option>
+        ))}
+      </select>
+      {chosenTemplate && (
+        <p className="text-[11px] text-ink-500 mb-4 italic">
+          {chosenTemplate.hint}
+        </p>
+      )}
+      {!chosenTemplate && <div className="mb-4" />}
 
       <label className="block text-xs font-medium text-ink-700 mb-1.5">
         Task title
@@ -481,35 +544,78 @@ function CreateTaskModal({
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter" && title.trim()) {
-            onCreate(title.trim(), status);
-          }
+          if (e.key === "Enter" && title.trim()) submit();
         }}
         placeholder="What needs to be done?"
         className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
       />
 
       <label className="block text-xs font-medium text-ink-700 mb-1.5">
-        Start in column
+        Description{" "}
+        <span className="text-ink-400 font-normal">(optional)</span>
       </label>
-      <select
-        value={status}
-        onChange={(e) => setStatus(e.target.value as Status)}
-        className="w-full px-3 py-2 mb-6 rounded border border-ink-200 text-sm"
-      >
-        <option>To Do</option>
-        <option>In Progress</option>
-        <option>Blocked</option>
-        <option>In review</option>
-        <option>Done</option>
-      </select>
+      <textarea
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        rows={2}
+        placeholder="A line or two about what this needs."
+        className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+      />
+
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Start in column
+          </label>
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value as Status)}
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          >
+            <option>To Do</option>
+            <option>In Progress</option>
+            <option>Blocked</option>
+            <option>In review</option>
+            <option>Done</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Priority
+          </label>
+          <select
+            value={priority}
+            onChange={(e) => setPriority(e.target.value as Priority)}
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          >
+            <option>Critical</option>
+            <option>High</option>
+            <option>Medium</option>
+            <option>Low</option>
+          </select>
+        </div>
+      </div>
+
+      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+        Estimated hours{" "}
+        <span className="text-ink-400 font-normal">(optional)</span>
+      </label>
+      <input
+        type="number"
+        step="0.5"
+        min="0"
+        value={estHours}
+        onChange={(e) => setEstHours(e.target.value)}
+        placeholder="e.g. 6"
+        className="w-full px-3 py-2 mb-6 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+      />
 
       <div className="flex justify-end gap-2">
         <button onClick={onClose} className="btn-ghost">
           Cancel
         </button>
         <button
-          onClick={() => onCreate(title.trim() || "Untitled task", status)}
+          onClick={submit}
           disabled={!title.trim()}
           className="btn-primary"
         >

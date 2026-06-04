@@ -10,8 +10,13 @@ import {
   History,
   Timer,
   Plus,
+  Link2,
+  Paperclip,
+  Upload,
+  FileText,
+  Trash2,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   AssigneePicker,
   DateField,
@@ -22,8 +27,17 @@ import {
 } from "./InlineActions";
 import { useTasks } from "@/lib/tasks-store";
 import { useRole } from "@/lib/role";
-import { projectById, loggedHoursForTask, TODAY_ISO } from "@/lib/mock";
+import {
+  projectById,
+  loggedHoursForTask,
+  TODAY_ISO,
+  parseMentions,
+  activeFirstNames,
+  statusPill,
+  type TaskAttachment,
+} from "@/lib/mock";
 import { useBlockDialog } from "./BlockDialogProvider";
+import { useNotifications } from "@/lib/notifications-store";
 
 const ROLE_PERSON: Record<string, string> = {
   Admin: "Manasi",
@@ -54,11 +68,16 @@ export function TaskDrawer({
   const store = useTasks();
   const [role] = useRole();
   const blockDialog = useBlockDialog();
+  const { notify } = useNotifications();
   const [newRemark, setNewRemark] = useState("");
   const [logOpen, setLogOpen] = useState(false);
   const [logHours, setLogHours] = useState("");
   const [logDate, setLogDate] = useState(TODAY_ISO);
   const [logNote, setLogNote] = useState("");
+  const [estimateEdit, setEstimateEdit] = useState<string>("");
+  const [editingEstimate, setEditingEstimate] = useState(false);
+  const [depPickerOpen, setDepPickerOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const task = store.byId(taskId);
 
   if (!task) return null;
@@ -86,6 +105,74 @@ export function TaskDrawer({
     setLogNote("");
     setLogDate(TODAY_ISO);
     setLogOpen(false);
+  }
+
+  function reassign(name: string) {
+    if (!task) return;
+    const wasAssigned = task.assignees.includes(name);
+    store.toggleAssignee(task.id, name);
+    if (wasAssigned) return;
+    if (name !== me) {
+      notify({
+        recipient: name,
+        kind: "assigned",
+        title: "Assigned to a task",
+        body: task.title,
+        taskId: task.id,
+      });
+    }
+    if (name === me && task.responsible && task.responsible !== me) {
+      notify({
+        recipient: task.responsible,
+        kind: "assigned",
+        title: `${me} self-assigned to a task`,
+        body: task.title,
+        taskId: task.id,
+      });
+    }
+  }
+
+  function postRemark() {
+    if (!task) return;
+    const body = newRemark.trim();
+    if (!body) return;
+    store.addRemark(task.id, me, body);
+    // Fire @-mention notifications. Skip mentioning yourself.
+    const mentioned = parseMentions(body, activeFirstNames());
+    for (const recipient of mentioned) {
+      if (recipient === me) continue;
+      notify({
+        recipient,
+        kind: "mention",
+        title: `${me} mentioned you`,
+        body: body.length > 140 ? body.slice(0, 140) + "…" : body,
+        taskId: task.id,
+      });
+    }
+    setNewRemark("");
+  }
+
+  function saveEstimate() {
+    if (!task) return;
+    const v = estimateEdit.trim();
+    const n = v === "" ? null : Number(v);
+    const valid = n === null || (Number.isFinite(n) && n >= 0);
+    if (valid && n !== task.estimatedHours) {
+      store.setEstimatedHours(task.id, n);
+    }
+    setEditingEstimate(false);
+  }
+
+  function onFileChosen(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !task) return;
+    store.addAttachment(task.id, {
+      name: file.name,
+      size: formatBytes(file.size),
+      uploadedBy: me,
+      kind: kindFromName(file.name),
+    });
   }
 
   return (
@@ -198,7 +285,7 @@ export function TaskDrawer({
             <div className="flex items-center gap-2">
               <AssigneePicker
                 selected={task.assignees}
-                onToggle={(name) => store.toggleAssignee(task.id, name)}
+                onToggle={reassign}
                 readOnly={!canEdit}
               />
               <span className="text-xs text-ink-500">
@@ -217,13 +304,206 @@ export function TaskDrawer({
               />
             </Field>
             <Field label="Estimated" icon={<Clock size={14} />}>
-              <span className="text-sm text-ink-700">
-                {task.estimatedHours != null
-                  ? `${task.estimatedHours} hrs`
-                  : "—"}
-              </span>
+              {canEdit ? (
+                editingEstimate ? (
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      autoFocus
+                      value={estimateEdit}
+                      onChange={(e) => setEstimateEdit(e.target.value)}
+                      onBlur={saveEstimate}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveEstimate();
+                        if (e.key === "Escape") setEditingEstimate(false);
+                      }}
+                      placeholder="hrs"
+                      className="w-20 px-2 py-1 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                    />
+                    <span className="text-xs text-ink-400">hrs</span>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setEstimateEdit(
+                        task.estimatedHours != null
+                          ? String(task.estimatedHours)
+                          : "",
+                      );
+                      setEditingEstimate(true);
+                    }}
+                    className="text-sm text-ink-700 hover:text-brand-blue text-left"
+                  >
+                    {task.estimatedHours != null
+                      ? `${task.estimatedHours} hrs`
+                      : "+ Set estimate"}
+                  </button>
+                )
+              ) : (
+                <span className="text-sm text-ink-700">
+                  {task.estimatedHours != null
+                    ? `${task.estimatedHours} hrs`
+                    : "—"}
+                </span>
+              )}
             </Field>
           </div>
+
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xs font-semibold text-ink-700 uppercase tracking-wide flex items-center gap-2">
+                <Link2 size={12} /> Blocked by
+                <span className="font-medium normal-case text-ink-400">
+                  ({task.dependsOn?.length ?? 0})
+                </span>
+              </h3>
+              {canEdit && !depPickerOpen && (
+                <button
+                  onClick={() => setDepPickerOpen(true)}
+                  className="text-xs text-brand-blue hover:underline inline-flex items-center gap-1"
+                >
+                  <Plus size={12} /> Add
+                </button>
+              )}
+            </div>
+            <ul className="space-y-1.5">
+              {(task.dependsOn ?? []).map((depId) => {
+                const dep = store.byId(depId);
+                if (!dep) return null;
+                return (
+                  <li
+                    key={depId}
+                    className="flex items-center gap-2 text-sm py-1.5 px-2 rounded border border-ink-200"
+                  >
+                    <span className={statusPill(dep.status)}>{dep.status}</span>
+                    <span
+                      className={`flex-1 truncate ${
+                        dep.status === "Done"
+                          ? "line-through text-ink-400"
+                          : "text-ink-900"
+                      }`}
+                      title={dep.title}
+                    >
+                      {dep.title}
+                    </span>
+                    {canEdit && (
+                      <button
+                        onClick={() => store.toggleDependency(task.id, depId)}
+                        className="text-ink-400 hover:text-brand-redText"
+                        aria-label="Remove dependency"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+              {(task.dependsOn ?? []).length === 0 && !depPickerOpen && (
+                <li className="text-xs text-ink-400 italic">
+                  No dependencies — this task can move on its own.
+                </li>
+              )}
+            </ul>
+            {depPickerOpen && (
+              <div className="mt-2 flex items-center gap-2">
+                <select
+                  autoFocus
+                  defaultValue=""
+                  onChange={(e) => {
+                    const id = Number(e.target.value);
+                    if (id) {
+                      store.toggleDependency(task.id, id);
+                      setDepPickerOpen(false);
+                    }
+                  }}
+                  className="flex-1 px-2 py-1.5 rounded border border-ink-200 text-sm"
+                >
+                  <option value="">Choose a task to depend on…</option>
+                  {store
+                    .forProject(task.projectId)
+                    .filter(
+                      (t) =>
+                        t.id !== task.id &&
+                        !(task.dependsOn ?? []).includes(t.id),
+                    )
+                    .map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.title}
+                      </option>
+                    ))}
+                </select>
+                <button
+                  onClick={() => setDepPickerOpen(false)}
+                  className="text-xs text-ink-500 hover:text-ink-900 px-1"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </section>
+
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xs font-semibold text-ink-700 uppercase tracking-wide flex items-center gap-2">
+                <Paperclip size={12} /> Attachments
+                <span className="font-medium normal-case text-ink-400">
+                  ({task.attachments?.length ?? 0})
+                </span>
+              </h3>
+              {canEdit && (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-xs text-brand-blue hover:underline inline-flex items-center gap-1"
+                >
+                  <Upload size={12} /> Upload
+                </button>
+              )}
+            </div>
+            <ul className="space-y-1.5">
+              {(task.attachments ?? []).map((a) => (
+                <li
+                  key={a.id}
+                  className="flex items-center gap-2 text-sm py-1.5 px-2 rounded border border-ink-200"
+                >
+                  <FileText size={14} className="text-ink-400 shrink-0" />
+                  <span
+                    className="flex-1 truncate text-ink-900"
+                    title={a.name}
+                  >
+                    {a.name}
+                  </span>
+                  <span className="text-xs text-ink-400 shrink-0">
+                    {a.size}
+                  </span>
+                  <span className="text-xs text-ink-400 shrink-0 hidden sm:inline">
+                    {a.uploadedBy} · {a.when}
+                  </span>
+                  {canEdit && (
+                    <button
+                      onClick={() => store.removeAttachment(task.id, a.id)}
+                      className="text-ink-400 hover:text-brand-redText"
+                      aria-label="Remove attachment"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  )}
+                </li>
+              ))}
+              {(task.attachments ?? []).length === 0 && (
+                <li className="text-xs text-ink-400 italic">
+                  No attachments yet.
+                </li>
+              )}
+            </ul>
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              onChange={onFileChosen}
+            />
+          </section>
 
           <section>
             <div className="flex items-center justify-between mb-2">
@@ -394,14 +674,9 @@ export function TaskDrawer({
                 />
                 <div className="flex justify-end pt-1.5 border-t border-ink-100 mt-1.5">
                   <button
-                    onClick={() => {
-                      const body = newRemark.trim();
-                      if (!body) return;
-                      store.addRemark(task.id, me, body);
-                      setNewRemark("");
-                    }}
+                    onClick={postRemark}
                     disabled={!newRemark.trim()}
-                    className="btn-primary text-xs py-1 px-3 disabled:opacity-50"
+                    className="btn-primary text-xs py-1 px-3"
                   >
                     Post
                   </button>
@@ -443,6 +718,22 @@ export function TaskDrawer({
       </aside>
     </div>
   );
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function kindFromName(name: string): TaskAttachment["kind"] {
+  const ext = name.toLowerCase().split(".").pop() ?? "";
+  if (ext === "pdf") return "pdf";
+  if (["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(ext))
+    return "image";
+  if (["doc", "docx", "txt", "md"].includes(ext)) return "doc";
+  if (["xls", "xlsx", "csv"].includes(ext)) return "sheet";
+  return "other";
 }
 
 function auditVerb(action: string): string {

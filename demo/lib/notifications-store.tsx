@@ -9,7 +9,9 @@ import {
 } from "react";
 import {
   NOTIFICATIONS as SEED,
+  firstNameToEmail,
   type AppNotification,
+  type EmailLogEntry,
   type NotificationKind,
 } from "./mock";
 
@@ -28,12 +30,15 @@ type Ctx = {
   markRead: (id: number) => void;
   markAllRead: (person: string) => void;
   notify: (n: NewNotification) => void;
+  emails: EmailLogEntry[];
+  clearEmails: () => void;
 };
 
 const NotifCtx = createContext<Ctx | null>(null);
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [all, setAll] = useState<AppNotification[]>(SEED);
+  const [emails, setEmails] = useState<EmailLogEntry[]>([]);
 
   const forPerson = useCallback(
     (person: string) => all.filter((n) => n.recipient === person),
@@ -68,11 +73,37 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       },
       ...prev,
     ]);
+    // Every in-app notification also "sends" an email — captured in the
+    // Settings → Email log so the team can verify what went out.
+    setEmails((prev) => [
+      {
+        id: Math.max(0, ...prev.map((x) => x.id)) + 1,
+        to: n.recipient,
+        toEmail: firstNameToEmail(n.recipient),
+        subject: n.title,
+        body: n.body,
+        when: "just now",
+        kind: n.kind,
+        taskId: n.taskId,
+      },
+      ...prev,
+    ]);
   }, []);
+
+  const clearEmails = useCallback(() => setEmails([]), []);
 
   return (
     <NotifCtx.Provider
-      value={{ all, forPerson, unreadCount, markRead, markAllRead, notify }}
+      value={{
+        all,
+        forPerson,
+        unreadCount,
+        markRead,
+        markAllRead,
+        notify,
+        emails,
+        clearEmails,
+      }}
     >
       {children}
     </NotifCtx.Provider>

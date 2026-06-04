@@ -19,6 +19,8 @@ import {
   Search,
   Menu,
   X,
+  CalendarClock,
+  Users2,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Logo } from "./Logo";
@@ -48,8 +50,10 @@ const NAV: Record<Role, NavItem[]> = {
   Admin: [
     { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
     { href: "/projects", label: "Projects", Icon: FolderKanban },
+    { href: "/calendar", label: "Calendar", Icon: CalendarClock },
     { href: "/resources", label: "Resources", Icon: Users },
     { href: "/users", label: "Users", Icon: Users },
+    { href: "/notifications", label: "Notifications", Icon: Bell },
     { href: "/audit", label: "Audit log", Icon: ScrollText },
     { href: "/leaves", label: "Leaves", Icon: CalendarCheck },
     { href: "/settings", label: "Settings", Icon: Settings },
@@ -58,17 +62,24 @@ const NAV: Record<Role, NavItem[]> = {
     { href: "/my-day", label: "My Day", Icon: Sun },
     { href: "/projects", label: "Projects", Icon: FolderKanban },
     { href: "/my-tasks", label: "My Tasks", Icon: ListTodo },
+    { href: "/team", label: "My team", Icon: Users2 },
+    { href: "/calendar", label: "Calendar", Icon: CalendarClock },
     { href: "/resources", label: "Resources", Icon: Users },
+    { href: "/notifications", label: "Notifications", Icon: Bell },
     { href: "/leaves", label: "Leaves", Icon: CalendarCheck },
   ],
   BusinessDeveloper: [
     { href: "/projects", label: "Projects", Icon: FolderKanban },
     { href: "/clients", label: "Clients", Icon: Briefcase },
+    { href: "/calendar", label: "Calendar", Icon: CalendarClock },
+    { href: "/notifications", label: "Notifications", Icon: Bell },
     { href: "/leaves", label: "Leaves", Icon: CalendarCheck },
   ],
   Developer: [
     { href: "/my-tasks", label: "My Tasks", Icon: ListTodo },
     { href: "/projects", label: "Projects", Icon: FolderKanban },
+    { href: "/calendar", label: "Calendar", Icon: CalendarClock },
+    { href: "/notifications", label: "Notifications", Icon: Bell },
     { href: "/leaves", label: "Leaves", Icon: CalendarCheck },
   ],
 };
@@ -98,7 +109,7 @@ const ROLE_PROFILE: Record<
   Developer: {
     name: "Sanjana Jadhav",
     email: "sanjana@example.com",
-    initials: "SR",
+    initials: "SJ",
     color: "bg-brand-green",
   },
 };

@@ -51,6 +51,9 @@ export type Task = {
   important: boolean;
   overdueDays?: number;
   remarks?: Remark[];
+  /** IDs of tasks that block this one. The task can't progress until they're Done. */
+  dependsOn?: number[];
+  attachments?: TaskAttachment[];
 };
 
 export type Remark = {
@@ -58,6 +61,26 @@ export type Remark = {
   author: string;
   body: string;
   when: string;
+};
+
+export type TaskAttachment = {
+  id: number;
+  name: string;
+  size: string;
+  uploadedBy: string;
+  when: string;
+  kind: "pdf" | "image" | "doc" | "sheet" | "other";
+};
+
+export type TaskTemplate = {
+  id: number;
+  name: string;
+  description: string;
+  priority: Priority;
+  estimatedHours: number;
+  defaultStatus: Status;
+  /** What the template is good for — shown in the picker. */
+  hint: string;
 };
 
 export type Resource = {
@@ -118,6 +141,17 @@ export type AppNotification = {
   taskId?: number;
   when: string;
   read: boolean;
+};
+
+export type EmailLogEntry = {
+  id: number;
+  to: string; // first name
+  toEmail: string;
+  subject: string;
+  body: string;
+  when: string;
+  kind: NotificationKind;
+  taskId?: number;
 };
 
 export type LeaveEntry = {
@@ -339,6 +373,24 @@ export const TASKS: Task[] = [
         when: "1h ago",
       },
     ],
+    attachments: [
+      {
+        id: 1,
+        name: "saipem-bug-report.pdf",
+        size: "1.4 MB",
+        uploadedBy: "Manasi",
+        when: "2h ago",
+        kind: "pdf",
+      },
+      {
+        id: 2,
+        name: "classifier-trace-2026-04-30.log",
+        size: "82 KB",
+        uploadedBy: "Abhishek",
+        when: "1h ago",
+        kind: "other",
+      },
+    ],
   },
   {
     id: 102,
@@ -437,6 +489,50 @@ export const TASKS: Task[] = [
     targetDate: "2026-05-08",
     estimatedHours: 3,
     important: false,
+    dependsOn: [101],
+  },
+];
+
+export const TASK_TEMPLATES: TaskTemplate[] = [
+  {
+    id: 1,
+    name: "Bug — production incident",
+    description:
+      "Reproduce on the affected environment, isolate the failing branch, ship a fix with a regression test, and close out the customer-facing ticket.",
+    priority: "Critical",
+    estimatedHours: 4,
+    defaultStatus: "In Progress",
+    hint: "Use for hotfixes that need a fast turnaround.",
+  },
+  {
+    id: 2,
+    name: "Client deliverable — drawing review",
+    description:
+      "Pull the latest revision, mark up red-lines, circulate to the lead, incorporate feedback, package final PDF for client.",
+    priority: "High",
+    estimatedHours: 6,
+    defaultStatus: "To Do",
+    hint: "Standard P&ID / mechanical drawing review cycle.",
+  },
+  {
+    id: 3,
+    name: "Weekly client check-in",
+    description:
+      "Draft the status update from the project board, schedule the call, send the agenda 24 hours before, log notes after.",
+    priority: "Medium",
+    estimatedHours: 1.5,
+    defaultStatus: "To Do",
+    hint: "Recurring stakeholder cadence.",
+  },
+  {
+    id: 4,
+    name: "Internal — onboarding session",
+    description:
+      "Prepare the deck, book the room, walk the new hire through accounts and SOPs, assign their first ticket.",
+    priority: "Low",
+    estimatedHours: 2,
+    defaultStatus: "To Do",
+    hint: "For a new joiner's first day.",
   },
 ];
 
@@ -924,6 +1020,37 @@ export function onTimeRate(person: string, tasks: Task[]): number | null {
 
 export function resourceByFirstName(name: string): Resource | undefined {
   return RESOURCES.find((r) => firstNameOf(r.name) === name);
+}
+
+export function firstNameToEmail(firstName: string): string {
+  return (
+    resourceByFirstName(firstName)?.email ??
+    `${firstName.toLowerCase()}@example.com`
+  );
+}
+
+/** First-names of every active person — used by @-mention parsing. */
+export function activeFirstNames(): string[] {
+  return RESOURCES.filter((r) => r.status === "Active").map((r) =>
+    firstNameOf(r.name),
+  );
+}
+
+/**
+ * Parse `@firstname` mentions from free text. Matches case-insensitively
+ * against the live roster so renames are picked up automatically. Returns
+ * canonical first names (the casing used in the roster).
+ */
+export function parseMentions(body: string, roster: string[]): string[] {
+  const found = new Set<string>();
+  const lcRoster = new Map(roster.map((r) => [r.toLowerCase(), r]));
+  const re = /@([A-Za-z][A-Za-z'-]{1,30})/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(body)) !== null) {
+    const canonical = lcRoster.get(m[1].toLowerCase());
+    if (canonical) found.add(canonical);
+  }
+  return Array.from(found);
 }
 
 /** Labour cost of a project: Σ (logged hours × that person's hourly rate). */

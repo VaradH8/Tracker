@@ -28,6 +28,8 @@ const ALLOWED: Record<Role, string[]> = {
     "/leaves",
     "/settings",
     "/profile",
+    "/calendar",
+    "/notifications",
   ],
   Coordinator: [
     "/my-day",
@@ -36,9 +38,27 @@ const ALLOWED: Record<Role, string[]> = {
     "/resources",
     "/leaves",
     "/profile",
+    "/calendar",
+    "/notifications",
+    "/team",
   ],
-  BusinessDeveloper: ["/projects", "/clients", "/leaves", "/profile"],
-  Developer: ["/my-day", "/my-tasks", "/projects", "/leaves", "/profile"],
+  BusinessDeveloper: [
+    "/projects",
+    "/clients",
+    "/leaves",
+    "/profile",
+    "/calendar",
+    "/notifications",
+  ],
+  Developer: [
+    "/my-day",
+    "/my-tasks",
+    "/projects",
+    "/leaves",
+    "/profile",
+    "/calendar",
+    "/notifications",
+  ],
 };
 
 export function canAccess(role: Role, pathname: string): boolean {
