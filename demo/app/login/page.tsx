@@ -3,135 +3,137 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Shield, Calendar, Briefcase, CheckSquare } from "lucide-react";
+import { LogIn, Eye, EyeOff } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import {
-  landingFor,
-  writeStoredRole,
-  readLastRole,
-  type Role,
-} from "@/lib/role";
-
-type RoleTile = {
-  key: Role;
-  who: string;
-  role: string;
-  Icon: typeof Shield;
-  /** border + icon accent for per-role muscle memory */
-  border: string;
-  accent: string;
-};
-
-const TILES: RoleTile[] = [
-  {
-    key: "Admin",
-    who: "Varad Hadawale",
-    role: "Admin",
-    Icon: Shield,
-    border: "border-l-brand-red",
-    accent: "bg-brand-redBg text-brand-redText",
-  },
-  {
-    key: "Coordinator",
-    who: "Manasi Kulkarni",
-    role: "Co-ordinator",
-    Icon: Calendar,
-    border: "border-l-brand-blue",
-    accent: "bg-brand-blueBg text-brand-blue",
-  },
-  {
-    key: "BusinessDeveloper",
-    who: "Rohit Mehra",
-    role: "Business Developer",
-    Icon: Briefcase,
-    border: "border-l-brand-yellow",
-    accent: "bg-brand-yellowBg text-brand-yellowText",
-  },
-  {
-    key: "Developer",
-    who: "Sanjana Jadhav",
-    role: "Developer",
-    Icon: CheckSquare,
-    border: "border-l-brand-green",
-    accent: "bg-brand-greenBg text-brand-greenText",
-  },
-];
+import { useAccounts, DEMO_DEFAULT_PASSWORD } from "@/lib/account-store";
+import { landingFor } from "@/lib/role";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [lastRole, setLastRole] = useState<Role | null>(null);
+  const { signIn, current, hydrated } = useAccounts();
+  const [user, setUser] = useState("");
+  const [password, setPassword] = useState("");
+  const [show, setShow] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    setLastRole(readLastRole());
-    // Clear any stale auth cookies from earlier deploys.
-    fetch("/api/signout", { method: "GET", redirect: "manual" }).catch(
-      () => {},
-    );
-  }, []);
+    if (hydrated && current) {
+      router.replace(landingFor(current.role));
+    }
+  }, [hydrated, current, router]);
 
-  function pickRole(tile: RoleTile) {
-    writeStoredRole(tile.key);
-    router.replace(landingFor(tile.key));
+  function fillDemo(email: string) {
+    setUser(email);
+    setPassword(DEMO_DEFAULT_PASSWORD);
+    setError(null);
   }
 
-  // Put the last-used role first for muscle memory.
-  const ordered = lastRole
-    ? [
-        ...TILES.filter((t) => t.key === lastRole),
-        ...TILES.filter((t) => t.key !== lastRole),
-      ]
-    : TILES;
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    const result = signIn(user, password);
+    setSubmitting(false);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    router.replace(landingFor(result.account.role));
+  }
 
   return (
-    <main className="min-h-screen bg-ink-50">
-      <header className="bg-white border-b border-ink-200">
-        <div className="max-w-[760px] mx-auto px-6 h-16 flex items-center">
-          <Logo size="md" />
+    <main className="min-h-screen bg-ink-50 grid place-items-center px-4 py-8">
+      <div className="w-full max-w-md">
+        <div className="flex items-center justify-center mb-8">
+          <Logo size="lg" />
         </div>
-      </header>
-
-      <div className="max-w-[760px] mx-auto px-6 py-12">
-        <div className="mb-6">
-          <h1 className="font-heading text-2xl font-semibold mb-1">
-            Pick your name
-          </h1>
-          <p className="text-sm text-ink-400">
-            Internal tool · choose an account to sign in
+        <div className="card p-6">
+          <h1 className="font-heading text-xl font-semibold mb-1">Sign in</h1>
+          <p className="text-sm text-ink-500 mb-5">
+            Use your email or first name to sign in.
+          </p>
+          <form onSubmit={submit}>
+            <label className="block text-xs font-medium text-ink-700 mb-1.5">
+              Email or username
+            </label>
+            <input
+              autoFocus
+              type="text"
+              value={user}
+              onChange={(e) => {
+                setUser(e.target.value);
+                setError(null);
+              }}
+              placeholder="e.g. manasi@example.com or manasi"
+              className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+            />
+            <label className="block text-xs font-medium text-ink-700 mb-1.5">
+              Password
+            </label>
+            <div className="relative mb-4">
+              <input
+                type={show ? "text" : "password"}
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setError(null);
+                }}
+                placeholder="••••••••"
+                className="w-full px-3 py-2 pr-10 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+              />
+              <button
+                type="button"
+                onClick={() => setShow(!show)}
+                aria-label={show ? "Hide password" : "Show password"}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-ink-400 hover:text-ink-700"
+              >
+                {show ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+            {error && (
+              <p className="text-xs text-brand-redText mb-3">{error}</p>
+            )}
+            <button
+              type="submit"
+              disabled={!user.trim() || !password || submitting}
+              className="btn-primary w-full"
+            >
+              <LogIn size={16} className="mr-1.5" /> Sign in
+            </button>
+          </form>
+          <p className="text-xs text-ink-500 text-center mt-4">
+            New to the team?{" "}
+            <Link href="/signup" className="text-brand-blue hover:underline">
+              Create an account
+            </Link>
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {ordered.map((tile) => {
-            const Icon = tile.Icon;
-            const isLast = tile.key === lastRole;
-            return (
-              <button
-                key={tile.key}
-                onClick={() => pickRole(tile)}
-                autoFocus={isLast}
-                className={`card text-left transition flex items-center gap-4 p-4 border-l-4 ${tile.border} hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-brand-blue ${
-                  isLast ? "ring-2 ring-brand-blue" : ""
-                }`}
-              >
-                <div
-                  className={`w-11 h-11 rounded-card grid place-items-center shrink-0 ${tile.accent}`}
+        <div className="card p-4 mt-4 text-xs text-ink-500">
+          <div className="font-medium text-ink-700 mb-2">
+            Demo accounts · password{" "}
+            <code className="text-ink-900 bg-ink-100 px-1 rounded">
+              {DEMO_DEFAULT_PASSWORD}
+            </code>
+          </div>
+          <ul className="space-y-1">
+            {[
+              { email: "varad@example.com", role: "Admin" },
+              { email: "manasi@example.com", role: "Co-ordinator" },
+              { email: "rohit@example.com", role: "Business Developer" },
+              { email: "sanjana@example.com", role: "Developer" },
+            ].map((d) => (
+              <li key={d.email} className="flex items-center gap-2">
+                <button
+                  onClick={() => fillDemo(d.email)}
+                  className="text-brand-blue hover:underline text-left"
                 >
-                  <Icon size={20} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-heading font-semibold text-ink-900 truncate">
-                    {tile.who}
-                  </div>
-                  <div className="text-xs text-ink-500">{tile.role}</div>
-                </div>
-                {isLast && (
-                  <span className="pill-blue text-[10px] py-0 shrink-0">
-                    Last used
-                  </span>
-                )}
-              </button>
-            );
-          })}
+                  {d.email}
+                </button>
+                <span className="text-ink-400">— {d.role}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
     </main>

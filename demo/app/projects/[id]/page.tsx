@@ -29,6 +29,7 @@ import {
 } from "@/lib/mock";
 import { useTasks } from "@/lib/tasks-store";
 import { useRole, landingFor } from "@/lib/role";
+import { useMyFirstName } from "@/lib/account-store";
 import {
   canAccessProject,
   canExportData,
@@ -71,11 +72,12 @@ export default function ProjectDetailPage({
     auditLog,
   } = useTasks();
 
+  const me = useMyFirstName();
   const showFinancials = canSeeProjectFinancials(role);
   const showAudit = canSeeProjectAudit(role);
   const showExport = canExportData(role);
   const isAdmin = role === "Admin";
-  const allowed = canAccessProject(role, projectId, PROJECTS, allTasks);
+  const allowed = canAccessProject(role, projectId, PROJECTS, allTasks, me);
   const laborCost = projectLaborCost(projectId, allTasks, timeEntries);
 
   const [tab, setTab] = useState<Tab>("tasks");

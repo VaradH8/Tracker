@@ -19,8 +19,6 @@ import { AppShell } from "@/components/AppShell";
 import { StatCard } from "@/components/StatCard";
 import { TaskCard } from "@/components/TaskCard";
 import {
-  CURRENT_USER,
-  DEVELOPER_USER,
   RECENT_ACTIVITY,
   RESOURCES,
   PROJECTS,
@@ -29,6 +27,7 @@ import {
   type Task,
 } from "@/lib/mock";
 import { useRole } from "@/lib/role";
+import { useMyFirstName } from "@/lib/account-store";
 import { useTasks } from "@/lib/tasks-store";
 import { useToast } from "@/components/Toast";
 import { toCsv, downloadCsv } from "@/lib/csv";
@@ -55,11 +54,12 @@ export default function MyDayPage() {
 function CoordinatorMyDay() {
   const { tasks } = useTasks();
   const toast = useToast();
+  const me = useMyFirstName();
   const [idleDays, setIdleDays] = useState(3);
 
   // "My team" = tasks on projects this co-ordinator runs.
   const myProjectIds = new Set(
-    PROJECTS.filter((p) => p.coordinator === "Manasi").map((p) => p.id),
+    PROJECTS.filter((p) => p.coordinator === me).map((p) => p.id),
   );
   const teamTasks = tasks.filter((t) => myProjectIds.has(t.projectId));
 
@@ -101,7 +101,7 @@ function CoordinatorMyDay() {
       <div className="max-w-[1400px] mx-auto px-6 py-8">
         <header className="mb-6">
           <h1 className="font-heading text-3xl font-semibold">
-            Good morning, {CURRENT_USER.firstName}
+            Good morning, {me || "there"}
           </h1>
           <p className="text-sm text-ink-500 mt-1">
             Wednesday, 6 May 2026 · Co-ordinator · what your team needs today
@@ -423,8 +423,9 @@ function BulkTaskSection({
 
 function DeveloperMyDay() {
   const { tasks } = useTasks();
+  const me = useMyFirstName();
   const myTasks = tasks.filter(
-    (t) => t.assignees.includes("Sanjana") && t.status !== "Done",
+    (t) => t.assignees.includes(me) && t.status !== "Done",
   );
   const dueToday = myTasks.filter((t) => isDueToday(t.targetDate));
   const overdue = myTasks.filter((t) => isOverdue(t.targetDate));
@@ -449,7 +450,7 @@ function DeveloperMyDay() {
       <div className="max-w-[1400px] mx-auto px-6 py-8">
         <header className="mb-6">
           <h1 className="font-heading text-3xl font-semibold">
-            Good morning, {DEVELOPER_USER.firstName}
+            Good morning, {me || "there"}
           </h1>
           <p className="text-sm text-ink-500 mt-1">
             Wednesday, 6 May 2026 · Developer

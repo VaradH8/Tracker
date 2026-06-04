@@ -6,6 +6,7 @@ import { projectById, loggedHoursForTask, TODAY_ISO } from "@/lib/mock";
 import { useTaskDrawer } from "./TaskDrawerProvider";
 import { useTasks } from "@/lib/tasks-store";
 import { useRole } from "@/lib/role";
+import { useMyFirstName } from "@/lib/account-store";
 import { useToast } from "./Toast";
 import { useBlockDialog } from "./BlockDialogProvider";
 import { useNotifications } from "@/lib/notifications-store";
@@ -20,13 +21,6 @@ import {
   TimeLogChip,
 } from "./InlineActions";
 
-const ROLE_PERSON: Record<string, string> = {
-  Admin: "Manasi",
-  Coordinator: "Manasi",
-  BusinessDeveloper: "Rohit",
-  Developer: "Sanjana",
-};
-
 export function TaskCard({
   task,
   hideProject = false,
@@ -37,6 +31,7 @@ export function TaskCard({
   const drawer = useTaskDrawer();
   const store = useTasks();
   const [role] = useRole();
+  const me = useMyFirstName();
   const toast = useToast();
   const blockDialog = useBlockDialog();
   const { notify } = useNotifications();
@@ -89,7 +84,6 @@ export function TaskCard({
     });
   }
 
-  const me = ROLE_PERSON[role] ?? "Manasi";
   const isAssignee = task.assignees.includes(me);
   const canEdit = role === "Admin" || role === "Coordinator";
   const overdue = !!task.overdueDays && task.status !== "Done";

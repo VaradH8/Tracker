@@ -28,6 +28,7 @@ import {
 } from "@/lib/mock";
 import { useTasks } from "@/lib/tasks-store";
 import { canManageProjects, useRole, type Role } from "@/lib/role";
+import { useMyFirstName } from "@/lib/account-store";
 import { canSeeProjectFinancials, visibleProjects } from "@/lib/access";
 import { useToast } from "@/components/Toast";
 import { Modal } from "@/components/Modal";
@@ -109,9 +110,10 @@ function ActiveProjects({ role }: { role: Role }) {
   const [createOpen, setCreateOpen] = useState(false);
   const showFinancials = canSeeProjectFinancials(role);
   const { tasks } = useTasks();
+  const me = useMyFirstName();
   const toast = useToast();
 
-  const myProjects = visibleProjects(role, PROJECTS, tasks);
+  const myProjects = visibleProjects(role, PROJECTS, tasks, me);
   const visible = myProjects
     .filter((p) => filter === "All" || p.status === filter)
     .filter((p) => {

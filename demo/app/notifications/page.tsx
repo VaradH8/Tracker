@@ -16,8 +16,7 @@ import { AppShell } from "@/components/AppShell";
 import { EmptyState } from "@/components/EmptyState";
 import { useNotifications } from "@/lib/notifications-store";
 import { useTaskDrawer } from "@/components/TaskDrawerProvider";
-import { useRole } from "@/lib/role";
-import { meName } from "@/lib/access";
+import { useMyFirstName } from "@/lib/account-store";
 import type { NotificationKind } from "@/lib/mock";
 
 const KIND_ICON: Record<NotificationKind, typeof UserPlus> = {
@@ -58,8 +57,7 @@ const KINDS: ("All" | NotificationKind)[] = [
 ];
 
 export default function NotificationsPage() {
-  const [role] = useRole();
-  const me = meName(role);
+  const me = useMyFirstName();
   const { forPerson, unreadCount, markRead, markAllRead } = useNotifications();
   const drawer = useTaskDrawer();
   const [kind, setKind] = useState<"All" | NotificationKind>("All");

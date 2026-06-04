@@ -19,14 +19,7 @@ import {
   type TaskAttachment,
   type TimeEntry,
 } from "./mock";
-import { useRole, type Role } from "./role";
-
-const ROLE_PERSON: Record<Role, string> = {
-  Admin: "Varad Hadawale",
-  Coordinator: "Manasi Kulkarni",
-  BusinessDeveloper: "Rohit Mehra",
-  Developer: "Sanjana Jadhav",
-};
+import { useMyFirstName } from "./account-store";
 
 type AddTaskInput = {
   title: string;
@@ -85,8 +78,8 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const [timeEntries, setTimeEntries] =
     useState<TimeEntry[]>(SEED_TIME_ENTRIES);
   const [auditLog, setAuditLog] = useState<AuditEntry[]>(SEED_AUDIT);
-  const [role] = useRole();
-  const actor = ROLE_PERSON[role];
+  const me = useMyFirstName();
+  const actor = me || "—";
 
   const logAudit = useCallback(
     (entry: Omit<AuditEntry, "id" | "when">) => {
@@ -324,7 +317,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         projectId: input.projectId,
         status: input.status,
         priority: input.priority ?? "Medium",
-        responsible: input.responsible ?? "Manasi",
+        responsible: input.responsible ?? (me || "Manasi"),
         assignees: input.assignees ?? [],
         targetDate: input.targetDate ?? plusDays(new Date(), 7),
         estimatedHours: input.estimatedHours ?? null,
@@ -332,7 +325,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       };
       return [...prev, next];
     });
-  }, []);
+  }, [me]);
 
   return (
     <TasksCtx.Provider

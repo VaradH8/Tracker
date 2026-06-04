@@ -4,6 +4,7 @@ import "./globals.css";
 import { TaskDrawerProvider } from "@/components/TaskDrawerProvider";
 import { TasksProvider } from "@/lib/tasks-store";
 import { NotificationsProvider } from "@/lib/notifications-store";
+import { AccountsProvider } from "@/lib/account-store";
 import { Providers } from "@/components/Providers";
 import { ToastProvider } from "@/components/Toast";
 import { BlockDialogProvider } from "@/components/BlockDialogProvider";
@@ -76,15 +77,17 @@ export default function RootLayout({
     <html lang="en" className={`${heading.variable} ${body.variable}`}>
       <body>
         <Providers>
-          <ToastProvider>
-            <NotificationsProvider>
-              <TasksProvider>
-                <BlockDialogProvider>
-                  <TaskDrawerProvider>{children}</TaskDrawerProvider>
-                </BlockDialogProvider>
-              </TasksProvider>
-            </NotificationsProvider>
-          </ToastProvider>
+          <AccountsProvider>
+            <ToastProvider>
+              <NotificationsProvider>
+                <TasksProvider>
+                  <BlockDialogProvider>
+                    <TaskDrawerProvider>{children}</TaskDrawerProvider>
+                  </BlockDialogProvider>
+                </TasksProvider>
+              </NotificationsProvider>
+            </ToastProvider>
+          </AccountsProvider>
         </Providers>
       </body>
     </html>

@@ -68,27 +68,13 @@ export function canAccess(role: Role, pathname: string): boolean {
   );
 }
 
-export function meName(role: Role): string {
-  switch (role) {
-    case "Admin":
-      return "Varad";
-    case "Coordinator":
-      return "Manasi";
-    case "BusinessDeveloper":
-      return "Rohit";
-    case "Developer":
-      return "Sanjana";
-  }
-}
-
 export function visibleProjects(
   role: Role,
   allProjects: Project[],
   allTasks: Task[],
+  me: string,
 ): Project[] {
   if (role === "Admin" || role === "Coordinator") return allProjects;
-
-  const me = meName(role);
 
   if (role === "BusinessDeveloper") {
     return allProjects.filter((p) => p.bd === me);
@@ -107,8 +93,9 @@ export function canAccessProject(
   projectId: number,
   allProjects: Project[],
   allTasks: Task[],
+  me: string,
 ): boolean {
-  return visibleProjects(role, allProjects, allTasks).some(
+  return visibleProjects(role, allProjects, allTasks, me).some(
     (p) => p.id === projectId,
   );
 }

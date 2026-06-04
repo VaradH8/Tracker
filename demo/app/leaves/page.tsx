@@ -5,7 +5,7 @@ import { Plus, Calendar, Clock, Lock } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { LEAVES, RESOURCES, type LeaveEntry } from "@/lib/mock";
 import { useRole, ROLE_LABELS } from "@/lib/role";
-import { meName } from "@/lib/access";
+import { useMyFirstName } from "@/lib/account-store";
 import { useToast } from "@/components/Toast";
 import { Modal } from "@/components/Modal";
 
@@ -20,7 +20,7 @@ export default function LeavesPage() {
   const [role] = useRole();
   const [open, setOpen] = useState(false);
   const fullVisibility = role === "Admin" || role === "Coordinator";
-  const me = meName(role);
+  const me = useMyFirstName();
 
   const myFirstName = me;
   const myFullName = RESOURCES.find((r) => r.name.startsWith(me))?.name ?? "";

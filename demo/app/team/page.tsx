@@ -10,8 +10,7 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { useTasks } from "@/lib/tasks-store";
-import { useRole } from "@/lib/role";
-import { meName } from "@/lib/access";
+import { useMyFirstName } from "@/lib/account-store";
 import {
   PROJECTS,
   RESOURCES,
@@ -22,8 +21,7 @@ import {
 } from "@/lib/mock";
 
 export default function TeamPage() {
-  const [role] = useRole();
-  const me = meName(role);
+  const me = useMyFirstName();
   const { tasks } = useTasks();
 
   const myProjects = PROJECTS.filter((p) => p.coordinator === me);

@@ -7,7 +7,7 @@ import { TaskCard } from "@/components/TaskCard";
 import { EmptyState } from "@/components/EmptyState";
 import { useTasks } from "@/lib/tasks-store";
 import { useRole } from "@/lib/role";
-import { meName } from "@/lib/access";
+import { useMyFirstName } from "@/lib/account-store";
 import { TODAY_ISO, type Task } from "@/lib/mock";
 
 const MONTHS = [
@@ -32,7 +32,7 @@ function toISO(y: number, m: number, d: number): string {
 
 export default function CalendarPage() {
   const [role] = useRole();
-  const me = meName(role);
+  const me = useMyFirstName();
   const { tasks } = useTasks();
 
   const todayParts = TODAY_ISO.split("-").map(Number);

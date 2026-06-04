@@ -8,7 +8,7 @@ import {
 } from "react";
 import { Lock } from "lucide-react";
 import { useTasks } from "@/lib/tasks-store";
-import { useRole, type Role } from "@/lib/role";
+import { useMyFirstName } from "@/lib/account-store";
 import { RESOURCES } from "@/lib/mock";
 import { useToast } from "./Toast";
 import { useNotifications } from "@/lib/notifications-store";
@@ -22,13 +22,6 @@ export function useBlockDialog(): Ctx {
   return useContext(BlockCtx) ?? { requestBlock: () => {} };
 }
 
-const ROLE_PERSON: Record<Role, string> = {
-  Admin: "Varad",
-  Coordinator: "Manasi",
-  BusinessDeveloper: "Rohit",
-  Developer: "Sanjana",
-};
-
 const PEOPLE = RESOURCES.filter(
   (r) => r.status === "Active" && !r.isAdmin,
 ).map((r) => r.name.split(" ")[0]);
@@ -37,7 +30,7 @@ export function BlockDialogProvider({ children }: { children: ReactNode }) {
   const store = useTasks();
   const toast = useToast();
   const { notify } = useNotifications();
-  const [role] = useRole();
+  const me = useMyFirstName();
   const [taskId, setTaskId] = useState<number | null>(null);
 
   const task = taskId != null ? store.byId(taskId) : undefined;
@@ -55,7 +48,7 @@ export function BlockDialogProvider({ children }: { children: ReactNode }) {
           onCancel={close}
           onConfirm={(reason, blockedBy) => {
             store.setStatus(task.id, "Blocked");
-            const author = ROLE_PERSON[role];
+            const author = me || "—";
             const suffix = blockedBy ? ` — blocked by ${blockedBy}` : "";
             store.addRemark(task.id, author, `🚫 Blocked: ${reason}${suffix}`);
             // Notify the Person Responsible (the one who assigned the task).

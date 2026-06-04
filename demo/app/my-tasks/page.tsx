@@ -7,6 +7,7 @@ import { TaskCard } from "@/components/TaskCard";
 import { EmptyState } from "@/components/EmptyState";
 import { type Status, type Task } from "@/lib/mock";
 import { useRole } from "@/lib/role";
+import { useMyFirstName } from "@/lib/account-store";
 import { useTasks } from "@/lib/tasks-store";
 
 const COLUMNS: { id: Status; title: string; accent: string }[] = [
@@ -16,13 +17,6 @@ const COLUMNS: { id: Status; title: string; accent: string }[] = [
   { id: "In review", title: "In review", accent: "bg-brand-yellow" },
   { id: "Done", title: "Done", accent: "bg-brand-green" },
 ];
-
-const ROLE_PERSON: Record<string, string> = {
-  Admin: "Manasi",
-  Coordinator: "Manasi",
-  BusinessDeveloper: "Rohit",
-  Developer: "Sanjana",
-};
 
 const TODAY = "2026-05-06";
 const FOCUS_KEY = "tracker-mytasks-focus";
@@ -47,7 +41,7 @@ export default function MyTasksPage() {
     localStorage.setItem(FOCUS_KEY, f ? "focus" : "all");
   }
 
-  const me = ROLE_PERSON[role] ?? "Manasi";
+  const me = useMyFirstName();
   const mine = tasks.filter((t) => t.assignees.includes(me));
   const shown = focus ? mine.filter(inFocus) : mine;
 

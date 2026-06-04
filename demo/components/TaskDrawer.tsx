@@ -27,6 +27,7 @@ import {
 } from "./InlineActions";
 import { useTasks } from "@/lib/tasks-store";
 import { useRole } from "@/lib/role";
+import { useMyFirstName } from "@/lib/account-store";
 import {
   projectById,
   loggedHoursForTask,
@@ -38,13 +39,6 @@ import {
 } from "@/lib/mock";
 import { useBlockDialog } from "./BlockDialogProvider";
 import { useNotifications } from "@/lib/notifications-store";
-
-const ROLE_PERSON: Record<string, string> = {
-  Admin: "Manasi",
-  Coordinator: "Manasi",
-  BusinessDeveloper: "Rohit",
-  Developer: "Sanjana",
-};
 
 const AVATAR_COLORS = [
   "bg-brand-blue",
@@ -67,6 +61,7 @@ export function TaskDrawer({
 }) {
   const store = useTasks();
   const [role] = useRole();
+  const me = useMyFirstName();
   const blockDialog = useBlockDialog();
   const { notify } = useNotifications();
   const [newRemark, setNewRemark] = useState("");
@@ -82,7 +77,6 @@ export function TaskDrawer({
 
   if (!task) return null;
 
-  const me = ROLE_PERSON[role] ?? "Manasi";
   const isAssignee = task.assignees.includes(me);
   const canEdit = role === "Admin" || role === "Coordinator";
   const canLogTime = isAssignee || canEdit;
