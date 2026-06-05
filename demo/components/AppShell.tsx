@@ -108,6 +108,17 @@ export function AppShell({ children }: { children: ReactNode }) {
     }
   }, [hydrated, isSignedIn, allowed, role, router]);
 
+  // Lock body scroll while the app shell is mounted — the sidebar and top
+  // bar stay fixed; only <main> scrolls. Restoring on unmount keeps /login
+  // and /signup (which use min-h-screen) able to scroll on short viewports.
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
   if (!hydrated) {
     return (
       <div className="min-h-screen bg-ink-50 grid place-items-center">

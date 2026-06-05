@@ -137,13 +137,13 @@ export function TaskCard({
         {task.title}
       </button>
 
-      <div className="flex items-center justify-between gap-2 mb-2">
+      <div className="flex items-center justify-between gap-x-2 gap-y-1.5 mb-2 flex-wrap">
         <AssigneePicker
           selected={task.assignees}
           onToggle={reassign}
           readOnly={!canEdit}
         />
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {overdue && (
             <span className="pill-red text-[10px] py-0.5">
               Overdue {task.overdueDays}d
@@ -158,14 +158,14 @@ export function TaskCard({
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-2 pt-2 border-t border-ink-100">
+      <div className="flex items-center justify-between gap-x-2 gap-y-1.5 pt-2 border-t border-ink-100 flex-wrap">
         <StatusPicker
           value={task.status}
           onChange={changeStatus}
           onBlock={() => blockDialog.requestBlock(task.id)}
           readOnly={!isAssignee && !canEdit}
         />
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <TimeLogChip
             loggedHours={loggedHours}
             estimatedHours={task.estimatedHours}
