@@ -80,12 +80,17 @@ export function visibleProjects(
     return allProjects.filter((p) => p.bd === me);
   }
 
-  const myProjectIds = new Set(
+  // Developer: any project that lists them on the team OR where they're
+  // already assigned to a task. Catches new joiners who don't have a
+  // task yet but are part of the project.
+  const fromTasks = new Set(
     allTasks
       .filter((t) => t.assignees.includes(me))
       .map((t) => t.projectId),
   );
-  return allProjects.filter((p) => myProjectIds.has(p.id));
+  return allProjects.filter(
+    (p) => p.teamMembers.includes(me) || fromTasks.has(p.id),
+  );
 }
 
 export function canAccessProject(

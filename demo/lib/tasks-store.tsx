@@ -64,6 +64,8 @@ type Ctx = {
     attachment: Omit<TaskAttachment, "id" | "when">,
   ) => void;
   removeAttachment: (id: number, attId: number) => void;
+  approveTask: (id: number, approver: string) => void;
+  unapproveTask: (id: number) => void;
   addTask: (input: AddTaskInput) => void;
   addRemark: (taskId: number, author: string, body: string) => void;
   logTime: (input: LogTimeInput) => void;
@@ -308,6 +310,34 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
+  const approveTask = useCallback(
+    (id: number, approver: string) => {
+      setTasks((prev) =>
+        prev.map((t) => {
+          if (t.id !== id) return t;
+          logAudit({
+            actor: approver,
+            action: "task.approve",
+            scope: projectById(t.projectId)?.name ?? "—",
+            taskTitle: t.title,
+          });
+          return { ...t, approvedBy: approver, approvedAt: "just now" };
+        }),
+      );
+    },
+    [logAudit],
+  );
+
+  const unapproveTask = useCallback((id: number) => {
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === id
+          ? { ...t, approvedBy: undefined, approvedAt: undefined }
+          : t,
+      ),
+    );
+  }, []);
+
   const addTask = useCallback((input: AddTaskInput) => {
     setTasks((prev) => {
       const next: Task = {
@@ -347,6 +377,8 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         toggleDependency,
         addAttachment,
         removeAttachment,
+        approveTask,
+        unapproveTask,
         addTask,
         addRemark,
         logTime,

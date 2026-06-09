@@ -24,6 +24,10 @@ export type Project = {
   status: ProjectStatus;
   coordinator: string;
   bd: string;
+  /** Project lead — sign-off authority (often the Admin or a senior). */
+  lead?: string;
+  /** First-names of every doer expected to take work on this project. */
+  teamMembers: string[];
   startDate: string;
   targetDate: string;
   budgetHours: number;
@@ -54,6 +58,9 @@ export type Task = {
   /** IDs of tasks that block this one. The task can't progress until they're Done. */
   dependsOn?: number[];
   attachments?: TaskAttachment[];
+  /** Sign-off — set when a Done task is approved by Lead / Coord / Responsible. */
+  approvedBy?: string;
+  approvedAt?: string;
 };
 
 export type Remark = {
@@ -218,6 +225,8 @@ export const PROJECTS: Project[] = [
     status: "Active",
     coordinator: "Manasi",
     bd: "Rohit",
+    lead: "Varad",
+    teamMembers: ["Manasi", "Abhishek", "Sanjana"],
     startDate: "2026-04-01",
     targetDate: "2026-05-30",
     budgetHours: 240,
@@ -234,6 +243,8 @@ export const PROJECTS: Project[] = [
     status: "Active",
     coordinator: "Manasi",
     bd: "Rohit",
+    lead: "Varad",
+    teamMembers: ["Sanjana"],
     startDate: "2026-03-15",
     targetDate: "2026-05-20",
     budgetHours: 120,
@@ -250,6 +261,8 @@ export const PROJECTS: Project[] = [
     status: "Active",
     coordinator: "Manasi",
     bd: "Rohit",
+    lead: "Varad",
+    teamMembers: ["Manasi", "Adil"],
     startDate: "2026-04-15",
     targetDate: "2026-07-15",
     budgetHours: 480,
@@ -266,6 +279,8 @@ export const PROJECTS: Project[] = [
     status: "Active",
     coordinator: "Priyanka",
     bd: "Rohit",
+    lead: "Varad",
+    teamMembers: ["Priyanka"],
     startDate: "2026-04-20",
     targetDate: "2026-06-10",
     budgetHours: 160,
@@ -282,6 +297,8 @@ export const PROJECTS: Project[] = [
     status: "On Hold",
     coordinator: "Kiran",
     bd: "Rohit",
+    lead: "Varad",
+    teamMembers: ["Kiran"],
     startDate: "2026-03-01",
     targetDate: "2026-05-10",
     budgetHours: 200,
@@ -298,6 +315,8 @@ export const PROJECTS: Project[] = [
     status: "Discovery",
     coordinator: "Manasi",
     bd: "—",
+    lead: "Varad",
+    teamMembers: ["Sanjana"],
     startDate: "2026-05-01",
     targetDate: "2026-06-01",
     budgetHours: 40,
@@ -451,6 +470,8 @@ export const TASKS: Task[] = [
     estimatedHours: 5,
     actualHours: 6,
     important: false,
+    approvedBy: "Manasi",
+    approvedAt: "2026-05-03",
   },
   {
     id: 106,
@@ -939,6 +960,26 @@ export function statusPill(s: Status): string {
 
 /** Reference "today" for the mock dataset. */
 export const TODAY_ISO = "2026-05-06";
+
+/**
+ * ISO 8601 week number for a YYYY-MM-DD string. Matches the "Week 19/20/21..."
+ * grouping the Excel tracker uses. Week 1 contains the first Thursday of the
+ * year; weeks run Monday → Sunday.
+ */
+export function weekNumberOf(iso: string): number {
+  const d = new Date(iso + "T00:00:00Z");
+  const target = new Date(d.valueOf());
+  const dayNr = (d.getUTCDay() + 6) % 7;
+  target.setUTCDate(target.getUTCDate() - dayNr + 3);
+  const firstThursday = target.valueOf();
+  target.setUTCMonth(0, 1);
+  if (target.getUTCDay() !== 4) {
+    target.setUTCMonth(0, 1 + ((4 - target.getUTCDay() + 7) % 7));
+  }
+  return 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
+}
+
+export const CURRENT_WEEK = weekNumberOf(TODAY_ISO);
 
 export function firstNameOf(fullName: string): string {
   return fullName.trim().split(/\s+/)[0];

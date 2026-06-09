@@ -1,11 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CheckSquare, Sparkles } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { TaskCard } from "@/components/TaskCard";
 import { EmptyState } from "@/components/EmptyState";
-import { type Status, type Task } from "@/lib/mock";
+import {
+  CURRENT_WEEK,
+  weekNumberOf,
+  type Status,
+  type Task,
+} from "@/lib/mock";
 import { useRole } from "@/lib/role";
 import { useMyFirstName } from "@/lib/account-store";
 import { useTasks } from "@/lib/tasks-store";
@@ -31,6 +36,7 @@ export default function MyTasksPage() {
   const [role] = useRole();
   const { tasks } = useTasks();
   const [focus, setFocus] = useState(true);
+  const [weekFilter, setWeekFilter] = useState<"all" | number>("all");
 
   useEffect(() => {
     if (localStorage.getItem(FOCUS_KEY) === "all") setFocus(false);
@@ -43,7 +49,22 @@ export default function MyTasksPage() {
 
   const me = useMyFirstName();
   const mine = tasks.filter((t) => t.assignees.includes(me));
-  const shown = focus ? mine.filter(inFocus) : mine;
+
+  // Build the week dropdown from the weeks the user's tasks actually
+  // touch, so the Excel-style "Week 19/20/21..." picker only ever shows
+  // weeks that mean something.
+  const weeksWithMine = useMemo(() => {
+    const set = new Set<number>();
+    for (const t of mine) set.add(weekNumberOf(t.targetDate));
+    set.add(CURRENT_WEEK);
+    return Array.from(set).sort((a, b) => a - b);
+  }, [mine]);
+
+  const afterWeek =
+    weekFilter === "all"
+      ? mine
+      : mine.filter((t) => weekNumberOf(t.targetDate) === weekFilter);
+  const shown = focus ? afterWeek.filter(inFocus) : afterWeek;
 
   return (
     <AppShell>
@@ -57,27 +78,60 @@ export default function MyTasksPage() {
                 : "Your full backlog across all projects, grouped by status."}
             </p>
           </div>
-          <div className="inline-flex rounded-card border border-ink-200 overflow-hidden text-sm">
-            <button
-              onClick={() => setFocusMode(true)}
-              className={
-                focus
-                  ? "px-3 py-1.5 bg-brand-blue text-white font-medium"
-                  : "px-3 py-1.5 text-ink-700 hover:bg-ink-100"
+          <div className="flex items-center gap-2 flex-wrap">
+            <select
+              value={weekFilter === "all" ? "all" : String(weekFilter)}
+              onChange={(e) =>
+                setWeekFilter(
+                  e.target.value === "all" ? "all" : Number(e.target.value),
+                )
               }
+              title="Filter by ISO week number"
+              className="text-sm rounded border border-ink-200 px-2 py-1.5 bg-white"
             >
-              Focus
-            </button>
-            <button
-              onClick={() => setFocusMode(false)}
-              className={
-                !focus
-                  ? "px-3 py-1.5 bg-brand-blue text-white font-medium"
-                  : "px-3 py-1.5 text-ink-700 hover:bg-ink-100"
-              }
-            >
-              Show all
-            </button>
+              <option value="all">All weeks</option>
+              <option value={CURRENT_WEEK}>This week (W{CURRENT_WEEK})</option>
+              <option value={CURRENT_WEEK - 1}>
+                Last week (W{CURRENT_WEEK - 1})
+              </option>
+              <option value={CURRENT_WEEK + 1}>
+                Next week (W{CURRENT_WEEK + 1})
+              </option>
+              {weeksWithMine
+                .filter(
+                  (w) =>
+                    w !== CURRENT_WEEK &&
+                    w !== CURRENT_WEEK - 1 &&
+                    w !== CURRENT_WEEK + 1,
+                )
+                .map((w) => (
+                  <option key={w} value={w}>
+                    Week {w}
+                  </option>
+                ))}
+            </select>
+            <div className="inline-flex rounded-card border border-ink-200 overflow-hidden text-sm">
+              <button
+                onClick={() => setFocusMode(true)}
+                className={
+                  focus
+                    ? "px-3 py-1.5 bg-brand-blue text-white font-medium"
+                    : "px-3 py-1.5 text-ink-700 hover:bg-ink-100"
+                }
+              >
+                Focus
+              </button>
+              <button
+                onClick={() => setFocusMode(false)}
+                className={
+                  !focus
+                    ? "px-3 py-1.5 bg-brand-blue text-white font-medium"
+                    : "px-3 py-1.5 text-ink-700 hover:bg-ink-100"
+                }
+              >
+                Show all
+              </button>
+            </div>
           </div>
         </header>
 

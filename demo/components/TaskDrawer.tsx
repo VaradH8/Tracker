@@ -15,6 +15,8 @@ import {
   Upload,
   FileText,
   Trash2,
+  CheckCircle2,
+  ShieldCheck,
 } from "lucide-react";
 import { useRef, useState } from "react";
 import {
@@ -81,6 +83,12 @@ export function TaskDrawer({
   const canEdit = role === "Admin" || role === "Coordinator";
   const canLogTime = isAssignee || canEdit;
   const project = projectById(task.projectId);
+  // Sign-off is the Person Responsible (assigner), the project Lead, or
+  // a Coordinator/Admin. Doers can't approve their own work.
+  const canApprove =
+    canEdit ||
+    me === task.responsible ||
+    (project?.lead != null && me === project.lead);
   const entries = store.entriesForTask(task.id);
   const totalLogged = loggedHoursForTask(task.id, store.timeEntries);
   const taskAudit = store.auditLog.filter((a) => a.taskTitle === task.title);
@@ -229,6 +237,66 @@ export function TaskDrawer({
                 onStatus={(s) => store.setStatus(task.id, s)}
                 onBlock={() => blockDialog.requestBlock(task.id)}
               />
+            </div>
+          )}
+
+          {task.status === "Done" && (
+            <div
+              className={`p-3 rounded-card border text-sm flex items-center gap-2 flex-wrap ${
+                task.approvedBy
+                  ? "bg-brand-greenBg border-brand-green/30"
+                  : "bg-brand-yellowBg border-brand-yellowBorder"
+              }`}
+            >
+              {task.approvedBy ? (
+                <>
+                  <CheckCircle2
+                    size={16}
+                    className="text-brand-green shrink-0"
+                  />
+                  <span className="text-ink-900">
+                    Approved by{" "}
+                    <strong>{task.approvedBy}</strong>
+                    {task.approvedAt && (
+                      <span className="text-ink-500">
+                        {" "}
+                        · {task.approvedAt}
+                      </span>
+                    )}
+                  </span>
+                  {canEdit && (
+                    <button
+                      onClick={() => store.unapproveTask(task.id)}
+                      className="ml-auto text-xs text-ink-500 hover:text-brand-redText"
+                    >
+                      Revoke
+                    </button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <ShieldCheck
+                    size={16}
+                    className="text-brand-yellowText shrink-0"
+                  />
+                  <span className="text-ink-700 flex-1 min-w-0">
+                    Done — needs sign-off from{" "}
+                    {project?.lead ?? "Lead"}
+                    {task.responsible && task.responsible !== project?.lead
+                      ? `, ${task.responsible},`
+                      : ""}{" "}
+                    or a Co-ordinator.
+                  </span>
+                  {canApprove && (
+                    <button
+                      onClick={() => store.approveTask(task.id, me)}
+                      className="btn-primary text-xs py-1 px-3"
+                    >
+                      Approve
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           )}
 
@@ -742,6 +810,8 @@ function auditVerb(action: string): string {
       return "changed who's responsible";
     case "task.create":
       return "created task";
+    case "task.approve":
+      return "approved";
     default:
       return action;
   }

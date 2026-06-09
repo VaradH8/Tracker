@@ -15,6 +15,7 @@ const ACTION_LABELS: Record<string, string> = {
   "task.reassign": "Reassigned",
   "task.responsible_change": "Responsible changed",
   "task.create": "Task created",
+  "task.approve": "Approved",
   "project.create": "Project created",
   "user.invite": "User invited",
   "user.role_change": "Role changed",

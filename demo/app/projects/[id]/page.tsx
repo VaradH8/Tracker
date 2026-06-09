@@ -19,6 +19,8 @@ import { TaskCard } from "@/components/TaskCard";
 import {
   PROJECTS,
   TASK_TEMPLATES,
+  CURRENT_WEEK,
+  weekNumberOf,
   clientById,
   projectById,
   projectStatusPill,
@@ -81,6 +83,7 @@ export default function ProjectDetailPage({
   const laborCost = projectLaborCost(projectId, allTasks, timeEntries);
 
   const [tab, setTab] = useState<Tab>("tasks");
+  const [weekFilter, setWeekFilter] = useState<"all" | number>("all");
 
   useEffect(() => {
     if (hydrated && !allowed) {
@@ -246,39 +249,104 @@ export default function ProjectDetailPage({
         </div>
 
         {activeTab === "tasks" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
-            {COLUMNS.map((col) => {
-              const colTasks = tasks.filter((t) => t.status === col.id);
-              return (
-                <div
-                  key={col.id}
-                  className="bg-ink-50 rounded-card p-3 min-h-[400px] flex flex-col"
-                >
-                  <div className="flex items-center gap-2 mb-3 px-1">
-                    <span className={`w-2 h-2 rounded-full ${col.accent}`} />
-                    <h2 className="font-heading text-sm font-semibold">
-                      {col.title}
-                    </h2>
-                    <span className="text-xs text-ink-500">
-                      {colTasks.length}
-                    </span>
+          <>
+            <div className="flex items-center gap-2 mb-4 flex-wrap">
+              <span className="text-xs text-ink-500">Week</span>
+              <select
+                value={weekFilter === "all" ? "all" : String(weekFilter)}
+                onChange={(e) =>
+                  setWeekFilter(
+                    e.target.value === "all"
+                      ? "all"
+                      : Number(e.target.value),
+                  )
+                }
+                className="text-sm rounded border border-ink-200 px-2 py-1 bg-white"
+              >
+                <option value="all">All weeks</option>
+                <option value={CURRENT_WEEK}>
+                  This week (W{CURRENT_WEEK})
+                </option>
+                <option value={CURRENT_WEEK - 1}>
+                  Last week (W{CURRENT_WEEK - 1})
+                </option>
+                <option value={CURRENT_WEEK + 1}>
+                  Next week (W{CURRENT_WEEK + 1})
+                </option>
+                {Array.from(
+                  new Set(tasks.map((t) => weekNumberOf(t.targetDate))),
+                )
+                  .filter(
+                    (w) =>
+                      w !== CURRENT_WEEK &&
+                      w !== CURRENT_WEEK - 1 &&
+                      w !== CURRENT_WEEK + 1,
+                  )
+                  .sort((a, b) => a - b)
+                  .map((w) => (
+                    <option key={w} value={w}>
+                      Week {w}
+                    </option>
+                  ))}
+              </select>
+              {weekFilter !== "all" && (
+                <span className="text-xs text-ink-500">
+                  {
+                    tasks.filter(
+                      (t) => weekNumberOf(t.targetDate) === weekFilter,
+                    ).length
+                  }{" "}
+                  task{
+                    tasks.filter(
+                      (t) => weekNumberOf(t.targetDate) === weekFilter,
+                    ).length === 1
+                      ? ""
+                      : "s"
+                  }{" "}
+                  this week
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+              {COLUMNS.map((col) => {
+                const colTasks = tasks
+                  .filter((t) => t.status === col.id)
+                  .filter(
+                    (t) =>
+                      weekFilter === "all" ||
+                      weekNumberOf(t.targetDate) === weekFilter,
+                  );
+                return (
+                  <div
+                    key={col.id}
+                    className="bg-ink-50 rounded-card p-3 min-h-[400px] flex flex-col"
+                  >
+                    <div className="flex items-center gap-2 mb-3 px-1">
+                      <span className={`w-2 h-2 rounded-full ${col.accent}`} />
+                      <h2 className="font-heading text-sm font-semibold">
+                        {col.title}
+                      </h2>
+                      <span className="text-xs text-ink-500">
+                        {colTasks.length}
+                      </span>
+                    </div>
+                    <div className="space-y-2 flex-1">
+                      {colTasks.map((t) => (
+                        <TaskCard key={t.id} task={t} hideProject />
+                      ))}
+                    </div>
+                    {canEdit && (
+                      <InlineAddTask
+                        onAdd={(title) =>
+                          addTask({ title, projectId, status: col.id })
+                        }
+                      />
+                    )}
                   </div>
-                  <div className="space-y-2 flex-1">
-                    {colTasks.map((t) => (
-                      <TaskCard key={t.id} task={t} hideProject />
-                    ))}
-                  </div>
-                  {canEdit && (
-                    <InlineAddTask
-                      onAdd={(title) =>
-                        addTask({ title, projectId, status: col.id })
-                      }
-                    />
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          </>
         )}
 
         {activeTab === "details" && client && (
@@ -295,6 +363,38 @@ export default function ProjectDetailPage({
 
               <div className="card p-6">
                 <h2 className="font-heading text-lg font-semibold mb-3">
+                  Team
+                </h2>
+                <dl className="grid sm:grid-cols-2 gap-4 text-sm">
+                  <Row
+                    icon={<Users size={14} />}
+                    label="Lead"
+                    value={project.lead ?? "—"}
+                  />
+                  <Row
+                    icon={<Users size={14} />}
+                    label="Co-ordinator"
+                    value={project.coordinator}
+                  />
+                  <Row
+                    icon={<Users size={14} />}
+                    label="Business Developer"
+                    value={project.bd}
+                  />
+                  <Row
+                    icon={<Users size={14} />}
+                    label="Team members"
+                    value={
+                      project.teamMembers.length > 0
+                        ? project.teamMembers.join(", ")
+                        : "—"
+                    }
+                  />
+                </dl>
+              </div>
+
+              <div className="card p-6">
+                <h2 className="font-heading text-lg font-semibold mb-3">
                   {showFinancials ? "Schedule & budget" : "Schedule"}
                 </h2>
                 <dl className="grid sm:grid-cols-2 gap-4 text-sm">
@@ -306,8 +406,6 @@ export default function ProjectDetailPage({
                       <Row icon={<Clock size={14} />} label="Logged" value={`${project.loggedHours} hrs`} />
                     </>
                   )}
-                  <Row icon={<Users size={14} />} label="Co-ordinator" value={project.coordinator} />
-                  <Row icon={<Users size={14} />} label="Business Developer" value={project.bd} />
                 </dl>
               </div>
 
@@ -704,6 +802,8 @@ function prettyAction(action: string): string {
       return "reassigned";
     case "task.create":
       return "created task";
+    case "task.approve":
+      return "approved";
     case "project.create":
       return "created project";
     case "user.invite":
