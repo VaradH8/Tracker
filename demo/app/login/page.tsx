@@ -29,10 +29,10 @@ export default function LoginPage() {
     setError(null);
   }
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
-    const result = signIn(user, password);
+    const result = await signIn(user, password);
     setSubmitting(false);
     if (!result.ok) {
       setError(result.error);

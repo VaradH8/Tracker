@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
-const DEFAULT_PASSWORD = "ChangeMe2026!";
+const DEFAULT_PASSWORD = "tracker2026";
 
 type UserSeed = {
   email: string;
@@ -14,6 +14,7 @@ type UserSeed = {
   phone: string;
   location: string;
   joined: string;
+  hourlyRate: number;
   hoursLast7: number;
   hoursLast30: number;
   capacityPerWeek: number;
@@ -24,14 +25,14 @@ type UserSeed = {
 };
 
 const USERS: UserSeed[] = [
-  { email: "varad@example.com", name: "Varad Hadawale", primaryRole: "Admin", isAdmin: true, designation: "Founder / Admin", phone: "+91 98200 88888", location: "Pune", joined: "2024-01-01", hoursLast7: 40, hoursLast30: 168, capacityPerWeek: 40, tasksDone30: 0, estimateAccuracy: 100, performance: "On track", flags: [] },
-  { email: "manasi@example.com", name: "Manasi Kulkarni", primaryRole: "Coordinator", isAdmin: false, designation: "Senior Co-ordinator", phone: "+91 98200 11111", location: "Pune", joined: "2024-04-01", hoursLast7: 38, hoursLast30: 162, capacityPerWeek: 40, tasksDone30: 18, estimateAccuracy: 92, performance: "On track", flags: [] },
-  { email: "priyanka@example.com", name: "Priyanka Joshi", primaryRole: "Coordinator", isAdmin: false, designation: "Co-ordinator", phone: "+91 98200 55555", location: "Pune", joined: "2024-06-15", hoursLast7: 36, hoursLast30: 148, capacityPerWeek: 40, tasksDone30: 14, estimateAccuracy: 90, performance: "On track", flags: [] },
-  { email: "kiran@example.com", name: "Kiran Patil", primaryRole: "Coordinator", isAdmin: false, designation: "Co-ordinator", phone: "+91 98200 66666", location: "Pune", joined: "2024-10-01", hoursLast7: 22, hoursLast30: 110, capacityPerWeek: 40, tasksDone30: 7, estimateAccuracy: 72, performance: "Watch", flags: ["Project on hold — limited recent activity", "1 critical task overdue 3 days"] },
-  { email: "rohit@example.com", name: "Rohit Mehra", primaryRole: "BusinessDeveloper", isAdmin: false, designation: "Business Developer", phone: "+91 98200 77777", location: "Mumbai", joined: "2024-05-15", hoursLast7: 30, hoursLast30: 132, capacityPerWeek: 40, tasksDone30: 5, estimateAccuracy: 100, performance: "On track", flags: [] },
-  { email: "sanjana@example.com", name: "Sanjana Jadhav", primaryRole: "Developer", isAdmin: false, designation: "Developer", phone: "+91 98200 22222", location: "Bengaluru", joined: "2025-01-10", hoursLast7: 32, hoursLast30: 138, capacityPerWeek: 40, tasksDone30: 11, estimateAccuracy: 78, performance: "On track", flags: [] },
-  { email: "abhishek@example.com", name: "Abhishek Singh", primaryRole: "Developer", isAdmin: false, designation: "Senior Developer", phone: "+91 98200 33333", location: "Pune", joined: "2024-08-15", hoursLast7: 24, hoursLast30: 122, capacityPerWeek: 40, tasksDone30: 9, estimateAccuracy: 65, performance: "Watch", flags: ["Estimates run ~40% over actual on last 3 tasks", "1 task overdue"] },
-  { email: "adil@example.com", name: "Adil Khan", primaryRole: "Developer", isAdmin: false, designation: "Developer", phone: "+91 98200 44444", location: "Mumbai", joined: "2025-03-01", hoursLast7: 18, hoursLast30: 95, capacityPerWeek: 40, tasksDone30: 6, estimateAccuracy: 88, performance: "Idle", flags: ["No status change in 5 days", "Hours logged this week (18) below team median (32)"] },
+  { email: "varad@example.com", name: "Varad Hadawale", primaryRole: "Admin", isAdmin: true, designation: "Founder / Admin", phone: "+91 98200 88888", location: "Pune", joined: "2024-01-01", hourlyRate: 2500, hoursLast7: 40, hoursLast30: 168, capacityPerWeek: 40, tasksDone30: 0, estimateAccuracy: 100, performance: "On track", flags: [] },
+  { email: "manasi@example.com", name: "Manasi Kulkarni", primaryRole: "Coordinator", isAdmin: false, designation: "Senior Co-ordinator", phone: "+91 98200 11111", location: "Pune", joined: "2024-04-01", hourlyRate: 1800, hoursLast7: 38, hoursLast30: 162, capacityPerWeek: 40, tasksDone30: 18, estimateAccuracy: 92, performance: "On track", flags: [] },
+  { email: "priyanka@example.com", name: "Priyanka Joshi", primaryRole: "Coordinator", isAdmin: false, designation: "Co-ordinator", phone: "+91 98200 55555", location: "Pune", joined: "2024-06-15", hourlyRate: 1500, hoursLast7: 36, hoursLast30: 148, capacityPerWeek: 40, tasksDone30: 14, estimateAccuracy: 90, performance: "On track", flags: [] },
+  { email: "kiran@example.com", name: "Kiran Patil", primaryRole: "Coordinator", isAdmin: false, designation: "Co-ordinator", phone: "+91 98200 66666", location: "Pune", joined: "2024-10-01", hourlyRate: 1500, hoursLast7: 22, hoursLast30: 110, capacityPerWeek: 40, tasksDone30: 7, estimateAccuracy: 72, performance: "Watch", flags: ["Project on hold — limited recent activity", "1 critical task overdue 3 days"] },
+  { email: "rohit@example.com", name: "Rohit Mehra", primaryRole: "BusinessDeveloper", isAdmin: false, designation: "Business Developer", phone: "+91 98200 77777", location: "Mumbai", joined: "2024-05-15", hourlyRate: 1600, hoursLast7: 30, hoursLast30: 132, capacityPerWeek: 40, tasksDone30: 5, estimateAccuracy: 100, performance: "On track", flags: [] },
+  { email: "sanjana@example.com", name: "Sanjana Jadhav", primaryRole: "Developer", isAdmin: false, designation: "Developer", phone: "+91 98200 22222", location: "Bengaluru", joined: "2025-01-10", hourlyRate: 1400, hoursLast7: 32, hoursLast30: 138, capacityPerWeek: 40, tasksDone30: 11, estimateAccuracy: 78, performance: "On track", flags: [] },
+  { email: "abhishek@example.com", name: "Abhishek Singh", primaryRole: "Developer", isAdmin: false, designation: "Senior Developer", phone: "+91 98200 33333", location: "Pune", joined: "2024-08-15", hourlyRate: 1600, hoursLast7: 24, hoursLast30: 122, capacityPerWeek: 40, tasksDone30: 9, estimateAccuracy: 65, performance: "Watch", flags: ["Estimates run ~40% over actual on last 3 tasks", "1 task overdue"] },
+  { email: "adil@example.com", name: "Adil Khan", primaryRole: "Developer", isAdmin: false, designation: "Developer", phone: "+91 98200 44444", location: "Mumbai", joined: "2025-03-01", hourlyRate: 1300, hoursLast7: 18, hoursLast30: 95, capacityPerWeek: 40, tasksDone30: 6, estimateAccuracy: 88, performance: "Idle", flags: ["No status change in 5 days", "Hours logged this week (18) below team median (32)"] },
 ];
 
 const CLIENTS = [
@@ -42,12 +43,12 @@ const CLIENTS = [
 ];
 
 const PROJECTS = [
-  { name: "Saipem — Comment Classifier v2", clientName: "Saipem", status: "Active", coordinatorName: "Manasi", bdName: "Rohit", startDate: "2026-04-01", targetDate: "2026-05-30", budgetHours: 240, loggedHours: 184, progress: 62, health: "yellow", description: "Replace the rule-based comment classifier with the v2 ML model." },
-  { name: "Lurgi — Bulk Select & Filters", clientName: "Lurgi GmbH", status: "Active", coordinatorName: "Manasi", bdName: "Rohit", startDate: "2026-03-15", targetDate: "2026-05-20", budgetHours: 120, loggedHours: 88, progress: 70, health: "green", description: "Spreadsheet-style bulk operations across the data table." },
-  { name: "Thermax — Engineering Memory v2", clientName: "Thermax", status: "Active", coordinatorName: "Manasi", bdName: "Rohit", startDate: "2026-04-15", targetDate: "2026-07-15", budgetHours: 480, loggedHours: 96, progress: 18, health: "green", description: "Migrate the engineering memory store to the v2 schema." },
-  { name: "Thermax — P&ID Symbol Library", clientName: "Thermax", status: "Active", coordinatorName: "Priyanka", bdName: "Rohit", startDate: "2026-04-20", targetDate: "2026-06-10", budgetHours: 160, loggedHours: 64, progress: 35, health: "green", description: "Replace legacy P&ID symbol library." },
-  { name: "Thermax — ENIMAX v3 QA", clientName: "Thermax", status: "On Hold", coordinatorName: "Kiran", bdName: "Rohit", startDate: "2026-03-01", targetDate: "2026-05-10", budgetHours: 200, loggedHours: 152, progress: 50, health: "red", description: "Regression suite for the heat-balance calc engine; on hold pending physics review." },
-  { name: "Internal — Onboarding Refresh", clientName: "Internal", status: "Discovery", coordinatorName: "Manasi", bdName: "—", startDate: "2026-05-01", targetDate: "2026-06-01", budgetHours: 40, loggedHours: 4, progress: 5, health: "green", description: "Refresh the new-hire onboarding deck and runbook." },
+  { name: "Saipem — Comment Classifier v2", clientName: "Saipem", status: "Active", coordinatorName: "Manasi", bdName: "Rohit", leadFirstName: "Varad", teamFirstNames: ["Manasi", "Abhishek", "Sanjana"], startDate: "2026-04-01", targetDate: "2026-05-30", budgetHours: 240, loggedHours: 184, progress: 62, health: "yellow", description: "Replace the rule-based comment classifier with the v2 ML model." },
+  { name: "Lurgi — Bulk Select & Filters", clientName: "Lurgi GmbH", status: "Active", coordinatorName: "Manasi", bdName: "Rohit", leadFirstName: "Varad", teamFirstNames: ["Sanjana"], startDate: "2026-03-15", targetDate: "2026-05-20", budgetHours: 120, loggedHours: 88, progress: 70, health: "green", description: "Spreadsheet-style bulk operations across the data table." },
+  { name: "Thermax — Engineering Memory v2", clientName: "Thermax", status: "Active", coordinatorName: "Manasi", bdName: "Rohit", leadFirstName: "Varad", teamFirstNames: ["Manasi", "Adil"], startDate: "2026-04-15", targetDate: "2026-07-15", budgetHours: 480, loggedHours: 96, progress: 18, health: "green", description: "Migrate the engineering memory store to the v2 schema." },
+  { name: "Thermax — P&ID Symbol Library", clientName: "Thermax", status: "Active", coordinatorName: "Priyanka", bdName: "Rohit", leadFirstName: "Varad", teamFirstNames: ["Priyanka"], startDate: "2026-04-20", targetDate: "2026-06-10", budgetHours: 160, loggedHours: 64, progress: 35, health: "green", description: "Replace legacy P&ID symbol library." },
+  { name: "Thermax — ENIMAX v3 QA", clientName: "Thermax", status: "On Hold", coordinatorName: "Kiran", bdName: "Rohit", leadFirstName: "Varad", teamFirstNames: ["Kiran"], startDate: "2026-03-01", targetDate: "2026-05-10", budgetHours: 200, loggedHours: 152, progress: 50, health: "red", description: "Regression suite for the heat-balance calc engine; on hold pending physics review." },
+  { name: "Internal — Onboarding Refresh", clientName: "Internal", status: "Discovery", coordinatorName: "Manasi", bdName: "—", leadFirstName: "Varad", teamFirstNames: ["Sanjana"], startDate: "2026-05-01", targetDate: "2026-06-01", budgetHours: 40, loggedHours: 4, progress: 5, health: "green", description: "Refresh the new-hire onboarding deck and runbook." },
 ];
 
 type TaskSeed = {
@@ -63,6 +64,8 @@ type TaskSeed = {
   estimatedHours?: number;
   actualHours?: number;
   important: boolean;
+  approvedByFirstName?: string;
+  approvedAtIso?: string;
   remarks?: { authorFirstName: string; body: string; offsetMinutes: number }[];
 };
 
@@ -71,7 +74,7 @@ const TASKS: TaskSeed[] = [
   { title: "Bulk select — checkbox state desync on filter change", description: "Selected row IDs persist when user changes filter; visible rows differ.", projectName: "Lurgi — Bulk Select & Filters", priority: "High", status: "Blocked", responsibleFirstName: "Manasi", assigneeFirstNames: ["Sanjana"], targetDate: "2026-05-04", estimatedHours: 4, important: false, remarks: [{ authorFirstName: "Sanjana", body: "Blocked — need design call on whether selection should clear on filter change.", offsetMinutes: -1440 }] },
   { title: "Migrate engineering memory store to v2 schema", projectName: "Thermax — Engineering Memory v2", priority: "High", status: "To Do", responsibleFirstName: "Manasi", assigneeFirstNames: ["Manasi", "Adil"], targetDate: "2026-05-12", estimatedHours: 16, important: true },
   { title: "Update onboarding deck for new hires", projectName: "Internal — Onboarding Refresh", priority: "Low", status: "To Do", responsibleFirstName: "Manasi", assigneeFirstNames: ["Sanjana"], targetDate: "2026-05-06", estimatedHours: 2, important: false },
-  { title: "Auto-tag mechanical drawings on upload", projectName: "Saipem — Comment Classifier v2", priority: "Medium", status: "Done", responsibleFirstName: "Manasi", assigneeFirstNames: ["Abhishek"], targetDate: "2026-05-02", estimatedHours: 5, actualHours: 6, important: false },
+  { title: "Auto-tag mechanical drawings on upload", projectName: "Saipem — Comment Classifier v2", priority: "Medium", status: "Done", responsibleFirstName: "Manasi", assigneeFirstNames: ["Abhishek"], targetDate: "2026-05-02", estimatedHours: 5, actualHours: 6, important: false, approvedByFirstName: "Manasi", approvedAtIso: "2026-05-03" },
   { title: "Replace legacy P&ID symbol library", projectName: "Thermax — P&ID Symbol Library", priority: "High", status: "In Progress", responsibleFirstName: "Priyanka", assigneeFirstNames: ["Priyanka"], targetDate: "2026-05-09", estimatedHours: 8, actualHours: 5, important: true },
   { title: "QA regression on heat-balance calc engine", projectName: "Thermax — ENIMAX v3 QA", priority: "Critical", status: "Blocked", responsibleFirstName: "Kiran", assigneeFirstNames: ["Kiran"], targetDate: "2026-05-03", estimatedHours: 6, important: true },
   { title: "Spec out the QA review queue UX", projectName: "Saipem — Comment Classifier v2", priority: "Medium", status: "To Do", responsibleFirstName: "Manasi", assigneeFirstNames: ["Sanjana"], targetDate: "2026-05-08", estimatedHours: 3, important: false },
@@ -95,14 +98,21 @@ const AUDIT = [
 
 async function main() {
   console.log("Wiping existing data…");
+  await prisma.emailLog.deleteMany();
   await prisma.auditEntry.deleteMany();
   await prisma.notification.deleteMany();
   await prisma.leave.deleteMany();
   await prisma.remark.deleteMany();
+  await prisma.timeEntry.deleteMany();
+  await prisma.taskAttachment.deleteMany();
+  await prisma.taskDependency.deleteMany();
   await prisma.taskAssignee.deleteMany();
   await prisma.task.deleteMany();
+  await prisma.projectMember.deleteMany();
   await prisma.project.deleteMany();
+  await prisma.pipelineDeal.deleteMany();
   await prisma.client.deleteMany();
+  await prisma.session.deleteMany();
   await prisma.user.deleteMany();
 
   console.log("Seeding users…");
@@ -121,6 +131,7 @@ async function main() {
         phone: u.phone,
         location: u.location,
         joined: new Date(u.joined),
+        hourlyRate: u.hourlyRate,
         hoursLast7: u.hoursLast7,
         hoursLast30: u.hoursLast30,
         capacityPerWeek: u.capacityPerWeek,
@@ -149,9 +160,10 @@ async function main() {
     clientByName[c.name] = created.id;
   }
 
-  console.log("Seeding projects…");
+  console.log("Seeding projects + team members…");
   const projectByName: Record<string, number> = {};
   for (const p of PROJECTS) {
+    const leadId = userByFirst[p.leadFirstName] ?? null;
     const created = await prisma.project.create({
       data: {
         name: p.name,
@@ -159,6 +171,7 @@ async function main() {
         status: p.status,
         coordinatorName: p.coordinatorName,
         bdName: p.bdName,
+        leadId,
         startDate: new Date(p.startDate),
         targetDate: new Date(p.targetDate),
         budgetHours: p.budgetHours,
@@ -169,12 +182,22 @@ async function main() {
       },
     });
     projectByName[p.name] = created.id;
+    for (const first of p.teamFirstNames) {
+      const userId = userByFirst[first];
+      if (!userId) continue;
+      await prisma.projectMember.create({
+        data: { projectId: created.id, userId },
+      });
+    }
   }
 
   console.log("Seeding tasks + assignees + remarks…");
   const now = new Date();
   for (const t of TASKS) {
     const responsibleId = userByFirst[t.responsibleFirstName] ?? null;
+    const approvedById = t.approvedByFirstName
+      ? (userByFirst[t.approvedByFirstName] ?? null)
+      : null;
     const task = await prisma.task.create({
       data: {
         title: t.title,
@@ -188,6 +211,8 @@ async function main() {
         actualHours: t.actualHours,
         important: t.important,
         responsibleId,
+        approvedById,
+        approvedAt: t.approvedAtIso ? new Date(t.approvedAtIso) : null,
       },
     });
     for (const first of t.assigneeFirstNames) {

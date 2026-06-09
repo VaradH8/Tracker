@@ -8,43 +8,27 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { RESOURCES, firstNameOf } from "./mock";
+import { firstNameOf } from "./mock";
 import type { Role } from "./role";
 
 /**
- * Local-first auth: accounts and the current session live in localStorage.
- * Passwords are stored in cleartext on the client only because this is a
- * single-machine demo; when the real backend is wired (NextAuth + Prisma +
- * bcrypt), this provider gets a server-backed implementation behind the
- * same hook surface — call sites don't have to change.
+ * Real auth: cookies + DB sessions. The provider mirrors the previous
+ * localStorage surface so consumers don't have to change, but every call
+ * now goes to the server. See lib/auth.ts for the implementation.
  */
 
 export type Account = {
-  id: number;
+  id: string;
   name: string;
   email: string;
   role: Role;
-  password: string;
   active: boolean;
-  createdAt: string;
-  lastLogin?: string;
+  isAdmin?: boolean;
+  createdAt?: string;
+  lastLogin?: string | null;
 };
 
-const ACCOUNTS_KEY = "tracker-accounts";
-const SESSION_KEY = "tracker-session";
 export const DEMO_DEFAULT_PASSWORD = "tracker2026";
-
-function seedAccounts(): Account[] {
-  return RESOURCES.filter((r) => r.status === "Active").map((r) => ({
-    id: r.id,
-    name: r.name,
-    email: r.email,
-    role: r.primaryRole,
-    password: DEMO_DEFAULT_PASSWORD,
-    active: true,
-    createdAt: r.joined,
-  }));
-}
 
 type SignInResult =
   | { ok: true; account: Account }
@@ -61,205 +45,206 @@ type Ctx = {
   accounts: Account[];
   current: Account | null;
   hydrated: boolean;
-  signIn: (usernameOrEmail: string, password: string) => SignInResult;
-  signOut: () => void;
-  register: (input: RegisterInput) => SignInResult;
+  signIn: (
+    usernameOrEmail: string,
+    password: string,
+  ) => Promise<SignInResult>;
+  signOut: () => Promise<void>;
+  register: (input: RegisterInput) => Promise<SignInResult>;
   changePassword: (
     currentPassword: string,
     nextPassword: string,
-  ) => { ok: boolean; error?: string };
+  ) => Promise<{ ok: boolean; error?: string }>;
   updateAccount: (
-    id: number,
+    id: string,
     patch: Partial<
-      Pick<Account, "name" | "email" | "role" | "password" | "active">
+      Pick<Account, "name" | "email" | "role" | "active"> & {
+        password?: string;
+      }
     >,
-  ) => void;
+  ) => Promise<void>;
   createAccount: (
     input: RegisterInput,
-  ) => { ok: true; account: Account } | { ok: false; error: string };
+  ) => Promise<{ ok: true; account: Account } | { ok: false; error: string }>;
 };
 
 const AccountsCtx = createContext<Ctx | null>(null);
 
 export function AccountsProvider({ children }: { children: ReactNode }) {
-  const [accounts, setAccounts] = useState<Account[]>(() => seedAccounts());
-  const [currentId, setCurrentId] = useState<number | null>(null);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [current, setCurrent] = useState<Account | null>(null);
   const [hydrated, setHydrated] = useState(false);
 
+  // Hydrate on mount: read /api/me to learn who's signed in, then pull
+  // the roster from /api/users (the API itself decides what's visible).
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(ACCOUNTS_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setAccounts(parsed as Account[]);
-        }
-      }
-      const sess = window.localStorage.getItem(SESSION_KEY);
-      if (sess) setCurrentId(Number(sess));
-    } catch {
-      // ignore — bad JSON or no storage. Fall back to seed.
-    }
-    setHydrated(true);
+    void refresh().finally(() => setHydrated(true));
   }, []);
 
-  useEffect(() => {
-    if (!hydrated) return;
+  async function refresh() {
     try {
-      window.localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
+      const meRes = await fetch("/api/me", { cache: "no-store" });
+      if (meRes.ok) {
+        const me = (await meRes.json()) as {
+          id: string;
+          name: string;
+          email: string;
+          role: Role;
+          isAdmin: boolean;
+        };
+        const acc: Account = {
+          id: me.id,
+          name: me.name,
+          email: me.email,
+          role: me.role,
+          active: true,
+          isAdmin: me.isAdmin,
+        };
+        setCurrent(acc);
+        await refreshAccounts();
+      } else {
+        setCurrent(null);
+        setAccounts([]);
+      }
     } catch {
-      // quota or private mode — fine to ignore for the demo
+      setCurrent(null);
     }
-  }, [accounts, hydrated]);
+  }
 
-  useEffect(() => {
-    if (!hydrated) return;
+  async function refreshAccounts() {
     try {
-      if (currentId == null) window.localStorage.removeItem(SESSION_KEY);
-      else window.localStorage.setItem(SESSION_KEY, String(currentId));
+      const res = await fetch("/api/users", { cache: "no-store" });
+      if (!res.ok) return;
+      const body = (await res.json()) as { users: Account[] };
+      setAccounts(body.users ?? []);
     } catch {
       /* ignore */
     }
-  }, [currentId, hydrated]);
-
-  const current = accounts.find((a) => a.id === currentId) ?? null;
+  }
 
   const signIn = useCallback(
-    (usernameOrEmail: string, password: string): SignInResult => {
-      const q = usernameOrEmail.trim().toLowerCase();
-      if (!q || !password) {
-        return { ok: false, error: "Enter your account and password." };
+    async (usernameOrEmail: string, password: string): Promise<SignInResult> => {
+      const res = await fetch("/api/auth/signin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user: usernameOrEmail, password }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        return { ok: false, error: body.error ?? "Sign-in failed." };
       }
-      const acc = accounts.find(
-        (a) =>
-          a.email.toLowerCase() === q ||
-          firstNameOf(a.name).toLowerCase() === q ||
-          a.name.toLowerCase() === q,
-      );
-      if (!acc) return { ok: false, error: "No account matches that name." };
-      if (!acc.active) {
-        return { ok: false, error: "That account is deactivated." };
-      }
-      if (acc.password !== password) {
-        return { ok: false, error: "Wrong password." };
-      }
-      setAccounts((prev) =>
-        prev.map((a) =>
-          a.id === acc.id ? { ...a, lastLogin: "just now" } : a,
-        ),
-      );
-      setCurrentId(acc.id);
+      const body = (await res.json()) as {
+        user: { id: string; name: string; email: string; role: Role; isAdmin: boolean };
+      };
+      const acc: Account = {
+        id: body.user.id,
+        name: body.user.name,
+        email: body.user.email,
+        role: body.user.role,
+        active: true,
+        isAdmin: body.user.isAdmin,
+      };
+      setCurrent(acc);
+      void refreshAccounts();
       return { ok: true, account: acc };
     },
-    [accounts],
+    [],
   );
 
-  const signOut = useCallback(() => setCurrentId(null), []);
+  const signOut = useCallback(async () => {
+    await fetch("/api/auth/signout", { method: "POST" }).catch(() => null);
+    setCurrent(null);
+    setAccounts([]);
+  }, []);
 
   const register = useCallback(
-    (input: RegisterInput): SignInResult => {
-      const name = input.name.trim();
-      const email = input.email.trim().toLowerCase();
-      const password = input.password;
-      if (!name) return { ok: false, error: "Name is required." };
-      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        return { ok: false, error: "Enter a valid email address." };
+    async (input: RegisterInput): Promise<SignInResult> => {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        return { ok: false, error: body.error ?? "Couldn't create account." };
       }
-      if (!password || password.length < 6) {
-        return {
-          ok: false,
-          error: "Password must be at least 6 characters.",
-        };
-      }
-      if (accounts.some((a) => a.email.toLowerCase() === email)) {
-        return { ok: false, error: "That email already has an account." };
-      }
-      const newAcc: Account = {
-        id: Math.max(0, ...accounts.map((a) => a.id)) + 1,
-        name,
-        email,
-        role: input.role,
-        password,
-        active: true,
-        createdAt: "just now",
-        lastLogin: "just now",
+      const body = (await res.json()) as {
+        user: { id: string; name: string; email: string; role: Role; isAdmin: boolean };
       };
-      setAccounts((prev) => [...prev, newAcc]);
-      setCurrentId(newAcc.id);
-      return { ok: true, account: newAcc };
-    },
-    [accounts],
-  );
-
-  /** Admin "Add user" — creates an account without signing into it. */
-  const createAccount = useCallback(
-    (input: RegisterInput) => {
-      const name = input.name.trim();
-      const email = input.email.trim().toLowerCase();
-      const password = input.password;
-      if (!name) return { ok: false as const, error: "Name is required." };
-      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        return { ok: false as const, error: "Enter a valid email address." };
-      }
-      if (!password || password.length < 6) {
-        return {
-          ok: false as const,
-          error: "Password must be at least 6 characters.",
-        };
-      }
-      if (accounts.some((a) => a.email.toLowerCase() === email)) {
-        return {
-          ok: false as const,
-          error: "That email already has an account.",
-        };
-      }
-      const newAcc: Account = {
-        id: Math.max(0, ...accounts.map((a) => a.id)) + 1,
-        name,
-        email,
-        role: input.role,
-        password,
+      const acc: Account = {
+        id: body.user.id,
+        name: body.user.name,
+        email: body.user.email,
+        role: body.user.role,
         active: true,
-        createdAt: "just now",
+        isAdmin: body.user.isAdmin,
       };
-      setAccounts((prev) => [...prev, newAcc]);
-      return { ok: true as const, account: newAcc };
+      setCurrent(acc);
+      void refreshAccounts();
+      return { ok: true, account: acc };
     },
-    [accounts],
+    [],
   );
 
   const changePassword = useCallback(
-    (currentPassword: string, nextPassword: string) => {
-      if (!current) return { ok: false, error: "Not signed in." };
-      if (current.password !== currentPassword) {
-        return { ok: false, error: "Current password doesn't match." };
+    async (currentPassword: string, nextPassword: string) => {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, nextPassword }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        return { ok: false, error: body.error ?? "Couldn't change password." };
       }
-      if (!nextPassword || nextPassword.length < 6) {
-        return {
-          ok: false,
-          error: "New password must be at least 6 characters.",
-        };
-      }
-      setAccounts((prev) =>
-        prev.map((a) =>
-          a.id === current.id ? { ...a, password: nextPassword } : a,
-        ),
-      );
       return { ok: true };
+    },
+    [],
+  );
+
+  const updateAccount = useCallback(
+    async (
+      id: string,
+      patch: Partial<
+        Pick<Account, "name" | "email" | "role" | "active"> & {
+          password?: string;
+        }
+      >,
+    ) => {
+      const res = await fetch(`/api/users/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) return;
+      const body = await res.json().catch(() => ({}));
+      if (body.user) {
+        setAccounts((prev) =>
+          prev.map((a) => (a.id === id ? (body.user as Account) : a)),
+        );
+        if (current && current.id === id) setCurrent(body.user as Account);
+      }
     },
     [current],
   );
 
-  const updateAccount = useCallback(
-    (
-      id: number,
-      patch: Partial<
-        Pick<Account, "name" | "email" | "role" | "password" | "active">
-      >,
-    ) => {
-      setAccounts((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, ...patch } : a)),
-      );
+  const createAccount = useCallback(
+    async (input: RegisterInput) => {
+      const res = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        return {
+          ok: false as const,
+          error: body.error ?? "Couldn't create account.",
+        };
+      }
+      const body = (await res.json()) as { user: Account };
+      setAccounts((prev) => [...prev, body.user]);
+      return { ok: true as const, account: body.user };
     },
     [],
   );

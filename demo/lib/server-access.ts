@@ -1,26 +1,8 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { getCurrentUser, type SessionUser } from "./auth";
 import { prisma } from "./db";
 
-export type SessionUser = {
-  id: string;
-  role: "Admin" | "Coordinator" | "BusinessDeveloper" | "Developer";
-  isAdmin: boolean;
-  name: string;
-  email: string;
-};
-
-export async function getCurrentUser(): Promise<SessionUser | null> {
-  const session = await auth();
-  if (!session?.user?.id) return null;
-  return {
-    id: session.user.id,
-    role: session.user.role as SessionUser["role"],
-    isAdmin: session.user.isAdmin,
-    name: session.user.name ?? "",
-    email: session.user.email ?? "",
-  };
-}
+export type { SessionUser } from "./auth";
 
 export async function requireUser(): Promise<SessionUser | NextResponse> {
   const user = await getCurrentUser();
@@ -70,12 +52,22 @@ export async function visibleProjectIds(
     return rows.map((r) => r.id);
   }
 
-  // Developer: projects with at least one task assigned to them
-  const rows = await prisma.taskAssignee.findMany({
+  // Developer: projects where they're on the team roster OR have at least
+  // one task assigned to them. Catches new joiners pre-first-task.
+  const memberships = await prisma.projectMember.findMany({
+    where: { userId: user.id },
+    select: { projectId: true },
+  });
+  const fromTasks = await prisma.taskAssignee.findMany({
     where: { userId: user.id },
     select: { task: { select: { projectId: true } } },
   });
-  return Array.from(new Set(rows.map((r) => r.task.projectId)));
+  return Array.from(
+    new Set([
+      ...memberships.map((m) => m.projectId),
+      ...fromTasks.map((r) => r.task.projectId),
+    ]),
+  );
 }
 
 export async function canAccessProject(

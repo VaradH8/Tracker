@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -20,6 +20,7 @@ model User {
   location        String?
   joined          DateTime?
   lastLoginAt     DateTime?
+  hourlyRate      Int       @default(0)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -32,12 +33,32 @@ model User {
   performance     String    @default("On track")
   flags           String    @default("[]")
 
+  sessions              Session[]
   taskAssignments       TaskAssignee[]
   tasksResponsibleFor   Task[]         @relation("TaskResponsible")
+  tasksApproved         Task[]         @relation("TaskApprover")
+  projectsLed           Project[]      @relation("ProjectLead")
+  projectMemberships    ProjectMember[]
   remarksAuthored       Remark[]
+  attachmentsUploaded   TaskAttachment[]
+  timeEntries           TimeEntry[]
   auditLog              AuditEntry[]   @relation("AuditActor")
   notifications         Notification[]
+  emailsReceived        EmailLog[]
   leaves                Leave[]
+}
+
+/// Server-side session — the cookie holds the session id; the DB row owns
+/// the truth. Revoking = deleting the row.
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model Client {
@@ -61,6 +82,8 @@ model Project {
   status          String
   coordinatorName String
   bdName          String
+  leadId          String?
+  lead            User?     @relation("ProjectLead", fields: [leadId], references: [id])
   startDate       DateTime
   targetDate      DateTime
   budgetHours     Int
@@ -71,7 +94,20 @@ model Project {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
+  members         ProjectMember[]
   tasks           Task[]
+}
+
+/// Project team-members roster. Independent of who happens to have a task
+/// today — gives new joiners visibility before any task lands on them.
+model ProjectMember {
+  projectId  Int
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@id([projectId, userId])
 }
 
 model Task {
@@ -87,17 +123,27 @@ model Task {
   estimatedHours  Float?
   actualHours     Float?
   important       Boolean   @default(false)
+  overdueDays     Int?
 
   // Person Responsible: the user who created / assigned this task (singular).
   // Person Accountable: the users actually performing it (many) — see TaskAssignee.
   responsibleId   String?
   responsible     User?     @relation("TaskResponsible", fields: [responsibleId], references: [id])
 
+  // Sign-off for Done tasks — set when Lead/Responsible/Coord approves.
+  approvedById    String?
+  approvedBy      User?     @relation("TaskApprover", fields: [approvedById], references: [id])
+  approvedAt      DateTime?
+
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   assignees       TaskAssignee[]
   remarks         Remark[]
+  attachments     TaskAttachment[]
+  timeEntries     TimeEntry[]
+  blockedBy       TaskDependency[] @relation("TaskBlockedBy")
+  blocks          TaskDependency[] @relation("TaskBlocks")
 }
 
 model TaskAssignee {
@@ -108,6 +154,46 @@ model TaskAssignee {
   createdAt       DateTime  @default(now())
 
   @@id([taskId, userId])
+}
+
+/// "Task A is blocked by Task B" — A's blockedBy includes B; B's blocks
+/// includes A. Picker only allows same-project tasks at the API layer.
+model TaskDependency {
+  blockedTaskId  Int
+  blockedTask    Task  @relation("TaskBlockedBy", fields: [blockedTaskId], references: [id], onDelete: Cascade)
+  blockerTaskId  Int
+  blockerTask    Task  @relation("TaskBlocks", fields: [blockerTaskId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+
+  @@id([blockedTaskId, blockerTaskId])
+}
+
+model TaskAttachment {
+  id            Int      @id @default(autoincrement())
+  taskId        Int
+  task          Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  name          String
+  size          String
+  kind          String   @default("other")
+  uploadedById  String?
+  uploadedBy    User?    @relation(fields: [uploadedById], references: [id])
+  storageKey    String?
+  createdAt     DateTime @default(now())
+}
+
+model TimeEntry {
+  id        Int      @id @default(autoincrement())
+  taskId    Int
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime
+  hours     Float
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([taskId])
+  @@index([userId, date])
 }
 
 model Remark {
@@ -130,6 +216,10 @@ model AuditEntry {
   before          String?
   after           String?
   createdAt       DateTime  @default(now())
+
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
 }
 
 model Notification {
@@ -137,9 +227,30 @@ model Notification {
   userId          String
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   kind            String
-  payload         String?
+  title           String
+  body            String
+  taskId          Int?
   isRead          Boolean   @default(false)
   createdAt       DateTime  @default(now())
+
+  @@index([userId, isRead])
+}
+
+/// Mirror of every in-app notification that "would have been emailed" —
+/// captured here for the Settings → Email log view. Persisted so admins
+/// can audit delivery, even if the SMTP send itself fails later.
+model EmailLog {
+  id          Int      @id @default(autoincrement())
+  recipientId String?
+  recipient   User?    @relation(fields: [recipientId], references: [id], onDelete: SetNull)
+  toEmail     String
+  subject     String
+  body        String
+  kind        String
+  taskId      Int?
+  createdAt   DateTime @default(now())
+
+  @@index([recipientId])
 }
 
 model Leave {
@@ -152,4 +263,17 @@ model Leave {
   note            String?
   approved        Boolean   @default(false)
   createdAt       DateTime  @default(now())
+}
+
+model PipelineDeal {
+  id              Int       @id @default(autoincrement())
+  name            String
+  clientName      String
+  estimatedValue  Int       @default(0)
+  probability     Int       @default(20)
+  stage           String    @default("Lead")
+  expectedStart   DateTime?
+  bdName          String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 }

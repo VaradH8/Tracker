@@ -55,7 +55,7 @@ export default function UsersPage() {
       );
     });
 
-  function changeRole(id: number, role: Role) {
+  function changeRole(id: string, role: Role) {
     updateAccount(id, { role });
     const a = accounts.find((x) => x.id === id);
     if (a) toast.show(`${a.name} is now ${ROLE_LABELS[role]}.`);
@@ -220,8 +220,8 @@ export default function UsersPage() {
       {addOpen && (
         <AddUserModal
           onClose={() => setAddOpen(false)}
-          onCreate={(input) => {
-            const result = createAccount(input);
+          onCreate={async (input) => {
+            const result = await createAccount(input);
             if (!result.ok) {
               toast.show(result.error, "error");
               return;

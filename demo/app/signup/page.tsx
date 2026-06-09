@@ -24,13 +24,13 @@ export default function SignupPage() {
     if (hydrated && current) router.replace(landingFor(current.role));
   }, [hydrated, current, router]);
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (password !== confirm) {
       setError("Passwords don't match.");
       return;
     }
-    const result = register({ name, email, role, password });
+    const result = await register({ name, email, role, password });
     if (!result.ok) {
       setError(result.error);
       return;

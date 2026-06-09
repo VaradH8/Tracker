@@ -70,13 +70,13 @@ export default function ProfilePage() {
     setEditingName(false);
   }
 
-  function submitPassword(e: React.FormEvent) {
+  async function submitPassword(e: React.FormEvent) {
     e.preventDefault();
     if (nextPw !== confirmPw) {
       setPwError("New passwords don't match.");
       return;
     }
-    const result = changePassword(currentPw, nextPw);
+    const result = await changePassword(currentPw, nextPw);
     if (!result.ok) {
       setPwError(result.error ?? "Couldn't change password.");
       return;

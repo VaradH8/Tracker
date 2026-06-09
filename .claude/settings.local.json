@@ -87,7 +87,17 @@
       "Bash(git -C c:/Users/Varad/Downloads/Projects/Varad/project-tracker-prd/project-tracker-prd commit -m 'Internal-tool spec Session 5: BD pipeline \\(B1, B2\\) *)",
       "Bash(git -C c:/Users/Varad/Downloads/Projects/Varad/project-tracker-prd/project-tracker-prd commit -m 'Internal-tool spec Session 6: cross-cutting polish \\(X1, X3, X5, X6\\) *)",
       "Bash(git commit -m '@ *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(git -C \"c:/Users/Varad/Downloads/Projects/Varad/project-tracker-prd/project-tracker-prd\" status)",
+      "Bash(git -C \"c:/Users/Varad/Downloads/Projects/Varad/project-tracker-prd/project-tracker-prd\" log --oneline -5)",
+      "Bash(git -C \"c:/Users/Varad/Downloads/Projects/Varad/project-tracker-prd/project-tracker-prd\" show --stat 9aec689)",
+      "Bash(git -C \"c:/Users/Varad/Downloads/Projects/Varad/project-tracker-prd/project-tracker-prd\" diff --stat HEAD demo/components/AppShell.tsx demo/app/users/page.tsx)",
+      "Bash(git -C \"c:/Users/Varad/Downloads/Projects/Varad/project-tracker-prd/project-tracker-prd\" log --oneline -- demo/components/Modal.tsx)",
+      "Bash(git -C \"c:/Users/Varad/Downloads/Projects/Varad/project-tracker-prd/project-tracker-prd\" diff --stat HEAD)",
+      "Bash(git -C \"c:/Users/Varad/Downloads/Projects/Varad/project-tracker-prd/project-tracker-prd\" add demo/app/login/page.tsx demo/app/profile/page.tsx demo/app/users/page.tsx demo/components/AppShell.tsx demo/lib/mock.ts demo/lib/tasks-store.tsx demo/prisma/seed.ts)",
+      "Bash(git -C c:/Users/Varad/Downloads/Projects/Varad/project-tracker-prd/project-tracker-prd commit -m ' *)",
+      "Bash(git -C \"c:/Users/Varad/Downloads/Projects/Varad/project-tracker-prd/project-tracker-prd\" diff --stat HEAD demo/)",
+      "Bash(git -C \"c:/Users/Varad/Downloads/Projects/Varad/project-tracker-prd/project-tracker-prd\" log --oneline -8)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Varad\\Downloads\\Projects\\Varad\\project-tracker-prd\\project-tracker-prd\\demo\\lib"
