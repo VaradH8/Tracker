@@ -6,19 +6,19 @@ import {
   isTaskAssignee,
   requireUser,
 } from "@/lib/server-access";
-import { serializeRemark } from "@/lib/serializers";
 
-export async function POST(
-  req: Request,
-  context: { params: Promise<{ id: string }> },
+export async function DELETE(
+  _req: Request,
+  context: { params: Promise<{ id: string; attId: string }> },
 ) {
   const userOrResp = await requireUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
   const user = userOrResp;
 
-  const { id: idStr } = await context.params;
+  const { id: idStr, attId: attIdStr } = await context.params;
   const taskId = Number(idStr);
-  if (!Number.isFinite(taskId)) {
+  const attId = Number(attIdStr);
+  if (!Number.isFinite(taskId) || !Number.isFinite(attId)) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
   const task = await prisma.task.findUnique({
@@ -29,29 +29,12 @@ export async function POST(
   if (!(await canAccessProject(user, task.projectId))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-
   const editor = canEditTasks(user.role);
   const assignee = await isTaskAssignee(user.id, taskId);
   if (!editor && !assignee) {
-    return NextResponse.json(
-      { error: "Only assignees and co-ordinators can post remarks." },
-      { status: 403 },
-    );
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const body = await req.json().catch(() => ({}));
-  const text = String(body.body ?? "").trim();
-  if (!text) {
-    return NextResponse.json({ error: "Remark can't be empty." }, { status: 400 });
-  }
-
-  const remark = await prisma.remark.create({
-    data: { taskId, authorId: user.id, body: text },
-    include: { author: true },
-  });
-
-  return NextResponse.json(
-    { remark: serializeRemark(remark) },
-    { status: 201 },
-  );
+  await prisma.taskAttachment.delete({ where: { id: attId } });
+  return NextResponse.json({ ok: true });
 }

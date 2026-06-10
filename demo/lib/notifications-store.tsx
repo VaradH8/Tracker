@@ -4,15 +4,14 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useState,
   type ReactNode,
 } from "react";
-import {
-  NOTIFICATIONS as SEED,
-  firstNameToEmail,
-  type AppNotification,
-  type EmailLogEntry,
-  type NotificationKind,
+import type {
+  AppNotification,
+  EmailLogEntry,
+  NotificationKind,
 } from "./mock";
 
 type NewNotification = {
@@ -25,20 +24,44 @@ type NewNotification = {
 
 type Ctx = {
   all: AppNotification[];
+  emails: EmailLogEntry[];
   forPerson: (person: string) => AppNotification[];
   unreadCount: (person: string) => number;
-  markRead: (id: number) => void;
-  markAllRead: (person: string) => void;
-  notify: (n: NewNotification) => void;
-  emails: EmailLogEntry[];
-  clearEmails: () => void;
+  markRead: (id: number) => Promise<void>;
+  markAllRead: (person: string) => Promise<void>;
+  notify: (n: NewNotification) => Promise<void>;
+  clearEmails: () => Promise<void>;
+  refresh: () => Promise<void>;
 };
 
 const NotifCtx = createContext<Ctx | null>(null);
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
-  const [all, setAll] = useState<AppNotification[]>(SEED);
+  const [all, setAll] = useState<AppNotification[]>([]);
   const [emails, setEmails] = useState<EmailLogEntry[]>([]);
+
+  const refresh = useCallback(async () => {
+    try {
+      const [nRes, eRes] = await Promise.all([
+        fetch("/api/notifications", { cache: "no-store" }),
+        fetch("/api/emails", { cache: "no-store" }),
+      ]);
+      if (nRes.ok) {
+        const b = (await nRes.json()) as { notifications: AppNotification[] };
+        setAll(b.notifications ?? []);
+      } else setAll([]);
+      if (eRes.ok) {
+        const b = (await eRes.json()) as { emails: EmailLogEntry[] };
+        setEmails(b.emails ?? []);
+      } else setEmails([]);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
   const forPerson = useCallback(
     (person: string) => all.filter((n) => n.recipient === person),
@@ -51,58 +74,49 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     [all],
   );
 
-  const markRead = useCallback((id: number) => {
-    setAll((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
-    );
+  const markRead = useCallback(async (id: number) => {
+    setAll((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    await fetch(`/api/notifications/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ read: true }),
+    });
   }, []);
 
-  const markAllRead = useCallback((person: string) => {
+  const markAllRead = useCallback(async (person: string) => {
     setAll((prev) =>
       prev.map((n) => (n.recipient === person ? { ...n, read: true } : n)),
     );
+    await fetch("/api/notifications?action=read-all", { method: "PATCH" });
   }, []);
 
-  const notify = useCallback((n: NewNotification) => {
-    setAll((prev) => [
-      {
-        ...n,
-        id: Math.max(0, ...prev.map((x) => x.id)) + 1,
-        when: "just now",
-        read: false,
-      },
-      ...prev,
-    ]);
-    // Every in-app notification also "sends" an email — captured in the
-    // Settings → Email log so the team can verify what went out.
-    setEmails((prev) => [
-      {
-        id: Math.max(0, ...prev.map((x) => x.id)) + 1,
-        to: n.recipient,
-        toEmail: firstNameToEmail(n.recipient),
-        subject: n.title,
-        body: n.body,
-        when: "just now",
-        kind: n.kind,
-        taskId: n.taskId,
-      },
-      ...prev,
-    ]);
-  }, []);
+  const notify = useCallback(async (n: NewNotification) => {
+    const res = await fetch("/api/notifications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(n),
+    });
+    if (!res.ok) return;
+    void refresh();
+  }, [refresh]);
 
-  const clearEmails = useCallback(() => setEmails([]), []);
+  const clearEmails = useCallback(async () => {
+    setEmails([]);
+    await fetch("/api/emails", { method: "DELETE" });
+  }, []);
 
   return (
     <NotifCtx.Provider
       value={{
         all,
+        emails,
         forPerson,
         unreadCount,
         markRead,
         markAllRead,
         notify,
-        emails,
         clearEmails,
+        refresh,
       }}
     >
       {children}
@@ -113,7 +127,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 export function useNotifications(): Ctx {
   const c = useContext(NotifCtx);
   if (!c) {
-    throw new Error("useNotifications must be used within NotificationsProvider");
+    throw new Error(
+      "useNotifications must be used within NotificationsProvider",
+    );
   }
   return c;
 }

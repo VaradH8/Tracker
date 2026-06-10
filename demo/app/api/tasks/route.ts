@@ -1,13 +1,23 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { prisma } from "@/lib/db";
 import {
   canAccessProject,
   canEditTasks,
   requireUser,
+  userByFirstName,
   visibleProjectIds,
   writeAudit,
 } from "@/lib/server-access";
+import { serializeTask } from "@/lib/serializers";
+
+const TASK_INCLUDE = {
+  assignees: { include: { user: true } },
+  responsible: true,
+  approvedBy: true,
+  remarks: { include: { author: true }, orderBy: { createdAt: "asc" as const } },
+  attachments: { include: { uploadedBy: true } },
+  blockedBy: true,
+} as const;
 
 export async function GET(req: Request) {
   const userOrResp = await requireUser();
@@ -19,13 +29,8 @@ export async function GET(req: Request) {
   const mineOnly = url.searchParams.get("mine") === "true";
 
   const ids = await visibleProjectIds(user);
-  const projectFilter =
-    ids === "all"
-      ? undefined
-      : { in: ids };
-
   const where: Record<string, unknown> = {};
-  if (projectFilter) where.projectId = projectFilter;
+  if (ids !== "all") where.projectId = { in: ids };
   if (projectId) where.projectId = Number(projectId);
   if (mineOnly) {
     where.assignees = { some: { userId: user.id } };
@@ -33,73 +38,74 @@ export async function GET(req: Request) {
 
   const tasks = await prisma.task.findMany({
     where,
-    include: {
-      assignees: { include: { user: true } },
-      responsible: true,
-      project: true,
-    },
+    include: TASK_INCLUDE,
     orderBy: [{ important: "desc" }, { targetDate: "asc" }],
   });
 
-  return NextResponse.json(tasks);
+  return NextResponse.json({ tasks: tasks.map(serializeTask) });
 }
-
-const createSchema = z.object({
-  title: z.string().min(1),
-  projectId: z.number().int(),
-  status: z.enum(["To Do", "In Progress", "Blocked", "Done"]).optional(),
-  priority: z.enum(["Critical", "High", "Medium", "Low"]).optional(),
-  targetDate: z.string().optional(),
-  responsibleId: z.string().optional(),
-  assigneeIds: z.array(z.string()).optional(),
-});
 
 export async function POST(req: Request) {
   const userOrResp = await requireUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
   const user = userOrResp;
-
   if (!canEditTasks(user.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  let body;
-  try {
-    body = createSchema.parse(await req.json());
-  } catch (e) {
-    return NextResponse.json(
-      { error: "Invalid body", details: String(e) },
-      { status: 400 },
-    );
+  const body = await req.json().catch(() => ({}));
+  const title = String(body.title ?? "").trim();
+  const projectId = Number(body.projectId);
+  if (!title) {
+    return NextResponse.json({ error: "Title is required." }, { status: 400 });
   }
-
-  if (!(await canAccessProject(user, body.projectId))) {
+  if (!Number.isFinite(projectId)) {
+    return NextResponse.json({ error: "Pick a project." }, { status: 400 });
+  }
+  if (!(await canAccessProject(user, projectId))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  // First names from the client → resolve to user ids.
+  const assigneeNames: string[] = Array.isArray(body.assignees)
+    ? body.assignees
+    : [];
+  const assigneeUsers = await Promise.all(
+    assigneeNames.map((n) => userByFirstName(String(n))),
+  );
+  const validAssignees = assigneeUsers.filter(
+    (u): u is NonNullable<typeof u> => u !== null,
+  );
+
+  const responsibleFirst = body.responsible ? String(body.responsible) : null;
+  const responsibleUser = responsibleFirst
+    ? await userByFirstName(responsibleFirst)
+    : null;
+
   const task = await prisma.task.create({
     data: {
-      title: body.title,
-      projectId: body.projectId,
-      status: body.status ?? "To Do",
-      priority: body.priority ?? "Medium",
+      title,
+      description: body.description ?? null,
+      projectId,
+      status: String(body.status ?? "To Do"),
+      priority: String(body.priority ?? "Medium"),
       targetDate: body.targetDate
-        ? new Date(body.targetDate)
+        ? new Date(String(body.targetDate))
         : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      important: false,
-      // Person Responsible defaults to the creator (the assigner).
-      responsibleId: body.responsibleId ?? user.id,
-      assignees: body.assigneeIds?.length
+      startDate: body.startDate ? new Date(String(body.startDate)) : null,
+      estimatedHours:
+        typeof body.estimatedHours === "number"
+          ? body.estimatedHours
+          : null,
+      important: Boolean(body.important),
+      responsibleId: responsibleUser?.id ?? user.id,
+      assignees: validAssignees.length
         ? {
-            create: body.assigneeIds.map((userId) => ({ userId })),
+            create: validAssignees.map((u) => ({ userId: u.id })),
           }
         : undefined,
     },
-    include: {
-      assignees: { include: { user: true } },
-      responsible: true,
-      project: true,
-    },
+    include: { ...TASK_INCLUDE, project: true },
   });
 
   await writeAudit(user.id, "task.create", {
@@ -107,5 +113,5 @@ export async function POST(req: Request) {
     taskTitle: task.title,
   });
 
-  return NextResponse.json(task, { status: 201 });
+  return NextResponse.json({ task: serializeTask(task) }, { status: 201 });
 }

@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Calendar, Clock, Lock } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
-import { LEAVES, RESOURCES, type LeaveEntry } from "@/lib/mock";
+import { type LeaveEntry } from "@/lib/mock";
 import { useRole, ROLE_LABELS } from "@/lib/role";
-import { useMyFirstName } from "@/lib/account-store";
+import { useMyFirstName, useAccounts } from "@/lib/account-store";
 import { useToast } from "@/components/Toast";
 import { Modal } from "@/components/Modal";
 
@@ -19,15 +19,38 @@ const TYPE_COLOR: Record<LeaveEntry["type"], string> = {
 export default function LeavesPage() {
   const [role] = useRole();
   const [open, setOpen] = useState(false);
+  const [leaves, setLeaves] = useState<LeaveEntry[]>([]);
   const fullVisibility = role === "Admin" || role === "Coordinator";
   const me = useMyFirstName();
+  const { accounts } = useAccounts();
+
+  async function refresh() {
+    const res = await fetch("/api/leaves", { cache: "no-store" });
+    if (res.ok) {
+      const body = (await res.json()) as { leaves: LeaveEntry[] };
+      setLeaves(body.leaves ?? []);
+    }
+  }
+  useEffect(() => {
+    void refresh();
+  }, []);
 
   const myFirstName = me;
-  const myFullName = RESOURCES.find((r) => r.name.startsWith(me))?.name ?? "";
-  const sorted = [...LEAVES].sort((a, b) => a.start.localeCompare(b.start));
+  const myFullName =
+    accounts.find((a) => a.name.startsWith(me))?.name ?? "";
+  const sorted = [...leaves].sort((a, b) =>
+    a.start.localeCompare(b.start),
+  );
 
   if (fullVisibility) {
-    return <FullLeavesView sorted={sorted} open={open} setOpen={setOpen} />;
+    return (
+      <FullLeavesView
+        sorted={sorted}
+        open={open}
+        setOpen={setOpen}
+        onChanged={refresh}
+      />
+    );
   }
 
   const myLeaves = sorted.filter((l) => l.resourceName === myFullName);
@@ -119,6 +142,7 @@ export default function LeavesPage() {
         <RequestLeaveModal
           onClose={() => setOpen(false)}
           requesterFirstName={myFirstName}
+          onSubmitted={refresh}
         />
       )}
     </AppShell>
@@ -129,10 +153,12 @@ function FullLeavesView({
   sorted,
   open,
   setOpen,
+  onChanged,
 }: {
   sorted: LeaveEntry[];
   open: boolean;
   setOpen: (v: boolean) => void;
+  onChanged: () => Promise<void>;
 }) {
   const upcoming = sorted.filter((l) => l.start >= "2026-05-06");
   const pending = sorted.filter((l) => !l.approved);
@@ -240,7 +266,12 @@ function FullLeavesView({
         </section>
       </div>
 
-      {open && <RequestLeaveModal onClose={() => setOpen(false)} />}
+      {open && (
+        <RequestLeaveModal
+          onClose={() => setOpen(false)}
+          onSubmitted={onChanged}
+        />
+      )}
     </AppShell>
   );
 }
@@ -300,17 +331,37 @@ function LeaveRow({
 function RequestLeaveModal({
   onClose,
   requesterFirstName,
+  onSubmitted,
 }: {
   onClose: () => void;
   requesterFirstName?: string;
+  onSubmitted?: () => void;
 }) {
   const toast = useToast();
   const [type, setType] = useState("Vacation");
+  const [start, setStart] = useState("");
+  const [end, setEnd] = useState("");
+  const [note, setNote] = useState("");
 
-  function submit() {
+  async function submit() {
+    const res = await fetch("/api/leaves", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type,
+        start: start || new Date().toISOString().slice(0, 10),
+        end: end || start || new Date().toISOString().slice(0, 10),
+        note: note || null,
+      }),
+    });
+    if (!res.ok) {
+      toast.show("Couldn't submit leave.", "error");
+      return;
+    }
     toast.show(
       `${type} leave requested. Your co-ordinator will see it for approval.`,
     );
+    onSubmitted?.();
     onClose();
   }
 
@@ -342,7 +393,8 @@ function RequestLeaveModal({
           </label>
           <input
             type="date"
-            defaultValue="2026-05-10"
+            value={start}
+            onChange={(e) => setStart(e.target.value)}
             className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
           />
         </div>
@@ -352,7 +404,8 @@ function RequestLeaveModal({
           </label>
           <input
             type="date"
-            defaultValue="2026-05-10"
+            value={end}
+            onChange={(e) => setEnd(e.target.value)}
             className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
           />
         </div>
@@ -362,6 +415,8 @@ function RequestLeaveModal({
         Note (optional · visible to your co-ordinator only)
       </label>
       <textarea
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
         rows={2}
         placeholder="Anything your co-ordinator should know"
         className="w-full px-3 py-2 mb-6 rounded border border-ink-200 text-sm"

@@ -1,9 +1,28 @@
-import type { Client, Project } from "./mock";
+import type {
+  AppNotification,
+  Client,
+  EmailLogEntry,
+  LeaveEntry,
+  PipelineDeal,
+  Priority,
+  Project,
+  Remark,
+  Status,
+  Task,
+  TaskAttachment,
+  TimeEntry,
+  AuditEntry,
+} from "./mock";
 
 /**
- * Reshape Prisma rows into the client-side `Project` / `Client` types the
- * UI already speaks. Keeps the existing components untouched.
+ * Reshape Prisma rows into the client-side types the UI already speaks
+ * (first names instead of cuid ids, ISO date strings, relative "when",
+ * etc.). Keeps the existing components untouched.
  */
+
+/* ------------------------------------------------------------------ */
+/* Projects + Clients                                                  */
+/* ------------------------------------------------------------------ */
 
 type PrismaProject = {
   id: number;
@@ -62,4 +81,281 @@ export function serializeClient(c: PrismaClient): Client {
     email: c.email,
     since: c.since.toISOString().slice(0, 10),
   };
+}
+
+/* ------------------------------------------------------------------ */
+/* Tasks + sub-entities                                                */
+/* ------------------------------------------------------------------ */
+
+type PrismaTask = {
+  id: number;
+  title: string;
+  description: string | null;
+  projectId: number;
+  priority: string;
+  status: string;
+  startDate: Date | null;
+  targetDate: Date;
+  estimatedHours: number | null;
+  actualHours: number | null;
+  important: boolean;
+  overdueDays: number | null;
+  responsibleId: string | null;
+  responsible?: { name: string } | null;
+  approvedById: string | null;
+  approvedBy?: { name: string } | null;
+  approvedAt: Date | null;
+  assignees?: { user: { name: string } }[];
+  remarks?: PrismaRemark[];
+  attachments?: PrismaAttachment[];
+  blockedBy?: { blockerTaskId: number }[];
+};
+
+export function serializeTask(t: PrismaTask): Task {
+  return {
+    id: t.id,
+    title: t.title,
+    description: t.description ?? undefined,
+    projectId: t.projectId,
+    priority: t.priority as Priority,
+    status: t.status as Status,
+    responsible: t.responsible?.name.split(" ")[0] ?? "",
+    assignees: (t.assignees ?? []).map((a) => a.user.name.split(" ")[0]),
+    startDate: t.startDate ? t.startDate.toISOString().slice(0, 10) : undefined,
+    targetDate: t.targetDate.toISOString().slice(0, 10),
+    estimatedHours: t.estimatedHours,
+    actualHours: t.actualHours ?? undefined,
+    important: t.important,
+    overdueDays: overdueDaysFor(t.targetDate, t.status),
+    remarks: (t.remarks ?? []).map(serializeRemark),
+    attachments: (t.attachments ?? []).map(serializeAttachment),
+    dependsOn: (t.blockedBy ?? []).map((d) => d.blockerTaskId),
+    approvedBy: t.approvedBy?.name.split(" ")[0],
+    approvedAt: t.approvedAt ? relativeWhen(t.approvedAt) : undefined,
+  };
+}
+
+type PrismaRemark = {
+  id: number;
+  authorId: string;
+  author?: { name: string } | null;
+  body: string;
+  createdAt: Date;
+};
+
+export function serializeRemark(r: PrismaRemark): Remark {
+  return {
+    id: r.id,
+    author: r.author?.name.split(" ")[0] ?? "—",
+    body: r.body,
+    when: relativeWhen(r.createdAt),
+  };
+}
+
+type PrismaAttachment = {
+  id: number;
+  name: string;
+  size: string;
+  kind: string;
+  uploadedById: string | null;
+  uploadedBy?: { name: string } | null;
+  createdAt: Date;
+};
+
+export function serializeAttachment(a: PrismaAttachment): TaskAttachment {
+  return {
+    id: a.id,
+    name: a.name,
+    size: a.size,
+    kind: (["pdf", "image", "doc", "sheet"].includes(a.kind)
+      ? a.kind
+      : "other") as TaskAttachment["kind"],
+    uploadedBy: a.uploadedBy?.name.split(" ")[0] ?? "—",
+    when: relativeWhen(a.createdAt),
+  };
+}
+
+type PrismaTimeEntry = {
+  id: number;
+  taskId: number;
+  userId: string;
+  user?: { name: string } | null;
+  date: Date;
+  hours: number;
+  note: string | null;
+};
+
+export function serializeTimeEntry(t: PrismaTimeEntry): TimeEntry {
+  return {
+    id: t.id,
+    taskId: t.taskId,
+    person: t.user?.name.split(" ")[0] ?? "—",
+    date: t.date.toISOString().slice(0, 10),
+    hours: t.hours,
+    note: t.note ?? undefined,
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Audit, Notifications, EmailLog                                      */
+/* ------------------------------------------------------------------ */
+
+type PrismaAudit = {
+  id: number;
+  actorId: string;
+  actor?: { name: string } | null;
+  action: string;
+  scope: string | null;
+  taskTitle: string | null;
+  before: string | null;
+  after: string | null;
+  createdAt: Date;
+};
+
+export function serializeAudit(a: PrismaAudit): AuditEntry {
+  return {
+    id: a.id,
+    actor: a.actor?.name.split(" ")[0] ?? "—",
+    action: a.action,
+    scope: a.scope ?? "—",
+    taskTitle: a.taskTitle ?? undefined,
+    before: a.before ?? undefined,
+    after: a.after ?? undefined,
+    when: relativeWhen(a.createdAt),
+  };
+}
+
+type PrismaNotification = {
+  id: number;
+  userId: string;
+  user?: { name: string } | null;
+  kind: string;
+  title: string;
+  body: string;
+  taskId: number | null;
+  isRead: boolean;
+  createdAt: Date;
+};
+
+export function serializeNotification(n: PrismaNotification): AppNotification {
+  return {
+    id: n.id,
+    recipient: n.user?.name.split(" ")[0] ?? "—",
+    kind: n.kind as AppNotification["kind"],
+    title: n.title,
+    body: n.body,
+    taskId: n.taskId ?? undefined,
+    when: relativeWhen(n.createdAt),
+    read: n.isRead,
+  };
+}
+
+type PrismaEmail = {
+  id: number;
+  recipientId: string | null;
+  recipient?: { name: string } | null;
+  toEmail: string;
+  subject: string;
+  body: string;
+  kind: string;
+  taskId: number | null;
+  createdAt: Date;
+};
+
+export function serializeEmail(e: PrismaEmail): EmailLogEntry {
+  return {
+    id: e.id,
+    to: e.recipient?.name.split(" ")[0] ?? e.toEmail.split("@")[0],
+    toEmail: e.toEmail,
+    subject: e.subject,
+    body: e.body,
+    kind: e.kind as EmailLogEntry["kind"],
+    taskId: e.taskId ?? undefined,
+    when: relativeWhen(e.createdAt),
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Leaves + Pipeline                                                   */
+/* ------------------------------------------------------------------ */
+
+type PrismaLeave = {
+  id: number;
+  userId: string;
+  user?: { name: string } | null;
+  start: Date;
+  end: Date;
+  type: string;
+  note: string | null;
+  approved: boolean;
+};
+
+export function serializeLeave(l: PrismaLeave): LeaveEntry {
+  return {
+    id: l.id,
+    resourceName: l.user?.name ?? "—",
+    start: l.start.toISOString().slice(0, 10),
+    end: l.end.toISOString().slice(0, 10),
+    type: l.type as LeaveEntry["type"],
+    note: l.note ?? undefined,
+    approved: l.approved,
+  };
+}
+
+type PrismaPipeline = {
+  id: number;
+  name: string;
+  clientName: string;
+  estimatedValue: number;
+  probability: number;
+  stage: string;
+  expectedStart: Date | null;
+  bdName: string | null;
+};
+
+export function serializePipeline(d: PrismaPipeline): PipelineDeal {
+  return {
+    id: d.id,
+    name: d.name,
+    client: d.clientName,
+    estimatedValue: d.estimatedValue,
+    probability: d.probability,
+    stage: d.stage as PipelineDeal["stage"],
+    expectedStart: d.expectedStart
+      ? d.expectedStart.toISOString().slice(0, 10)
+      : "—",
+    bd: d.bdName ?? "—",
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/* Helpers                                                             */
+/* ------------------------------------------------------------------ */
+
+export function overdueDaysFor(
+  targetDate: Date,
+  status: string,
+): number | undefined {
+  if (status === "Done") return undefined;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(targetDate);
+  target.setHours(0, 0, 0, 0);
+  const diff = Math.floor(
+    (today.getTime() - target.getTime()) / (1000 * 60 * 60 * 24),
+  );
+  return diff > 0 ? diff : undefined;
+}
+
+export function relativeWhen(d: Date): string {
+  const diffMs = Date.now() - d.getTime();
+  const m = Math.floor(diffMs / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const days = Math.floor(h / 24);
+  if (days === 1) return "yesterday";
+  if (days < 14) return `${days}d ago`;
+  return d.toISOString().slice(0, 10);
 }

@@ -1,24 +1,23 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { prisma } from "@/lib/db";
 import {
   canAccessProject,
   canEditTasks,
+  isTaskAssignee,
   requireUser,
+  userByFirstName,
   writeAudit,
 } from "@/lib/server-access";
+import { serializeTask } from "@/lib/serializers";
 
-async function loadTask(id: number) {
-  return prisma.task.findUnique({
-    where: { id },
-    include: {
-      assignees: { include: { user: true } },
-      responsible: true,
-      project: true,
-      remarks: { include: { author: true }, orderBy: { createdAt: "asc" } },
-    },
-  });
-}
+const TASK_INCLUDE = {
+  assignees: { include: { user: true } },
+  responsible: true,
+  approvedBy: true,
+  remarks: { include: { author: true }, orderBy: { createdAt: "asc" as const } },
+  attachments: { include: { uploadedBy: true } },
+  blockedBy: true,
+} as const;
 
 export async function GET(
   _req: Request,
@@ -34,26 +33,17 @@ export async function GET(
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
-  const task = await loadTask(taskId);
-  if (!task) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    include: TASK_INCLUDE,
+  });
+  if (!task) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (!(await canAccessProject(user, task.projectId))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  return NextResponse.json(task);
+  return NextResponse.json({ task: serializeTask(task) });
 }
-
-const patchSchema = z.object({
-  title: z.string().min(1).optional(),
-  description: z.string().nullish(),
-  priority: z.enum(["Critical", "High", "Medium", "Low"]).optional(),
-  targetDate: z.string().optional(),
-  important: z.boolean().optional(),
-  responsibleId: z.string().nullish(),
-  assigneeIds: z.array(z.string()).optional(),
-});
 
 export async function PATCH(
   req: Request,
@@ -63,17 +53,16 @@ export async function PATCH(
   if (userOrResp instanceof NextResponse) return userOrResp;
   const user = userOrResp;
 
-  if (!canEditTasks(user.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
   const { id: idStr } = await context.params;
   const taskId = Number(idStr);
   if (!Number.isFinite(taskId)) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
-  const existing = await loadTask(taskId);
+  const existing = await prisma.task.findUnique({
+    where: { id: taskId },
+    include: { project: true },
+  });
   if (!existing) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -81,65 +70,92 @@ export async function PATCH(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  let body;
-  try {
-    body = patchSchema.parse(await req.json());
-  } catch (e) {
-    return NextResponse.json(
-      { error: "Invalid body", details: String(e) },
-      { status: 400 },
-    );
+  const isAssignee = await isTaskAssignee(user.id, taskId);
+  const editor = canEditTasks(user.role);
+  // Assignees may flip status / log time / post remarks; broader edits
+  // (title, description, priority, target date, responsible, important,
+  // estimate, approve) need Admin/Coordinator.
+  const body = await req.json().catch(() => ({}));
+
+  const data: Record<string, unknown> = {};
+
+  if (typeof body.status === "string") {
+    if (!editor && !isAssignee) {
+      return NextResponse.json(
+        { error: "Only assignees + co-ordinators can change status." },
+        { status: 403 },
+      );
+    }
+    data.status = body.status;
+  }
+  if (editor) {
+    if (typeof body.title === "string" && body.title.trim()) {
+      data.title = body.title.trim();
+    }
+    if (typeof body.description === "string" || body.description === null) {
+      data.description = body.description;
+    }
+    if (typeof body.priority === "string") data.priority = body.priority;
+    if (typeof body.targetDate === "string") {
+      data.targetDate = new Date(body.targetDate);
+    }
+    if (typeof body.startDate === "string" || body.startDate === null) {
+      data.startDate = body.startDate ? new Date(body.startDate) : null;
+    }
+    if (typeof body.important === "boolean") data.important = body.important;
+    if (
+      typeof body.estimatedHours === "number" ||
+      body.estimatedHours === null
+    ) {
+      data.estimatedHours = body.estimatedHours;
+    }
+    if (typeof body.actualHours === "number") {
+      data.actualHours = body.actualHours;
+    }
+    if (
+      typeof body.responsible === "string" ||
+      body.responsible === null
+    ) {
+      if (body.responsible === null) {
+        data.responsibleId = null;
+      } else {
+        const u = await userByFirstName(body.responsible);
+        if (u) data.responsibleId = u.id;
+      }
+    }
   }
 
-  // Special-case: assignee replacement
-  if (body.assigneeIds) {
-    await prisma.taskAssignee.deleteMany({ where: { taskId } });
-    await prisma.taskAssignee.createMany({
-      data: body.assigneeIds.map((userId) => ({ taskId, userId })),
-    });
+  if (Object.keys(data).length === 0) {
+    return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
   }
 
   const updated = await prisma.task.update({
     where: { id: taskId },
-    data: {
-      title: body.title,
-      description: body.description ?? undefined,
-      priority: body.priority,
-      targetDate: body.targetDate ? new Date(body.targetDate) : undefined,
-      important: body.important,
-      responsibleId:
-        body.responsibleId === undefined ? undefined : body.responsibleId,
-    },
-    include: {
-      assignees: { include: { user: true } },
-      responsible: true,
-      project: true,
-      remarks: { include: { author: true }, orderBy: { createdAt: "asc" } },
-    },
+    data,
+    include: TASK_INCLUDE,
   });
 
-  if (body.important !== undefined && body.important !== existing.important) {
+  if (data.status && data.status !== existing.status) {
+    await writeAudit(user.id, "task.status_change", {
+      scope: existing.project.name,
+      taskTitle: existing.title,
+      before: existing.status,
+      after: String(data.status),
+    });
+  }
+  if (
+    typeof data.important === "boolean" &&
+    data.important !== existing.important
+  ) {
     await writeAudit(user.id, "task.mark_important", {
       scope: existing.project.name,
       taskTitle: existing.title,
       before: String(existing.important),
-      after: String(body.important),
+      after: String(data.important),
     });
   }
 
-  if (
-    body.responsibleId !== undefined &&
-    body.responsibleId !== existing.responsibleId
-  ) {
-    await writeAudit(user.id, "task.responsible_change", {
-      scope: existing.project.name,
-      taskTitle: existing.title,
-      before: existing.responsibleId ?? "—",
-      after: body.responsibleId ?? "—",
-    });
-  }
-
-  return NextResponse.json(updated);
+  return NextResponse.json({ task: serializeTask(updated) });
 }
 
 export async function DELETE(
@@ -148,31 +164,14 @@ export async function DELETE(
 ) {
   const userOrResp = await requireUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
-  const user = userOrResp;
-
-  if (!canEditTasks(user.role)) {
+  if (!canEditTasks(userOrResp.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-
   const { id: idStr } = await context.params;
   const taskId = Number(idStr);
   if (!Number.isFinite(taskId)) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
-
-  const existing = await loadTask(taskId);
-  if (!existing) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-  if (!(await canAccessProject(user, existing.projectId))) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
   await prisma.task.delete({ where: { id: taskId } });
-  await writeAudit(user.id, "task.delete", {
-    scope: existing.project.name,
-    taskTitle: existing.title,
-  });
-
   return NextResponse.json({ ok: true });
 }

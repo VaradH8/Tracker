@@ -89,6 +89,21 @@ export async function isTaskAssignee(
   return row !== null;
 }
 
+/** Look up a User by first name (case-insensitive). Internal tool: we
+ *  assume first names are unique enough; returns the first match. */
+export async function userByFirstName(firstName: string) {
+  const q = firstName.trim();
+  if (!q) return null;
+  return prisma.user.findFirst({
+    where: {
+      OR: [
+        { name: { startsWith: q + " ", mode: "insensitive" } },
+        { name: { equals: q, mode: "insensitive" } },
+      ],
+    },
+  });
+}
+
 export async function writeAudit(
   actorId: string,
   action: string,

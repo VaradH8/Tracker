@@ -6,7 +6,7 @@ import {
   isTaskAssignee,
   requireUser,
 } from "@/lib/server-access";
-import { serializeRemark } from "@/lib/serializers";
+import { serializeAttachment } from "@/lib/serializers";
 
 export async function POST(
   req: Request,
@@ -33,25 +33,23 @@ export async function POST(
   const editor = canEditTasks(user.role);
   const assignee = await isTaskAssignee(user.id, taskId);
   if (!editor && !assignee) {
-    return NextResponse.json(
-      { error: "Only assignees and co-ordinators can post remarks." },
-      { status: 403 },
-    );
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const body = await req.json().catch(() => ({}));
-  const text = String(body.body ?? "").trim();
-  if (!text) {
-    return NextResponse.json({ error: "Remark can't be empty." }, { status: 400 });
+  const name = String(body.name ?? "").trim();
+  const size = String(body.size ?? "?").trim();
+  const kind = String(body.kind ?? "other");
+  if (!name) {
+    return NextResponse.json({ error: "Name is required." }, { status: 400 });
   }
 
-  const remark = await prisma.remark.create({
-    data: { taskId, authorId: user.id, body: text },
-    include: { author: true },
+  const created = await prisma.taskAttachment.create({
+    data: { taskId, name, size, kind, uploadedById: user.id },
+    include: { uploadedBy: true },
   });
-
   return NextResponse.json(
-    { remark: serializeRemark(remark) },
+    { attachment: serializeAttachment(created) },
     { status: 201 },
   );
 }

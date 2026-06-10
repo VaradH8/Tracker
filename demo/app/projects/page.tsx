@@ -331,14 +331,21 @@ const STAGE_ACCENT: Record<PipelineStage, string> = {
 };
 
 function PipelineBoard({ role }: { role: Role }) {
-  const [deals, setDeals] = useState<PipelineDeal[]>(PIPELINE);
+  const [deals, setDeals] = useState<PipelineDeal[]>([]);
   const [draggedId, setDraggedId] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState<PipelineStage | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const toast = useToast();
   const canManage = canManageProjects(role);
 
-  function onDrop(stage: PipelineStage) {
+  useEffect(() => {
+    fetch("/api/pipeline", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((b) => setDeals(b.deals ?? []))
+      .catch(() => null);
+  }, []);
+
+  async function onDrop(stage: PipelineStage) {
     if (draggedId == null) {
       setDragOver(null);
       return;
@@ -348,7 +355,12 @@ function PipelineBoard({ role }: { role: Role }) {
       prev.map((d) => (d.id === draggedId ? { ...d, stage } : d)),
     );
     if (deal && deal.stage !== stage) {
-      toast.show(`“${deal.name}” moved to ${stage}.`);
+      await fetch("/api/pipeline", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: deal.id, stage }),
+      });
+      toast.show(`"${deal.name}" moved to ${stage}.`);
     }
     setDraggedId(null);
     setDragOver(null);
@@ -465,17 +477,20 @@ function PipelineBoard({ role }: { role: Role }) {
       {createOpen && (
         <NewDealModal
           onClose={() => setCreateOpen(false)}
-          onCreate={(deal) => {
-            setDeals((prev) => [
-              {
-                ...deal,
-                id: Math.max(0, ...prev.map((d) => d.id)) + 1,
-                bd: "Rohit",
-              },
-              ...prev,
-            ]);
+          onCreate={async (deal) => {
+            const res = await fetch("/api/pipeline", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(deal),
+            });
+            if (!res.ok) {
+              toast.show("Couldn't add deal.", "error");
+              return;
+            }
+            const body = (await res.json()) as { deal: PipelineDeal };
+            setDeals((prev) => [body.deal, ...prev]);
             setCreateOpen(false);
-            toast.show(`Deal “${deal.name}” added to ${deal.stage}.`);
+            toast.show(`Deal "${body.deal.name}" added to ${body.deal.stage}.`);
           }}
         />
       )}
