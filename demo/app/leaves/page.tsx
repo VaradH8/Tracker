@@ -214,7 +214,12 @@ function FullLeavesView({
             ) : (
               <ul className="space-y-2">
                 {pending.map((l) => (
-                  <LeaveRow key={l.id} l={l} showActions />
+                  <LeaveRow
+                    key={l.id}
+                    l={l}
+                    showActions
+                    onApprove={onChanged}
+                  />
                 ))}
               </ul>
             )}
@@ -280,12 +285,29 @@ function LeaveRow({
   l,
   showActions,
   hideName,
+  onApprove,
 }: {
   l: LeaveEntry;
   showActions?: boolean;
   hideName?: boolean;
+  onApprove?: () => Promise<void> | void;
 }) {
   const toast = useToast();
+
+  async function approve() {
+    const res = await fetch("/api/leaves", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: l.id, approved: true }),
+    });
+    if (!res.ok) {
+      toast.show("Couldn't approve.", "error");
+      return;
+    }
+    toast.show(`${l.resourceName}'s ${l.type} leave approved.`);
+    if (onApprove) await onApprove();
+  }
+
   return (
     <li className="card p-3 flex items-center gap-3">
       {!hideName && (
@@ -316,9 +338,7 @@ function LeaveRow({
       )}
       {showActions && (
         <button
-          onClick={() =>
-            toast.show(`${l.resourceName}'s ${l.type} leave approved.`)
-          }
+          onClick={approve}
           className="btn-ghost text-xs px-2 py-1 text-brand-greenText hover:bg-brand-greenBg"
         >
           Approve
