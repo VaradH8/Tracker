@@ -189,10 +189,16 @@ async function createSession(userId: string) {
     data: { userId, expiresAt },
   });
   const jar = await cookies();
+  // Don't set `secure: true` blindly in production — the app commonly runs
+  // on http://<host>:3000 behind a reverse proxy that terminates TLS, or
+  // straight HTTP for an internal demo. A secure-only cookie would be
+  // rejected by the browser on plain HTTP and sign-in would fail silently.
+  // Opt back in by exporting SESSION_COOKIE_SECURE=1 once the app sits
+  // behind HTTPS end-to-end.
   jar.set(SESSION_COOKIE, session.id, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.SESSION_COOKIE_SECURE === "1",
     path: "/",
     expires: expiresAt,
   });

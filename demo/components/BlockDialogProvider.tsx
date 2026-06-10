@@ -8,8 +8,7 @@ import {
 } from "react";
 import { Lock } from "lucide-react";
 import { useTasks } from "@/lib/tasks-store";
-import { useMyFirstName } from "@/lib/account-store";
-import { RESOURCES } from "@/lib/mock";
+import { useAccounts, useMyFirstName } from "@/lib/account-store";
 import { useToast } from "./Toast";
 import { useNotifications } from "@/lib/notifications-store";
 import { Modal } from "./Modal";
@@ -22,15 +21,15 @@ export function useBlockDialog(): Ctx {
   return useContext(BlockCtx) ?? { requestBlock: () => {} };
 }
 
-const PEOPLE = RESOURCES.filter(
-  (r) => r.status === "Active" && !r.isAdmin,
-).map((r) => r.name.split(" ")[0]);
-
 export function BlockDialogProvider({ children }: { children: ReactNode }) {
   const store = useTasks();
   const toast = useToast();
   const { notify } = useNotifications();
+  const { accounts } = useAccounts();
   const me = useMyFirstName();
+  const people = accounts
+    .filter((a) => a.active && !a.isAdmin)
+    .map((a) => a.name.split(" ")[0]);
   const [taskId, setTaskId] = useState<number | null>(null);
 
   const task = taskId != null ? store.byId(taskId) : undefined;
@@ -45,6 +44,7 @@ export function BlockDialogProvider({ children }: { children: ReactNode }) {
       {task && (
         <BlockForm
           title={task.title}
+          people={people}
           onCancel={close}
           onConfirm={(reason, blockedBy) => {
             store.setStatus(task.id, "Blocked");
@@ -74,10 +74,12 @@ export function BlockDialogProvider({ children }: { children: ReactNode }) {
 
 function BlockForm({
   title,
+  people,
   onCancel,
   onConfirm,
 }: {
   title: string;
+  people: string[];
   onCancel: () => void;
   onConfirm: (reason: string, blockedBy: string) => void;
 }) {
@@ -117,7 +119,7 @@ function BlockForm({
         className="w-full px-3 py-2 mb-6 rounded border border-ink-200 text-sm"
       >
         <option value="">No specific person</option>
-        {PEOPLE.map((p) => (
+        {people.map((p) => (
           <option key={p} value={p}>
             {p}
           </option>

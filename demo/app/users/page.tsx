@@ -11,6 +11,8 @@ import {
   Pencil,
   Copy,
   KeyRound,
+  Trash2,
+  AlertTriangle,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { EmptyState } from "@/components/EmptyState";
@@ -31,7 +33,8 @@ const ROLES: Role[] = [
 ];
 
 export default function UsersPage() {
-  const { accounts, createAccount, updateAccount } = useAccounts();
+  const { accounts, current, createAccount, updateAccount, deleteAccount } =
+    useAccounts();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "All" | "Active" | "Deactivated"
@@ -39,6 +42,7 @@ export default function UsersPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<Account | null>(null);
   const [resetting, setResetting] = useState<Account | null>(null);
+  const [deleting, setDeleting] = useState<Account | null>(null);
   const toast = useToast();
 
   const visible = accounts
@@ -207,6 +211,15 @@ export default function UsersPage() {
                             <UserCheck size={14} />
                           )}
                         </button>
+                        {current && u.id !== current.id && (
+                          <button
+                            onClick={() => setDeleting(u)}
+                            title="Delete user permanently"
+                            className="p-1.5 rounded text-ink-400 hover:text-brand-redText hover:bg-brand-redBg"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -259,7 +272,85 @@ export default function UsersPage() {
           }}
         />
       )}
+
+      {deleting && (
+        <DeleteUserModal
+          account={deleting}
+          onClose={() => setDeleting(null)}
+          onConfirm={async () => {
+            const result = await deleteAccount(deleting.id);
+            if (!result.ok) {
+              toast.show(result.error ?? "Couldn't delete.", "error");
+              return;
+            }
+            toast.show(`${deleting.name} deleted.`, "info");
+            setDeleting(null);
+          }}
+        />
+      )}
     </AppShell>
+  );
+}
+
+function DeleteUserModal({
+  account,
+  onClose,
+  onConfirm,
+}: {
+  account: Account;
+  onClose: () => void;
+  onConfirm: () => void | Promise<void>;
+}) {
+  const [confirmName, setConfirmName] = useState("");
+  const armed = confirmName.trim() === account.name;
+
+  return (
+    <Modal title="Delete user" onClose={onClose}>
+      <div className="flex items-start gap-3 mb-4 p-3 rounded-card bg-brand-redBg border border-brand-red/30">
+        <AlertTriangle
+          size={18}
+          className="text-brand-redText shrink-0 mt-0.5"
+        />
+        <div className="text-sm text-ink-700">
+          <p className="font-medium text-brand-redText mb-1">
+            This permanently removes {account.name}.
+          </p>
+          <p>
+            Their sign-in account and all activity they authored (remarks,
+            audit entries) are deleted. Tasks they owned become unassigned
+            and time logs they wrote are removed too. There is no undo.
+          </p>
+          <p className="mt-2">
+            If you just want to revoke access without losing history, close
+            this and click <strong>Deactivate</strong> instead.
+          </p>
+        </div>
+      </div>
+
+      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+        Type <code className="bg-ink-100 px-1 rounded">{account.name}</code>{" "}
+        to confirm
+      </label>
+      <input
+        autoFocus
+        value={confirmName}
+        onChange={(e) => setConfirmName(e.target.value)}
+        className="w-full px-3 py-2 mb-6 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red"
+      />
+
+      <div className="flex justify-end gap-2">
+        <button onClick={onClose} className="btn-ghost">
+          Cancel
+        </button>
+        <button
+          onClick={() => onConfirm()}
+          disabled={!armed}
+          className="btn-primary bg-brand-red hover:bg-brand-redText"
+        >
+          <Trash2 size={14} className="mr-1.5" /> Delete user
+        </button>
+      </div>
+    </Modal>
   );
 }
 

@@ -5,11 +5,15 @@
 ARG NODE_VERSION=20-alpine
 
 # --- deps: install full dependencies (cached) ---
+# `--ignore-scripts` skips the `postinstall: prisma generate` hook, which
+# would otherwise fail here because the prisma/ schema isn't in this stage.
+# We re-generate the Prisma client in the build stage below, where the
+# schema is available.
 FROM node:${NODE_VERSION} AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN --mount=type=cache,target=/root/.npm \
-    npm ci --no-audit --no-fund
+    npm ci --no-audit --no-fund --ignore-scripts
 
 # --- build: generate Prisma client + Next build ---
 FROM node:${NODE_VERSION} AS build
@@ -36,7 +40,6 @@ RUN addgroup -S app && adduser -S app -G app
 COPY --from=build /app/package.json /app/package-lock.json* ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next
-COPY --from=build /app/public ./public
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/next.config.* ./
 

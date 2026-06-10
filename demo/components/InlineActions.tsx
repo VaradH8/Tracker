@@ -15,11 +15,11 @@ import { Popover } from "./Popover";
 import {
   priorityPill,
   statusPill,
-  RESOURCES,
   type Priority,
   type Status,
   type Task,
 } from "@/lib/mock";
+import { useAccounts } from "@/lib/account-store";
 
 const STATUSES: Status[] = [
   "To Do",
@@ -296,9 +296,10 @@ function AssigneeMenu({
   onToggle: (name: string) => void;
 }) {
   const [q, setQ] = useState("");
-  const people = RESOURCES.filter(
-    (u) => u.status === "Active" && !u.isAdmin,
-  ).filter((u) => u.name.toLowerCase().includes(q.toLowerCase()));
+  const { accounts } = useAccounts();
+  const people = accounts
+    .filter((a) => a.active && !a.isAdmin)
+    .filter((a) => a.name.toLowerCase().includes(q.toLowerCase()));
 
   return (
     <div className="min-w-[220px]">
@@ -314,14 +315,16 @@ function AssigneeMenu({
       <ul className="text-sm max-h-56 overflow-y-auto py-1">
         {people.length === 0 && (
           <li className="px-3 py-2 text-xs text-ink-400 italic">
-            No one matches.
+            {accounts.length === 0
+              ? "No teammates yet — add users from Admin → Users."
+              : "No one matches."}
           </li>
         )}
-        {people.map((u) => {
-          const first = u.name.split(" ")[0];
+        {people.map((a, i) => {
+          const first = a.name.split(" ")[0];
           const checked = selected.includes(first);
           return (
-            <li key={u.id}>
+            <li key={a.id}>
               <button
                 onClick={() => onToggle(first)}
                 className="w-full text-left px-2 py-1.5 rounded hover:bg-ink-100 flex items-center gap-2"
@@ -332,8 +335,8 @@ function AssigneeMenu({
                   readOnly
                   className="accent-brand-blue"
                 />
-                <Avatar name={first} colorIdx={u.id} size="sm" />
-                <span className="flex-1">{u.name}</span>
+                <Avatar name={first} colorIdx={i} size="sm" />
+                <span className="flex-1">{a.name}</span>
               </button>
             </li>
           );

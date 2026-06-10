@@ -4,6 +4,58 @@ import { requireUser, canManageUsers } from "@/lib/server-access";
 import { prisma } from "@/lib/db";
 import type { Role } from "@/lib/role";
 
+export async function DELETE(
+  _req: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  const userOrResp = await requireUser();
+  if (userOrResp instanceof NextResponse) return userOrResp;
+  const me = userOrResp;
+  if (!canManageUsers(me.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const { id } = await context.params;
+  if (id === me.id) {
+    return NextResponse.json(
+      { error: "You can't delete your own account." },
+      { status: 400 },
+    );
+  }
+
+  const target = await prisma.user.findUnique({ where: { id } });
+  if (!target) {
+    return NextResponse.json({ error: "User not found." }, { status: 404 });
+  }
+
+  // Hard-delete the user. Cascades take care of Session, TaskAssignee,
+  // ProjectMember, Notification, Leave, TimeEntry. We null-out any
+  // task/project pointers manually so the work isn't lost, and we drop
+  // the user's remarks + audit entries (history follows the person).
+  await prisma.$transaction([
+    prisma.task.updateMany({
+      where: { responsibleId: id },
+      data: { responsibleId: null },
+    }),
+    prisma.task.updateMany({
+      where: { approvedById: id },
+      data: { approvedById: null, approvedAt: null },
+    }),
+    prisma.project.updateMany({
+      where: { leadId: id },
+      data: { leadId: null },
+    }),
+    prisma.taskAttachment.updateMany({
+      where: { uploadedById: id },
+      data: { uploadedById: null },
+    }),
+    prisma.remark.deleteMany({ where: { authorId: id } }),
+    prisma.auditEntry.deleteMany({ where: { actorId: id } }),
+    prisma.user.delete({ where: { id } }),
+  ]);
+
+  return NextResponse.json({ ok: true });
+}
+
 const ROLES: Role[] = [
   "Admin",
   "Coordinator",

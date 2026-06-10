@@ -66,6 +66,7 @@ type Ctx = {
   createAccount: (
     input: RegisterInput,
   ) => Promise<{ ok: true; account: Account } | { ok: false; error: string }>;
+  deleteAccount: (id: string) => Promise<{ ok: boolean; error?: string }>;
 };
 
 const AccountsCtx = createContext<Ctx | null>(null);
@@ -249,6 +250,16 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const deleteAccount = useCallback(async (id: string) => {
+    const res = await fetch(`/api/users/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      return { ok: false, error: body.error ?? "Couldn't delete account." };
+    }
+    setAccounts((prev) => prev.filter((a) => a.id !== id));
+    return { ok: true };
+  }, []);
+
   return (
     <AccountsCtx.Provider
       value={{
@@ -261,6 +272,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
         changePassword,
         updateAccount,
         createAccount,
+        deleteAccount,
       }}
     >
       {children}
