@@ -14,11 +14,8 @@ import { useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { EmptyState } from "@/components/EmptyState";
 import {
-  CLIENTS,
-  PROJECTS,
   PIPELINE,
   PIPELINE_STAGES,
-  clientById,
   projectStatusPill,
   formatINR,
   type Project,
@@ -27,6 +24,7 @@ import {
   type PipelineStage,
 } from "@/lib/mock";
 import { useTasks } from "@/lib/tasks-store";
+import { useProjects } from "@/lib/projects-store";
 import { canManageProjects, useRole, type Role } from "@/lib/role";
 import { useMyFirstName } from "@/lib/account-store";
 import { canSeeProjectFinancials, visibleProjects } from "@/lib/access";
@@ -110,10 +108,15 @@ function ActiveProjects({ role }: { role: Role }) {
   const [createOpen, setCreateOpen] = useState(false);
   const showFinancials = canSeeProjectFinancials(role);
   const { tasks } = useTasks();
+  const { projects, clients, createProject, createClient } = useProjects();
   const me = useMyFirstName();
   const toast = useToast();
 
-  const myProjects = visibleProjects(role, PROJECTS, tasks, me);
+  const myProjects = visibleProjects(role, projects, tasks, me);
+
+  function clientById(id: number) {
+    return clients.find((c) => c.id === id);
+  }
   const visible = myProjects
     .filter((p) => filter === "All" || p.status === filter)
     .filter((p) => {
@@ -130,7 +133,7 @@ function ActiveProjects({ role }: { role: Role }) {
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm text-ink-500">
           {role === "Admin" || role === "Coordinator"
-            ? `${myProjects.length} projects across ${CLIENTS.length} clients`
+            ? `${myProjects.length} projects across ${clients.length} clients`
             : `${myProjects.length} project${myProjects.length === 1 ? "" : "s"} you're on`}
         </p>
         {canManageProjects(role) && (
@@ -281,10 +284,34 @@ function ActiveProjects({ role }: { role: Role }) {
 
       {createOpen && (
         <CreateProjectModal
+          clients={clients}
           onClose={() => setCreateOpen(false)}
-          onCreate={(name, clientName) => {
+          onCreate={async ({ name, clientId, newClientName, targetDate }) => {
+            let resolvedClientId = clientId;
+            // New client requested → create it first.
+            if (clientId == null && newClientName) {
+              const c = await createClient({ name: newClientName });
+              if (!c.ok) {
+                toast.show(c.error, "error");
+                return;
+              }
+              resolvedClientId = c.client.id;
+            }
+            if (resolvedClientId == null) {
+              toast.show("Pick a client first.", "error");
+              return;
+            }
+            const r = await createProject({
+              name,
+              clientId: resolvedClientId,
+              targetDate: targetDate || undefined,
+            });
+            if (!r.ok) {
+              toast.show(r.error, "error");
+              return;
+            }
             setCreateOpen(false);
-            toast.show(`Project “${name}” created for ${clientName}.`);
+            toast.show(`Project "${r.project.name}" created.`);
           }}
         />
       )}
@@ -579,23 +606,27 @@ function NewDealModal({
 /* ------------------------------------------------------------------ */
 
 function CreateProjectModal({
+  clients,
   onClose,
   onCreate,
 }: {
+  clients: { id: number; name: string }[];
   onClose: () => void;
-  onCreate: (name: string, clientName: string) => void;
+  onCreate: (input: {
+    name: string;
+    clientId: number | null;
+    newClientName: string | null;
+    targetDate: string;
+  }) => void | Promise<void>;
 }) {
   const [name, setName] = useState("");
   const [clientId, setClientId] = useState<string>(
-    String(CLIENTS[0]?.id ?? 1),
+    clients.length > 0 ? String(clients[0].id) : "__new__",
   );
   const [newClient, setNewClient] = useState("");
   const [target, setTarget] = useState("");
 
   const addingClient = clientId === "__new__";
-  const clientName = addingClient
-    ? newClient.trim() || "New client"
-    : (clientById(Number(clientId))?.name ?? "a client");
 
   return (
     <Modal title="New project" onClose={onClose}>
@@ -622,7 +653,7 @@ function CreateProjectModal({
         onChange={(e) => setClientId(e.target.value)}
         className="w-full px-3 py-2 mb-3 rounded border border-ink-200 text-sm"
       >
-        {CLIENTS.map((c) => (
+        {clients.map((c) => (
           <option key={c.id} value={c.id}>
             {c.name}
           </option>
@@ -631,7 +662,6 @@ function CreateProjectModal({
       </select>
       {addingClient && (
         <input
-          autoFocus
           value={newClient}
           onChange={(e) => setNewClient(e.target.value)}
           placeholder="New client name"
@@ -654,7 +684,14 @@ function CreateProjectModal({
           Cancel
         </button>
         <button
-          onClick={() => onCreate(name.trim() || "Untitled project", clientName)}
+          onClick={() =>
+            onCreate({
+              name: name.trim() || "Untitled project",
+              clientId: addingClient ? null : Number(clientId),
+              newClientName: addingClient ? newClient.trim() : null,
+              targetDate: target,
+            })
+          }
           disabled={!name.trim() || (addingClient && !newClient.trim())}
           className="btn-primary"
         >

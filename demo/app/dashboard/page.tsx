@@ -13,14 +13,13 @@ import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { StatCard } from "@/components/StatCard";
 import {
-  PROJECTS,
   RESOURCES,
-  projectById,
   statusPill,
   performancePill,
   type Task,
 } from "@/lib/mock";
 import { useTasks } from "@/lib/tasks-store";
+import { useProjects } from "@/lib/projects-store";
 import { useTaskDrawer } from "@/components/TaskDrawerProvider";
 
 type Filter = "active" | "overdue" | "important" | "done";
@@ -34,6 +33,7 @@ const TITLES: Record<Filter, string> = {
 
 export default function OrgDashboardPage() {
   const { tasks } = useTasks();
+  const { projects, projectById } = useProjects();
   const drawer = useTaskDrawer();
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>("important");
@@ -203,7 +203,7 @@ export default function OrgDashboardPage() {
               Project health
             </h2>
             <ul className="divide-y divide-ink-100">
-              {PROJECTS.map((p) => (
+              {projects.map((p) => (
                 <li
                   key={p.id}
                   onClick={() => router.push(`/projects/${p.id}`)}

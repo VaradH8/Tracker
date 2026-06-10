@@ -12,19 +12,20 @@ import { AppShell } from "@/components/AppShell";
 import { useTasks } from "@/lib/tasks-store";
 import { useMyFirstName } from "@/lib/account-store";
 import {
-  PROJECTS,
   RESOURCES,
   firstNameOf,
   daysSince,
   performancePill,
   type Task,
 } from "@/lib/mock";
+import { useProjects } from "@/lib/projects-store";
 
 export default function TeamPage() {
   const me = useMyFirstName();
   const { tasks } = useTasks();
+  const { projects } = useProjects();
 
-  const myProjects = PROJECTS.filter((p) => p.coordinator === me);
+  const myProjects = projects.filter((p) => p.coordinator === me);
   const myProjectIds = new Set(myProjects.map((p) => p.id));
   const teamTasks = tasks.filter((t) => myProjectIds.has(t.projectId));
 

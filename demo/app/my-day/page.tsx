@@ -21,11 +21,10 @@ import { TaskCard } from "@/components/TaskCard";
 import {
   RECENT_ACTIVITY,
   RESOURCES,
-  PROJECTS,
-  projectById,
   daysSince,
   type Task,
 } from "@/lib/mock";
+import { useProjects } from "@/lib/projects-store";
 import { useRole } from "@/lib/role";
 import { useMyFirstName } from "@/lib/account-store";
 import { useTasks } from "@/lib/tasks-store";
@@ -53,13 +52,14 @@ export default function MyDayPage() {
 
 function CoordinatorMyDay() {
   const { tasks } = useTasks();
+  const { projects, projectById } = useProjects();
   const toast = useToast();
   const me = useMyFirstName();
   const [idleDays, setIdleDays] = useState(3);
 
   // "My team" = tasks on projects this co-ordinator runs.
   const myProjectIds = new Set(
-    PROJECTS.filter((p) => p.coordinator === me).map((p) => p.id),
+    projects.filter((p) => p.coordinator === me).map((p) => p.id),
   );
   const teamTasks = tasks.filter((t) => myProjectIds.has(t.projectId));
 

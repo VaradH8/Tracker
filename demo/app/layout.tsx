@@ -5,6 +5,7 @@ import { TaskDrawerProvider } from "@/components/TaskDrawerProvider";
 import { TasksProvider } from "@/lib/tasks-store";
 import { NotificationsProvider } from "@/lib/notifications-store";
 import { AccountsProvider } from "@/lib/account-store";
+import { ProjectsProvider } from "@/lib/projects-store";
 import { Providers } from "@/components/Providers";
 import { ToastProvider } from "@/components/Toast";
 import { BlockDialogProvider } from "@/components/BlockDialogProvider";
@@ -78,15 +79,17 @@ export default function RootLayout({
       <body>
         <Providers>
           <AccountsProvider>
-            <ToastProvider>
-              <NotificationsProvider>
-                <TasksProvider>
-                  <BlockDialogProvider>
-                    <TaskDrawerProvider>{children}</TaskDrawerProvider>
-                  </BlockDialogProvider>
-                </TasksProvider>
-              </NotificationsProvider>
-            </ToastProvider>
+            <ProjectsProvider>
+              <ToastProvider>
+                <NotificationsProvider>
+                  <TasksProvider>
+                    <BlockDialogProvider>
+                      <TaskDrawerProvider>{children}</TaskDrawerProvider>
+                    </BlockDialogProvider>
+                  </TasksProvider>
+                </NotificationsProvider>
+              </ToastProvider>
+            </ProjectsProvider>
           </AccountsProvider>
         </Providers>
       </body>

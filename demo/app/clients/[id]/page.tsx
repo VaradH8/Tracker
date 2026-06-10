@@ -15,8 +15,9 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
-import { PROJECTS, clientById, projectStatusPill } from "@/lib/mock";
+import { projectStatusPill } from "@/lib/mock";
 import { useTasks } from "@/lib/tasks-store";
+import { useProjects } from "@/lib/projects-store";
 
 export default function ClientDetailPage({
   params,
@@ -24,15 +25,26 @@ export default function ClientDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const client = clientById(Number(id));
-  if (!client) notFound();
+  const { clients, projects: allProjects, hydrated } = useProjects();
+  const client = clients.find((c) => c.id === Number(id));
+  if (hydrated && !client) notFound();
 
   const { tasks } = useTasks();
-  const projects = PROJECTS.filter((p) => p.clientId === client.id);
+  const projects = allProjects.filter((p) => p.clientId === client?.id);
   const totalLogged = projects.reduce((s, p) => s + p.loggedHours, 0);
   const totalBudget = projects.reduce((s, p) => s + p.budgetHours, 0);
   const activeCount = projects.filter((p) => p.status === "Active").length;
   const delivered = projects.filter((p) => p.status === "Delivered").length;
+
+  if (!client) {
+    return (
+      <AppShell>
+        <div className="max-w-[1100px] mx-auto px-6 py-8">
+          <p className="text-sm text-ink-500">Loading…</p>
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell>

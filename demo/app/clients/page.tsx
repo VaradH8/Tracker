@@ -10,11 +10,12 @@ import {
   Calendar,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
-import { CLIENTS, PROJECTS } from "@/lib/mock";
+import { useProjects } from "@/lib/projects-store";
 import { useToast } from "@/components/Toast";
 import { Modal } from "@/components/Modal";
 
 export default function ClientsPage() {
+  const { clients, projects, createClient } = useProjects();
   const [createOpen, setCreateOpen] = useState(false);
   const toast = useToast();
 
@@ -25,7 +26,7 @@ export default function ClientsPage() {
           <div>
             <h1 className="font-heading text-3xl font-semibold">Clients</h1>
             <p className="text-sm text-ink-500 mt-1">
-              {CLIENTS.length} active clients · click into any for projects &
+              {clients.length} active clients · click into any for projects &
               contact details
             </p>
           </div>
@@ -38,9 +39,13 @@ export default function ClientsPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {CLIENTS.map((c) => {
-            const projects = PROJECTS.filter((p) => p.clientId === c.id);
-            const active = projects.filter((p) => p.status === "Active").length;
+          {clients.map((c) => {
+            const clientProjects = projects.filter(
+              (p) => p.clientId === c.id,
+            );
+            const active = clientProjects.filter(
+              (p) => p.status === "Active",
+            ).length;
             return (
               <div key={c.id} className="card p-5">
                 <div className="flex items-start gap-3 mb-3">
@@ -77,7 +82,7 @@ export default function ClientsPage() {
                 <div className="grid grid-cols-2 gap-2 mb-4">
                   <div className="bg-ink-50 rounded p-2 text-center">
                     <div className="font-heading text-lg font-semibold">
-                      {projects.length}
+                      {clientProjects.length}
                     </div>
                     <div className="text-[10px] text-ink-500 uppercase tracking-wide">
                       Projects
@@ -96,13 +101,13 @@ export default function ClientsPage() {
                 <h4 className="text-xs font-semibold text-ink-700 uppercase tracking-wide mb-2">
                   Projects
                 </h4>
-                {projects.length === 0 ? (
+                {clientProjects.length === 0 ? (
                   <p className="text-xs text-ink-400 italic">
                     No projects yet for this client.
                   </p>
                 ) : (
                   <ul className="space-y-1">
-                    {projects.map((p) => (
+                    {clientProjects.map((p) => (
                       <li key={p.id}>
                         <Link
                           href={`/projects/${p.id}`}
@@ -136,9 +141,14 @@ export default function ClientsPage() {
       {createOpen && (
         <AddClientModal
           onClose={() => setCreateOpen(false)}
-          onCreate={(name) => {
+          onCreate={async (input) => {
+            const r = await createClient(input);
+            if (!r.ok) {
+              toast.show(r.error, "error");
+              return;
+            }
             setCreateOpen(false);
-            toast.show(`Client “${name}” added.`);
+            toast.show(`Client "${r.client.name}" added.`);
           }}
         />
       )}
@@ -151,7 +161,12 @@ function AddClientModal({
   onCreate,
 }: {
   onClose: () => void;
-  onCreate: (name: string) => void;
+  onCreate: (input: {
+    name: string;
+    industry?: string;
+    primaryContact?: string;
+    email?: string;
+  }) => void | Promise<void>;
 }) {
   const [name, setName] = useState("");
   const [industry, setIndustry] = useState("");
@@ -216,7 +231,14 @@ function AddClientModal({
           Cancel
         </button>
         <button
-          onClick={() => onCreate(name.trim() || "New client")}
+          onClick={() =>
+            onCreate({
+              name: name.trim() || "New client",
+              industry: industry.trim() || undefined,
+              primaryContact: contact.trim() || undefined,
+              email: email.trim() || undefined,
+            })
+          }
           disabled={!name.trim()}
           className="btn-primary"
         >

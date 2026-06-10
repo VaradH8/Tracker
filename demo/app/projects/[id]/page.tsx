@@ -17,12 +17,9 @@ import {
 import { AppShell } from "@/components/AppShell";
 import { TaskCard } from "@/components/TaskCard";
 import {
-  PROJECTS,
   TASK_TEMPLATES,
   CURRENT_WEEK,
   weekNumberOf,
-  clientById,
-  projectById,
   projectStatusPill,
   projectLaborCost,
   formatINR,
@@ -30,6 +27,7 @@ import {
   type Status,
 } from "@/lib/mock";
 import { useTasks } from "@/lib/tasks-store";
+import { useProjects } from "@/lib/projects-store";
 import { useRole, landingFor } from "@/lib/role";
 import { useMyFirstName } from "@/lib/account-store";
 import {
@@ -59,8 +57,9 @@ export default function ProjectDetailPage({
 }) {
   const { id } = use(params);
   const projectId = Number(id);
-  const project = projectById(projectId);
-  if (!project) notFound();
+  const { projects, clients, hydrated: projectsHydrated } = useProjects();
+  const project = projects.find((p) => p.id === projectId);
+  if (projectsHydrated && !project) notFound();
 
   const [role, , hydrated] = useRole();
   const router = useRouter();
@@ -79,7 +78,7 @@ export default function ProjectDetailPage({
   const showAudit = canSeeProjectAudit(role);
   const showExport = canExportData(role);
   const isAdmin = role === "Admin";
-  const allowed = canAccessProject(role, projectId, PROJECTS, allTasks, me);
+  const allowed = canAccessProject(role, projectId, projects, allTasks, me);
   const laborCost = projectLaborCost(projectId, allTasks, timeEntries);
 
   const [tab, setTab] = useState<Tab>("tasks");
@@ -91,25 +90,29 @@ export default function ProjectDetailPage({
     }
   }, [hydrated, allowed, role, router]);
 
-  const client = clientById(project.clientId);
+  const client = clients.find((c) => c.id === project?.clientId);
   const tasks = forProject(projectId);
   const canEdit = role === "Admin" || role === "Coordinator";
 
-  const projectAudit = auditLog.filter((a) => a.scope === project.name);
+  const projectAudit = auditLog.filter(
+    (a) => project && a.scope === project.name,
+  );
 
   const tabs: Tab[] = ["tasks", "details"];
   if (showAudit) tabs.push("history");
   const activeTab = tabs.includes(tab) ? tab : "tasks";
 
-  if (!hydrated || !allowed) {
+  if (!hydrated || !projectsHydrated || !project || !allowed) {
     return (
       <AppShell>
         <div className="min-h-[60vh] grid place-items-center p-6">
           <div className="card p-8 max-w-md text-center">
             <h1 className="font-heading text-xl font-semibold mb-2">
-              {hydrated ? "Not on this project" : "Loading…"}
+              {hydrated && projectsHydrated
+                ? "Not on this project"
+                : "Loading…"}
             </h1>
-            {hydrated && (
+            {hydrated && projectsHydrated && (
               <p className="text-sm text-ink-500">
                 You're not assigned to anything on this project. Taking you
                 back.

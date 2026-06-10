@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import type { Task } from "@/lib/mock";
-import { projectById, loggedHoursForTask, TODAY_ISO } from "@/lib/mock";
+import { loggedHoursForTask, TODAY_ISO } from "@/lib/mock";
+import { useProjects } from "@/lib/projects-store";
 import { useTaskDrawer } from "./TaskDrawerProvider";
 import { useTasks } from "@/lib/tasks-store";
 import { useRole } from "@/lib/role";
@@ -30,6 +31,7 @@ export function TaskCard({
 }) {
   const drawer = useTaskDrawer();
   const store = useTasks();
+  const { projectById } = useProjects();
   const [role] = useRole();
   const me = useMyFirstName();
   const toast = useToast();

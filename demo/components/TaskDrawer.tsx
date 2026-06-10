@@ -31,7 +31,6 @@ import { useTasks } from "@/lib/tasks-store";
 import { useRole } from "@/lib/role";
 import { useMyFirstName } from "@/lib/account-store";
 import {
-  projectById,
   loggedHoursForTask,
   TODAY_ISO,
   parseMentions,
@@ -40,6 +39,7 @@ import {
   type TaskAttachment,
 } from "@/lib/mock";
 import { useBlockDialog } from "./BlockDialogProvider";
+import { useProjects } from "@/lib/projects-store";
 import { useNotifications } from "@/lib/notifications-store";
 
 const AVATAR_COLORS = [
@@ -62,6 +62,7 @@ export function TaskDrawer({
   onClose: () => void;
 }) {
   const store = useTasks();
+  const { projectById } = useProjects();
   const [role] = useRole();
   const me = useMyFirstName();
   const blockDialog = useBlockDialog();

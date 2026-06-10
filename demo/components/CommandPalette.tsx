@@ -10,13 +10,9 @@ import {
   Building2,
   CornerDownLeft,
 } from "lucide-react";
-import {
-  PROJECTS,
-  CLIENTS,
-  RESOURCES,
-  projectById,
-} from "@/lib/mock";
+import { RESOURCES } from "@/lib/mock";
 import { useTasks } from "@/lib/tasks-store";
+import { useProjects } from "@/lib/projects-store";
 import { useTaskDrawer } from "./TaskDrawerProvider";
 
 type ResultType = "Project" | "Task" | "Person" | "Client";
@@ -41,6 +37,7 @@ export function CommandPalette() {
   const [active, setActive] = useState(0);
   const router = useRouter();
   const { tasks } = useTasks();
+  const { projects, clients, projectById } = useProjects();
   const drawer = useTaskDrawer();
 
   // Cmd/Ctrl+K toggles the palette; the top-bar search button dispatches
@@ -76,7 +73,7 @@ export function CommandPalette() {
     if (!q) return [];
     const out: Result[] = [];
 
-    for (const p of PROJECTS) {
+    for (const p of projects) {
       if (p.name.toLowerCase().includes(q)) {
         out.push({
           type: "Project",
@@ -106,7 +103,7 @@ export function CommandPalette() {
         });
       }
     }
-    for (const c of CLIENTS) {
+    for (const c of clients) {
       if (c.name.toLowerCase().includes(q)) {
         out.push({
           type: "Client",
