@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LogIn, Eye, EyeOff } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { useAccounts, DEMO_DEFAULT_PASSWORD } from "@/lib/account-store";
+import { useAccounts } from "@/lib/account-store";
 import { landingFor } from "@/lib/role";
 
 export default function LoginPage() {
@@ -22,12 +22,6 @@ export default function LoginPage() {
       router.replace(landingFor(current.role));
     }
   }, [hydrated, current, router]);
-
-  function fillDemo(email: string) {
-    setUser(email);
-    setPassword(DEMO_DEFAULT_PASSWORD);
-    setError(null);
-  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -102,38 +96,12 @@ export default function LoginPage() {
             </button>
           </form>
           <p className="text-xs text-ink-500 text-center mt-4">
-            New to the team?{" "}
+            Need access?{" "}
             <Link href="/signup" className="text-brand-blue hover:underline">
-              Create an account
-            </Link>
+              Bootstrap this instance
+            </Link>{" "}
+            (first user only) or ask your admin to add you.
           </p>
-        </div>
-
-        <div className="card p-4 mt-4 text-xs text-ink-500">
-          <div className="font-medium text-ink-700 mb-2">
-            Demo accounts · password{" "}
-            <code className="text-ink-900 bg-ink-100 px-1 rounded">
-              {DEMO_DEFAULT_PASSWORD}
-            </code>
-          </div>
-          <ul className="space-y-1">
-            {[
-              { email: "varad@example.com", role: "Admin" },
-              { email: "manasi@example.com", role: "Co-ordinator" },
-              { email: "rohit@example.com", role: "Business Developer" },
-              { email: "sanjana@example.com", role: "Developer" },
-            ].map((d) => (
-              <li key={d.email} className="flex items-center gap-2">
-                <button
-                  onClick={() => fillDemo(d.email)}
-                  className="text-brand-blue hover:underline text-left"
-                >
-                  {d.email}
-                </button>
-                <span className="text-ink-400">— {d.role}</span>
-              </li>
-            ))}
-          </ul>
         </div>
       </div>
     </main>

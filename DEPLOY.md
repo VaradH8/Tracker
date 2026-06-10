@@ -155,7 +155,63 @@ gunzip -c backup.sql.gz | docker exec -i tracker-postgres-1 \
 
 ---
 
-## 6. What's actually running
+## 6. Going live with real users — checklist
+
+Before you hand the URL to teammates:
+
+- [ ] **Bootstrap the Admin.** On a freshly seeded deploy, hit
+      `https://<host>/signup` once and create the founder/admin account.
+      The route auto-locks after the first user, so the next person who
+      visits gets a "Sign-up is closed, ask your admin" screen. (If you
+      somehow lost the admin password, wipe the User table and re-bootstrap.)
+- [ ] **Set `RUN_SEED=0`** in Portainer env vars (you should already be
+      here after first boot — confirm).
+- [ ] **HTTPS.** Run Caddy in front of the app and put a real domain on
+      it (Section 2). Browsers refuse to send cookies cross-origin on
+      plain HTTP from anywhere except localhost; teammates will get
+      "wrong password" on every login if you skip this.
+- [ ] **Once HTTPS is live**, set `SESSION_COOKIE_SECURE=1` in the
+      Portainer env vars and redeploy. The session cookie is then only
+      sent over TLS.
+- [ ] **`POSTGRES_PASSWORD`** is a strong random value (24+ chars). The
+      DB isn't exposed to the host network in `compose.yml` — Postgres
+      only listens inside the Docker network — but the password still
+      matters for defence-in-depth.
+- [ ] **EC2 security group**: only 80/443 (Caddy) open to the world, not
+      3000 directly. Optionally 9443 for Portainer over your VPN/admin
+      CIDR. **Never expose 5432 publicly.**
+- [ ] **Add users.** Admin → Users → Add user for each teammate. Use the
+      copy-to-clipboard button to get the initial password, hand it to
+      them via 1Password / Slack DM / in person — not over the same
+      email account they'll use to sign in.
+- [ ] **Backups.** Wire a daily `pg_dump` to S3 (sample command in
+      Section 4). Without this, a corrupted volume = total data loss.
+
+### Known limitations to flag to your team
+
+1. **Email isn't wired yet.** Notifications show up in the in-app bell
+   + the Settings → Email log table, but the SMTP fields in
+   Settings → General don't actually send anything outbound. Plan to
+   add nodemailer + the SMTP creds you put in Settings before users
+   rely on email reminders.
+2. **File attachments are metadata-only.** Uploading a file on a task
+   records its name, size, and uploader, but the actual bytes aren't
+   stored anywhere — there's no S3/blob backing yet. Tell the team to
+   keep using their existing file share for now; attachments are an
+   index, not storage.
+3. **Forgot-password is admin-only.** A user who forgets their password
+   has to ask the admin to reset it from Users → key icon. There's no
+   self-serve "Forgot password" email flow yet.
+4. **No rate limiting on /api/auth/signin.** Fine on a private subnet
+   behind your VPN; if the URL is exposed to the open internet, add
+   nginx/Caddy rate limiting on `/api/auth/*` or stand up fail2ban.
+5. **`prisma db push` is used on boot, not migrations.** Safe for an
+   internal tool where the only person changing the schema is you, but
+   means schema rollbacks need a manual restore from backup.
+
+---
+
+## 7. What's actually running
 
 - **`postgres`** (image `postgres:16-alpine`) — the data. Inside the
   Docker network only; not exposed to the host.
