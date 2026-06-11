@@ -14,6 +14,7 @@ import {
   Download,
   History,
   Trash2,
+  X,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { TaskCard } from "@/components/TaskCard";
@@ -30,7 +31,7 @@ import {
 import { useTasks } from "@/lib/tasks-store";
 import { useProjects } from "@/lib/projects-store";
 import { useRole, landingFor } from "@/lib/role";
-import { useMyFirstName } from "@/lib/account-store";
+import { useAccounts, useMyFirstName } from "@/lib/account-store";
 import {
   canAccessProject,
   canExportData,
@@ -63,6 +64,8 @@ export default function ProjectDetailPage({
     clients,
     hydrated: projectsHydrated,
     deleteProject,
+    updateProject,
+    toggleProjectMember,
   } = useProjects();
   const project = projects.find((p) => p.id === projectId);
   if (projectsHydrated && !project) notFound();
@@ -89,6 +92,7 @@ export default function ProjectDetailPage({
 
   const [tab, setTab] = useState<Tab>("tasks");
   const [weekFilter, setWeekFilter] = useState<"all" | number>("all");
+  const [editOpen, setEditOpen] = useState(false);
 
   useEffect(() => {
     if (hydrated && !allowed) {
@@ -181,6 +185,15 @@ export default function ProjectDetailPage({
                 className="btn-ghost border border-ink-200"
               >
                 <Download size={16} className="mr-1.5" /> Export Excel
+              </button>
+            )}
+            {canEdit && (
+              <button
+                onClick={() => setEditOpen(true)}
+                className="btn-ghost border border-ink-200"
+                title="Edit project"
+              >
+                Edit
               </button>
             )}
             {canEdit && (
@@ -400,7 +413,7 @@ export default function ProjectDetailPage({
                 <h2 className="font-heading text-lg font-semibold mb-3">
                   Team
                 </h2>
-                <dl className="grid sm:grid-cols-2 gap-4 text-sm">
+                <dl className="grid sm:grid-cols-2 gap-4 text-sm mb-4">
                   <Row
                     icon={<Users size={14} />}
                     label="Lead"
@@ -416,16 +429,13 @@ export default function ProjectDetailPage({
                     label="Business Developer"
                     value={project.bd}
                   />
-                  <Row
-                    icon={<Users size={14} />}
-                    label="Team members"
-                    value={
-                      project.teamMembers.length > 0
-                        ? project.teamMembers.join(", ")
-                        : "—"
-                    }
-                  />
                 </dl>
+                <ProjectTeamEditor
+                  projectId={project.id}
+                  members={project.teamMembers}
+                  canEdit={canEdit}
+                  onToggle={(name) => toggleProjectMember(project.id, name)}
+                />
               </div>
 
               <div className="card p-6">
@@ -586,11 +596,297 @@ export default function ProjectDetailPage({
           onCreate={(input) => {
             addTask({ projectId, ...input });
             setCreateOpen(false);
-            toast.show(`Task “${input.title}” created.`);
+            toast.show(`Task "${input.title}" created.`);
+          }}
+        />
+      )}
+
+      {editOpen && (
+        <EditProjectModal
+          project={project}
+          onClose={() => setEditOpen(false)}
+          onSave={async (patch) => {
+            await updateProject(project.id, patch);
+            toast.show("Project updated.");
+            setEditOpen(false);
           }}
         />
       )}
     </AppShell>
+  );
+}
+
+function ProjectTeamEditor({
+  members,
+  canEdit,
+  onToggle,
+}: {
+  projectId: number;
+  members: string[];
+  canEdit: boolean;
+  onToggle: (name: string) => void | Promise<void>;
+}) {
+  const { accounts } = useAccounts();
+  const available = accounts
+    .filter((a) => a.active && !a.isAdmin)
+    .map((a) => a.name.split(" ")[0]);
+  const others = available.filter((n) => !members.includes(n));
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-2">
+        <Users size={14} className="text-ink-500" />
+        <h3 className="text-xs font-semibold text-ink-700 uppercase tracking-wide">
+          Team members{" "}
+          <span className="font-medium normal-case text-ink-400">
+            ({members.length})
+          </span>
+        </h3>
+      </div>
+      {members.length === 0 && (
+        <p className="text-xs text-ink-400 italic mb-2">
+          No teammates on this roster yet.
+        </p>
+      )}
+      <div className="flex flex-wrap gap-1.5">
+        {members.map((m) => (
+          <span
+            key={m}
+            className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-pill bg-brand-blueBg text-brand-blue text-xs font-medium"
+          >
+            {m}
+            {canEdit && (
+              <button
+                onClick={() => onToggle(m)}
+                className="p-0.5 -m-0.5 rounded hover:bg-brand-blue/20"
+                aria-label={`Remove ${m}`}
+              >
+                <X size={11} />
+              </button>
+            )}
+          </span>
+        ))}
+        {canEdit && others.length > 0 && (
+          <select
+            value=""
+            onChange={(e) => {
+              if (e.target.value) onToggle(e.target.value);
+            }}
+            className="text-xs rounded border border-ink-200 px-2 py-1 bg-white"
+          >
+            <option value="">+ Add teammate…</option>
+            {others.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EditProjectModal({
+  project,
+  onClose,
+  onSave,
+}: {
+  project: {
+    name: string;
+    status: string;
+    coordinator: string;
+    bd: string;
+    startDate: string;
+    targetDate: string;
+    budgetHours: number;
+    progress: number;
+    health: string;
+    description?: string;
+  };
+  onClose: () => void;
+  onSave: (patch: {
+    name: string;
+    status: string;
+    coordinator: string;
+    bd: string;
+    startDate: string;
+    targetDate: string;
+    budgetHours: number;
+    progress: number;
+    health: string;
+    description: string | null;
+  }) => void | Promise<void>;
+}) {
+  const [name, setName] = useState(project.name);
+  const [status, setStatus] = useState(project.status);
+  const [coordinator, setCoordinator] = useState(project.coordinator);
+  const [bd, setBd] = useState(project.bd);
+  const [startDate, setStartDate] = useState(project.startDate);
+  const [targetDate, setTargetDate] = useState(project.targetDate);
+  const [budgetHours, setBudgetHours] = useState(String(project.budgetHours));
+  const [progress, setProgress] = useState(String(project.progress));
+  const [health, setHealth] = useState(project.health);
+  const [description, setDescription] = useState(project.description ?? "");
+
+  return (
+    <Modal title="Edit project" onClose={onClose} size="lg">
+      <p className="text-sm text-ink-500 mb-5">
+        Update the project's plan, schedule, and team.
+      </p>
+
+      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+        Name
+      </label>
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+      />
+
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Status
+          </label>
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          >
+            <option>Discovery</option>
+            <option>Active</option>
+            <option>On Hold</option>
+            <option>Delivered</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Health
+          </label>
+          <select
+            value={health}
+            onChange={(e) => setHealth(e.target.value)}
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          >
+            <option value="green">Green · on track</option>
+            <option value="yellow">Yellow · watch</option>
+            <option value="red">Red · at risk</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Co-ordinator (first name)
+          </label>
+          <input
+            value={coordinator}
+            onChange={(e) => setCoordinator(e.target.value)}
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Business Developer
+          </label>
+          <input
+            value={bd}
+            onChange={(e) => setBd(e.target.value)}
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Start date
+          </label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Target date
+          </label>
+          <input
+            type="date"
+            value={targetDate}
+            onChange={(e) => setTargetDate(e.target.value)}
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Budget (hours)
+          </label>
+          <input
+            type="number"
+            value={budgetHours}
+            onChange={(e) => setBudgetHours(e.target.value)}
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Progress (%)
+          </label>
+          <input
+            type="number"
+            min="0"
+            max="100"
+            value={progress}
+            onChange={(e) => setProgress(e.target.value)}
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          />
+        </div>
+      </div>
+
+      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+        Description
+      </label>
+      <textarea
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        rows={3}
+        className="w-full px-3 py-2 mb-6 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+      />
+
+      <div className="flex justify-end gap-2">
+        <button onClick={onClose} className="btn-ghost">
+          Cancel
+        </button>
+        <button
+          onClick={() =>
+            onSave({
+              name: name.trim() || project.name,
+              status,
+              coordinator: coordinator.trim(),
+              bd: bd.trim(),
+              startDate,
+              targetDate,
+              budgetHours: Number(budgetHours) || 0,
+              progress: Math.max(0, Math.min(100, Number(progress) || 0)),
+              health,
+              description: description.trim() || null,
+            })
+          }
+          disabled={!name.trim()}
+          className="btn-primary"
+        >
+          Save changes
+        </button>
+      </div>
+    </Modal>
   );
 }
 

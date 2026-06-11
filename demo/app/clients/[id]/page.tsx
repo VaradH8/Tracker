@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
 import {
@@ -16,7 +16,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
-import { projectStatusPill } from "@/lib/mock";
+import { Modal } from "@/components/Modal";
+import { projectStatusPill, type Client } from "@/lib/mock";
 import { useTasks } from "@/lib/tasks-store";
 import { useProjects } from "@/lib/projects-store";
 import { useToast } from "@/components/Toast";
@@ -36,7 +37,9 @@ export default function ClientDetailPage({
     projects: allProjects,
     hydrated,
     deleteClient,
+    updateClient,
   } = useProjects();
+  const [editOpen, setEditOpen] = useState(false);
   const client = clients.find((c) => c.id === Number(id));
   if (hydrated && !client) notFound();
 
@@ -77,29 +80,38 @@ export default function ClientDetailPage({
             </h1>
             <p className="text-sm text-ink-500 mt-1">{client.industry}</p>
           </div>
-          {role === "Admin" && (
+          <div className="flex items-center gap-2">
             <button
-              onClick={async () => {
-                if (
-                  !confirm(
-                    `Delete "${client.name}"? This client must have no projects attached.`,
-                  )
-                )
-                  return;
-                const r = await deleteClient(client.id);
-                if (!r.ok) {
-                  toast.show(r.error ?? "Couldn't delete client.", "error");
-                  return;
-                }
-                toast.show(`Client "${client.name}" deleted.`, "info");
-                router.push("/clients");
-              }}
-              className="btn-ghost border border-ink-200 text-brand-redText hover:bg-brand-redBg"
-              title="Delete client"
+              onClick={() => setEditOpen(true)}
+              className="btn-ghost border border-ink-200"
+              title="Edit client"
             >
-              <Trash2 size={16} className="mr-1.5" /> Delete
+              Edit
             </button>
-          )}
+            {role === "Admin" && (
+              <button
+                onClick={async () => {
+                  if (
+                    !confirm(
+                      `Delete "${client.name}"? This client must have no projects attached.`,
+                    )
+                  )
+                    return;
+                  const r = await deleteClient(client.id);
+                  if (!r.ok) {
+                    toast.show(r.error ?? "Couldn't delete client.", "error");
+                    return;
+                  }
+                  toast.show(`Client "${client.name}" deleted.`, "info");
+                  router.push("/clients");
+                }}
+                className="btn-ghost border border-ink-200 text-brand-redText hover:bg-brand-redBg"
+                title="Delete client"
+              >
+                <Trash2 size={16} className="mr-1.5" /> Delete
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="grid md:grid-cols-4 gap-4 mb-6">
@@ -193,7 +205,105 @@ export default function ClientDetailPage({
           </aside>
         </div>
       </div>
+
+      {editOpen && (
+        <EditClientModal
+          client={client}
+          onClose={() => setEditOpen(false)}
+          onSave={async (patch) => {
+            await updateClient(client.id, patch);
+            toast.show("Client updated.");
+            setEditOpen(false);
+          }}
+        />
+      )}
     </AppShell>
+  );
+}
+
+function EditClientModal({
+  client,
+  onClose,
+  onSave,
+}: {
+  client: Client;
+  onClose: () => void;
+  onSave: (patch: {
+    name: string;
+    industry: string;
+    primaryContact: string;
+    email: string;
+  }) => void | Promise<void>;
+}) {
+  const [name, setName] = useState(client.name);
+  const [industry, setIndustry] = useState(client.industry);
+  const [primaryContact, setPrimaryContact] = useState(client.primaryContact);
+  const [email, setEmail] = useState(client.email);
+
+  return (
+    <Modal title="Edit client" onClose={onClose}>
+      <p className="text-sm text-ink-500 mb-5">
+        Update the client's company info.
+      </p>
+      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+        Client name
+      </label>
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+      />
+      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+        Industry
+      </label>
+      <input
+        value={industry}
+        onChange={(e) => setIndustry(e.target.value)}
+        className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+      />
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Primary contact
+          </label>
+          <input
+            value={primaryContact}
+            onChange={(e) => setPrimaryContact(e.target.value)}
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Contact email
+          </label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          />
+        </div>
+      </div>
+      <div className="flex justify-end gap-2">
+        <button onClick={onClose} className="btn-ghost">
+          Cancel
+        </button>
+        <button
+          onClick={() =>
+            onSave({
+              name: name.trim() || client.name,
+              industry: industry.trim(),
+              primaryContact: primaryContact.trim(),
+              email: email.trim(),
+            })
+          }
+          disabled={!name.trim()}
+          className="btn-primary"
+        >
+          Save changes
+        </button>
+      </div>
+    </Modal>
   );
 }
 

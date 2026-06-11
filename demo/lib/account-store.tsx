@@ -26,6 +26,11 @@ export type Account = {
   isAdmin?: boolean;
   createdAt?: string;
   lastLogin?: string | null;
+  designation?: string;
+  phone?: string;
+  location?: string;
+  hourlyRate?: number;
+  capacityPerWeek?: number;
 };
 
 export const DEMO_DEFAULT_PASSWORD = "tracker2026";
@@ -58,7 +63,18 @@ type Ctx = {
   updateAccount: (
     id: string,
     patch: Partial<
-      Pick<Account, "name" | "email" | "role" | "active"> & {
+      Pick<
+        Account,
+        | "name"
+        | "email"
+        | "role"
+        | "active"
+        | "designation"
+        | "phone"
+        | "location"
+        | "hourlyRate"
+        | "capacityPerWeek"
+      > & {
         password?: string;
       }
     >,
@@ -207,7 +223,18 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
     async (
       id: string,
       patch: Partial<
-        Pick<Account, "name" | "email" | "role" | "active"> & {
+        Pick<
+          Account,
+          | "name"
+          | "email"
+          | "role"
+          | "active"
+          | "designation"
+          | "phone"
+          | "location"
+          | "hourlyRate"
+          | "capacityPerWeek"
+        > & {
           password?: string;
         }
       >,

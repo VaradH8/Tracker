@@ -85,6 +85,11 @@ export async function PATCH(
     primaryRole?: Role;
     isActive?: boolean;
     passwordHash?: string;
+    designation?: string | null;
+    phone?: string | null;
+    location?: string | null;
+    hourlyRate?: number;
+    capacityPerWeek?: number;
   } = {};
 
   if (typeof body.name === "string" && body.name.trim()) {
@@ -109,6 +114,23 @@ export async function PATCH(
     body.password.length >= 6
   ) {
     data.passwordHash = await bcrypt.hash(body.password, 10);
+  }
+  // HR fields — self can edit own designation/phone/location; admin can
+  // edit anyone's including hourly rate + capacity.
+  if (typeof body.designation === "string" || body.designation === null) {
+    data.designation = body.designation;
+  }
+  if (typeof body.phone === "string" || body.phone === null) {
+    data.phone = body.phone;
+  }
+  if (typeof body.location === "string" || body.location === null) {
+    data.location = body.location;
+  }
+  if (isAdmin && typeof body.hourlyRate === "number") {
+    data.hourlyRate = body.hourlyRate;
+  }
+  if (isAdmin && typeof body.capacityPerWeek === "number") {
+    data.capacityPerWeek = body.capacityPerWeek;
   }
 
   if (Object.keys(data).length === 0) {
@@ -146,6 +168,11 @@ export async function PATCH(
         ? updated.lastLoginAt.toISOString()
         : null,
       createdAt: updated.createdAt.toISOString(),
+      designation: updated.designation ?? "",
+      phone: updated.phone ?? "",
+      location: updated.location ?? "",
+      hourlyRate: updated.hourlyRate,
+      capacityPerWeek: updated.capacityPerWeek,
     },
   });
 }

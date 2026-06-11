@@ -57,6 +57,11 @@ function serialize(u: {
   isActive: boolean;
   lastLoginAt: Date | null;
   createdAt: Date;
+  designation: string | null;
+  phone: string | null;
+  location: string | null;
+  hourlyRate: number;
+  capacityPerWeek: number;
 }) {
   return {
     id: u.id,
@@ -67,5 +72,10 @@ function serialize(u: {
     active: u.isActive,
     lastLogin: u.lastLoginAt ? u.lastLoginAt.toISOString() : null,
     createdAt: u.createdAt.toISOString(),
+    designation: u.designation ?? "",
+    phone: u.phone ?? "",
+    location: u.location ?? "",
+    hourlyRate: u.hourlyRate,
+    capacityPerWeek: u.capacityPerWeek,
   };
 }

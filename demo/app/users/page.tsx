@@ -487,39 +487,120 @@ function EditUserModal({
 }: {
   account: Account;
   onClose: () => void;
-  onSave: (patch: { name: string; email: string }) => void;
+  onSave: (patch: {
+    name: string;
+    email: string;
+    designation: string;
+    phone: string;
+    location: string;
+    hourlyRate: number;
+    capacityPerWeek: number;
+  }) => void;
 }) {
   const [name, setName] = useState(account.name);
   const [email, setEmail] = useState(account.email);
-  const dirty =
-    name.trim() !== account.name || email.trim() !== account.email;
+  const [designation, setDesignation] = useState(account.designation ?? "");
+  const [phone, setPhone] = useState(account.phone ?? "");
+  const [location, setLocation] = useState(account.location ?? "");
+  const [hourlyRate, setHourlyRate] = useState(
+    String(account.hourlyRate ?? 0),
+  );
+  const [capacityPerWeek, setCapacityPerWeek] = useState(
+    String(account.capacityPerWeek ?? 40),
+  );
 
   return (
-    <Modal title="Edit user" onClose={onClose}>
+    <Modal title="Edit user" onClose={onClose} size="lg">
       <p className="text-sm text-ink-500 mb-5">
-        Change the display name or sign-in email. Use the role dropdown on
-        the row to change role, and the key icon to reset the password.
+        Account + HR details. Use the role dropdown on the row to change
+        role, and the key icon to reset the password.
       </p>
 
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Full name
+          </label>
+          <input
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Email
+          </label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+          />
+        </div>
+      </div>
+
       <label className="block text-xs font-medium text-ink-700 mb-1.5">
-        Full name
+        Designation
       </label>
       <input
-        autoFocus
-        value={name}
-        onChange={(e) => setName(e.target.value)}
+        value={designation}
+        onChange={(e) => setDesignation(e.target.value)}
+        placeholder="e.g. Senior Developer"
         className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
       />
 
-      <label className="block text-xs font-medium text-ink-700 mb-1.5">
-        Email
-      </label>
-      <input
-        type="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        className="w-full px-3 py-2 mb-6 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
-      />
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Phone
+          </label>
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="+91 …"
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Location
+          </label>
+          <input
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            placeholder="City"
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Hourly rate (₹)
+            <span className="text-ink-400 font-normal"> — admin only</span>
+          </label>
+          <input
+            type="number"
+            value={hourlyRate}
+            onChange={(e) => setHourlyRate(e.target.value)}
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Capacity (hrs/week)
+          </label>
+          <input
+            type="number"
+            value={capacityPerWeek}
+            onChange={(e) => setCapacityPerWeek(e.target.value)}
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          />
+        </div>
+      </div>
 
       <div className="flex justify-end gap-2">
         <button onClick={onClose} className="btn-ghost">
@@ -530,9 +611,14 @@ function EditUserModal({
             onSave({
               name: name.trim() || account.name,
               email: email.trim() || account.email,
+              designation: designation.trim(),
+              phone: phone.trim(),
+              location: location.trim(),
+              hourlyRate: Number(hourlyRate) || 0,
+              capacityPerWeek: Number(capacityPerWeek) || 40,
             })
           }
-          disabled={!dirty || !name.trim() || !email.trim()}
+          disabled={!name.trim() || !email.trim()}
           className="btn-primary"
         >
           Save changes

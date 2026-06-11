@@ -57,6 +57,16 @@ type Ctx = {
     }>,
   ) => Promise<void>;
   deleteProject: (id: number) => Promise<{ ok: boolean; error?: string }>;
+  toggleProjectMember: (id: number, name: string) => Promise<void>;
+  updateClient: (
+    id: number,
+    patch: Partial<{
+      name: string;
+      industry: string;
+      primaryContact: string;
+      email: string;
+    }>,
+  ) => Promise<void>;
   createClient: (
     input: CreateClientInput,
   ) => Promise<{ ok: true; client: Client } | { ok: false; error: string }>;
@@ -164,6 +174,52 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     return { ok: true };
   }, []);
 
+  const toggleProjectMember = useCallback(
+    async (id: number, name: string) => {
+      const res = await fetch(`/api/projects/${id}/members`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, action: "toggle" }),
+      });
+      if (!res.ok) return;
+      const body = await res.json().catch(() => ({}));
+      if (Array.isArray(body.teamMembers)) {
+        setProjects((prev) =>
+          prev.map((p) =>
+            p.id === id ? { ...p, teamMembers: body.teamMembers } : p,
+          ),
+        );
+      }
+    },
+    [],
+  );
+
+  const updateClient = useCallback(
+    async (
+      id: number,
+      patch: Partial<{
+        name: string;
+        industry: string;
+        primaryContact: string;
+        email: string;
+      }>,
+    ) => {
+      const res = await fetch(`/api/clients/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) return;
+      const body = await res.json().catch(() => ({}));
+      if (body.client) {
+        setClients((prev) =>
+          prev.map((c) => (c.id === id ? (body.client as Client) : c)),
+        );
+      }
+    },
+    [],
+  );
+
   const deleteClient = useCallback(async (id: number) => {
     const res = await fetch(`/api/clients/${id}`, { method: "DELETE" });
     if (!res.ok) {
@@ -218,7 +274,9 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
         createProject,
         updateProject,
         deleteProject,
+        toggleProjectMember,
         createClient,
+        updateClient,
         deleteClient,
       }}
     >

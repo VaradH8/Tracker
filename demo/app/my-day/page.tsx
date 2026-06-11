@@ -421,12 +421,36 @@ function BulkTaskSection({
 /* Developer — a personal day: my tasks, sorted by urgency.           */
 /* ------------------------------------------------------------------ */
 
+function prettyAuditAction(action: string): string {
+  switch (action) {
+    case "task.status_change":
+      return "moved";
+    case "task.mark_important":
+      return "marked Important on";
+    case "task.reassign":
+      return "reassigned";
+    case "task.responsible_change":
+      return "changed who's responsible on";
+    case "task.create":
+      return "created";
+    case "task.approve":
+      return "approved";
+    default:
+      return action;
+  }
+}
+
 function DeveloperMyDay() {
-  const { tasks } = useTasks();
+  const { tasks, auditLog } = useTasks();
   const me = useMyFirstName();
   const myTasks = tasks.filter(
     (t) => t.assignees.includes(me) && t.status !== "Done",
   );
+  // Recent activity that mentions tasks the developer is on.
+  const myTaskTitles = new Set(tasks.filter((t) => t.assignees.includes(me)).map((t) => t.title));
+  const myActivity = auditLog
+    .filter((a) => a.taskTitle && myTaskTitles.has(a.taskTitle))
+    .slice(0, 6);
   const dueToday = myTasks.filter((t) => isDueToday(t.targetDate));
   const overdue = myTasks.filter((t) => isOverdue(t.targetDate));
   const importantMine = myTasks.filter((t) => t.important);
@@ -515,33 +539,38 @@ function DeveloperMyDay() {
               <h2 className="font-heading text-lg font-semibold mb-3">
                 Recent updates
               </h2>
-              <ul className="space-y-3 text-sm">
-                <li className="flex gap-3">
-                  <div className="w-7 h-7 rounded-full bg-brand-blue text-white grid place-items-center text-[10px] font-heading font-medium shrink-0">
-                    M
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-ink-700">
-                      <span className="font-medium text-ink-900">Manasi</span>{" "}
-                      assigned you to{" "}
-                      <span className="text-ink-900">Bulk select bug</span>
-                    </p>
-                    <span className="text-xs text-ink-400">10m ago</span>
-                  </div>
-                </li>
-                <li className="flex gap-3">
-                  <div className="w-7 h-7 rounded-full bg-brand-yellow text-white grid place-items-center text-[10px] font-heading font-medium shrink-0">
-                    M
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-ink-700">
-                      <span className="font-medium text-ink-900">Manasi</span>{" "}
-                      marked your task Important
-                    </p>
-                    <span className="text-xs text-ink-400">2h ago</span>
-                  </div>
-                </li>
-              </ul>
+              {myActivity.length === 0 ? (
+                <p className="text-sm text-ink-500 italic">
+                  Nothing's changed on your tasks recently.
+                </p>
+              ) : (
+                <ul className="space-y-3 text-sm">
+                  {myActivity.map((a) => (
+                    <li key={a.id} className="flex gap-3">
+                      <div className="w-7 h-7 rounded-full bg-ink-100 grid place-items-center text-[10px] font-heading font-medium text-ink-700 shrink-0">
+                        {a.actor[0]}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-ink-700">
+                          <span className="font-medium text-ink-900">
+                            {a.actor}
+                          </span>{" "}
+                          {prettyAuditAction(a.action)}
+                          {a.taskTitle && (
+                            <>
+                              {" "}
+                              <span className="text-ink-900">
+                                {a.taskTitle}
+                              </span>
+                            </>
+                          )}
+                        </p>
+                        <span className="text-xs text-ink-400">{a.when}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
 
             <div className="card p-5">
