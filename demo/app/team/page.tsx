@@ -10,32 +10,32 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { useTasks } from "@/lib/tasks-store";
-import { useMyFirstName } from "@/lib/account-store";
-import {
-  RESOURCES,
-  firstNameOf,
-  daysSince,
-  performancePill,
-  type Task,
-} from "@/lib/mock";
+import { useAccounts, useMyFirstName } from "@/lib/account-store";
+import { firstNameOf, type Task } from "@/lib/mock";
+import { ROLE_LABELS } from "@/lib/role";
 import { useProjects } from "@/lib/projects-store";
 
 export default function TeamPage() {
   const me = useMyFirstName();
   const { tasks } = useTasks();
   const { projects } = useProjects();
+  const { accounts } = useAccounts();
 
   const myProjects = projects.filter((p) => p.coordinator === me);
   const myProjectIds = new Set(myProjects.map((p) => p.id));
   const teamTasks = tasks.filter((t) => myProjectIds.has(t.projectId));
 
-  const teamPeople = Array.from(
-    new Set(teamTasks.flatMap((t) => t.assignees).filter((n) => n !== me)),
-  )
-    .map((firstName) =>
-      RESOURCES.find((r) => firstNameOf(r.name) === firstName),
-    )
-    .filter((r): r is NonNullable<typeof r> => r !== undefined);
+  // Anyone on the project team OR who has a task assigned counts as "my
+  // team", minus the coordinator themselves.
+  const teamFirstNames = new Set(
+    [
+      ...myProjects.flatMap((p) => p.teamMembers),
+      ...teamTasks.flatMap((t) => t.assignees),
+    ].filter((n) => n !== me),
+  );
+  const teamPeople = accounts.filter(
+    (a) => a.active && teamFirstNames.has(firstNameOf(a.name)),
+  );
 
   function tasksFor(person: string): Task[] {
     return teamTasks.filter(
@@ -108,8 +108,6 @@ export default function TeamPage() {
               const person = firstNameOf(r.name);
               const open = tasksFor(person);
               const overdue = overdueFor(person);
-              const perf = performancePill(r.performance);
-              const idle = daysSince(r.lastStatusChange);
               return (
                 <div key={r.id} className="card p-5">
                   <div className="flex items-start gap-3 mb-4">
@@ -121,23 +119,21 @@ export default function TeamPage() {
                         .join("")}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-heading font-semibold text-base">
-                          {r.name}
-                        </h3>
-                        <span className={perf.cls}>● {r.performance}</span>
-                      </div>
-                      <p className="text-xs text-ink-500">{r.designation}</p>
+                      <h3 className="font-heading font-semibold text-base">
+                        {r.name}
+                      </h3>
+                      <p className="text-xs text-ink-500">
+                        {ROLE_LABELS[r.role]} · {r.email}
+                      </p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-3 mb-3 text-center">
+                  <div className="grid grid-cols-2 gap-3 mb-3 text-center">
                     <Stat label="Open" value={open.length} />
                     <Stat
                       label="Overdue"
                       value={overdue}
                       tone={overdue > 0 ? "red" : "default"}
                     />
-                    <Stat label="Last edit" value={`${idle}d`} />
                   </div>
                   {open.length > 0 ? (
                     <ul className="space-y-1.5 mb-3">

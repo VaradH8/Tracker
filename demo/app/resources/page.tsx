@@ -17,16 +17,78 @@ import {
 import { AppShell } from "@/components/AppShell";
 import { EmptyState } from "@/components/EmptyState";
 import {
-  RESOURCES,
   performancePill,
   loggedHours,
   formatINR,
   firstNameOf,
   type Resource,
   type PerformanceFlag,
+  type TimeEntry,
 } from "@/lib/mock";
 import { useTasks } from "@/lib/tasks-store";
-import { useRole } from "@/lib/role";
+import { useRole, ROLE_LABELS, type Role } from "@/lib/role";
+import { useAccounts, type Account } from "@/lib/account-store";
+
+/**
+ * Derive a Resource-shaped record from a real Account + live task/time
+ * data. Fields the AddUser flow doesn't yet capture (designation, phone,
+ * location, hourly rate, performance flags) come back as sensible
+ * defaults so the cards still render — admins can fill them in later
+ * via Users / Profile.
+ */
+function deriveResource(
+  a: Account,
+  tasks: { assignees: string[]; status: string; overdueDays?: number }[],
+  timeEntries: TimeEntry[],
+): Resource {
+  const first = firstNameOf(a.name);
+  const myEntries = timeEntries.filter((e) => e.person === first);
+  const today = new Date();
+  const daysAgo = (iso: string) =>
+    Math.round(
+      (today.getTime() - new Date(iso + "T00:00:00").getTime()) /
+        (1000 * 60 * 60 * 24),
+    );
+  const hoursLast7 = myEntries
+    .filter((e) => daysAgo(e.date) < 7)
+    .reduce((s, e) => s + e.hours, 0);
+  const hoursLast30 = myEntries
+    .filter((e) => daysAgo(e.date) < 30)
+    .reduce((s, e) => s + e.hours, 0);
+  const myTasks = tasks.filter((t) => t.assignees.includes(first));
+  const tasksOpen = myTasks.filter((t) => t.status !== "Done").length;
+  const tasksOverdue = myTasks.filter(
+    (t) => !!t.overdueDays && t.status !== "Done",
+  ).length;
+  const tasksDone30 = myTasks.filter((t) => t.status === "Done").length;
+
+  return {
+    // Resource.id is a number in the type; we cast the cuid through — it's
+    // only used as a React key + lookup, never arithmetic.
+    id: a.id as unknown as number,
+    name: a.name,
+    email: a.email,
+    phone: "",
+    location: "",
+    joined: a.createdAt ?? "",
+    designation: ROLE_LABELS[a.role],
+    primaryRole: a.role,
+    isAdmin: !!a.isAdmin,
+    status: a.active ? "Active" : "Deactivated",
+    lastLogin: a.lastLogin ?? "never",
+    hoursLast7,
+    hoursLast30,
+    capacityPerWeek: 40,
+    tasksDone30,
+    tasksOpen,
+    tasksOverdue,
+    estimateAccuracy: 100,
+    lastStatusChange: "—",
+    performance: "On track",
+    flags: [],
+    hourlyRate: 0,
+  };
+}
 
 const FILTERS: PerformanceFlag[] = ["On track", "Watch", "Idle"];
 
@@ -36,7 +98,8 @@ export default function ResourcesPage() {
   const [active, setActive] = useState<ActiveFilter>(null);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Resource | null>(null);
-  const { tasks } = useTasks();
+  const { tasks, timeEntries } = useTasks();
+  const { accounts } = useAccounts();
 
   // Honour deep-links like /resources?filter=flagged from the dashboard.
   useEffect(() => {
@@ -47,7 +110,14 @@ export default function ResourcesPage() {
     else if (f === "ontrack") setActive("On track");
   }, []);
 
-  const visible = RESOURCES.filter((r) => r.status === "Active")
+  // Build the resource list from the real accounts table, augmenting
+  // each with computed task / time-log stats.
+  const resources: Resource[] = accounts.map((a) =>
+    deriveResource(a, tasks, timeEntries),
+  );
+
+  const visible = resources
+    .filter((r) => r.status === "Active")
     .filter((r) => {
       if (!active) return true;
       if (active === "Flagged") return r.performance !== "On track";
@@ -63,7 +133,7 @@ export default function ResourcesPage() {
       );
     });
 
-  const activeResources = RESOURCES.filter((r) => r.status === "Active");
+  const activeResources = resources.filter((r) => r.status === "Active");
   const stats = {
     total: activeResources.length,
     onTrack: activeResources.filter((r) => r.performance === "On track")
