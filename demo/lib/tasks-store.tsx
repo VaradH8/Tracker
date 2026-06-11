@@ -63,8 +63,11 @@ type Ctx = {
   approveTask: (id: number, approver: string) => Promise<void>;
   unapproveTask: (id: number) => Promise<void>;
   addTask: (input: AddTaskInput) => Promise<void>;
+  deleteTask: (id: number) => Promise<{ ok: boolean; error?: string }>;
   addRemark: (taskId: number, author: string, body: string) => Promise<void>;
+  deleteRemark: (taskId: number, remarkId: number) => Promise<void>;
   logTime: (input: LogTimeInput) => Promise<void>;
+  deleteTimeEntry: (entryId: number) => Promise<void>;
   bulkReassign: (ids: number[], name: string) => Promise<void>;
   bulkSetTargetDate: (ids: number[], date: string) => Promise<void>;
 };
@@ -291,6 +294,62 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     if (body.task) applyUpdatedTask(body.task as Task);
   }, []);
 
+  const deleteTask = useCallback(async (id: number) => {
+    const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      return { ok: false, error: body.error ?? "Couldn't delete task." };
+    }
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+    setTimeEntries((prev) => prev.filter((e) => e.taskId !== id));
+    return { ok: true };
+  }, []);
+
+  const deleteRemark = useCallback(
+    async (taskId: number, remarkId: number) => {
+      const res = await fetch(
+        `/api/tasks/${taskId}/remarks/${remarkId}`,
+        { method: "DELETE" },
+      );
+      if (!res.ok) return;
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === taskId
+            ? {
+                ...t,
+                remarks: (t.remarks ?? []).filter((r) => r.id !== remarkId),
+              }
+            : t,
+        ),
+      );
+    },
+    [],
+  );
+
+  const deleteTimeEntry = useCallback(async (entryId: number) => {
+    const entry = timeEntries.find((e) => e.id === entryId);
+    const res = await fetch(`/api/time-entries/${entryId}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) return;
+    setTimeEntries((prev) => prev.filter((e) => e.id !== entryId));
+    if (entry) {
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === entry.taskId
+            ? {
+                ...t,
+                actualHours: Math.max(
+                  0,
+                  (t.actualHours ?? 0) - entry.hours,
+                ),
+              }
+            : t,
+        ),
+      );
+    }
+  }, [timeEntries]);
+
   const addTask = useCallback(async (input: AddTaskInput) => {
     const res = await fetch("/api/tasks", {
       method: "POST",
@@ -384,8 +443,11 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         approveTask,
         unapproveTask,
         addTask,
+        deleteTask,
         addRemark,
+        deleteRemark,
         logTime,
+        deleteTimeEntry,
         bulkReassign,
         bulkSetTargetDate,
       }}

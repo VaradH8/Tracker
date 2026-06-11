@@ -206,6 +206,25 @@ export function TaskDrawer({
               onChange={() => store.toggleImportant(task.id)}
               readOnly={!canEdit}
             />
+            {canEdit && (
+              <button
+                onClick={async () => {
+                  if (
+                    !confirm(
+                      `Delete "${task.title}"? Remarks, time logs, attachments, and dependencies on this task go with it. There's no undo.`,
+                    )
+                  )
+                    return;
+                  const r = await store.deleteTask(task.id);
+                  if (r.ok) onClose();
+                }}
+                className="p-1.5 rounded text-ink-400 hover:text-brand-redText hover:bg-brand-redBg"
+                aria-label="Delete task"
+                title="Delete task"
+              >
+                <Trash2 size={16} />
+              </button>
+            )}
             <button
               onClick={onClose}
               className="p-1.5 rounded hover:bg-ink-100"
@@ -666,23 +685,39 @@ export function TaskDrawer({
             )}
 
             <ul className="space-y-1.5 mb-1">
-              {entries.map((e) => (
-                <li
-                  key={e.id}
-                  className="flex items-center gap-2 text-sm py-1"
-                >
-                  <span className="w-12 shrink-0 font-heading font-medium text-ink-900">
-                    {e.hours}h
-                  </span>
-                  <span className="text-ink-700">{e.person}</span>
-                  {e.note && (
-                    <span className="text-ink-400 truncate">· {e.note}</span>
-                  )}
-                  <span className="ml-auto text-xs text-ink-400 shrink-0">
-                    {e.date}
-                  </span>
-                </li>
-              ))}
+              {entries.map((e) => {
+                const canDeleteEntry = canEdit || e.person === me;
+                return (
+                  <li
+                    key={e.id}
+                    className="flex items-center gap-2 text-sm py-1 group"
+                  >
+                    <span className="w-12 shrink-0 font-heading font-medium text-ink-900">
+                      {e.hours}h
+                    </span>
+                    <span className="text-ink-700">{e.person}</span>
+                    {e.note && (
+                      <span className="text-ink-400 truncate">· {e.note}</span>
+                    )}
+                    <span className="ml-auto text-xs text-ink-400 shrink-0">
+                      {e.date}
+                    </span>
+                    {canDeleteEntry && (
+                      <button
+                        onClick={() => {
+                          if (confirm(`Remove ${e.hours}h logged on ${e.date}?`)) {
+                            void store.deleteTimeEntry(e.id);
+                          }
+                        }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 -m-1 text-ink-400 hover:text-brand-redText"
+                        aria-label="Delete time entry"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
               {entries.length === 0 && (
                 <li className="text-xs text-ink-400 italic">
                   No time logged yet.
@@ -701,8 +736,9 @@ export function TaskDrawer({
             <ul className="space-y-3 mb-3">
               {(task.remarks ?? []).map((r) => {
                 const idx = (task.remarks ?? []).indexOf(r);
+                const canDeleteRemark = canEdit || r.author === me;
                 return (
-                  <li key={r.id} className="flex gap-2.5 text-sm">
+                  <li key={r.id} className="flex gap-2.5 text-sm group">
                     <div
                       className={`w-7 h-7 rounded-full text-white grid place-items-center text-[10px] font-heading font-medium shrink-0 ${AVATAR_COLORS[idx % AVATAR_COLORS.length]}`}
                     >
@@ -714,6 +750,19 @@ export function TaskDrawer({
                           {r.author}
                         </span>
                         <span className="text-xs text-ink-400">{r.when}</span>
+                        {canDeleteRemark && (
+                          <button
+                            onClick={() => {
+                              if (confirm("Delete this remark?")) {
+                                void store.deleteRemark(task.id, r.id);
+                              }
+                            }}
+                            className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity p-1 -m-1 text-ink-400 hover:text-brand-redText"
+                            aria-label="Delete remark"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
                       </div>
                       <p className="text-ink-700">{r.body}</p>
                     </div>

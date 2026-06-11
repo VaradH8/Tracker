@@ -60,6 +60,7 @@ type Ctx = {
   createClient: (
     input: CreateClientInput,
   ) => Promise<{ ok: true; client: Client } | { ok: false; error: string }>;
+  deleteClient: (id: number) => Promise<{ ok: boolean; error?: string }>;
 };
 
 const ProjectsCtx = createContext<Ctx | null>(null);
@@ -163,6 +164,16 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     return { ok: true };
   }, []);
 
+  const deleteClient = useCallback(async (id: number) => {
+    const res = await fetch(`/api/clients/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      return { ok: false, error: body.error ?? "Couldn't delete client." };
+    }
+    setClients((prev) => prev.filter((c) => c.id !== id));
+    return { ok: true };
+  }, []);
+
   const createClient = useCallback(
     async (input: CreateClientInput) => {
       const res = await fetch("/api/clients", {
@@ -208,6 +219,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
         updateProject,
         deleteProject,
         createClient,
+        deleteClient,
       }}
     >
       {children}

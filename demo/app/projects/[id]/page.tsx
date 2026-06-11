@@ -13,6 +13,7 @@ import {
   Plus,
   Download,
   History,
+  Trash2,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { TaskCard } from "@/components/TaskCard";
@@ -57,7 +58,12 @@ export default function ProjectDetailPage({
 }) {
   const { id } = use(params);
   const projectId = Number(id);
-  const { projects, clients, hydrated: projectsHydrated } = useProjects();
+  const {
+    projects,
+    clients,
+    hydrated: projectsHydrated,
+    deleteProject,
+  } = useProjects();
   const project = projects.find((p) => p.id === projectId);
   if (projectsHydrated && !project) notFound();
 
@@ -183,6 +189,32 @@ export default function ProjectDetailPage({
                 className="btn-primary"
               >
                 <Plus size={16} className="mr-1.5" /> New task
+              </button>
+            )}
+            {isAdmin && (
+              <button
+                onClick={async () => {
+                  if (
+                    !confirm(
+                      `Delete "${project.name}"? Every task, remark, time log, attachment, and audit entry on this project goes with it. There's no undo.`,
+                    )
+                  )
+                    return;
+                  const r = await deleteProject(project.id);
+                  if (!r.ok) {
+                    toast.show(
+                      r.error ?? "Couldn't delete project.",
+                      "error",
+                    );
+                    return;
+                  }
+                  toast.show(`Project "${project.name}" deleted.`, "info");
+                  router.push("/projects");
+                }}
+                className="btn-ghost border border-ink-200 text-brand-redText hover:bg-brand-redBg"
+                title="Delete project"
+              >
+                <Trash2 size={16} className="mr-1.5" /> Delete
               </button>
             )}
           </div>

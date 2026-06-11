@@ -2,7 +2,7 @@
 
 import { use } from "react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
@@ -13,11 +13,14 @@ import {
   Clock,
   FolderKanban,
   CheckCircle2,
+  Trash2,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { projectStatusPill } from "@/lib/mock";
 import { useTasks } from "@/lib/tasks-store";
 import { useProjects } from "@/lib/projects-store";
+import { useToast } from "@/components/Toast";
+import { useRole } from "@/lib/role";
 
 export default function ClientDetailPage({
   params,
@@ -25,7 +28,15 @@ export default function ClientDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const { clients, projects: allProjects, hydrated } = useProjects();
+  const router = useRouter();
+  const toast = useToast();
+  const [role] = useRole();
+  const {
+    clients,
+    projects: allProjects,
+    hydrated,
+    deleteClient,
+  } = useProjects();
   const client = clients.find((c) => c.id === Number(id));
   if (hydrated && !client) notFound();
 
@@ -60,12 +71,35 @@ export default function ClientDetailPage({
           <div className="w-14 h-14 rounded-card bg-brand-blueBg text-brand-blue grid place-items-center shrink-0">
             <Building2 size={26} />
           </div>
-          <div>
+          <div className="flex-1">
             <h1 className="font-heading text-3xl font-semibold">
               {client.name}
             </h1>
             <p className="text-sm text-ink-500 mt-1">{client.industry}</p>
           </div>
+          {role === "Admin" && (
+            <button
+              onClick={async () => {
+                if (
+                  !confirm(
+                    `Delete "${client.name}"? This client must have no projects attached.`,
+                  )
+                )
+                  return;
+                const r = await deleteClient(client.id);
+                if (!r.ok) {
+                  toast.show(r.error ?? "Couldn't delete client.", "error");
+                  return;
+                }
+                toast.show(`Client "${client.name}" deleted.`, "info");
+                router.push("/clients");
+              }}
+              className="btn-ghost border border-ink-200 text-brand-redText hover:bg-brand-redBg"
+              title="Delete client"
+            >
+              <Trash2 size={16} className="mr-1.5" /> Delete
+            </button>
+          )}
         </div>
 
         <div className="grid md:grid-cols-4 gap-4 mb-6">

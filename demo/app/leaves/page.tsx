@@ -93,7 +93,13 @@ export default function LeavesPage() {
             ) : (
               <ul className="space-y-2">
                 {myLeaves.map((l) => (
-                  <LeaveRow key={l.id} l={l} hideName />
+                  <LeaveRow
+                    key={l.id}
+                    l={l}
+                    hideName
+                    canDelete
+                    onDelete={refresh}
+                  />
                 ))}
               </ul>
             )}
@@ -193,7 +199,12 @@ function FullLeavesView({
             ) : (
               <ul className="space-y-2">
                 {upcoming.map((l) => (
-                  <LeaveRow key={l.id} l={l} />
+                  <LeaveRow
+                    key={l.id}
+                    l={l}
+                    canDelete
+                    onDelete={onChanged}
+                  />
                 ))}
               </ul>
             )}
@@ -218,7 +229,9 @@ function FullLeavesView({
                     key={l.id}
                     l={l}
                     showActions
+                    canDelete
                     onApprove={onChanged}
+                    onDelete={onChanged}
                   />
                 ))}
               </ul>
@@ -285,12 +298,16 @@ function LeaveRow({
   l,
   showActions,
   hideName,
+  canDelete,
   onApprove,
+  onDelete,
 }: {
   l: LeaveEntry;
   showActions?: boolean;
   hideName?: boolean;
+  canDelete?: boolean;
   onApprove?: () => Promise<void> | void;
+  onDelete?: () => Promise<void> | void;
 }) {
   const toast = useToast();
 
@@ -306,6 +323,24 @@ function LeaveRow({
     }
     toast.show(`${l.resourceName}'s ${l.type} leave approved.`);
     if (onApprove) await onApprove();
+  }
+
+  async function remove() {
+    if (
+      !confirm(
+        l.approved
+          ? `Delete this ${l.type} leave entry?`
+          : `Cancel this ${l.type} leave request?`,
+      )
+    )
+      return;
+    const res = await fetch(`/api/leaves/${l.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      toast.show("Couldn't delete.", "error");
+      return;
+    }
+    toast.show("Leave entry removed.", "info");
+    if (onDelete) await onDelete();
   }
 
   return (
@@ -335,6 +370,16 @@ function LeaveRow({
         <span className="pill-green text-[10px] py-0">Approved</span>
       ) : (
         <span className="pill-yellow text-[10px] py-0">Pending</span>
+      )}
+      {canDelete && (
+        <button
+          onClick={remove}
+          className="p-1 -m-1 rounded text-ink-400 hover:text-brand-redText hover:bg-brand-redBg"
+          title="Delete leave"
+          aria-label="Delete leave"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="m19 6-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+        </button>
       )}
       {showActions && (
         <button

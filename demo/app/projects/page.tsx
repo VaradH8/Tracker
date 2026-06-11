@@ -9,6 +9,7 @@ import {
   Clock,
   Calendar,
   FolderKanban,
+  X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
@@ -429,13 +430,36 @@ function PipelineBoard({ role }: { role: Role }) {
                       setDraggedId(null);
                       setDragOver(null);
                     }}
-                    className={`card p-3 ${
+                    className={`card p-3 group ${
                       canManage ? "cursor-grab active:cursor-grabbing" : ""
                     } ${draggedId === d.id ? "opacity-50" : ""}`}
                   >
-                    <h3 className="text-sm font-medium text-ink-900 leading-snug mb-1">
-                      {d.name}
-                    </h3>
+                    <div className="flex items-start gap-1 mb-1">
+                      <h3 className="text-sm font-medium text-ink-900 leading-snug flex-1">
+                        {d.name}
+                      </h3>
+                      {canManage && (
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (!confirm(`Drop deal "${d.name}"?`)) return;
+                            const res = await fetch(`/api/pipeline/${d.id}`, {
+                              method: "DELETE",
+                            });
+                            if (res.ok) {
+                              setDeals((prev) =>
+                                prev.filter((x) => x.id !== d.id),
+                              );
+                              toast.show(`Deal "${d.name}" deleted.`, "info");
+                            }
+                          }}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-ink-400 hover:text-brand-redText shrink-0"
+                          aria-label="Delete deal"
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                    </div>
                     <p className="text-xs text-ink-500 mb-2">{d.client}</p>
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-heading font-semibold text-ink-900">
