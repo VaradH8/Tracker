@@ -351,14 +351,56 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   }, [timeEntries]);
 
   const addTask = useCallback(async (input: AddTaskInput) => {
-    const res = await fetch("/api/tasks", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-    });
-    if (!res.ok) return;
-    const body = await res.json().catch(() => ({}));
-    if (body.task) setTasks((prev) => [body.task as Task, ...prev]);
+    // Optimistic insert — the UI gets the new card the instant the user
+    // clicks Create. The real id arrives a moment later when the server
+    // responds; if it fails, we roll the optimistic row back out.
+    const tempId = -Date.now();
+    const today = new Date();
+    const defaultTarget = new Date(
+      today.getTime() + 7 * 24 * 60 * 60 * 1000,
+    )
+      .toISOString()
+      .slice(0, 10);
+    const optimistic: Task = {
+      id: tempId,
+      title: input.title,
+      description: input.description,
+      projectId: input.projectId,
+      priority: input.priority ?? "Medium",
+      status: input.status,
+      responsible: input.responsible ?? "",
+      assignees: input.assignees ?? [],
+      targetDate: input.targetDate ?? defaultTarget,
+      estimatedHours: input.estimatedHours ?? null,
+      important: false,
+    };
+    setTasks((prev) => [optimistic, ...prev]);
+
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        // Roll back and surface the error to the caller via console
+        setTasks((prev) => prev.filter((t) => t.id !== tempId));
+        console.error("addTask failed:", body.error ?? res.statusText);
+        return;
+      }
+      const body = await res.json().catch(() => ({}));
+      if (body.task) {
+        setTasks((prev) =>
+          prev.map((t) => (t.id === tempId ? (body.task as Task) : t)),
+        );
+      } else {
+        setTasks((prev) => prev.filter((t) => t.id !== tempId));
+      }
+    } catch (e) {
+      setTasks((prev) => prev.filter((t) => t.id !== tempId));
+      console.error("addTask network error:", e);
+    }
   }, []);
 
   const addRemark = useCallback(
