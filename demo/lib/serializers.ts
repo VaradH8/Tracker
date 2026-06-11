@@ -181,8 +181,10 @@ type PrismaTimeEntry = {
   userId: string;
   user?: { name: string } | null;
   date: Date;
-  hours: number;
+  hours: number | null;
   note: string | null;
+  startedAt?: Date | null;
+  endedAt?: Date | null;
 };
 
 export function serializeTimeEntry(t: PrismaTimeEntry): TimeEntry {
@@ -191,7 +193,7 @@ export function serializeTimeEntry(t: PrismaTimeEntry): TimeEntry {
     taskId: t.taskId,
     person: t.user?.name.split(" ")[0] ?? "—",
     date: t.date.toISOString().slice(0, 10),
-    hours: t.hours,
+    hours: t.hours ?? 0,
     note: t.note ?? undefined,
   };
 }

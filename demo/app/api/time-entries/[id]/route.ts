@@ -28,12 +28,13 @@ export async function DELETE(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  const rollback = entry.hours ?? 0;
   await prisma.$transaction([
     prisma.timeEntry.delete({ where: { id } }),
     prisma.task.update({
       where: { id: entry.taskId },
       data: {
-        actualHours: Math.max(0, (entry.task.actualHours ?? 0) - entry.hours),
+        actualHours: Math.max(0, (entry.task.actualHours ?? 0) - rollback),
       },
     }),
   ]);

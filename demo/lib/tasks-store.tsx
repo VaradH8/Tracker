@@ -37,11 +37,21 @@ type LogTimeInput = {
   note?: string;
 };
 
+export type ActiveTimer = {
+  entryId: number;
+  taskId: number;
+  startedAt: string; // ISO
+};
+
 type Ctx = {
   tasks: Task[];
   timeEntries: TimeEntry[];
   auditLog: AuditEntry[];
   hydrated: boolean;
+  activeTimer: ActiveTimer | null;
+  startTimer: (taskId: number) => Promise<void>;
+  stopTimer: (taskId: number) => Promise<void>;
+  doneTimer: (taskId: number) => Promise<void>;
   refresh: () => Promise<void>;
   byId: (id: number) => Task | undefined;
   forProject: (projectId: number) => Task[];
@@ -78,14 +88,16 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
+  const [activeTimer, setActiveTimer] = useState<ActiveTimer | null>(null);
   const [hydrated, setHydrated] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
-      const [tRes, eRes, aRes] = await Promise.all([
+      const [tRes, eRes, aRes, timerRes] = await Promise.all([
         fetch("/api/tasks", { cache: "no-store" }),
         fetch("/api/time-entries", { cache: "no-store" }),
         fetch("/api/audit", { cache: "no-store" }),
+        fetch("/api/timer/active", { cache: "no-store" }),
       ]);
       if (tRes.ok) {
         const b = (await tRes.json()) as { tasks: Task[] };
@@ -99,6 +111,10 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         const b = (await aRes.json()) as { entries: AuditEntry[] };
         setAuditLog(b.entries ?? []);
       } else setAuditLog([]);
+      if (timerRes.ok) {
+        const b = (await timerRes.json()) as { active: ActiveTimer | null };
+        setActiveTimer(b.active);
+      } else setActiveTimer(null);
     } catch {
       /* ignore */
     }
@@ -449,6 +465,55 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  async function callTimer(
+    taskId: number,
+    action: "start" | "stop" | "done",
+  ) {
+    const res = await fetch(`/api/tasks/${taskId}/timer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    if (!res.ok) return;
+    const body = await res.json().catch(() => ({}));
+    if (body.task) applyUpdatedTask(body.task as Task);
+    // Refresh local active-timer state from the response (start) or
+    // by re-fetching after a stop/done.
+    if (action === "start" && body.activeStartedAt) {
+      setActiveTimer({
+        entryId: (body.entry as { id: number }).id,
+        taskId,
+        startedAt: body.activeStartedAt as string,
+      });
+    } else {
+      const t = await fetch("/api/timer/active", { cache: "no-store" });
+      if (t.ok) {
+        const b = (await t.json()) as { active: ActiveTimer | null };
+        setActiveTimer(b.active);
+      }
+    }
+    // Refresh time-entries list so the new closed interval shows up
+    // and actualHours reflects the latest.
+    const eRes = await fetch("/api/time-entries", { cache: "no-store" });
+    if (eRes.ok) {
+      const b = (await eRes.json()) as { entries: TimeEntry[] };
+      setTimeEntries(b.entries ?? []);
+    }
+  }
+
+  const startTimer = useCallback(
+    (taskId: number) => callTimer(taskId, "start"),
+    [],
+  );
+  const stopTimer = useCallback(
+    (taskId: number) => callTimer(taskId, "stop"),
+    [],
+  );
+  const doneTimer = useCallback(
+    (taskId: number) => callTimer(taskId, "done"),
+    [],
+  );
+
   const bulkReassign = useCallback(
     async (ids: number[], name: string) => {
       for (const id of ids) await setAssignees(id, [name]);
@@ -467,6 +532,10 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         timeEntries,
         auditLog,
         hydrated,
+        activeTimer,
+        startTimer,
+        stopTimer,
+        doneTimer,
         refresh,
         byId,
         forProject,

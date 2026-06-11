@@ -181,19 +181,28 @@ model TaskAttachment {
   createdAt     DateTime @default(now())
 }
 
+/// Time spent on a task. Two shapes:
+///   - Timer entry: startedAt set, endedAt null while running. When the
+///     user clicks Stop / Done we set endedAt + compute hours.
+///   - Manual entry (legacy/admin correction): hours set directly,
+///     startedAt/endedAt null.
+/// `hours` is the canonical "billable time" once finalised.
 model TimeEntry {
-  id        Int      @id @default(autoincrement())
+  id        Int       @id @default(autoincrement())
   taskId    Int
-  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  task      Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   date      DateTime
-  hours     Float
+  hours     Float?
   note      String?
-  createdAt DateTime @default(now())
+  startedAt DateTime?
+  endedAt   DateTime?
+  createdAt DateTime  @default(now())
 
   @@index([taskId])
   @@index([userId, date])
+  @@index([userId, endedAt])
 }
 
 model Remark {

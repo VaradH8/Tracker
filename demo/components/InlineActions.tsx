@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Play,
   Check,
@@ -10,6 +10,8 @@ import {
   Users,
   Star,
   Clock,
+  Square,
+  CheckCircle2,
 } from "lucide-react";
 import { Popover } from "./Popover";
 import {
@@ -490,9 +492,135 @@ export function QuickActions({
 }
 
 /**
- * Compact time-log control for a task card. Shows hours logged so far and,
- * for the people allowed to log (assignees + coordinators/admin), opens a
- * quick "+Nh today" popover. Read-only viewers see just the running total.
+ * Live elapsed-time display for a running timer. Updates every second.
+ */
+function ElapsedTimer({ startedAt }: { startedAt: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const ms = Math.max(0, now - new Date(startedAt).getTime());
+  const total = Math.floor(ms / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const display =
+    h > 0
+      ? `${h}h ${String(m).padStart(2, "0")}m`
+      : m > 0
+        ? `${m}m ${String(s).padStart(2, "0")}s`
+        : `${s}s`;
+  return <span className="font-mono">{display}</span>;
+}
+
+/**
+ * Start / Stop / Done controls for a task. Replaces the old manual
+ * "+2h today" log popover — users now click Start to begin timing,
+ * Stop to pause (resume by clicking Start again, even days later),
+ * and Done to finish the task (stops the timer + marks status Done).
+ */
+export function TimerControls({
+  task,
+  canRun,
+  loggedHours,
+  active,
+  onStart,
+  onStop,
+  onDone,
+  size = "sm",
+}: {
+  task: Task;
+  canRun: boolean;
+  loggedHours: number;
+  active: { taskId: number; startedAt: string } | null;
+  onStart: () => void;
+  onStop: () => void;
+  onDone: () => void;
+  size?: "sm" | "md";
+}) {
+  const running = active?.taskId === task.id;
+  const elseTimed = !!active && active.taskId !== task.id;
+  const isDone = task.status === "Done";
+
+  if (!canRun) {
+    return loggedHours > 0 ? (
+      <span className="inline-flex items-center gap-1 text-xs text-ink-500">
+        <Clock size={11} /> {loggedHours}h
+      </span>
+    ) : null;
+  }
+
+  if (isDone) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-ink-500">
+        <Clock size={11} /> {loggedHours}h
+      </span>
+    );
+  }
+
+  const btnCls =
+    size === "md"
+      ? "inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium"
+      : "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium";
+
+  return (
+    <div className="inline-flex items-center gap-1">
+      {loggedHours > 0 && (
+        <span
+          className="inline-flex items-center gap-1 text-[10px] text-ink-400"
+          title={`${loggedHours}h logged total`}
+        >
+          <Clock size={11} /> {loggedHours}h
+        </span>
+      )}
+      {running ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onStop();
+          }}
+          className={`${btnCls} bg-brand-red text-white hover:bg-brand-redText`}
+          title="Stop the timer (resume later with Start)"
+        >
+          <Square size={11} fill="currentColor" />
+          <ElapsedTimer startedAt={active.startedAt} />
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onStart();
+          }}
+          className={`${btnCls} text-brand-blue hover:bg-brand-blueBg`}
+          title={
+            elseTimed
+              ? "You're timing another task. Starting here will stop that one."
+              : "Start timing"
+          }
+        >
+          <Play size={11} fill="currentColor" /> Start
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onDone();
+        }}
+        className={`${btnCls} text-brand-green hover:bg-brand-greenBg`}
+        title="Stop the timer and mark this task Done"
+      >
+        <CheckCircle2 size={11} /> Done
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Legacy quick-log popover (kept for admin corrections only).
  */
 export function TimeLogChip({
   loggedHours,

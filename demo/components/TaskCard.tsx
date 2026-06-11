@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { Task } from "@/lib/mock";
-import { loggedHoursForTask, TODAY_ISO } from "@/lib/mock";
+import { loggedHoursForTask } from "@/lib/mock";
 import { useProjects } from "@/lib/projects-store";
 import { useTaskDrawer } from "./TaskDrawerProvider";
 import { useTasks } from "@/lib/tasks-store";
@@ -19,7 +19,7 @@ import {
   PriorityPicker,
   QuickActions,
   StatusPicker,
-  TimeLogChip,
+  TimerControls,
 } from "./InlineActions";
 
 export function TaskCard({
@@ -91,11 +91,7 @@ export function TaskCard({
   const overdue = !!task.overdueDays && task.status !== "Done";
   const project = projectById(task.projectId);
   const loggedHours = loggedHoursForTask(task.id, store.timeEntries);
-
-  function quickLog(hours: number) {
-    store.logTime({ taskId: task.id, person: me, hours, date: TODAY_ISO });
-    toast.show(`Logged ${hours}h on “${task.title}”.`, "success");
-  }
+  const canRunTimer = isAssignee;
 
   const cls = [
     "card p-3 text-left w-full transition-shadow hover:shadow-md",
@@ -168,11 +164,23 @@ export function TaskCard({
           readOnly={!isAssignee && !canEdit}
         />
         <div className="flex items-center gap-2 flex-wrap">
-          <TimeLogChip
+          <TimerControls
+            task={task}
+            canRun={canRunTimer}
             loggedHours={loggedHours}
-            estimatedHours={task.estimatedHours}
-            canLog={isAssignee || canEdit}
-            onLog={quickLog}
+            active={store.activeTimer}
+            onStart={() => {
+              void store.startTimer(task.id);
+              toast.show(`Timer started on "${task.title}".`);
+            }}
+            onStop={() => {
+              void store.stopTimer(task.id);
+              toast.show(`Timer paused — resume any time with Start.`);
+            }}
+            onDone={() => {
+              void store.doneTimer(task.id);
+              toast.show(`"${task.title}" marked Done.`);
+            }}
           />
           <QuickActions
             task={task}
