@@ -903,14 +903,26 @@ function CreateTaskModal({
     description?: string;
     priority?: Priority;
     estimatedHours?: number | null;
+    assignees?: string[];
   }) => void;
 }) {
+  const { accounts } = useAccounts();
+  const teammates = accounts
+    .filter((a) => a.active && !a.isAdmin)
+    .map((a) => a.name.split(" ")[0]);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<Status>("To Do");
   const [priority, setPriority] = useState<Priority>("Medium");
   const [estHours, setEstHours] = useState("");
   const [templateId, setTemplateId] = useState<string>("");
+  const [assignees, setAssignees] = useState<string[]>([]);
+
+  function toggleAssignee(name: string) {
+    setAssignees((prev) =>
+      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name],
+    );
+  }
 
   function applyTemplate(id: string) {
     setTemplateId(id);
@@ -933,6 +945,7 @@ function CreateTaskModal({
       description: description.trim() || undefined,
       priority,
       estimatedHours: n != null && Number.isFinite(n) ? n : null,
+      assignees: assignees.length ? assignees : undefined,
     });
   }
 
@@ -1038,8 +1051,54 @@ function CreateTaskModal({
         value={estHours}
         onChange={(e) => setEstHours(e.target.value)}
         placeholder="e.g. 6"
-        className="w-full px-3 py-2 mb-6 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+        className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
       />
+
+      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+        Assign to{" "}
+        <span className="text-ink-400 font-normal">
+          (pick one or more — optional)
+        </span>
+      </label>
+      {teammates.length === 0 ? (
+        <p className="text-xs text-ink-400 italic mb-6">
+          No teammates yet. Add users in Admin → Users.
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5 mb-6 p-2 rounded border border-ink-200 bg-ink-50">
+          {teammates.map((n) => {
+            const on = assignees.includes(n);
+            return (
+              <button
+                key={n}
+                type="button"
+                onClick={() => toggleAssignee(n)}
+                className={
+                  on
+                    ? "inline-flex items-center gap-1 pl-2 pr-2 py-0.5 rounded-pill bg-brand-blue text-white text-xs font-medium"
+                    : "inline-flex items-center gap-1 pl-2 pr-2 py-0.5 rounded-pill bg-white border border-ink-200 text-ink-700 hover:bg-ink-100 text-xs font-medium"
+                }
+              >
+                {on && (
+                  <svg
+                    width="11"
+                    height="11"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+                {n}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <div className="flex justify-end gap-2">
         <button onClick={onClose} className="btn-ghost">

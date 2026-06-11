@@ -302,7 +302,14 @@ function AssigneeMenu({
     .filter((a) => a.name.toLowerCase().includes(q.toLowerCase()));
 
   return (
-    <div className="min-w-[220px]">
+    <div className="min-w-[240px]">
+      <div className="px-2.5 py-1.5 text-[11px] text-ink-500 border-b border-ink-100 flex items-center justify-between">
+        <span>
+          {selected.length === 0
+            ? "Pick one or more"
+            : `${selected.length} assigned — tap to add or remove`}
+        </span>
+      </div>
       <div className="p-1.5 border-b border-ink-100">
         <input
           autoFocus
