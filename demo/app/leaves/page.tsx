@@ -229,9 +229,8 @@ function FullLeavesView({
                     key={l.id}
                     l={l}
                     showActions
-                    canDelete
                     onApprove={onChanged}
-                    onDelete={onChanged}
+                    onDeny={onChanged}
                   />
                 ))}
               </ul>
@@ -300,6 +299,7 @@ function LeaveRow({
   hideName,
   canDelete,
   onApprove,
+  onDeny,
   onDelete,
 }: {
   l: LeaveEntry;
@@ -307,6 +307,7 @@ function LeaveRow({
   hideName?: boolean;
   canDelete?: boolean;
   onApprove?: () => Promise<void> | void;
+  onDeny?: () => Promise<void> | void;
   onDelete?: () => Promise<void> | void;
 }) {
   const toast = useToast();
@@ -323,6 +324,17 @@ function LeaveRow({
     }
     toast.show(`${l.resourceName}'s ${l.type} leave approved.`);
     if (onApprove) await onApprove();
+  }
+
+  async function deny() {
+    if (!confirm(`Deny ${l.resourceName}'s ${l.type} leave request?`)) return;
+    const res = await fetch(`/api/leaves/${l.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      toast.show("Couldn't deny.", "error");
+      return;
+    }
+    toast.show(`${l.resourceName}'s ${l.type} leave denied.`, "info");
+    if (onDeny) await onDeny();
   }
 
   async function remove() {
@@ -382,12 +394,20 @@ function LeaveRow({
         </button>
       )}
       {showActions && (
-        <button
-          onClick={approve}
-          className="btn-ghost text-xs px-2 py-1 text-brand-greenText hover:bg-brand-greenBg"
-        >
-          Approve
-        </button>
+        <>
+          <button
+            onClick={approve}
+            className="btn-ghost text-xs px-2 py-1 text-brand-greenText hover:bg-brand-greenBg"
+          >
+            Approve
+          </button>
+          <button
+            onClick={deny}
+            className="btn-ghost text-xs px-2 py-1 text-brand-redText hover:bg-brand-redBg"
+          >
+            Deny
+          </button>
+        </>
       )}
     </li>
   );
