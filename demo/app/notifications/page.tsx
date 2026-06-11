@@ -11,6 +11,8 @@ import {
   Lock,
   Star,
   AlertTriangle,
+  CalendarCheck,
+  CalendarX,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { EmptyState } from "@/components/EmptyState";
@@ -26,6 +28,8 @@ const KIND_ICON: Record<NotificationKind, typeof UserPlus> = {
   blocked: Lock,
   important: Star,
   overdue: AlertTriangle,
+  leave_approved: CalendarCheck,
+  leave_denied: CalendarX,
 };
 
 const KIND_TONE: Record<NotificationKind, string> = {
@@ -35,6 +39,8 @@ const KIND_TONE: Record<NotificationKind, string> = {
   blocked: "bg-brand-redBg text-brand-redText",
   important: "bg-brand-yellowBg text-brand-yellowText",
   overdue: "bg-brand-redBg text-brand-redText",
+  leave_approved: "bg-brand-greenBg text-brand-greenText",
+  leave_denied: "bg-brand-redBg text-brand-redText",
 };
 
 const KIND_LABEL: Record<NotificationKind, string> = {
@@ -44,6 +50,8 @@ const KIND_LABEL: Record<NotificationKind, string> = {
   blocked: "Blocked",
   important: "Important",
   overdue: "Overdue",
+  leave_approved: "Leave approved",
+  leave_denied: "Leave denied",
 };
 
 const KINDS: ("All" | NotificationKind)[] = [
@@ -54,6 +62,8 @@ const KINDS: ("All" | NotificationKind)[] = [
   "important",
   "status_change",
   "overdue",
+  "leave_approved",
+  "leave_denied",
 ];
 
 export default function NotificationsPage() {

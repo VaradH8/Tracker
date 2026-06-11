@@ -8,6 +8,8 @@ import {
   Star,
   AlertTriangle,
   Check,
+  CalendarCheck,
+  CalendarX,
 } from "lucide-react";
 import { useTaskDrawer } from "./TaskDrawerProvider";
 import { useNotifications } from "@/lib/notifications-store";
@@ -20,6 +22,8 @@ const ICON: Record<NotificationKind, typeof UserPlus> = {
   blocked: Lock,
   important: Star,
   overdue: AlertTriangle,
+  leave_approved: CalendarCheck,
+  leave_denied: CalendarX,
 };
 
 const TONE: Record<NotificationKind, string> = {
@@ -29,6 +33,8 @@ const TONE: Record<NotificationKind, string> = {
   blocked: "bg-brand-redBg text-brand-redText",
   important: "bg-brand-yellowBg text-brand-yellowText",
   overdue: "bg-brand-redBg text-brand-redText",
+  leave_approved: "bg-brand-greenBg text-brand-greenText",
+  leave_denied: "bg-brand-redBg text-brand-redText",
 };
 
 export function NotificationsPanel({

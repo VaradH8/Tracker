@@ -104,6 +104,44 @@ export async function userByFirstName(firstName: string) {
   });
 }
 
+/** Write a Notification + the matching EmailLog row in one shot.
+ *  Mirrors what POST /api/notifications does, for callers that need
+ *  to fire a notification directly from another route (e.g. leave
+ *  approval / denial). */
+export async function notifyUser(
+  recipientId: string,
+  opts: {
+    kind: string;
+    title: string;
+    body: string;
+    taskId?: number | null;
+  },
+) {
+  const target = await prisma.user.findUnique({ where: { id: recipientId } });
+  if (!target) return;
+  await prisma.$transaction([
+    prisma.notification.create({
+      data: {
+        userId: target.id,
+        kind: opts.kind,
+        title: opts.title,
+        body: opts.body,
+        taskId: opts.taskId ?? null,
+      },
+    }),
+    prisma.emailLog.create({
+      data: {
+        recipientId: target.id,
+        toEmail: target.email,
+        subject: opts.title,
+        body: opts.body,
+        kind: opts.kind,
+        taskId: opts.taskId ?? null,
+      },
+    }),
+  ]);
+}
+
 export async function writeAudit(
   actorId: string,
   action: string,
