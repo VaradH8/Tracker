@@ -492,6 +492,21 @@ export function QuickActions({
 }
 
 /**
+ * Format a duration (in hours, possibly a tiny fraction) as a clean
+ * h/m/s string. 0.0049h becomes "17s", 1.5h becomes "1h 30m", etc.
+ * Keeps each segment to two digits so the badge never gets ugly-wide.
+ */
+export function formatDuration(hours: number): string {
+  const total = Math.max(0, Math.floor(hours * 3600));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) return `${String(h).padStart(2, "0")}h ${String(m).padStart(2, "0")}m`;
+  if (m > 0) return `${String(m).padStart(2, "0")}m ${String(s).padStart(2, "0")}s`;
+  return `${String(s).padStart(2, "0")}s`;
+}
+
+/**
  * Live elapsed-time display for a running timer. Updates every second.
  */
 function ElapsedTimer({ startedAt }: { startedAt: string }) {
@@ -501,17 +516,7 @@ function ElapsedTimer({ startedAt }: { startedAt: string }) {
     return () => clearInterval(id);
   }, []);
   const ms = Math.max(0, now - new Date(startedAt).getTime());
-  const total = Math.floor(ms / 1000);
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const s = total % 60;
-  const display =
-    h > 0
-      ? `${h}h ${String(m).padStart(2, "0")}m`
-      : m > 0
-        ? `${m}m ${String(s).padStart(2, "0")}s`
-        : `${s}s`;
-  return <span className="font-mono">{display}</span>;
+  return <span className="font-mono">{formatDuration(ms / 3_600_000)}</span>;
 }
 
 /**
@@ -543,10 +548,12 @@ export function TimerControls({
   const elseTimed = !!active && active.taskId !== task.id;
   const isDone = task.status === "Done";
 
+  const loggedLabel = formatDuration(loggedHours);
+
   if (!canRun) {
     return loggedHours > 0 ? (
       <span className="inline-flex items-center gap-1 text-xs text-ink-500">
-        <Clock size={11} /> {loggedHours}h
+        <Clock size={11} /> {loggedLabel}
       </span>
     ) : null;
   }
@@ -554,7 +561,7 @@ export function TimerControls({
   if (isDone) {
     return (
       <span className="inline-flex items-center gap-1 text-xs text-ink-500">
-        <Clock size={11} /> {loggedHours}h
+        <Clock size={11} /> {loggedLabel}
       </span>
     );
   }
@@ -569,9 +576,9 @@ export function TimerControls({
       {loggedHours > 0 && (
         <span
           className="inline-flex items-center gap-1 text-[10px] text-ink-400"
-          title={`${loggedHours}h logged total`}
+          title={`${loggedLabel} logged total`}
         >
-          <Clock size={11} /> {loggedHours}h
+          <Clock size={11} /> {loggedLabel}
         </span>
       )}
       {running ? (
@@ -643,12 +650,12 @@ export function TimeLogChip({
         className={`inline-flex items-center gap-1 text-xs ${
           over ? "text-brand-redText" : "text-ink-500"
         }`}
-        title={`${loggedHours}h logged${
+        title={`${formatDuration(loggedHours)} logged${
           estimatedHours != null ? ` of ${estimatedHours}h estimated` : ""
         }`}
       >
         <Clock size={11} />
-        {loggedHours}h
+        {formatDuration(loggedHours)}
       </span>
     );
   }
@@ -664,12 +671,12 @@ export function TimeLogChip({
           }`}
           title={
             loggedHours > 0
-              ? `${loggedHours}h logged — click to log more`
+              ? `${formatDuration(loggedHours)} logged — click to log more`
               : "Log time on this task"
           }
         >
           <Clock size={12} />
-          {loggedHours > 0 && `${loggedHours}h`}
+          {loggedHours > 0 && formatDuration(loggedHours)}
         </span>
       )}
     >
