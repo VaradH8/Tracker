@@ -23,8 +23,6 @@ import {
   CURRENT_WEEK,
   weekNumberOf,
   projectStatusPill,
-  projectLaborCost,
-  formatINR,
   type Priority,
   type Status,
 } from "@/lib/mock";
@@ -82,7 +80,6 @@ export default function ProjectDetailPage({
     forProject,
     addTask,
     tasks: allTasks,
-    timeEntries,
     auditLog,
   } = useTasks();
 
@@ -92,7 +89,6 @@ export default function ProjectDetailPage({
   const showExport = canExportData(role);
   const isAdmin = role === "Admin";
   const allowed = canAccessProject(role, projectId, projects, allTasks, me);
-  const laborCost = projectLaborCost(projectId, allTasks, timeEntries);
 
   const [tab, setTab] = useState<Tab>("tasks");
   const [weekFilter, setWeekFilter] = useState<"all" | number>("all");
@@ -478,43 +474,6 @@ export default function ProjectDetailPage({
                 </dl>
               </div>
 
-              {isAdmin && (
-                <div className="card p-6 border-brand-yellowBorder bg-brand-yellowBg/40">
-                  <h2 className="font-heading text-lg font-semibold mb-1">
-                    Labour cost — Admin only
-                  </h2>
-                  <p className="text-xs text-ink-500 mb-4">
-                    Σ (hours logged on this project × each person&apos;s
-                    hourly rate)
-                  </p>
-                  <div className="grid grid-cols-3 gap-3 text-center">
-                    <div>
-                      <div className="font-heading text-xl font-semibold">
-                        {project.budgetHours}h
-                      </div>
-                      <div className="text-[10px] text-ink-500 uppercase tracking-wide">
-                        Budget
-                      </div>
-                    </div>
-                    <div>
-                      <div className="font-heading text-xl font-semibold">
-                        {project.loggedHours}h
-                      </div>
-                      <div className="text-[10px] text-ink-500 uppercase tracking-wide">
-                        Logged
-                      </div>
-                    </div>
-                    <div>
-                      <div className="font-heading text-xl font-semibold text-brand-yellowText">
-                        {formatINR(laborCost)}
-                      </div>
-                      <div className="text-[10px] text-ink-500 uppercase tracking-wide">
-                        Cost to date
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
             </section>
 
             <aside>

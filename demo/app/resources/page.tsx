@@ -19,14 +19,13 @@ import { EmptyState } from "@/components/EmptyState";
 import {
   performancePill,
   loggedHours,
-  formatINR,
   firstNameOf,
   type Resource,
   type PerformanceFlag,
   type TimeEntry,
 } from "@/lib/mock";
 import { useTasks } from "@/lib/tasks-store";
-import { useRole, ROLE_LABELS, type Role } from "@/lib/role";
+import { ROLE_LABELS, type Role } from "@/lib/role";
 import { useAccounts, type Account } from "@/lib/account-store";
 
 /**
@@ -418,14 +417,11 @@ function ResourceDrawer({
   onClose: () => void;
 }) {
   const { tasks, timeEntries } = useTasks();
-  const [role] = useRole();
-  const isAdmin = role === "Admin";
   const person = firstNameOf(r.name);
   const myTasks = tasks.filter((t) => t.assignees.includes(person));
   const hours7 = loggedHours(person, timeEntries, 7);
   const hours30 = loggedHours(person, timeEntries, 30);
   const utilization = Math.round((hours7 / r.capacityPerWeek) * 100);
-  const monthlyCost = hours30 * r.hourlyRate;
   const perf = performancePill(r.performance);
   const initials = r.name
     .split(" ")
@@ -509,47 +505,6 @@ function ResourceDrawer({
               </p>
             </div>
           </section>
-
-          {isAdmin && (
-            <section>
-              <h4 className="text-xs font-semibold text-ink-700 uppercase tracking-wide mb-2">
-                Cost — Admin only
-              </h4>
-              <div className="card p-4 border-brand-yellowBorder bg-brand-yellowBg/40">
-                <div className="grid grid-cols-3 gap-3 text-center">
-                  <div>
-                    <div className="font-heading text-lg font-semibold text-ink-900">
-                      {formatINR(r.hourlyRate)}
-                    </div>
-                    <div className="text-[10px] text-ink-500 uppercase tracking-wide">
-                      Hourly rate
-                    </div>
-                  </div>
-                  <div>
-                    <div className="font-heading text-lg font-semibold text-ink-900">
-                      {hours30}h
-                    </div>
-                    <div className="text-[10px] text-ink-500 uppercase tracking-wide">
-                      Logged 30d
-                    </div>
-                  </div>
-                  <div>
-                    <div className="font-heading text-lg font-semibold text-brand-yellowText">
-                      {formatINR(monthlyCost)}
-                    </div>
-                    <div className="text-[10px] text-ink-500 uppercase tracking-wide">
-                      Cost 30d
-                    </div>
-                  </div>
-                </div>
-                <p className="text-[11px] text-ink-500 mt-3">
-                  Cost = hours logged × hourly rate. Visible to Admin only —
-                  use alongside the performance signals below to inform
-                  compensation and staffing decisions.
-                </p>
-              </div>
-            </section>
-          )}
 
           <section>
             <h4 className="text-xs font-semibold text-ink-700 uppercase tracking-wide mb-2">
