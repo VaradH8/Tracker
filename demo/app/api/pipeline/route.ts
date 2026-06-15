@@ -21,12 +21,22 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => ({}));
+  const rawValue = Number(body.estimatedValue ?? 0);
+  const rawProb = Number(body.probability ?? 20);
   const deal = await prisma.pipelineDeal.create({
     data: {
       name: String(body.name ?? "").trim() || "Untitled deal",
       clientName: String(body.client ?? "").trim() || "—",
-      estimatedValue: Number(body.estimatedValue ?? 0) || 0,
-      probability: Number(body.probability ?? 20) || 20,
+      // Negative estimated values don't make sense; cap at ₹100 cr to
+      // catch fat-finger input. Probability is a percentage.
+      estimatedValue: Math.max(
+        0,
+        Math.min(10_000_000_000, Number.isFinite(rawValue) ? rawValue : 0),
+      ),
+      probability: Math.max(
+        0,
+        Math.min(100, Number.isFinite(rawProb) ? rawProb : 20),
+      ),
       stage: String(body.stage ?? "Lead"),
       expectedStart: body.expectedStart
         ? new Date(String(body.expectedStart))
@@ -56,10 +66,17 @@ export async function PATCH(req: Request) {
     data: {
       ...(typeof body.stage === "string" ? { stage: body.stage } : {}),
       ...(typeof body.probability === "number"
-        ? { probability: body.probability }
+        ? {
+            probability: Math.max(0, Math.min(100, body.probability)),
+          }
         : {}),
       ...(typeof body.estimatedValue === "number"
-        ? { estimatedValue: body.estimatedValue }
+        ? {
+            estimatedValue: Math.max(
+              0,
+              Math.min(10_000_000_000, body.estimatedValue),
+            ),
+          }
         : {}),
     },
   });

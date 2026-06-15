@@ -61,7 +61,13 @@ export async function POST(req: Request) {
   const targetDate = body.targetDate
     ? new Date(String(body.targetDate))
     : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-  const budgetHours = Number(body.budgetHours ?? 80);
+  const budgetHoursRaw = Number(body.budgetHours ?? 80);
+  // Clamp to a sane range. Negative is meaningless; >100k is more
+  // likely a fat-fingered "8000" → "80000" than a real budget.
+  const budgetHours = Math.max(
+    0,
+    Math.min(100_000, Number.isFinite(budgetHoursRaw) ? budgetHoursRaw : 80),
+  );
   const description =
     typeof body.description === "string" ? body.description : null;
 

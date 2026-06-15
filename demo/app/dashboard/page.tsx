@@ -7,17 +7,11 @@ import {
   Star,
   CheckCircle2,
   ArrowRight,
-  Activity,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { StatCard } from "@/components/StatCard";
-import {
-  RESOURCES,
-  statusPill,
-  performancePill,
-  type Task,
-} from "@/lib/mock";
+import { statusPill, todayISO, type Task } from "@/lib/mock";
 import { useTasks } from "@/lib/tasks-store";
 import { useProjects } from "@/lib/projects-store";
 import { useTaskDrawer } from "@/components/TaskDrawerProvider";
@@ -43,9 +37,20 @@ export default function OrgDashboardPage() {
     (t) => !!t.overdueDays && t.status !== "Done",
   );
   const important = tasks.filter((t) => t.important);
-  const doneThisWeek = tasks.filter((t) => t.status === "Done");
-  const flaggedResources = RESOURCES.filter(
-    (r) => r.status === "Active" && r.performance !== "On track",
+  // "Done This Week" = the last 7 days, not the entire backlog of done.
+  // Approve / completion timestamps aren't stored on the client, so we
+  // use targetDate as the proxy — same window we filter on everywhere.
+  const sevenDaysAgo = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().slice(0, 10);
+  })();
+  const todayStr = todayISO();
+  const doneThisWeek = tasks.filter(
+    (t) =>
+      t.status === "Done" &&
+      t.targetDate >= sevenDaysAgo &&
+      t.targetDate <= todayStr,
   );
 
   const filtered: Task[] =
@@ -63,7 +68,14 @@ export default function OrgDashboardPage() {
         <header className="mb-6">
           <h1 className="font-heading text-3xl font-semibold">Dashboard</h1>
           <p className="text-sm text-ink-500 mt-1">
-            Org-wide health · Wednesday, 6 May 2026 ·{" "}
+            Org-wide health ·{" "}
+            {new Date().toLocaleDateString("en-IN", {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            })}{" "}
+            ·{" "}
             <span className="text-ink-700">click any card to drill down</span>
           </p>
         </header>
@@ -197,11 +209,22 @@ export default function OrgDashboardPage() {
           )}
         </section>
 
-        <div className="grid lg:grid-cols-2 gap-6">
-          <section className="card p-5">
-            <h2 className="font-heading text-lg font-semibold mb-4">
-              Project health
-            </h2>
+        <section className="card p-5">
+          <h2 className="font-heading text-lg font-semibold mb-4">
+            Project health
+          </h2>
+          {projects.length === 0 ? (
+            <p className="text-sm text-ink-500 italic py-4">
+              No projects yet. Head to{" "}
+              <button
+                onClick={() => router.push("/projects")}
+                className="text-brand-blue hover:underline"
+              >
+                Projects → New project
+              </button>{" "}
+              to add one.
+            </p>
+          ) : (
             <ul className="divide-y divide-ink-100">
               {projects.map((p) => (
                 <li
@@ -231,64 +254,8 @@ export default function OrgDashboardPage() {
                 </li>
               ))}
             </ul>
-          </section>
-
-          <section className="card p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-heading text-lg font-semibold flex items-center gap-2">
-                <Activity size={18} className="text-brand-blue" /> Resources
-                that need a look
-              </h2>
-              <button
-                onClick={() => router.push("/resources?filter=flagged")}
-                className="text-xs text-brand-blue hover:underline"
-              >
-                See all <ArrowRight size={12} className="inline ml-0.5" />
-              </button>
-            </div>
-            {flaggedResources.length === 0 ? (
-              <p className="text-sm text-ink-500 italic">
-                Everyone's on track.
-              </p>
-            ) : (
-              <ul className="divide-y divide-ink-100">
-                {flaggedResources.map((r) => {
-                  const perf = performancePill(r.performance);
-                  return (
-                    <li
-                      key={r.id}
-                      onClick={() => router.push("/resources?filter=flagged")}
-                      className="py-3 flex items-start gap-3 cursor-pointer hover:bg-ink-50 -mx-3 px-3 rounded"
-                    >
-                      <div className="w-8 h-8 rounded-full bg-brand-blue text-white grid place-items-center text-[10px] font-heading font-medium shrink-0">
-                        {r.name
-                          .split(" ")
-                          .map((p) => p[0])
-                          .slice(0, 2)
-                          .join("")}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-ink-900 font-medium truncate">
-                            {r.name}
-                          </span>
-                          <span className={perf.cls}>{r.performance}</span>
-                        </div>
-                        <p className="text-xs text-ink-500 truncate">
-                          {r.flags[0] ?? "—"}
-                        </p>
-                      </div>
-                      <ArrowRight
-                        size={14}
-                        className="text-ink-400 shrink-0 mt-2"
-                      />
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
-        </div>
+          )}
+        </section>
       </div>
     </AppShell>
   );

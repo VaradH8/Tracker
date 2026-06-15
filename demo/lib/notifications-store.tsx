@@ -61,6 +61,12 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void refresh();
+    // Poll every 60s so the bell badge and notifications page reflect
+    // new mentions / assignments / leave decisions without requiring a
+    // full page reload. Cheap — /api/notifications is gated by userId
+    // server-side and capped at 500 rows per user.
+    const id = setInterval(() => void refresh(), 60_000);
+    return () => clearInterval(id);
   }, [refresh]);
 
   const forPerson = useCallback(

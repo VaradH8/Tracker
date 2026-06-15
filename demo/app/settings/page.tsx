@@ -57,17 +57,18 @@ export default function SettingsGeneralPage() {
             <ul className="text-sm space-y-2">
               <li className="flex items-center gap-2 text-ink-700">
                 <CheckCircle2 size={14} className="text-brand-green" />
-                Last backup:{" "}
-                <span className="font-medium">2026-05-06 02:00 IST</span> · 38
-                MB · S3
+                Schedule: nightly via the <code>pg_backup</code> sidecar
+                container (compose.yml).
               </li>
               <li className="flex items-center gap-2 text-ink-700">
                 <CheckCircle2 size={14} className="text-brand-green" />
-                Schedule: nightly 2 AM IST · 14-day retention
+                Retention: 14 daily · 8 weekly · 6 monthly snapshots in
+                ./backups/ on the host.
               </li>
               <li className="flex items-center gap-2 text-ink-700">
-                <CheckCircle2 size={14} className="text-brand-green" />
-                Last restore drill: 2026-04-12
+                <CheckCircle2 size={14} className="text-brand-yellowText" />
+                Off-host copy: not yet configured — rsync ./backups to
+                another machine to survive a full VM loss.
               </li>
             </ul>
           </section>

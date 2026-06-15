@@ -90,9 +90,15 @@ export async function PATCH(
   if (typeof body.status === "string") data.status = body.status;
   if (typeof body.startDate === "string") data.startDate = new Date(body.startDate);
   if (typeof body.targetDate === "string") data.targetDate = new Date(body.targetDate);
-  if (typeof body.budgetHours === "number") data.budgetHours = body.budgetHours;
-  if (typeof body.loggedHours === "number") data.loggedHours = body.loggedHours;
-  if (typeof body.progress === "number") data.progress = body.progress;
+  if (typeof body.budgetHours === "number") {
+    data.budgetHours = Math.max(0, Math.min(100_000, body.budgetHours));
+  }
+  if (typeof body.loggedHours === "number") {
+    data.loggedHours = Math.max(0, body.loggedHours);
+  }
+  if (typeof body.progress === "number") {
+    data.progress = Math.max(0, Math.min(100, body.progress));
+  }
   if (typeof body.health === "string") data.health = body.health;
   if (typeof body.description === "string" || body.description === null) {
     data.description = body.description;
