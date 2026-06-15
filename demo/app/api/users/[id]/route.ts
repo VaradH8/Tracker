@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { requireUser, canManageUsers } from "@/lib/server-access";
+import { passwordIssue } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import type { Role } from "@/lib/role";
 
@@ -79,6 +80,7 @@ export async function PATCH(
     name?: string;
     email?: string;
     primaryRole?: Role;
+    isAdmin?: boolean;
     isActive?: boolean;
     passwordHash?: string;
     designation?: string | null;
@@ -99,16 +101,23 @@ export async function PATCH(
     typeof body.role === "string" &&
     ROLES.includes(body.role as Role)
   ) {
-    data.primaryRole = body.role as Role;
+    const newRole = body.role as Role;
+    data.primaryRole = newRole;
+    // Keep the boolean `isAdmin` column in lock-step with the role
+    // string. Without this, promoting someone to Admin via the role
+    // dropdown left isAdmin=false and demoting an existing Admin
+    // left isAdmin=true — both stick around as ghost privileges in
+    // any code path that checks the boolean directly.
+    data.isAdmin = newRole === "Admin";
   }
   if (isAdmin && typeof body.active === "boolean") {
     data.isActive = body.active;
   }
-  if (
-    isAdmin &&
-    typeof body.password === "string" &&
-    body.password.length >= 6
-  ) {
+  if (isAdmin && typeof body.password === "string") {
+    const pwIssue = passwordIssue(body.password);
+    if (pwIssue) {
+      return NextResponse.json({ error: pwIssue }, { status: 400 });
+    }
     data.passwordHash = await bcrypt.hash(body.password, 10);
   }
   // HR fields — self can edit own designation/phone/location; admin can

@@ -8,43 +8,61 @@ datasource db {
 }
 
 model User {
-  id              String    @id @default(cuid())
-  email           String    @unique
-  name            String
-  passwordHash    String
-  primaryRole     String
-  isAdmin         Boolean   @default(false)
-  isActive        Boolean   @default(true)
-  designation     String?
-  phone           String?
-  location        String?
-  joined          DateTime?
-  lastLoginAt     DateTime?
-  hourlyRate      Int       @default(0)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  primaryRole  String
+  isAdmin      Boolean   @default(false)
+  isActive     Boolean   @default(true)
+  designation  String?
+  phone        String?
+  location     String?
+  joined       DateTime?
+  lastLoginAt  DateTime?
+  hourlyRate   Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   // Performance / efficiency signals
-  hoursLast7      Int       @default(0)
-  hoursLast30     Int       @default(0)
-  capacityPerWeek Int       @default(40)
-  tasksDone30     Int       @default(0)
-  estimateAccuracy Int      @default(100)
-  performance     String    @default("On track")
-  flags           String    @default("[]")
+  hoursLast7       Int    @default(0)
+  hoursLast30      Int    @default(0)
+  capacityPerWeek  Int    @default(40)
+  tasksDone30      Int    @default(0)
+  estimateAccuracy Int    @default(100)
+  performance      String @default("On track")
+  flags            String @default("[]")
 
-  sessions              Session[]
-  taskAssignments       TaskAssignee[]
-  tasksResponsibleFor   Task[]         @relation("TaskResponsible")
-  tasksApproved         Task[]         @relation("TaskApprover")
-  projectMemberships    ProjectMember[]
-  remarksAuthored       Remark[]
-  attachmentsUploaded   TaskAttachment[]
-  timeEntries           TimeEntry[]
-  auditLog              AuditEntry[]   @relation("AuditActor")
-  notifications         Notification[]
-  emailsReceived        EmailLog[]
-  leaves                Leave[]
+  sessions            Session[]
+  passwordResets      PasswordResetToken[]
+  taskAssignments     TaskAssignee[]
+  tasksResponsibleFor Task[]               @relation("TaskResponsible")
+  tasksApproved       Task[]               @relation("TaskApprover")
+  projectMemberships  ProjectMember[]
+  remarksAuthored     Remark[]
+  attachmentsUploaded TaskAttachment[]
+  timeEntries         TimeEntry[]
+  auditLog            AuditEntry[]         @relation("AuditActor")
+  notifications       Notification[]
+  emailsReceived      EmailLog[]
+  leaves              Leave[]
+}
+
+/// One-time password-reset token. Issued by /api/auth/forgot-password
+/// and consumed by /api/auth/reset-password. The token id is what goes
+/// in the user's URL; it's also the lookup key. Single-use: once
+/// `usedAt` is set the row stays around (for audit) but can't be
+/// reused.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 /// Server-side session — the cookie holds the session id; the DB row owns
@@ -61,95 +79,95 @@ model Session {
 }
 
 model Client {
-  id              Int       @id @default(autoincrement())
-  name            String
-  industry        String
-  primaryContact  String
-  email           String
-  since           DateTime
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id             Int      @id @default(autoincrement())
+  name           String
+  industry       String
+  primaryContact String
+  email          String
+  since          DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  projects        Project[]
+  projects Project[]
 }
 
 model Project {
-  id              Int       @id @default(autoincrement())
-  name            String
-  clientId        Int
-  client          Client    @relation(fields: [clientId], references: [id])
-  status          String
-  startDate       DateTime
-  targetDate      DateTime
-  budgetHours     Int
-  loggedHours     Int       @default(0)
-  progress        Int       @default(0)
-  health          String    @default("green")
-  description     String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id          Int      @id @default(autoincrement())
+  name        String
+  clientId    Int
+  client      Client   @relation(fields: [clientId], references: [id])
+  status      String
+  startDate   DateTime
+  targetDate  DateTime
+  budgetHours Int
+  loggedHours Int      @default(0)
+  progress    Int      @default(0)
+  health      String   @default("green")
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  members         ProjectMember[]
-  tasks           Task[]
+  members ProjectMember[]
+  tasks   Task[]
 }
 
 /// Per-project role assignment. One row per (project, user, role) so the
 /// same person can be both Lead and Developer on the same project. A user
 /// sees a project iff they have at least one row here (admins see all).
 model ProjectMember {
-  projectId  Int
-  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role       String   @default("Developer")
-  createdAt  DateTime @default(now())
+  projectId Int
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String   @default("Developer")
+  createdAt DateTime @default(now())
 
   @@id([projectId, userId, role])
   @@index([userId])
 }
 
 model Task {
-  id              Int       @id @default(autoincrement())
-  title           String
-  description     String?
-  projectId       Int
-  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  priority        String
-  status          String    @default("To Do")
-  startDate       DateTime?
-  targetDate      DateTime
-  estimatedHours  Float?
-  actualHours     Float?
-  important       Boolean   @default(false)
-  overdueDays     Int?
+  id             Int       @id @default(autoincrement())
+  title          String
+  description    String?
+  projectId      Int
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  priority       String
+  status         String    @default("To Do")
+  startDate      DateTime?
+  targetDate     DateTime
+  estimatedHours Float?
+  actualHours    Float?
+  important      Boolean   @default(false)
+  overdueDays    Int?
 
   // Person Responsible: the user who created / assigned this task (singular).
   // Person Accountable: the users actually performing it (many) — see TaskAssignee.
-  responsibleId   String?
-  responsible     User?     @relation("TaskResponsible", fields: [responsibleId], references: [id])
+  responsibleId String?
+  responsible   User?   @relation("TaskResponsible", fields: [responsibleId], references: [id])
 
   // Sign-off for Done tasks — set when Lead/Responsible/Coord approves.
-  approvedById    String?
-  approvedBy      User?     @relation("TaskApprover", fields: [approvedById], references: [id])
-  approvedAt      DateTime?
+  approvedById String?
+  approvedBy   User?     @relation("TaskApprover", fields: [approvedById], references: [id])
+  approvedAt   DateTime?
 
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  assignees       TaskAssignee[]
-  remarks         Remark[]
-  attachments     TaskAttachment[]
-  timeEntries     TimeEntry[]
-  blockedBy       TaskDependency[] @relation("TaskBlockedBy")
-  blocks          TaskDependency[] @relation("TaskBlocks")
+  assignees   TaskAssignee[]
+  remarks     Remark[]
+  attachments TaskAttachment[]
+  timeEntries TimeEntry[]
+  blockedBy   TaskDependency[] @relation("TaskBlockedBy")
+  blocks      TaskDependency[] @relation("TaskBlocks")
 }
 
 model TaskAssignee {
-  taskId          Int
-  task            Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  userId          String
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt       DateTime  @default(now())
+  taskId    Int
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
 
   @@id([taskId, userId])
 }
@@ -157,26 +175,26 @@ model TaskAssignee {
 /// "Task A is blocked by Task B" — A's blockedBy includes B; B's blocks
 /// includes A. Picker only allows same-project tasks at the API layer.
 model TaskDependency {
-  blockedTaskId  Int
-  blockedTask    Task  @relation("TaskBlockedBy", fields: [blockedTaskId], references: [id], onDelete: Cascade)
-  blockerTaskId  Int
-  blockerTask    Task  @relation("TaskBlocks", fields: [blockerTaskId], references: [id], onDelete: Cascade)
-  createdAt      DateTime @default(now())
+  blockedTaskId Int
+  blockedTask   Task     @relation("TaskBlockedBy", fields: [blockedTaskId], references: [id], onDelete: Cascade)
+  blockerTaskId Int
+  blockerTask   Task     @relation("TaskBlocks", fields: [blockerTaskId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
 
   @@id([blockedTaskId, blockerTaskId])
 }
 
 model TaskAttachment {
-  id            Int      @id @default(autoincrement())
-  taskId        Int
-  task          Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  name          String
-  size          String
-  kind          String   @default("other")
-  uploadedById  String?
-  uploadedBy    User?    @relation(fields: [uploadedById], references: [id])
-  storageKey    String?
-  createdAt     DateTime @default(now())
+  id           Int      @id @default(autoincrement())
+  taskId       Int
+  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  name         String
+  size         String
+  kind         String   @default("other")
+  uploadedById String?
+  uploadedBy   User?    @relation(fields: [uploadedById], references: [id])
+  storageKey   String?
+  createdAt    DateTime @default(now())
 }
 
 /// Time spent on a task. Two shapes:
@@ -204,25 +222,25 @@ model TimeEntry {
 }
 
 model Remark {
-  id              Int       @id @default(autoincrement())
-  taskId          Int
-  task            Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  authorId        String
-  author          User      @relation(fields: [authorId], references: [id])
-  body            String
-  createdAt       DateTime  @default(now())
+  id        Int      @id @default(autoincrement())
+  taskId    Int
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime @default(now())
 }
 
 model AuditEntry {
-  id              Int       @id @default(autoincrement())
-  actorId         String
-  actor           User      @relation("AuditActor", fields: [actorId], references: [id])
-  action          String
-  scope           String?
-  taskTitle       String?
-  before          String?
-  after           String?
-  createdAt       DateTime  @default(now())
+  id        Int      @id @default(autoincrement())
+  actorId   String
+  actor     User     @relation("AuditActor", fields: [actorId], references: [id])
+  action    String
+  scope     String?
+  taskTitle String?
+  before    String?
+  after     String?
+  createdAt DateTime @default(now())
 
   @@index([actorId])
   @@index([action])
@@ -230,15 +248,15 @@ model AuditEntry {
 }
 
 model Notification {
-  id              Int       @id @default(autoincrement())
-  userId          String
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  kind            String
-  title           String
-  body            String
-  taskId          Int?
-  isRead          Boolean   @default(false)
-  createdAt       DateTime  @default(now())
+  id        Int      @id @default(autoincrement())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String
+  title     String
+  body      String
+  taskId    Int?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
 
   @@index([userId, isRead])
 }
@@ -261,26 +279,26 @@ model EmailLog {
 }
 
 model Leave {
-  id              Int       @id @default(autoincrement())
-  userId          String
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  start           DateTime
-  end             DateTime
-  type            String
-  note            String?
-  approved        Boolean   @default(false)
-  createdAt       DateTime  @default(now())
+  id        Int      @id @default(autoincrement())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  start     DateTime
+  end       DateTime
+  type      String
+  note      String?
+  approved  Boolean  @default(false)
+  createdAt DateTime @default(now())
 }
 
 model PipelineDeal {
-  id              Int       @id @default(autoincrement())
-  name            String
-  clientName      String
-  estimatedValue  Int       @default(0)
-  probability     Int       @default(20)
-  stage           String    @default("Lead")
-  expectedStart   DateTime?
-  bdName          String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id             Int       @id @default(autoincrement())
+  name           String
+  clientName     String
+  estimatedValue Int       @default(0)
+  probability    Int       @default(20)
+  stage          String    @default("Lead")
+  expectedStart  DateTime?
+  bdName         String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }

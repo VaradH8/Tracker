@@ -96,6 +96,14 @@ export default function LoginPage() {
             </button>
           </form>
           <p className="text-xs text-ink-500 text-center mt-4">
+            <Link
+              href="/forgot-password"
+              className="text-brand-blue hover:underline"
+            >
+              Forgot your password?
+            </Link>
+          </p>
+          <p className="text-xs text-ink-500 text-center mt-2">
             Need access?{" "}
             <Link href="/signup" className="text-brand-blue hover:underline">
               Bootstrap this instance

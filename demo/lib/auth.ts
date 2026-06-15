@@ -5,7 +5,7 @@ import type { Role } from "./role";
 
 const SESSION_COOKIE = "tracker_session";
 const SESSION_DAYS = 30;
-const PASSWORD_MIN = 6;
+const PASSWORD_MIN = 10;
 
 export type SessionUser = {
   id: string;
@@ -27,14 +27,95 @@ type RegisterInput = {
 };
 
 /* ------------------------------------------------------------------ */
+/* Password strength                                                   */
+/* ------------------------------------------------------------------ */
 
+/** Cheap, friendly password rules: 10+ chars, must mix letters and
+ *  digits (or a symbol). Internal company tool, not a bank. */
+export function passwordIssue(pw: string): string | null {
+  if (!pw || pw.length < PASSWORD_MIN) {
+    return `Password must be at least ${PASSWORD_MIN} characters.`;
+  }
+  const hasLetter = /[a-z]/i.test(pw);
+  const hasNumOrSym = /[0-9]|[^a-z0-9]/i.test(pw);
+  if (!hasLetter || !hasNumOrSym) {
+    return "Password needs at least one letter and one digit/symbol.";
+  }
+  return null;
+}
+
+/* ------------------------------------------------------------------ */
+/* Login throttling (in-process)                                       */
+/* ------------------------------------------------------------------ */
+
+// In-memory throttle bucket. Survives until the container restarts.
+// Acceptable for a single-instance internal tool — would need Redis
+// once we scale beyond one app container.
+type Bucket = { count: number; lockedUntil: number };
+const LOGIN_BUCKETS = new Map<string, Bucket>();
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_PER_EMAIL = 5;
+const LOGIN_MAX_PER_IP = 20;
+
+function bumpAndCheck(
+  key: string,
+  max: number,
+): { locked: boolean; retryInSec: number } {
+  const now = Date.now();
+  const b = LOGIN_BUCKETS.get(key);
+  if (b && b.lockedUntil > now) {
+    return { locked: true, retryInSec: Math.ceil((b.lockedUntil - now) / 1000) };
+  }
+  if (b && now - (b.lockedUntil - LOGIN_WINDOW_MS) > LOGIN_WINDOW_MS) {
+    LOGIN_BUCKETS.delete(key);
+  }
+  const next = LOGIN_BUCKETS.get(key) ?? { count: 0, lockedUntil: 0 };
+  next.count += 1;
+  if (next.count >= max) {
+    next.lockedUntil = now + LOGIN_WINDOW_MS;
+  }
+  LOGIN_BUCKETS.set(key, next);
+  return { locked: false, retryInSec: 0 };
+}
+
+function clearBucket(key: string) {
+  LOGIN_BUCKETS.delete(key);
+}
+
+/* ------------------------------------------------------------------ */
+/* Sign in / sign out                                                  */
+/* ------------------------------------------------------------------ */
+
+/** Attempt sign-in. Returns a single generic error on any failure so we
+ *  don't leak whether the email exists. Rate-limits per email and per IP
+ *  to discourage brute-force. */
 export async function signIn(
   emailOrUsername: string,
   password: string,
+  ip: string | null = null,
 ): Promise<SignInResult> {
   const q = emailOrUsername.trim().toLowerCase();
   if (!q || !password) {
     return { ok: false, error: "Enter your account and password." };
+  }
+
+  // Throttle BEFORE doing the lookup so we don't spam Postgres on a
+  // brute-force run either.
+  const emailGate = bumpAndCheck(`em:${q}`, LOGIN_MAX_PER_EMAIL);
+  if (emailGate.locked) {
+    return {
+      ok: false,
+      error: `Too many failed attempts. Try again in ${Math.ceil(emailGate.retryInSec / 60)} min.`,
+    };
+  }
+  if (ip) {
+    const ipGate = bumpAndCheck(`ip:${ip}`, LOGIN_MAX_PER_IP);
+    if (ipGate.locked) {
+      return {
+        ok: false,
+        error: `Too many failed attempts. Try again in ${Math.ceil(ipGate.retryInSec / 60)} min.`,
+      };
+    }
   }
 
   // Match by email exact, OR by first-name prefix, OR by full name.
@@ -47,13 +128,16 @@ export async function signIn(
       ],
     },
   });
-  if (!user) return { ok: false, error: "No account matches that name." };
-  if (!user.isActive) {
-    return { ok: false, error: "That account is deactivated." };
-  }
-
+  // Single generic error for "no such user", "wrong password", and
+  // "deactivated" — leaks no information about which accounts exist.
+  const GENERIC = "Wrong account or password.";
+  if (!user) return { ok: false, error: GENERIC };
+  if (!user.isActive) return { ok: false, error: GENERIC };
   const ok = await bcrypt.compare(password, user.passwordHash);
-  if (!ok) return { ok: false, error: "Wrong password." };
+  if (!ok) return { ok: false, error: GENERIC };
+
+  // Success — clear this email's throttle bucket.
+  clearBucket(`em:${q}`);
 
   await prisma.user.update({
     where: { id: user.id },
@@ -80,12 +164,8 @@ export async function register(input: RegisterInput): Promise<SignInResult> {
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return { ok: false, error: "Enter a valid email address." };
   }
-  if (!input.password || input.password.length < PASSWORD_MIN) {
-    return {
-      ok: false,
-      error: `Password must be at least ${PASSWORD_MIN} characters.`,
-    };
-  }
+  const pwIssue = passwordIssue(input.password);
+  if (pwIssue) return { ok: false, error: pwIssue };
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
@@ -119,12 +199,8 @@ export async function createAccount(
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return { ok: false, error: "Enter a valid email address." };
   }
-  if (!input.password || input.password.length < PASSWORD_MIN) {
-    return {
-      ok: false,
-      error: `Password must be at least ${PASSWORD_MIN} characters.`,
-    };
-  }
+  const pwIssue = passwordIssue(input.password);
+  if (pwIssue) return { ok: false, error: pwIssue };
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
     return { ok: false, error: "That email already has an account." };
@@ -166,12 +242,8 @@ export async function changePassword(
 ): Promise<{ ok: boolean; error?: string }> {
   const current = await getCurrentUser();
   if (!current) return { ok: false, error: "Not signed in." };
-  if (!nextPassword || nextPassword.length < PASSWORD_MIN) {
-    return {
-      ok: false,
-      error: `New password must be at least ${PASSWORD_MIN} characters.`,
-    };
-  }
+  const pwIssue = passwordIssue(nextPassword);
+  if (pwIssue) return { ok: false, error: pwIssue };
   const user = await prisma.user.findUnique({ where: { id: current.id } });
   if (!user) return { ok: false, error: "Not signed in." };
   const ok = await bcrypt.compare(currentPassword, user.passwordHash);
@@ -189,16 +261,22 @@ async function createSession(userId: string) {
     data: { userId, expiresAt },
   });
   const jar = await cookies();
-  // Don't set `secure: true` blindly in production — the app commonly runs
-  // on http://<host>:3000 behind a reverse proxy that terminates TLS, or
-  // straight HTTP for an internal demo. A secure-only cookie would be
-  // rejected by the browser on plain HTTP and sign-in would fail silently.
-  // Opt back in by exporting SESSION_COOKIE_SECURE=1 once the app sits
-  // behind HTTPS end-to-end.
+  // Secure-cookie policy: default ON in production (we run behind
+  // Caddy / Traefik with real HTTPS) and OFF in dev so localhost
+  // logins still work. The legacy SESSION_COOKIE_SECURE env var still
+  // wins if set, for cases where the app runs over plain HTTP behind
+  // a TLS-terminating LB and the auto-detect is wrong.
+  const explicit = process.env.SESSION_COOKIE_SECURE;
+  const secure =
+    explicit === "1"
+      ? true
+      : explicit === "0"
+        ? false
+        : process.env.NODE_ENV === "production";
   jar.set(SESSION_COOKIE, session.id, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.SESSION_COOKIE_SECURE === "1",
+    secure,
     path: "/",
     expires: expiresAt,
   });
