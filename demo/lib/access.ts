@@ -74,22 +74,22 @@ export function visibleProjects(
   allTasks: Task[],
   me: string,
 ): Project[] {
-  if (role === "Admin" || role === "Coordinator") return allProjects;
+  // Admin: full visibility. Everyone else: only projects they're assigned
+  // to (any of the four per-project roles) or where they have a task.
+  if (role === "Admin") return allProjects;
 
-  if (role === "BusinessDeveloper") {
-    return allProjects.filter((p) => p.bd === me);
-  }
-
-  // Developer: any project that lists them on the team OR where they're
-  // already assigned to a task. Catches new joiners who don't have a
-  // task yet but are part of the project.
   const fromTasks = new Set(
     allTasks
       .filter((t) => t.assignees.includes(me))
       .map((t) => t.projectId),
   );
   return allProjects.filter(
-    (p) => p.teamMembers.includes(me) || fromTasks.has(p.id),
+    (p) =>
+      p.leads.includes(me) ||
+      p.coordinators.includes(me) ||
+      p.developers.includes(me) ||
+      p.bds.includes(me) ||
+      fromTasks.has(p.id),
   );
 }
 

@@ -5,15 +5,36 @@ import {
   canEditTasks,
   canManageUsers,
   requireUser,
+  userByFirstName,
 } from "@/lib/server-access";
 import { serializeProject } from "@/lib/serializers";
 
 const PROJECT_INCLUDE = {
   client: true,
-  lead: true,
   members: { include: { user: true } },
   _count: { select: { tasks: true } },
 } as const;
+
+const ROLES = ["Lead", "Coordinator", "Developer", "BD"] as const;
+type ProjectRole = (typeof ROLES)[number];
+
+const ROSTER_KEYS: Record<ProjectRole, string> = {
+  Lead: "leads",
+  Coordinator: "coordinators",
+  Developer: "developers",
+  BD: "bds",
+};
+
+async function resolveFirstNamesToIds(names: unknown): Promise<string[]> {
+  if (!Array.isArray(names)) return [];
+  const ids: string[] = [];
+  for (const raw of names) {
+    if (typeof raw !== "string") continue;
+    const user = await userByFirstName(raw);
+    if (user) ids.push(user.id);
+  }
+  return Array.from(new Set(ids));
+}
 
 export async function GET(
   _req: Request,
@@ -66,8 +87,6 @@ export async function PATCH(
   const data: Record<string, unknown> = {};
   if (typeof body.name === "string" && body.name.trim()) data.name = body.name.trim();
   if (typeof body.status === "string") data.status = body.status;
-  if (typeof body.coordinator === "string") data.coordinatorName = body.coordinator;
-  if (typeof body.bd === "string") data.bdName = body.bd;
   if (typeof body.startDate === "string") data.startDate = new Date(body.startDate);
   if (typeof body.targetDate === "string") data.targetDate = new Date(body.targetDate);
   if (typeof body.budgetHours === "number") data.budgetHours = body.budgetHours;
@@ -77,20 +96,48 @@ export async function PATCH(
   if (typeof body.description === "string" || body.description === null) {
     data.description = body.description;
   }
-  if (typeof body.leadId === "string" || body.leadId === null) {
-    data.leadId = body.leadId;
+
+  const rosterPatches: { role: ProjectRole; userIds: string[] }[] = [];
+  for (const role of ROLES) {
+    const key = ROSTER_KEYS[role];
+    if (Array.isArray(body[key])) {
+      rosterPatches.push({
+        role,
+        userIds: await resolveFirstNamesToIds(body[key]),
+      });
+    }
   }
 
-  if (Object.keys(data).length === 0) {
+  if (Object.keys(data).length === 0 && rosterPatches.length === 0) {
     return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
   }
 
-  const updated = await prisma.project.update({
-    where: { id: projectId },
-    data,
-    include: PROJECT_INCLUDE,
+  // Apply scalar updates + roster replacements in one transaction so a
+  // half-applied patch can't leave the project with a broken roster.
+  await prisma.$transaction(async (tx) => {
+    if (Object.keys(data).length > 0) {
+      await tx.project.update({ where: { id: projectId }, data });
+    }
+    for (const { role, userIds } of rosterPatches) {
+      await tx.projectMember.deleteMany({
+        where: { projectId, role },
+      });
+      if (userIds.length > 0) {
+        await tx.projectMember.createMany({
+          data: userIds.map((userId) => ({ projectId, userId, role })),
+          skipDuplicates: true,
+        });
+      }
+    }
   });
 
+  const updated = await prisma.project.findUnique({
+    where: { id: projectId },
+    include: PROJECT_INCLUDE,
+  });
+  if (!updated) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   return NextResponse.json({ project: serializeProject(updated) });
 }
 

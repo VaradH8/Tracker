@@ -223,8 +223,8 @@ export default function OrgDashboardPage() {
                       {p.name}
                     </div>
                     <div className="text-xs text-ink-500">
-                      {p.coordinator} · {p.progress}% · {p.loggedHours}/
-                      {p.budgetHours}h
+                      {p.coordinators[0] ?? p.leads[0] ?? "—"} ·{" "}
+                      {p.progress}% · {p.loggedHours}/{p.budgetHours}h
                     </div>
                   </div>
                   <ArrowRight size={14} className="text-ink-400 shrink-0" />

@@ -41,19 +41,12 @@ export function canSeeProjectAudit(role: SessionUser["role"]): boolean {
 export async function visibleProjectIds(
   user: SessionUser,
 ): Promise<number[] | "all"> {
-  if (user.role === "Admin" || user.role === "Coordinator") return "all";
+  // Admin still has the god view — see every project regardless of
+  // assignment. Every other role only sees projects they're assigned to
+  // (Lead / Coordinator / Developer / BD), with a fallback to projects
+  // where they have a task even if no one's added them to the roster yet.
+  if (user.role === "Admin") return "all";
 
-  if (user.role === "BusinessDeveloper") {
-    const me = user.name.split(" ")[0];
-    const rows = await prisma.project.findMany({
-      where: { bdName: me },
-      select: { id: true },
-    });
-    return rows.map((r) => r.id);
-  }
-
-  // Developer: projects where they're on the team roster OR have at least
-  // one task assigned to them. Catches new joiners pre-first-task.
   const memberships = await prisma.projectMember.findMany({
     where: { userId: user.id },
     select: { projectId: true },

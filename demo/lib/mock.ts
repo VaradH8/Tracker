@@ -17,17 +17,25 @@ export type Client = {
   since: string;
 };
 
+export type ProjectRoleAssignment =
+  | "Lead"
+  | "Coordinator"
+  | "Developer"
+  | "BD";
+
 export type Project = {
   id: number;
   name: string;
   clientId: number;
   status: ProjectStatus;
-  coordinator: string;
-  bd: string;
-  /** Project lead — sign-off authority (often the Admin or a senior). */
-  lead?: string;
-  /** First-names of every doer expected to take work on this project. */
-  teamMembers: string[];
+  /** Per-project role rosters, all first-names. Same person may appear in
+   *  more than one (e.g. lead + developer). A user sees this project iff
+   *  their first name appears in at least one of these arrays (admins see
+   *  every project regardless). */
+  leads: string[];
+  coordinators: string[];
+  developers: string[];
+  bds: string[];
   startDate: string;
   targetDate: string;
   budgetHours: number;

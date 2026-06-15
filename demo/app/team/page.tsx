@@ -21,15 +21,22 @@ export default function TeamPage() {
   const { projects } = useProjects();
   const { accounts } = useAccounts();
 
-  const myProjects = projects.filter((p) => p.coordinator === me);
+  // Projects I run as a Coordinator — those are the ones whose team I
+  // care about on this page.
+  const myProjects = projects.filter((p) => p.coordinators.includes(me));
   const myProjectIds = new Set(myProjects.map((p) => p.id));
   const teamTasks = tasks.filter((t) => myProjectIds.has(t.projectId));
 
-  // Anyone on the project team OR who has a task assigned counts as "my
-  // team", minus the coordinator themselves.
+  // Anyone with any per-project role on those projects OR who has a task
+  // assigned counts as "my team", minus me.
   const teamFirstNames = new Set(
     [
-      ...myProjects.flatMap((p) => p.teamMembers),
+      ...myProjects.flatMap((p) => [
+        ...p.leads,
+        ...p.coordinators,
+        ...p.developers,
+        ...p.bds,
+      ]),
       ...teamTasks.flatMap((t) => t.assignees),
     ].filter((n) => n !== me),
   );

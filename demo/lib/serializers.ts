@@ -29,11 +29,7 @@ type PrismaProject = {
   name: string;
   clientId: number;
   status: string;
-  coordinatorName: string;
-  bdName: string;
-  leadId: string | null;
-  lead?: { name: string } | null;
-  members?: { user: { name: string } }[];
+  members?: { user: { name: string }; role: string }[];
   startDate: Date;
   targetDate: Date;
   budgetHours: number;
@@ -44,15 +40,23 @@ type PrismaProject = {
 };
 
 export function serializeProject(p: PrismaProject): Project {
+  const namesByRole = (role: string) =>
+    Array.from(
+      new Set(
+        (p.members ?? [])
+          .filter((m) => m.role === role)
+          .map((m) => m.user.name.split(" ")[0]),
+      ),
+    );
   return {
     id: p.id,
     name: p.name,
     clientId: p.clientId,
     status: p.status as Project["status"],
-    coordinator: p.coordinatorName,
-    bd: p.bdName,
-    lead: p.lead?.name.split(" ")[0],
-    teamMembers: (p.members ?? []).map((m) => m.user.name.split(" ")[0]),
+    leads: namesByRole("Lead"),
+    coordinators: namesByRole("Coordinator"),
+    developers: namesByRole("Developer"),
+    bds: namesByRole("BD"),
     startDate: p.startDate.toISOString().slice(0, 10),
     targetDate: p.targetDate.toISOString().slice(0, 10),
     budgetHours: p.budgetHours,

@@ -37,7 +37,6 @@ model User {
   taskAssignments       TaskAssignee[]
   tasksResponsibleFor   Task[]         @relation("TaskResponsible")
   tasksApproved         Task[]         @relation("TaskApprover")
-  projectsLed           Project[]      @relation("ProjectLead")
   projectMemberships    ProjectMember[]
   remarksAuthored       Remark[]
   attachmentsUploaded   TaskAttachment[]
@@ -80,10 +79,6 @@ model Project {
   clientId        Int
   client          Client    @relation(fields: [clientId], references: [id])
   status          String
-  coordinatorName String
-  bdName          String
-  leadId          String?
-  lead            User?     @relation("ProjectLead", fields: [leadId], references: [id])
   startDate       DateTime
   targetDate      DateTime
   budgetHours     Int
@@ -98,16 +93,19 @@ model Project {
   tasks           Task[]
 }
 
-/// Project team-members roster. Independent of who happens to have a task
-/// today — gives new joiners visibility before any task lands on them.
+/// Per-project role assignment. One row per (project, user, role) so the
+/// same person can be both Lead and Developer on the same project. A user
+/// sees a project iff they have at least one row here (admins see all).
 model ProjectMember {
   projectId  Int
   project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       String   @default("Developer")
   createdAt  DateTime @default(now())
 
-  @@id([projectId, userId])
+  @@id([projectId, userId, role])
+  @@index([userId])
 }
 
 model Task {

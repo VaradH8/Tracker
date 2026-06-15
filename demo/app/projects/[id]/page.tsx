@@ -29,7 +29,10 @@ import {
   type Status,
 } from "@/lib/mock";
 import { useTasks } from "@/lib/tasks-store";
-import { useProjects } from "@/lib/projects-store";
+import {
+  useProjects,
+  type ProjectMemberRole,
+} from "@/lib/projects-store";
 import { useRole, landingFor } from "@/lib/role";
 import { useAccounts, useMyFirstName } from "@/lib/account-store";
 import {
@@ -40,6 +43,7 @@ import {
 } from "@/lib/access";
 import { useToast } from "@/components/Toast";
 import { Modal } from "@/components/Modal";
+import { PeoplePicker } from "@/components/PeoplePicker";
 import { toCsv, downloadCsv } from "@/lib/csv";
 
 const COLUMNS: { id: Status; title: string; accent: string }[] = [
@@ -410,31 +414,51 @@ export default function ProjectDetailPage({
               </div>
 
               <div className="card p-6">
-                <h2 className="font-heading text-lg font-semibold mb-3">
+                <h2 className="font-heading text-lg font-semibold mb-1">
                   Team
                 </h2>
-                <dl className="grid sm:grid-cols-2 gap-4 text-sm mb-4">
-                  <Row
-                    icon={<Users size={14} />}
-                    label="Lead"
-                    value={project.lead ?? "—"}
-                  />
-                  <Row
-                    icon={<Users size={14} />}
-                    label="Co-ordinator"
-                    value={project.coordinator}
-                  />
-                  <Row
-                    icon={<Users size={14} />}
-                    label="Business Developer"
-                    value={project.bd}
-                  />
-                </dl>
-                <ProjectTeamEditor
+                <p className="text-xs text-ink-500 mb-4">
+                  Anyone listed below has access to this project.
+                </p>
+                <ProjectRoleLane
+                  label="Leads"
+                  role="Lead"
                   projectId={project.id}
-                  members={project.teamMembers}
+                  members={project.leads}
                   canEdit={canEdit}
-                  onToggle={(name) => toggleProjectMember(project.id, name)}
+                  onToggle={(name, role) =>
+                    toggleProjectMember(project.id, name, role)
+                  }
+                />
+                <ProjectRoleLane
+                  label="Coordinators"
+                  role="Coordinator"
+                  projectId={project.id}
+                  members={project.coordinators}
+                  canEdit={canEdit}
+                  onToggle={(name, role) =>
+                    toggleProjectMember(project.id, name, role)
+                  }
+                />
+                <ProjectRoleLane
+                  label="Developers"
+                  role="Developer"
+                  projectId={project.id}
+                  members={project.developers}
+                  canEdit={canEdit}
+                  onToggle={(name, role) =>
+                    toggleProjectMember(project.id, name, role)
+                  }
+                />
+                <ProjectRoleLane
+                  label="Business Developers"
+                  role="BD"
+                  projectId={project.id}
+                  members={project.bds}
+                  canEdit={canEdit}
+                  onToggle={(name, role) =>
+                    toggleProjectMember(project.id, name, role)
+                  }
                 />
               </div>
 
@@ -616,39 +640,43 @@ export default function ProjectDetailPage({
   );
 }
 
-function ProjectTeamEditor({
+function ProjectRoleLane({
+  label,
+  role,
   members,
   canEdit,
   onToggle,
 }: {
+  label: string;
+  role: ProjectMemberRole;
   projectId: number;
   members: string[];
   canEdit: boolean;
-  onToggle: (name: string) => void | Promise<void>;
+  onToggle: (name: string, role: ProjectMemberRole) => void | Promise<void>;
 }) {
   const { accounts } = useAccounts();
   const available = accounts
-    .filter((a) => a.active && !a.isAdmin)
+    .filter((a) => a.active)
     .map((a) => a.name.split(" ")[0]);
   const others = available.filter((n) => !members.includes(n));
 
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-2">
-        <Users size={14} className="text-ink-500" />
+    <div className="mb-4 last:mb-0">
+      <div className="flex items-center gap-2 mb-1.5">
+        <Users size={13} className="text-ink-500" />
         <h3 className="text-xs font-semibold text-ink-700 uppercase tracking-wide">
-          Team members{" "}
+          {label}{" "}
           <span className="font-medium normal-case text-ink-400">
             ({members.length})
           </span>
         </h3>
       </div>
-      {members.length === 0 && (
-        <p className="text-xs text-ink-400 italic mb-2">
-          No teammates on this roster yet.
-        </p>
-      )}
       <div className="flex flex-wrap gap-1.5">
+        {members.length === 0 && (
+          <span className="text-xs text-ink-400 italic py-0.5">
+            None assigned
+          </span>
+        )}
         {members.map((m) => (
           <span
             key={m}
@@ -657,9 +685,9 @@ function ProjectTeamEditor({
             {m}
             {canEdit && (
               <button
-                onClick={() => onToggle(m)}
+                onClick={() => onToggle(m, role)}
                 className="p-0.5 -m-0.5 rounded hover:bg-brand-blue/20"
-                aria-label={`Remove ${m}`}
+                aria-label={`Remove ${m} from ${label}`}
               >
                 <X size={11} />
               </button>
@@ -670,11 +698,11 @@ function ProjectTeamEditor({
           <select
             value=""
             onChange={(e) => {
-              if (e.target.value) onToggle(e.target.value);
+              if (e.target.value) onToggle(e.target.value, role);
             }}
             className="text-xs rounded border border-ink-200 px-2 py-1 bg-white"
           >
-            <option value="">+ Add teammate…</option>
+            <option value="">+ Add…</option>
             {others.map((n) => (
               <option key={n} value={n}>
                 {n}
@@ -695,8 +723,10 @@ function EditProjectModal({
   project: {
     name: string;
     status: string;
-    coordinator: string;
-    bd: string;
+    leads: string[];
+    coordinators: string[];
+    developers: string[];
+    bds: string[];
     startDate: string;
     targetDate: string;
     budgetHours: number;
@@ -708,8 +738,10 @@ function EditProjectModal({
   onSave: (patch: {
     name: string;
     status: string;
-    coordinator: string;
-    bd: string;
+    leads: string[];
+    coordinators: string[];
+    developers: string[];
+    bds: string[];
     startDate: string;
     targetDate: string;
     budgetHours: number;
@@ -718,10 +750,17 @@ function EditProjectModal({
     description: string | null;
   }) => void | Promise<void>;
 }) {
+  const { accounts } = useAccounts();
+  const candidates = accounts
+    .filter((a) => a.active)
+    .map((a) => a.name.split(" ")[0]);
+
   const [name, setName] = useState(project.name);
   const [status, setStatus] = useState(project.status);
-  const [coordinator, setCoordinator] = useState(project.coordinator);
-  const [bd, setBd] = useState(project.bd);
+  const [leads, setLeads] = useState<string[]>(project.leads);
+  const [coords, setCoords] = useState<string[]>(project.coordinators);
+  const [devs, setDevs] = useState<string[]>(project.developers);
+  const [bds, setBds] = useState<string[]>(project.bds);
   const [startDate, setStartDate] = useState(project.startDate);
   const [targetDate, setTargetDate] = useState(project.targetDate);
   const [budgetHours, setBudgetHours] = useState(String(project.budgetHours));
@@ -729,10 +768,17 @@ function EditProjectModal({
   const [health, setHealth] = useState(project.health);
   const [description, setDescription] = useState(project.description ?? "");
 
+  const toggle = (
+    list: string[],
+    setList: (v: string[]) => void,
+    n: string,
+  ) =>
+    setList(list.includes(n) ? list.filter((x) => x !== n) : [...list, n]);
+
   return (
     <Modal title="Edit project" onClose={onClose} size="lg">
       <p className="text-sm text-ink-500 mb-5">
-        Update the project's plan, schedule, and team.
+        Update the project&apos;s plan, schedule, and team rosters.
       </p>
 
       <label className="block text-xs font-medium text-ink-700 mb-1.5">
@@ -776,27 +822,31 @@ function EditProjectModal({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 mb-4">
-        <div>
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">
-            Co-ordinator (first name)
-          </label>
-          <input
-            value={coordinator}
-            onChange={(e) => setCoordinator(e.target.value)}
-            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">
-            Business Developer
-          </label>
-          <input
-            value={bd}
-            onChange={(e) => setBd(e.target.value)}
-            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
-          />
-        </div>
+      <div className="space-y-3 mb-4">
+        <PeoplePicker
+          label="Leads"
+          candidates={candidates}
+          selected={leads}
+          onToggle={(n) => toggle(leads, setLeads, n)}
+        />
+        <PeoplePicker
+          label="Coordinators"
+          candidates={candidates}
+          selected={coords}
+          onToggle={(n) => toggle(coords, setCoords, n)}
+        />
+        <PeoplePicker
+          label="Developers"
+          candidates={candidates}
+          selected={devs}
+          onToggle={(n) => toggle(devs, setDevs, n)}
+        />
+        <PeoplePicker
+          label="Business Developers"
+          candidates={candidates}
+          selected={bds}
+          onToggle={(n) => toggle(bds, setBds, n)}
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-3 mb-4">
@@ -870,8 +920,10 @@ function EditProjectModal({
             onSave({
               name: name.trim() || project.name,
               status,
-              coordinator: coordinator.trim(),
-              bd: bd.trim(),
+              leads,
+              coordinators: coords,
+              developers: devs,
+              bds,
               startDate,
               targetDate,
               budgetHours: Number(budgetHours) || 0,

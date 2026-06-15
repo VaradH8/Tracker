@@ -5,12 +5,21 @@ import {
   requireUser,
   userByFirstName,
 } from "@/lib/server-access";
+import { serializeProject } from "@/lib/serializers";
+
+const PROJECT_INCLUDE = {
+  client: true,
+  members: { include: { user: true } },
+  _count: { select: { tasks: true } },
+} as const;
+
+const ROLES = ["Lead", "Coordinator", "Developer", "BD"] as const;
+type ProjectRole = (typeof ROLES)[number];
 
 /**
- * POST { name, action: "add" | "remove" | "toggle" }
- * Adds or removes a teammate from a project's roster (separate from
- * task assignments — a roster member is "on the project" even before
- * they're given a task).
+ * POST { name, role, action: "add" | "remove" | "toggle" }
+ * Adds or removes a single (user, role) assignment on this project.
+ * Same user may have multiple rows (one per role they hold).
  */
 export async function POST(
   req: Request,
@@ -28,35 +37,43 @@ export async function POST(
   }
   const body = await req.json().catch(() => ({}));
   const name = String(body.name ?? "");
+  const role = String(body.role ?? "Developer") as ProjectRole;
   const action: "add" | "remove" | "toggle" = body.action ?? "toggle";
+  if (!ROLES.includes(role)) {
+    return NextResponse.json({ error: "Unknown role." }, { status: 400 });
+  }
   const target = await userByFirstName(name);
   if (!target) {
     return NextResponse.json({ error: "User not found." }, { status: 404 });
   }
   const existing = await prisma.projectMember.findUnique({
-    where: { projectId_userId: { projectId, userId: target.id } },
+    where: {
+      projectId_userId_role: { projectId, userId: target.id, role },
+    },
   });
   if (
     (action === "remove" && existing) ||
     (action === "toggle" && existing)
   ) {
     await prisma.projectMember.delete({
-      where: { projectId_userId: { projectId, userId: target.id } },
+      where: {
+        projectId_userId_role: { projectId, userId: target.id, role },
+      },
     });
   } else if (
     (action === "add" && !existing) ||
     (action === "toggle" && !existing)
   ) {
     await prisma.projectMember.create({
-      data: { projectId, userId: target.id },
+      data: { projectId, userId: target.id, role },
     });
   }
   const updated = await prisma.project.findUnique({
     where: { id: projectId },
-    include: { members: { include: { user: true } } },
+    include: PROJECT_INCLUDE,
   });
-  return NextResponse.json({
-    teamMembers:
-      updated?.members.map((m) => m.user.name.split(" ")[0]) ?? [],
-  });
+  if (!updated) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  return NextResponse.json({ project: serializeProject(updated) });
 }

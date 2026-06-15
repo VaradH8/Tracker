@@ -40,10 +40,6 @@ export async function DELETE(
       where: { approvedById: id },
       data: { approvedById: null, approvedAt: null },
     }),
-    prisma.project.updateMany({
-      where: { leadId: id },
-      data: { leadId: null },
-    }),
     prisma.taskAttachment.updateMany({
       where: { uploadedById: id },
       data: { uploadedById: null },

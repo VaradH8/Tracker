@@ -4,8 +4,29 @@ import {
   requireUser,
   visibleProjectIds,
   canEditTasks,
+  userByFirstName,
 } from "@/lib/server-access";
 import { serializeProject } from "@/lib/serializers";
+
+const PROJECT_INCLUDE = {
+  client: true,
+  members: { include: { user: true } },
+  _count: { select: { tasks: true } },
+} as const;
+
+const ROLES = ["Lead", "Coordinator", "Developer", "BD"] as const;
+type ProjectRole = (typeof ROLES)[number];
+
+async function resolveFirstNamesToIds(names: unknown): Promise<string[]> {
+  if (!Array.isArray(names)) return [];
+  const ids: string[] = [];
+  for (const raw of names) {
+    if (typeof raw !== "string") continue;
+    const user = await userByFirstName(raw);
+    if (user) ids.push(user.id);
+  }
+  return Array.from(new Set(ids));
+}
 
 export async function GET() {
   const userOrResp = await requireUser();
@@ -15,12 +36,7 @@ export async function GET() {
   const ids = await visibleProjectIds(user);
   const projects = await prisma.project.findMany({
     where: ids === "all" ? undefined : { id: { in: ids } },
-    include: {
-      client: true,
-      lead: true,
-      members: { include: { user: true } },
-      _count: { select: { tasks: true } },
-    },
+    include: PROJECT_INCLUDE,
     orderBy: { createdAt: "desc" },
   });
 
@@ -31,7 +47,6 @@ export async function POST(req: Request) {
   const userOrResp = await requireUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
   const user = userOrResp;
-  // Admin, Coord, BD can create projects.
   if (!canEditTasks(user.role) && user.role !== "BusinessDeveloper") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -40,10 +55,6 @@ export async function POST(req: Request) {
   const name = String(body.name ?? "").trim();
   const clientId = Number(body.clientId);
   const status = String(body.status ?? "Active");
-  const coordinator = String(
-    body.coordinator ?? user.name.split(" ")[0],
-  ).trim();
-  const bd = String(body.bd ?? user.name.split(" ")[0]).trim();
   const startDate = body.startDate
     ? new Date(String(body.startDate))
     : new Date();
@@ -56,19 +67,31 @@ export async function POST(req: Request) {
 
   if (!name) return NextResponse.json({ error: "Name is required." }, { status: 400 });
   if (!Number.isFinite(clientId)) {
-    return NextResponse.json(
-      { error: "Pick a client." },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "Pick a client." }, { status: 400 });
   }
+
+  // Resolve per-role rosters from first-name arrays.
+  const rosterByRole: Record<ProjectRole, string[]> = {
+    Lead: await resolveFirstNamesToIds(body.leads),
+    Coordinator: await resolveFirstNamesToIds(body.coordinators),
+    Developer: await resolveFirstNamesToIds(body.developers),
+    BD: await resolveFirstNamesToIds(body.bds),
+  };
+  // The creator is auto-added as a Coordinator so they don't accidentally
+  // lose visibility of the project they just made.
+  if (!rosterByRole.Coordinator.includes(user.id)) {
+    rosterByRole.Coordinator.push(user.id);
+  }
+
+  const memberRows = ROLES.flatMap((role) =>
+    rosterByRole[role].map((userId) => ({ userId, role })),
+  );
 
   const created = await prisma.project.create({
     data: {
       name,
       clientId,
       status,
-      coordinatorName: coordinator,
-      bdName: bd,
       startDate,
       targetDate,
       budgetHours,
@@ -76,13 +99,9 @@ export async function POST(req: Request) {
       progress: 0,
       health: "green",
       description,
+      members: { create: memberRows },
     },
-    include: {
-      client: true,
-      lead: true,
-      members: { include: { user: true } },
-      _count: { select: { tasks: true } },
-    },
+    include: PROJECT_INCLUDE,
   });
 
   await prisma.auditEntry.create({

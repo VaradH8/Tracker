@@ -14,13 +14,24 @@ type CreateProjectInput = {
   name: string;
   clientId: number;
   status?: string;
-  coordinator?: string;
-  bd?: string;
+  leads?: string[];
+  coordinators?: string[];
+  developers?: string[];
+  bds?: string[];
   startDate?: string;
   targetDate?: string;
   budgetHours?: number;
   description?: string;
 };
+
+type ProjectRolePatch = {
+  leads?: string[];
+  coordinators?: string[];
+  developers?: string[];
+  bds?: string[];
+};
+
+export type ProjectMemberRole = "Lead" | "Coordinator" | "Developer" | "BD";
 
 type CreateClientInput = {
   name: string;
@@ -44,8 +55,6 @@ type Ctx = {
     patch: Partial<{
       name: string;
       status: string;
-      coordinator: string;
-      bd: string;
       startDate: string;
       targetDate: string;
       budgetHours: number;
@@ -53,11 +62,15 @@ type Ctx = {
       progress: number;
       health: string;
       description: string | null;
-      leadId: string | null;
-    }>,
+    }> &
+      ProjectRolePatch,
   ) => Promise<void>;
   deleteProject: (id: number) => Promise<{ ok: boolean; error?: string }>;
-  toggleProjectMember: (id: number, name: string) => Promise<void>;
+  toggleProjectMember: (
+    id: number,
+    name: string,
+    role: ProjectMemberRole,
+  ) => Promise<void>;
   updateClient: (
     id: number,
     patch: Partial<{
@@ -134,8 +147,6 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       patch: Partial<{
         name: string;
         status: string;
-        coordinator: string;
-        bd: string;
         startDate: string;
         targetDate: string;
         budgetHours: number;
@@ -143,8 +154,8 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
         progress: number;
         health: string;
         description: string | null;
-        leadId: string | null;
-      }>,
+      }> &
+        ProjectRolePatch,
     ) => {
       const res = await fetch(`/api/projects/${id}`, {
         method: "PATCH",
@@ -175,19 +186,17 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const toggleProjectMember = useCallback(
-    async (id: number, name: string) => {
+    async (id: number, name: string, role: ProjectMemberRole) => {
       const res = await fetch(`/api/projects/${id}/members`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, action: "toggle" }),
+        body: JSON.stringify({ name, role, action: "toggle" }),
       });
       if (!res.ok) return;
       const body = await res.json().catch(() => ({}));
-      if (Array.isArray(body.teamMembers)) {
+      if (body.project) {
         setProjects((prev) =>
-          prev.map((p) =>
-            p.id === id ? { ...p, teamMembers: body.teamMembers } : p,
-          ),
+          prev.map((p) => (p.id === id ? (body.project as Project) : p)),
         );
       }
     },

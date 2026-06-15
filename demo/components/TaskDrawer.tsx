@@ -80,12 +80,12 @@ export function TaskDrawer({
   const canEdit = role === "Admin" || role === "Coordinator";
   const canLogTime = isAssignee || canEdit;
   const project = projectById(task.projectId);
-  // Sign-off is the Person Responsible (assigner), the project Lead, or
+  // Sign-off is the Person Responsible (assigner), any project Lead, or
   // a Coordinator/Admin. Doers can't approve their own work.
   const canApprove =
     canEdit ||
     me === task.responsible ||
-    (project?.lead != null && me === project.lead);
+    (project?.leads ?? []).includes(me);
   const entries = store.entriesForTask(task.id);
   const totalLogged = loggedHoursForTask(task.id, store.timeEntries);
   const taskAudit = store.auditLog.filter((a) => a.taskTitle === task.title);
@@ -281,8 +281,11 @@ export function TaskDrawer({
                   />
                   <span className="text-ink-700 flex-1 min-w-0">
                     Done — needs sign-off from{" "}
-                    {project?.lead ?? "Lead"}
-                    {task.responsible && task.responsible !== project?.lead
+                    {(project?.leads?.length ?? 0) > 0
+                      ? project!.leads.join(" / ")
+                      : "the Lead"}
+                    {task.responsible &&
+                    !(project?.leads ?? []).includes(task.responsible)
                       ? `, ${task.responsible},`
                       : ""}{" "}
                     or a Co-ordinator.

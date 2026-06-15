@@ -59,7 +59,9 @@ function CoordinatorMyDay() {
 
   // "My team" = tasks on projects this co-ordinator runs.
   const myProjectIds = new Set(
-    projects.filter((p) => p.coordinator === me).map((p) => p.id),
+    projects
+      .filter((p) => p.coordinators.includes(me))
+      .map((p) => p.id),
   );
   const teamTasks = tasks.filter((t) => myProjectIds.has(t.projectId));
 

@@ -160,8 +160,8 @@ export default function ClientDetailPage({
                               {p.name}
                             </div>
                             <div className="text-xs text-ink-500">
-                              {p.coordinator} · {open} open ·{" "}
-                              {p.loggedHours}/{p.budgetHours}h
+                              {p.coordinators[0] ?? p.leads[0] ?? "—"} ·{" "}
+                              {open} open · {p.loggedHours}/{p.budgetHours}h
                             </div>
                           </div>
                           <ArrowRight

@@ -163,15 +163,11 @@ async function main() {
   console.log("Seeding projects + team members…");
   const projectByName: Record<string, number> = {};
   for (const p of PROJECTS) {
-    const leadId = userByFirst[p.leadFirstName] ?? null;
     const created = await prisma.project.create({
       data: {
         name: p.name,
         clientId: clientByName[p.clientName],
         status: p.status,
-        coordinatorName: p.coordinatorName,
-        bdName: p.bdName,
-        leadId,
         startDate: new Date(p.startDate),
         targetDate: new Date(p.targetDate),
         budgetHours: p.budgetHours,
@@ -182,12 +178,24 @@ async function main() {
       },
     });
     projectByName[p.name] = created.id;
-    for (const first of p.teamFirstNames) {
-      const userId = userByFirst[first];
-      if (!userId) continue;
-      await prisma.projectMember.create({
-        data: { projectId: created.id, userId },
+
+    const upsertMember = async (firstName: string, role: string) => {
+      const userId = userByFirst[firstName];
+      if (!userId) return;
+      await prisma.projectMember.upsert({
+        where: {
+          projectId_userId_role: { projectId: created.id, userId, role },
+        },
+        update: {},
+        create: { projectId: created.id, userId, role },
       });
+    };
+
+    if (p.leadFirstName) await upsertMember(p.leadFirstName, "Lead");
+    if (p.coordinatorName) await upsertMember(p.coordinatorName, "Coordinator");
+    if (p.bdName && p.bdName !== "—") await upsertMember(p.bdName, "BD");
+    for (const first of p.teamFirstNames) {
+      await upsertMember(first, "Developer");
     }
   }
 

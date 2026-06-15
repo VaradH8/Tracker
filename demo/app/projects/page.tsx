@@ -27,10 +27,11 @@ import {
 import { useTasks } from "@/lib/tasks-store";
 import { useProjects } from "@/lib/projects-store";
 import { canManageProjects, useRole, type Role } from "@/lib/role";
-import { useMyFirstName } from "@/lib/account-store";
+import { useAccounts, useMyFirstName } from "@/lib/account-store";
 import { canSeeProjectFinancials, visibleProjects } from "@/lib/access";
 import { useToast } from "@/components/Toast";
 import { Modal } from "@/components/Modal";
+import { PeoplePicker } from "@/components/PeoplePicker";
 
 export default function ProjectsPage() {
   const [role, , hydrated] = useRole();
@@ -254,9 +255,20 @@ function ActiveProjects({ role }: { role: Role }) {
 
                 <div className="flex items-center justify-between text-xs text-ink-500 pt-3 border-t border-ink-100">
                   <div className="flex items-center gap-3">
-                    <span className="inline-flex items-center gap-1">
+                    <span
+                      className="inline-flex items-center gap-1"
+                      title={
+                        p.leads.length > 0
+                          ? `Leads: ${p.leads.join(", ")}`
+                          : "No lead assigned"
+                      }
+                    >
                       <UsersIcon size={11} />
-                      {p.coordinator}
+                      {p.leads.length === 0
+                        ? "—"
+                        : p.leads.length === 1
+                          ? p.leads[0]
+                          : `${p.leads[0]} +${p.leads.length - 1}`}
                     </span>
                     {showFinancials && (
                       <span className="inline-flex items-center gap-1">
@@ -287,7 +299,16 @@ function ActiveProjects({ role }: { role: Role }) {
         <CreateProjectModal
           clients={clients}
           onClose={() => setCreateOpen(false)}
-          onCreate={async ({ name, clientId, newClientName, targetDate }) => {
+          onCreate={async ({
+            name,
+            clientId,
+            newClientName,
+            targetDate,
+            leads,
+            coordinators,
+            developers,
+            bds,
+          }) => {
             let resolvedClientId = clientId;
             // New client requested → create it first.
             if (clientId == null && newClientName) {
@@ -306,6 +327,10 @@ function ActiveProjects({ role }: { role: Role }) {
               name,
               clientId: resolvedClientId,
               targetDate: targetDate || undefined,
+              leads,
+              coordinators,
+              developers,
+              bds,
             });
             if (!r.ok) {
               toast.show(r.error, "error");
@@ -656,21 +681,43 @@ function CreateProjectModal({
     clientId: number | null;
     newClientName: string | null;
     targetDate: string;
+    leads: string[];
+    coordinators: string[];
+    developers: string[];
+    bds: string[];
   }) => void | Promise<void>;
 }) {
+  const { accounts } = useAccounts();
+  const candidates = accounts
+    .filter((a) => a.active)
+    .map((a) => a.name.split(" ")[0]);
+  const me = useMyFirstName();
+
   const [name, setName] = useState("");
   const [clientId, setClientId] = useState<string>(
     clients.length > 0 ? String(clients[0].id) : "__new__",
   );
   const [newClient, setNewClient] = useState("");
   const [target, setTarget] = useState("");
+  const [leads, setLeads] = useState<string[]>([]);
+  const [coords, setCoords] = useState<string[]>(me ? [me] : []);
+  const [devs, setDevs] = useState<string[]>([]);
+  const [bds, setBds] = useState<string[]>([]);
 
   const addingClient = clientId === "__new__";
 
+  const toggle = (
+    list: string[],
+    setList: (v: string[]) => void,
+    n: string,
+  ) =>
+    setList(list.includes(n) ? list.filter((x) => x !== n) : [...list, n]);
+
   return (
-    <Modal title="New project" onClose={onClose}>
+    <Modal title="New project" onClose={onClose} size="lg">
       <p className="text-sm text-ink-500 mb-5">
-        Create a project under a client.
+        Pick a client and assign the team. Only assigned people will see
+        this project in their Projects tab.
       </p>
 
       <label className="block text-xs font-medium text-ink-700 mb-1.5">
@@ -684,39 +731,71 @@ function CreateProjectModal({
         className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
       />
 
-      <label className="block text-xs font-medium text-ink-700 mb-1.5">
-        Client
-      </label>
-      <select
-        value={clientId}
-        onChange={(e) => setClientId(e.target.value)}
-        className="w-full px-3 py-2 mb-3 rounded border border-ink-200 text-sm"
-      >
-        {clients.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-          </option>
-        ))}
-        <option value="__new__">+ Add new client…</option>
-      </select>
-      {addingClient && (
-        <input
-          value={newClient}
-          onChange={(e) => setNewClient(e.target.value)}
-          placeholder="New client name"
-          className="w-full px-3 py-2 mb-3 rounded border border-brand-blue text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
-        />
-      )}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Client
+          </label>
+          <select
+            value={clientId}
+            onChange={(e) => setClientId(e.target.value)}
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          >
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+            <option value="__new__">+ Add new client…</option>
+          </select>
+          {addingClient && (
+            <input
+              value={newClient}
+              onChange={(e) => setNewClient(e.target.value)}
+              placeholder="New client name"
+              className="w-full mt-2 px-3 py-2 rounded border border-brand-blue text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+            />
+          )}
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Target date
+          </label>
+          <input
+            type="date"
+            value={target}
+            onChange={(e) => setTarget(e.target.value)}
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          />
+        </div>
+      </div>
 
-      <label className="block text-xs font-medium text-ink-700 mb-1.5 mt-1">
-        Target date
-      </label>
-      <input
-        type="date"
-        value={target}
-        onChange={(e) => setTarget(e.target.value)}
-        className="w-full px-3 py-2 mb-6 rounded border border-ink-200 text-sm"
-      />
+      <div className="space-y-3 mb-6">
+        <PeoplePicker
+          label="Leads"
+          candidates={candidates}
+          selected={leads}
+          onToggle={(n) => toggle(leads, setLeads, n)}
+        />
+        <PeoplePicker
+          label="Coordinators"
+          candidates={candidates}
+          selected={coords}
+          onToggle={(n) => toggle(coords, setCoords, n)}
+        />
+        <PeoplePicker
+          label="Developers"
+          candidates={candidates}
+          selected={devs}
+          onToggle={(n) => toggle(devs, setDevs, n)}
+        />
+        <PeoplePicker
+          label="Business Developers"
+          candidates={candidates}
+          selected={bds}
+          onToggle={(n) => toggle(bds, setBds, n)}
+        />
+      </div>
 
       <div className="flex justify-end gap-2">
         <button onClick={onClose} className="btn-ghost">
@@ -729,6 +808,10 @@ function CreateProjectModal({
               clientId: addingClient ? null : Number(clientId),
               newClientName: addingClient ? newClient.trim() : null,
               targetDate: target,
+              leads,
+              coordinators: coords,
+              developers: devs,
+              bds,
             })
           }
           disabled={!name.trim() || (addingClient && !newClient.trim())}

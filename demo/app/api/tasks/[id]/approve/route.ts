@@ -43,8 +43,15 @@ export async function POST(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const isLead =
-    existing.project.leadId !== null && existing.project.leadId === user.id;
+  const leadRow = await prisma.projectMember.findFirst({
+    where: {
+      projectId: existing.projectId,
+      userId: user.id,
+      role: "Lead",
+    },
+    select: { userId: true },
+  });
+  const isLead = leadRow !== null;
   const isResponsible = existing.responsibleId === user.id;
   if (!canEditTasks(user.role) && !isLead && !isResponsible) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
