@@ -22,6 +22,7 @@ import {
   RECENT_ACTIVITY,
   RESOURCES,
   daysSince,
+  todayISO,
   type Task,
 } from "@/lib/mock";
 import { useProjects } from "@/lib/projects-store";
@@ -31,9 +32,21 @@ import { useTasks } from "@/lib/tasks-store";
 import { useToast } from "@/components/Toast";
 import { toCsv, downloadCsv } from "@/lib/csv";
 
-const TODAY = "2026-05-06";
-const isOverdue = (d: string) => d < TODAY;
-const isDueToday = (d: string) => d === TODAY;
+// Always recompute on each call so we don't lock to the date the
+// bundle was built. Used by the date filters below — cheap enough to
+// invoke per task.
+const isOverdue = (d: string) => d < todayISO();
+const isDueToday = (d: string) => d === todayISO();
+
+/** "Wednesday, 6 May 2026" formatted from today's local date. */
+function formatTodayLong(): string {
+  return new Date().toLocaleDateString("en-IN", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
 const PRIO_ORDER = { Critical: 0, High: 1, Medium: 2, Low: 3 } as const;
 
 const REASSIGN_PEOPLE = RESOURCES.filter(
@@ -106,7 +119,7 @@ function CoordinatorMyDay() {
             Good morning, {me || "there"}
           </h1>
           <p className="text-sm text-ink-500 mt-1">
-            Wednesday, 6 May 2026 · Co-ordinator · what your team needs today
+            {formatTodayLong()} · Co-ordinator · what your team needs today
           </p>
         </header>
 
@@ -458,7 +471,7 @@ function DeveloperMyDay() {
   const importantMine = myTasks.filter((t) => t.important);
 
   const myDay = myTasks
-    .filter((t) => t.targetDate <= TODAY)
+    .filter((t) => t.targetDate <= todayISO())
     .sort((a, b) => {
       const aOver = isOverdue(a.targetDate);
       const bOver = isOverdue(b.targetDate);
@@ -467,7 +480,7 @@ function DeveloperMyDay() {
     });
 
   const upNext = myTasks
-    .filter((t) => t.targetDate > TODAY)
+    .filter((t) => t.targetDate > todayISO())
     .sort((a, b) => a.targetDate.localeCompare(b.targetDate))
     .slice(0, 5);
 
@@ -479,7 +492,7 @@ function DeveloperMyDay() {
             Good morning, {me || "there"}
           </h1>
           <p className="text-sm text-ink-500 mt-1">
-            Wednesday, 6 May 2026 · Developer
+            {formatTodayLong()} · Developer
           </p>
         </header>
 

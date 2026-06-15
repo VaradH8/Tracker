@@ -20,7 +20,8 @@ import { AppShell } from "@/components/AppShell";
 import { TaskCard } from "@/components/TaskCard";
 import {
   TASK_TEMPLATES,
-  CURRENT_WEEK,
+  currentWeek,
+  todayISO,
   weekNumberOf,
   projectStatusPill,
   type Priority,
@@ -93,6 +94,7 @@ export default function ProjectDetailPage({
   const [tab, setTab] = useState<Tab>("tasks");
   const [weekFilter, setWeekFilter] = useState<"all" | number>("all");
   const [editOpen, setEditOpen] = useState(false);
+  const thisWeek = currentWeek();
 
   useEffect(() => {
     if (hydrated && !allowed) {
@@ -267,16 +269,8 @@ export default function ProjectDetailPage({
               day: "numeric",
               month: "short",
             })}
-            sub={
-              new Date(project.targetDate) < new Date("2026-05-06")
-                ? "overdue"
-                : "on calendar"
-            }
-            tone={
-              new Date(project.targetDate) < new Date("2026-05-06")
-                ? "red"
-                : "default"
-            }
+            sub={project.targetDate < todayISO() ? "overdue" : "on calendar"}
+            tone={project.targetDate < todayISO() ? "red" : "default"}
           />
         </div>
 
@@ -312,23 +306,23 @@ export default function ProjectDetailPage({
                 className="text-sm rounded border border-ink-200 px-2 py-1 bg-white"
               >
                 <option value="all">All weeks</option>
-                <option value={CURRENT_WEEK}>
-                  This week (W{CURRENT_WEEK})
+                <option value={thisWeek}>
+                  This week (W{thisWeek})
                 </option>
-                <option value={CURRENT_WEEK - 1}>
-                  Last week (W{CURRENT_WEEK - 1})
+                <option value={thisWeek - 1}>
+                  Last week (W{thisWeek - 1})
                 </option>
-                <option value={CURRENT_WEEK + 1}>
-                  Next week (W{CURRENT_WEEK + 1})
+                <option value={thisWeek + 1}>
+                  Next week (W{thisWeek + 1})
                 </option>
                 {Array.from(
                   new Set(tasks.map((t) => weekNumberOf(t.targetDate))),
                 )
                   .filter(
                     (w) =>
-                      w !== CURRENT_WEEK &&
-                      w !== CURRENT_WEEK - 1 &&
-                      w !== CURRENT_WEEK + 1,
+                      w !== thisWeek &&
+                      w !== thisWeek - 1 &&
+                      w !== thisWeek + 1,
                   )
                   .sort((a, b) => a - b)
                   .map((w) => (

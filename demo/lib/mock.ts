@@ -344,7 +344,26 @@ export function statusPill(s: Status): string {
   }
 }
 
-/** Reference "today" for the mock dataset. */
+/** Today's date as a YYYY-MM-DD string. Evaluated at call time so it
+ *  reflects the actual current date — not the date a module bundle was
+ *  built (which is what a top-level `new Date().toISOString()` would do).
+ *  Every page should call this on render to stay correct across midnights
+ *  and to avoid hardcoded anchor dates. */
+export function todayISO(): string {
+  const d = new Date();
+  // Use local-time components so "today" matches what the user sees
+  // on their wall clock, not UTC.
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * @deprecated Hardcoded reference anchor from the demo dataset. Kept
+ * temporarily for any callers I missed during the migration to
+ * todayISO(); always prefer the function.
+ */
 export const TODAY_ISO = "2026-05-06";
 
 /**
@@ -365,6 +384,15 @@ export function weekNumberOf(iso: string): number {
   return 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
 }
 
+/** Current ISO week, computed at call time (see todayISO()). */
+export function currentWeek(): number {
+  return weekNumberOf(todayISO());
+}
+
+/**
+ * @deprecated Computed once at module load (sticks at build time on the
+ * client bundle). Use currentWeek() instead.
+ */
 export const CURRENT_WEEK = weekNumberOf(TODAY_ISO);
 
 export function firstNameOf(fullName: string): string {
@@ -387,7 +415,7 @@ export function daysSince(label: string): number {
 }
 
 function daysAgo(iso: string): number {
-  const today = new Date(TODAY_ISO + "T00:00:00");
+  const today = new Date(todayISO() + "T00:00:00");
   const d = new Date(iso + "T00:00:00");
   return Math.round((today.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
 }

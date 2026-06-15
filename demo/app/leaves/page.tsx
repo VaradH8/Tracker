@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Plus, Calendar, Clock, Lock } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
-import { type LeaveEntry } from "@/lib/mock";
+import { todayISO, type LeaveEntry } from "@/lib/mock";
 import { useRole, ROLE_LABELS } from "@/lib/role";
 import { useMyFirstName, useAccounts } from "@/lib/account-store";
 import { useToast } from "@/components/Toast";
@@ -55,7 +55,7 @@ export default function LeavesPage() {
 
   const myLeaves = sorted.filter((l) => l.resourceName === myFullName);
   const teamOff = sorted
-    .filter((l) => l.resourceName !== myFullName && l.start >= "2026-05-06")
+    .filter((l) => l.resourceName !== myFullName && l.start >= todayISO())
     .map((l) => ({
       name: l.resourceName,
       start: l.start,
@@ -166,7 +166,7 @@ function FullLeavesView({
   setOpen: (v: boolean) => void;
   onChanged: () => Promise<void>;
 }) {
-  const upcoming = sorted.filter((l) => l.start >= "2026-05-06");
+  const upcoming = sorted.filter((l) => l.start >= todayISO());
   const pending = sorted.filter((l) => !l.approved);
 
   return (

@@ -763,7 +763,8 @@ function QuickLogMenu({ onLog }: { onLog: (hours: number) => void }) {
 }
 
 function formatRelativeDate(iso: string): string {
-  const today = new Date("2026-05-05T00:00:00");
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const target = new Date(iso + "T00:00:00");
   const diff = Math.round(
     (target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
@@ -780,7 +781,8 @@ function formatRelativeDate(iso: string): string {
 }
 
 function relativeTone(iso: string): { text: string } {
-  const today = new Date("2026-05-05T00:00:00");
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const target = new Date(iso + "T00:00:00");
   const diff = Math.round(
     (target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),

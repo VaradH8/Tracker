@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { useTasks } from "@/lib/tasks-store";
 import { useRole } from "@/lib/role";
 import { useMyFirstName } from "@/lib/account-store";
-import { TODAY_ISO, type Task } from "@/lib/mock";
+import { todayISO, type Task } from "@/lib/mock";
 
 const MONTHS = [
   "January",
@@ -35,10 +35,12 @@ export default function CalendarPage() {
   const me = useMyFirstName();
   const { tasks } = useTasks();
 
-  const todayParts = TODAY_ISO.split("-").map(Number);
-  const [year, setYear] = useState(todayParts[0]);
-  const [month, setMonth] = useState(todayParts[1] - 1);
-  const [selected, setSelected] = useState<string>(TODAY_ISO);
+  // Compute "today" once per mount so the calendar opens on the actual
+  // current month/day, not the date the bundle was built.
+  const today = useMemo(() => todayISO(), []);
+  const [year, setYear] = useState(() => Number(today.slice(0, 4)));
+  const [month, setMonth] = useState(() => Number(today.slice(5, 7)) - 1);
+  const [selected, setSelected] = useState<string>(today);
 
   // Admin + Coordinator see everything; everyone else sees their own work.
   const visibleTasks = useMemo(() => {
@@ -96,9 +98,10 @@ export default function CalendarPage() {
     }
   }
   function gotoToday() {
-    setYear(todayParts[0]);
-    setMonth(todayParts[1] - 1);
-    setSelected(TODAY_ISO);
+    const now = todayISO();
+    setYear(Number(now.slice(0, 4)));
+    setMonth(Number(now.slice(5, 7)) - 1);
+    setSelected(now);
   }
 
   const selectedTasks = byDate.get(selected) ?? [];
@@ -157,9 +160,9 @@ export default function CalendarPage() {
             <div className="grid grid-cols-7">
               {cells.map((c) => {
                 const list = byDate.get(c.iso) ?? [];
-                const isToday = c.iso === TODAY_ISO;
+                const isToday = c.iso === today;
                 const isSelected = c.iso === selected;
-                const isOverdueDay = c.iso < TODAY_ISO;
+                const isOverdueDay = c.iso < today;
                 return (
                   <button
                     key={c.iso}

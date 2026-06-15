@@ -6,7 +6,8 @@ import { AppShell } from "@/components/AppShell";
 import { TaskCard } from "@/components/TaskCard";
 import { EmptyState } from "@/components/EmptyState";
 import {
-  CURRENT_WEEK,
+  currentWeek,
+  todayISO,
   weekNumberOf,
   type Status,
   type Task,
@@ -23,13 +24,12 @@ const COLUMNS: { id: Status; title: string; accent: string }[] = [
   { id: "Done", title: "Done", accent: "bg-brand-green" },
 ];
 
-const TODAY = "2026-05-06";
 const FOCUS_KEY = "tracker-mytasks-focus";
 
 /** Focus = what needs attention now: due today, overdue, or in progress. */
 function inFocus(t: Task): boolean {
   if (t.status === "Done") return false;
-  return t.status === "In Progress" || t.targetDate <= TODAY;
+  return t.status === "In Progress" || t.targetDate <= todayISO();
 }
 
 export default function MyTasksPage() {
@@ -53,12 +53,13 @@ export default function MyTasksPage() {
   // Build the week dropdown from the weeks the user's tasks actually
   // touch, so the Excel-style "Week 19/20/21..." picker only ever shows
   // weeks that mean something.
+  const thisWeek = currentWeek();
   const weeksWithMine = useMemo(() => {
     const set = new Set<number>();
     for (const t of mine) set.add(weekNumberOf(t.targetDate));
-    set.add(CURRENT_WEEK);
+    set.add(thisWeek);
     return Array.from(set).sort((a, b) => a - b);
-  }, [mine]);
+  }, [mine, thisWeek]);
 
   const afterWeek =
     weekFilter === "all"
@@ -90,19 +91,19 @@ export default function MyTasksPage() {
               className="text-sm rounded border border-ink-200 px-2 py-1.5 bg-white"
             >
               <option value="all">All weeks</option>
-              <option value={CURRENT_WEEK}>This week (W{CURRENT_WEEK})</option>
-              <option value={CURRENT_WEEK - 1}>
-                Last week (W{CURRENT_WEEK - 1})
+              <option value={thisWeek}>This week (W{thisWeek})</option>
+              <option value={thisWeek - 1}>
+                Last week (W{thisWeek - 1})
               </option>
-              <option value={CURRENT_WEEK + 1}>
-                Next week (W{CURRENT_WEEK + 1})
+              <option value={thisWeek + 1}>
+                Next week (W{thisWeek + 1})
               </option>
               {weeksWithMine
                 .filter(
                   (w) =>
-                    w !== CURRENT_WEEK &&
-                    w !== CURRENT_WEEK - 1 &&
-                    w !== CURRENT_WEEK + 1,
+                    w !== thisWeek &&
+                    w !== thisWeek - 1 &&
+                    w !== thisWeek + 1,
                 )
                 .map((w) => (
                   <option key={w} value={w}>
