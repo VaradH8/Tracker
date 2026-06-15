@@ -60,15 +60,28 @@ export async function POST(
 }
 
 export async function GET(
-  req: Request,
+  _req: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   const userOrResp = await requireUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
+  const user = userOrResp;
   const { id: idStr } = await context.params;
   const taskId = Number(idStr);
   if (!Number.isFinite(taskId)) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+  }
+  // Cross-project leak protection — only let people on this project
+  // see who's logged time on its tasks.
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { projectId: true },
+  });
+  if (!task) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  if (!(await canAccessProject(user, task.projectId))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const entries = await prisma.timeEntry.findMany({
     where: { taskId },

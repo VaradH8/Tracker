@@ -40,6 +40,12 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   const userOrResp = await requireUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
+  const user = userOrResp;
+  // Same set that can POST a deal — Admin/Coord/BD. Without this check
+  // any Developer can move deals between stages.
+  if (!canEditTasks(user.role) && user.role !== "BusinessDeveloper") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   const body = await req.json().catch(() => ({}));
   const id = Number(body.id);
   if (!Number.isFinite(id)) {

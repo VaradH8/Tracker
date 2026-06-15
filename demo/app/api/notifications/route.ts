@@ -23,23 +23,55 @@ export async function GET() {
   });
 }
 
+/** Notification kinds the public POST endpoint is allowed to write.
+ *  Anything outside this set (leave_approved, leave_denied, etc.) is
+ *  only legitimately written by server-side flows via notifyUser(). */
+const PUBLIC_NOTIFICATION_KINDS = new Set([
+  "assigned",
+  "status_change",
+  "mention",
+  "blocked",
+  "important",
+  "overdue",
+]);
+
 /** POST — create a notification + an EmailLog twin. The frontend just
- *  passes `recipient` as a first name; the server resolves it. */
+ *  passes `recipient` as a first name; the server resolves it.
+ *
+ *  Restricted to in-app flows: the caller must be writing one of the
+ *  user-facing kinds AND addressing a real teammate. Without this,
+ *  any signed-in user could spam arbitrary subjects/bodies to anyone. */
 export async function POST(req: Request) {
   const userOrResp = await requireUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
+  const actor = userOrResp;
 
   const body = await req.json().catch(() => ({}));
   const recipientName = String(body.recipient ?? "");
   const kind = String(body.kind ?? "assigned");
-  const title = String(body.title ?? "");
-  const text = String(body.body ?? "");
+  const title = String(body.title ?? "").slice(0, 200);
+  const text = String(body.body ?? "").slice(0, 2000);
   const taskId =
     typeof body.taskId === "number" ? body.taskId : null;
+
+  if (!PUBLIC_NOTIFICATION_KINDS.has(kind)) {
+    return NextResponse.json(
+      { error: "That notification kind isn't writable here." },
+      { status: 400 },
+    );
+  }
+  if (!title.trim()) {
+    return NextResponse.json({ error: "Title required." }, { status: 400 });
+  }
 
   const target = await userByFirstName(recipientName);
   if (!target) {
     return NextResponse.json({ error: "Recipient not found." }, { status: 404 });
+  }
+  // Notifications must be addressed to someone other than the actor.
+  // Without this guard a bored user could spam themselves.
+  if (target.id === actor.id) {
+    return NextResponse.json({ ok: true, skipped: "self" });
   }
 
   const [notif] = await prisma.$transaction([

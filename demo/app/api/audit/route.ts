@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireUser } from "@/lib/server-access";
+import { canSeeProjectAudit, requireUser } from "@/lib/server-access";
 import { serializeAudit } from "@/lib/serializers";
 
+/** Admin / Coordinator only — the audit log includes every actor's
+ *  actions across the org and is not safe to expose to developers or
+ *  BDs. */
 export async function GET() {
   const userOrResp = await requireUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
-  // Audit log is broadly visible; pages decide whether to surface it
-  // (Admin/Coord today). Keeping access open here keeps client code simple.
+  if (!canSeeProjectAudit(userOrResp.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   const entries = await prisma.auditEntry.findMany({
     include: { actor: true },
     orderBy: { createdAt: "desc" },
