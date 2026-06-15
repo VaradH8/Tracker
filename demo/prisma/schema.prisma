@@ -233,8 +233,11 @@ model Remark {
 
 model AuditEntry {
   id        Int      @id @default(autoincrement())
-  actorId   String
-  actor     User     @relation("AuditActor", fields: [actorId], references: [id])
+  // Actor is nullable so deleting a user doesn't blow away the
+  // audit trail of what they did. The row stays; the actor field
+  // becomes null and the UI falls back to "(removed user)".
+  actorId   String?
+  actor     User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
   action    String
   scope     String?
   taskTitle String?

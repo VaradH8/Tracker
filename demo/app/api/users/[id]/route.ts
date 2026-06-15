@@ -46,7 +46,8 @@ export async function DELETE(
       data: { uploadedById: null },
     }),
     prisma.remark.deleteMany({ where: { authorId: id } }),
-    prisma.auditEntry.deleteMany({ where: { actorId: id } }),
+    // Audit entries are kept — actorId cascades to null via the schema
+    // so the trail of what this person did stays intact for compliance.
     prisma.user.delete({ where: { id } }),
   ]);
 

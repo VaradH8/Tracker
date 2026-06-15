@@ -208,7 +208,7 @@ export function serializeTimeEntry(t: PrismaTimeEntry): TimeEntry {
 
 type PrismaAudit = {
   id: number;
-  actorId: string;
+  actorId: string | null;
   actor?: { name: string } | null;
   action: string;
   scope: string | null;
@@ -221,7 +221,7 @@ type PrismaAudit = {
 export function serializeAudit(a: PrismaAudit): AuditEntry {
   return {
     id: a.id,
-    actor: a.actor?.name.split(" ")[0] ?? "—",
+    actor: a.actor?.name.split(" ")[0] ?? "(removed user)",
     action: a.action,
     scope: a.scope ?? "—",
     taskTitle: a.taskTitle ?? undefined,
