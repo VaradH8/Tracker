@@ -22,6 +22,7 @@ import { useRef, useState } from "react";
 import {
   AssigneePicker,
   DateField,
+  formatDuration,
   ImportantToggle,
   PriorityPicker,
   QuickActions,
@@ -575,9 +576,9 @@ export function TaskDrawer({
               <h3 className="text-xs font-semibold text-ink-700 uppercase tracking-wide flex items-center gap-2">
                 <Timer size={12} /> Time
                 <span className="font-medium normal-case text-ink-400">
-                  {totalLogged.toFixed(1)}h logged
+                  {formatDuration(totalLogged)} logged
                   {task.estimatedHours != null &&
-                    ` of ${task.estimatedHours}h est.`}
+                    ` of ${formatDuration(task.estimatedHours)} est.`}
                 </span>
               </h3>
             </div>
@@ -623,8 +624,8 @@ export function TaskDrawer({
                     key={e.id}
                     className="flex items-center gap-2 text-sm py-1 group"
                   >
-                    <span className="w-12 shrink-0 font-heading font-medium text-ink-900">
-                      {e.hours}h
+                    <span className="w-16 shrink-0 font-mono font-medium text-ink-900 text-xs">
+                      {formatDuration(e.hours)}
                     </span>
                     <span className="text-ink-700">{e.person}</span>
                     {e.note && (
@@ -636,7 +637,11 @@ export function TaskDrawer({
                     {canDeleteEntry && (
                       <button
                         onClick={() => {
-                          if (confirm(`Remove ${e.hours}h logged on ${e.date}?`)) {
+                          if (
+                            confirm(
+                              `Remove ${formatDuration(e.hours)} logged on ${e.date}?`,
+                            )
+                          ) {
                             void store.deleteTimeEntry(e.id);
                           }
                         }}
