@@ -6,6 +6,7 @@ import {
   canManageUsers,
   requireUser,
   userByFirstName,
+  writeAudit,
 } from "@/lib/server-access";
 import { serializeProject } from "@/lib/serializers";
 
@@ -158,6 +159,13 @@ export async function DELETE(
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { name: true },
+  });
   await prisma.project.delete({ where: { id: projectId } });
+  if (project) {
+    await writeAudit(user.id, "project.delete", { scope: project.name });
+  }
   return NextResponse.json({ ok: true });
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { canEditTasks, notifyUser, requireUser } from "@/lib/server-access";
+import { canEditTasks, notifyUser, requireUser, writeAudit } from "@/lib/server-access";
 import { serializeLeave } from "@/lib/serializers";
 
 export async function GET() {
@@ -64,6 +64,10 @@ export async function PATCH(req: Request) {
       kind: "leave_approved",
       title: "Leave approved",
       body: `Your ${updated.type} leave for ${range} was approved by ${actor.name.split(" ")[0]}.`,
+    });
+    await writeAudit(actor.id, "leave.approve", {
+      scope: updated.type,
+      after: range,
     });
   }
 

@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import {
-  canAccessProject,
-  canEditTasks,
+  canManageProjectTasks,
   requireUser,
 } from "@/lib/server-access";
 
-/** POST { dependsOnId } — toggle a "this task is blocked by X" link. */
+/** POST { dependsOnId } — toggle a "this task is blocked by X" link.
+ *  Both tasks must live on the same project; cross-project dependency
+ *  edges would be unrenderable in the UI and confuse permissions. */
 export async function POST(
   req: Request,
   context: { params: Promise<{ id: string }> },
@@ -14,9 +15,6 @@ export async function POST(
   const userOrResp = await requireUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
   const user = userOrResp;
-  if (!canEditTasks(user.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
   const { id: idStr } = await context.params;
   const taskId = Number(idStr);
   if (!Number.isFinite(taskId)) {
@@ -27,7 +25,7 @@ export async function POST(
     select: { projectId: true },
   });
   if (!task) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (!(await canAccessProject(user, task.projectId))) {
+  if (!(await canManageProjectTasks(user, task.projectId))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -35,6 +33,21 @@ export async function POST(
   const depId = Number(body.dependsOnId);
   if (!Number.isFinite(depId) || depId === taskId) {
     return NextResponse.json({ error: "Invalid dependsOnId." }, { status: 400 });
+  }
+
+  // Enforce same-project: the schema comment promised this is checked
+  // at the API layer; previously it wasn't. A cross-project edge would
+  // also bypass the UI picker which already scopes to the current
+  // project.
+  const dep = await prisma.task.findUnique({
+    where: { id: depId },
+    select: { projectId: true },
+  });
+  if (!dep || dep.projectId !== task.projectId) {
+    return NextResponse.json(
+      { error: "Dependency must be on the same project." },
+      { status: 400 },
+    );
   }
 
   const existing = await prisma.taskDependency.findUnique({

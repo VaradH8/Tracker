@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { canEditTasks, notifyUser, requireUser } from "@/lib/server-access";
+import { canEditTasks, notifyUser, requireUser, writeAudit } from "@/lib/server-access";
 
 /** Owner can cancel their own leave; Coord/Admin can delete any.
  *  When a coord/admin deletes a *pending* request belonging to someone
@@ -40,6 +40,10 @@ export async function DELETE(
       kind: "leave_denied",
       title: "Leave denied",
       body: `Your ${leave.type} leave request for ${range} was denied by ${user.name.split(" ")[0]}.`,
+    });
+    await writeAudit(user.id, "leave.deny", {
+      scope: leave.type,
+      after: range,
     });
   }
 

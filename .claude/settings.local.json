@@ -102,7 +102,9 @@
       "Bash(mv mock.new.ts mock.ts)",
       "Bash(grep -n \"      </div>$\\\\|return.*Stat\\\\|^function Stat\" \"c:/Users/Varad/Downloads/Projects/Varad/project-tracker-prd/project-tracker-prd/demo/app/clients/[id]/page.tsx\")",
       "Bash(git reset *)",
-      "Bash(grep -n \"useRole\\\\|\\\\\\\\brole\\\\\\\\b\\\\\\\\|formatINR\" app/resources/page.tsx)"
+      "Bash(grep -n \"useRole\\\\|\\\\\\\\brole\\\\\\\\b\\\\\\\\|formatINR\" app/resources/page.tsx)",
+      "Bash(rm \"demo/app/api/signout/route.ts\")",
+      "Bash(rmdir \"demo/app/api/signout\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\Varad\\Downloads\\Projects\\Varad\\project-tracker-prd\\project-tracker-prd\\demo\\lib"

@@ -82,6 +82,27 @@ export async function isTaskAssignee(
   return row !== null;
 }
 
+/** True if the user can manage tasks on this specific project. Either
+ *  they're a global Admin/Coordinator, or they hold a per-project
+ *  Lead/Coordinator role on this project. Lets a BD who created a
+ *  project (auto-Coordinator on it) add tasks even though their global
+ *  role doesn't allow task-edit org-wide. */
+export async function canManageProjectTasks(
+  user: SessionUser,
+  projectId: number,
+): Promise<boolean> {
+  if (canEditTasks(user.role)) return true;
+  const row = await prisma.projectMember.findFirst({
+    where: {
+      projectId,
+      userId: user.id,
+      role: { in: ["Lead", "Coordinator"] },
+    },
+    select: { userId: true },
+  });
+  return row !== null;
+}
+
 /** Look up a User by first name (case-insensitive). Internal tool: we
  *  assume first names are unique enough; returns the first match. */
 export async function userByFirstName(firstName: string) {

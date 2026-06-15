@@ -56,6 +56,15 @@ export async function POST(
   if (!canEditTasks(user.role) && !isLead && !isResponsible) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  // Approve = sign off a finished task. Refuse to "approve" something
+  // still In Progress / Blocked / Review — the user probably meant to
+  // mark it Done first.
+  if (existing.status !== "Done") {
+    return NextResponse.json(
+      { error: "Move the task to Done before approving it." },
+      { status: 400 },
+    );
+  }
 
   const updated = await prisma.task.update({
     where: { id: taskId },
@@ -76,7 +85,8 @@ export async function DELETE(
 ) {
   const userOrResp = await requireUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
-  if (!canEditTasks(userOrResp.role)) {
+  const user = userOrResp;
+  if (!canEditTasks(user.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { id: idStr } = await context.params;
@@ -84,10 +94,20 @@ export async function DELETE(
   if (!Number.isFinite(taskId)) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
+  const before = await prisma.task.findUnique({
+    where: { id: taskId },
+    include: { project: true },
+  });
   const updated = await prisma.task.update({
     where: { id: taskId },
     data: { approvedById: null, approvedAt: null },
     include: TASK_INCLUDE,
   });
+  if (before) {
+    await writeAudit(user.id, "task.approve_revoke", {
+      scope: before.project.name,
+      taskTitle: before.title,
+    });
+  }
   return NextResponse.json({ task: serializeTask(updated) });
 }

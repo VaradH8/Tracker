@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import {
   canAccessProject,
   canEditTasks,
+  canManageProjectTasks,
   isTaskAssignee,
   requireUser,
   userByFirstName,
@@ -71,7 +72,10 @@ export async function PATCH(
   }
 
   const isAssignee = await isTaskAssignee(user.id, taskId);
-  const editor = canEditTasks(user.role);
+  // Per-project authority: global Admin/Coord OR per-project Lead/Coord
+  // on this task's project. A BD who created the project is an
+  // editor here; a global Developer who is just an assignee is not.
+  const editor = await canManageProjectTasks(user, existing.projectId);
   // Assignees may flip status / log time / post remarks; broader edits
   // (title, description, priority, target date, responsible, important,
   // estimate, approve) need Admin/Coordinator.
@@ -164,14 +168,26 @@ export async function DELETE(
 ) {
   const userOrResp = await requireUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
-  if (!canEditTasks(userOrResp.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const user = userOrResp;
   const { id: idStr } = await context.params;
   const taskId = Number(idStr);
   if (!Number.isFinite(taskId)) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
+  const existing = await prisma.task.findUnique({
+    where: { id: taskId },
+    include: { project: true },
+  });
+  if (!existing) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  if (!(await canManageProjectTasks(user, existing.projectId))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   await prisma.task.delete({ where: { id: taskId } });
+  await writeAudit(user.id, "task.delete", {
+    scope: existing.project.name,
+    taskTitle: existing.title,
+  });
   return NextResponse.json({ ok: true });
 }

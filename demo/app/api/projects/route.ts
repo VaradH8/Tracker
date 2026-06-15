@@ -77,10 +77,19 @@ export async function POST(req: Request) {
     Developer: await resolveFirstNamesToIds(body.developers),
     BD: await resolveFirstNamesToIds(body.bds),
   };
-  // The creator is auto-added as a Coordinator so they don't accidentally
-  // lose visibility of the project they just made.
-  if (!rosterByRole.Coordinator.includes(user.id)) {
-    rosterByRole.Coordinator.push(user.id);
+  // The creator gets auto-added to the project so they don't lose
+  // visibility, tagged in whatever role matches their global role.
+  // A BD creating the project shouldn't get a phantom Coordinator
+  // tag they didn't earn. Admins get tagged as Coordinator (the
+  // closest project-level analogue) for project-page display.
+  const creatorRole: ProjectRole =
+    user.role === "BusinessDeveloper"
+      ? "BD"
+      : user.role === "Developer"
+        ? "Developer"
+        : "Coordinator";
+  if (!rosterByRole[creatorRole].includes(user.id)) {
+    rosterByRole[creatorRole].push(user.id);
   }
 
   const memberRows = ROLES.flatMap((role) =>
