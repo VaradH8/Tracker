@@ -1,9 +1,11 @@
 name: tracker
 
 # Production-ready stack: Postgres + the Next.js app.
-# - Drop this into Portainer (Stacks → Add stack → paste this file).
-# - Set the env vars from .env.example in Portainer's "Environment variables".
 # - Postgres data persists in the `tracker_pgdata` named volume.
+# - The app is fronted by the existing Traefik instance on this host.
+#   Traefik discovers it by label and routes the configured hostname to
+#   port 3000 over the shared `traefik-public` overlay network. No host
+#   port is published — all public traffic goes through Traefik on 443.
 
 services:
   postgres:
@@ -37,9 +39,28 @@ services:
       # Set to "1" on first boot to populate the demo accounts (varad/manasi/...).
       # Then change to "0" and redeploy.
       RUN_SEED: ${RUN_SEED:-0}
-    ports:
-      - "${APP_PORT:-3000}:3000"
-    networks: [tracker_net]
+    networks:
+      - tracker_net
+      - traefik-public
+    labels:
+      # Opt into Traefik discovery and match the host's constraint label.
+      - "traefik.enable=true"
+      - "traefik.constraint-label=traefik-public"
+      - "traefik.docker.network=traefik-public"
+
+      # HTTPS router: terminate TLS via Let's Encrypt and forward to :3000.
+      - "traefik.http.routers.tracker.rule=Host(`${PUBLIC_HOST:?PUBLIC_HOST is required}`)"
+      - "traefik.http.routers.tracker.entrypoints=https"
+      - "traefik.http.routers.tracker.tls=true"
+      - "traefik.http.routers.tracker.tls.certresolver=le"
+      - "traefik.http.services.tracker.loadbalancer.server.port=3000"
+
+      # HTTP -> HTTPS permanent redirect for anyone who types `http://`.
+      - "traefik.http.routers.tracker-http.rule=Host(`${PUBLIC_HOST:?PUBLIC_HOST is required}`)"
+      - "traefik.http.routers.tracker-http.entrypoints=http"
+      - "traefik.http.routers.tracker-http.middlewares=tracker-https-redirect"
+      - "traefik.http.middlewares.tracker-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.tracker-https-redirect.redirectscheme.permanent=true"
 
 volumes:
   tracker_pgdata:
@@ -47,3 +68,7 @@ volumes:
 networks:
   tracker_net:
     driver: bridge
+  # Created and managed by the existing Traefik stack on this host.
+  # `external: true` means compose will not try to create it.
+  traefik-public:
+    external: true
