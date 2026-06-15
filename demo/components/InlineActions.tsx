@@ -507,16 +507,29 @@ export function formatDuration(hours: number): string {
 }
 
 /**
- * Live elapsed-time display for a running timer. Updates every second.
+ * Live total-time display for a running timer. Updates every second.
+ * Shows the *cumulative* time spent on the task — previously closed
+ * intervals plus the currently open one — so the user sees one number
+ * instead of two ("5s logged" + "01m 30s running" was confusing).
  */
-function ElapsedTimer({ startedAt }: { startedAt: string }) {
+function ElapsedTimer({
+  startedAt,
+  baseHours = 0,
+}: {
+  startedAt: string;
+  baseHours?: number;
+}) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
   const ms = Math.max(0, now - new Date(startedAt).getTime());
-  return <span className="font-mono">{formatDuration(ms / 3_600_000)}</span>;
+  return (
+    <span className="font-mono">
+      {formatDuration(baseHours + ms / 3_600_000)}
+    </span>
+  );
 }
 
 /**
@@ -573,7 +586,11 @@ export function TimerControls({
 
   return (
     <div className="inline-flex items-center gap-1">
-      {loggedHours > 0 && (
+      {/* Only show the static "logged total" chip when the timer is NOT
+          running. While running, the Stop button's live counter already
+          includes the closed-interval total — showing both was confusing
+          ("5s" + "01m 30s" looked like two separate clocks). */}
+      {!running && loggedHours > 0 && (
         <span
           className="inline-flex items-center gap-1 text-[10px] text-ink-400"
           title={`${loggedLabel} logged total`}
@@ -592,7 +609,10 @@ export function TimerControls({
           title="Stop the timer (resume later with Start)"
         >
           <Square size={11} fill="currentColor" />
-          <ElapsedTimer startedAt={active.startedAt} />
+          <ElapsedTimer
+            startedAt={active.startedAt}
+            baseHours={loggedHours}
+          />
         </button>
       ) : (
         <button
