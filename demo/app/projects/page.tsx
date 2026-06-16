@@ -30,6 +30,7 @@ import { canManageProjects, useRole, type Role } from "@/lib/role";
 import { useAccounts, useMyFirstName } from "@/lib/account-store";
 import { canSeeProjectFinancials, visibleProjects } from "@/lib/access";
 import { useToast } from "@/components/Toast";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { Modal } from "@/components/Modal";
 import { PeoplePicker } from "@/components/PeoplePicker";
 
@@ -362,6 +363,7 @@ function PipelineBoard({ role }: { role: Role }) {
   const [dragOver, setDragOver] = useState<PipelineStage | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const toast = useToast();
+  const confirm = useConfirm();
   const canManage = canManageProjects(role);
 
   useEffect(() => {
@@ -467,7 +469,12 @@ function PipelineBoard({ role }: { role: Role }) {
                         <button
                           onClick={async (e) => {
                             e.stopPropagation();
-                            if (!confirm(`Drop deal "${d.name}"?`)) return;
+                            const ok = await confirm({
+                              title: `Drop deal "${d.name}"?`,
+                              confirmLabel: "Drop deal",
+                              danger: true,
+                            });
+                            if (!ok) return;
                             const res = await fetch(`/api/pipeline/${d.id}`, {
                               method: "DELETE",
                             });

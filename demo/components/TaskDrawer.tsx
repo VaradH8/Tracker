@@ -41,6 +41,7 @@ import {
 } from "@/lib/mock";
 import { useBlockDialog } from "./BlockDialogProvider";
 import { useToast } from "./Toast";
+import { useConfirm } from "./ConfirmDialog";
 import { useProjects } from "@/lib/projects-store";
 import { useNotifications } from "@/lib/notifications-store";
 
@@ -70,6 +71,7 @@ export function TaskDrawer({
   const blockDialog = useBlockDialog();
   const { notify } = useNotifications();
   const toast = useToast();
+  const confirm = useConfirm();
   const [newRemark, setNewRemark] = useState("");
   const [estimateEdit, setEstimateEdit] = useState<string>("");
   const [editingEstimate, setEditingEstimate] = useState(false);
@@ -192,12 +194,13 @@ export function TaskDrawer({
             {canEdit && (
               <button
                 onClick={async () => {
-                  if (
-                    !confirm(
-                      `Delete "${task.title}"? Remarks, time logs, attachments, and dependencies on this task go with it. There's no undo.`,
-                    )
-                  )
-                    return;
+                  const ok = await confirm({
+                    title: `Delete "${task.title}"?`,
+                    body: "Remarks, time logs, attachments, and dependencies on this task go with it. There's no undo.",
+                    confirmLabel: "Delete task",
+                    danger: true,
+                  });
+                  if (!ok) return;
                   const r = await store.deleteTask(task.id);
                   if (r.ok) onClose();
                 }}
@@ -639,14 +642,14 @@ export function TaskDrawer({
                     </span>
                     {canDeleteEntry && (
                       <button
-                        onClick={() => {
-                          if (
-                            confirm(
-                              `Remove ${formatDuration(e.hours)} logged on ${e.date}?`,
-                            )
-                          ) {
-                            void store.deleteTimeEntry(e.id);
-                          }
+                        onClick={async () => {
+                          const ok = await confirm({
+                            title: "Remove this time entry?",
+                            body: `${formatDuration(e.hours)} logged on ${e.date}.`,
+                            confirmLabel: "Remove",
+                            danger: true,
+                          });
+                          if (ok) void store.deleteTimeEntry(e.id);
                         }}
                         className="opacity-0 group-hover:opacity-100 transition-opacity p-1 -m-1 text-ink-400 hover:text-brand-redText"
                         aria-label="Delete time entry"
@@ -691,10 +694,13 @@ export function TaskDrawer({
                         <span className="text-xs text-ink-400">{r.when}</span>
                         {canDeleteRemark && (
                           <button
-                            onClick={() => {
-                              if (confirm("Delete this remark?")) {
-                                void store.deleteRemark(task.id, r.id);
-                              }
+                            onClick={async () => {
+                              const ok = await confirm({
+                                title: "Delete this remark?",
+                                confirmLabel: "Delete",
+                                danger: true,
+                              });
+                              if (ok) void store.deleteRemark(task.id, r.id);
                             }}
                             className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity p-1 -m-1 text-ink-400 hover:text-brand-redText"
                             aria-label="Delete remark"

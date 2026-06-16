@@ -7,6 +7,7 @@ import { todayISO, type LeaveEntry } from "@/lib/mock";
 import { useRole, ROLE_LABELS } from "@/lib/role";
 import { useMyFirstName, useAccounts } from "@/lib/account-store";
 import { useToast } from "@/components/Toast";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { Modal } from "@/components/Modal";
 
 const TYPE_COLOR: Record<LeaveEntry["type"], string> = {
@@ -311,6 +312,7 @@ function LeaveRow({
   onDelete?: () => Promise<void> | void;
 }) {
   const toast = useToast();
+  const confirm = useConfirm();
 
   async function approve() {
     const res = await fetch("/api/leaves", {
@@ -327,7 +329,13 @@ function LeaveRow({
   }
 
   async function deny() {
-    if (!confirm(`Deny ${l.resourceName}'s ${l.type} leave request?`)) return;
+    const ok = await confirm({
+      title: `Deny ${l.resourceName}'s ${l.type} leave request?`,
+      body: "The requester will get a notification with your decision.",
+      confirmLabel: "Deny",
+      danger: true,
+    });
+    if (!ok) return;
     const res = await fetch(`/api/leaves/${l.id}`, { method: "DELETE" });
     if (!res.ok) {
       toast.show("Couldn't deny.", "error");
@@ -338,14 +346,14 @@ function LeaveRow({
   }
 
   async function remove() {
-    if (
-      !confirm(
-        l.approved
-          ? `Delete this ${l.type} leave entry?`
-          : `Cancel this ${l.type} leave request?`,
-      )
-    )
-      return;
+    const ok = await confirm({
+      title: l.approved
+        ? `Delete this ${l.type} leave entry?`
+        : `Cancel this ${l.type} leave request?`,
+      confirmLabel: l.approved ? "Delete entry" : "Cancel request",
+      danger: true,
+    });
+    if (!ok) return;
     const res = await fetch(`/api/leaves/${l.id}`, { method: "DELETE" });
     if (!res.ok) {
       toast.show("Couldn't delete.", "error");

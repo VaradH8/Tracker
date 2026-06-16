@@ -8,6 +8,7 @@ import { AccountsProvider } from "@/lib/account-store";
 import { ProjectsProvider } from "@/lib/projects-store";
 import { Providers } from "@/components/Providers";
 import { ToastProvider } from "@/components/Toast";
+import { ConfirmDialogProvider } from "@/components/ConfirmDialog";
 import { BlockDialogProvider } from "@/components/BlockDialogProvider";
 
 const heading = Space_Grotesk({
@@ -81,13 +82,15 @@ export default function RootLayout({
           <AccountsProvider>
             <ProjectsProvider>
               <ToastProvider>
-                <NotificationsProvider>
-                  <TasksProvider>
-                    <BlockDialogProvider>
-                      <TaskDrawerProvider>{children}</TaskDrawerProvider>
-                    </BlockDialogProvider>
-                  </TasksProvider>
-                </NotificationsProvider>
+                <ConfirmDialogProvider>
+                  <NotificationsProvider>
+                    <TasksProvider>
+                      <BlockDialogProvider>
+                        <TaskDrawerProvider>{children}</TaskDrawerProvider>
+                      </BlockDialogProvider>
+                    </TasksProvider>
+                  </NotificationsProvider>
+                </ConfirmDialogProvider>
               </ToastProvider>
             </ProjectsProvider>
           </AccountsProvider>

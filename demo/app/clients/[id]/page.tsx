@@ -21,6 +21,7 @@ import { projectStatusPill, type Client } from "@/lib/mock";
 import { useTasks } from "@/lib/tasks-store";
 import { useProjects } from "@/lib/projects-store";
 import { useToast } from "@/components/Toast";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { useRole } from "@/lib/role";
 
 export default function ClientDetailPage({
@@ -31,6 +32,7 @@ export default function ClientDetailPage({
   const { id } = use(params);
   const router = useRouter();
   const toast = useToast();
+  const confirm = useConfirm();
   const [role] = useRole();
   const {
     clients,
@@ -91,12 +93,13 @@ export default function ClientDetailPage({
             {role === "Admin" && (
               <button
                 onClick={async () => {
-                  if (
-                    !confirm(
-                      `Delete "${client.name}"? This client must have no projects attached.`,
-                    )
-                  )
-                    return;
+                  const ok = await confirm({
+                    title: `Delete "${client.name}"?`,
+                    body: "This client must have no projects attached. There's no undo.",
+                    confirmLabel: "Delete client",
+                    danger: true,
+                  });
+                  if (!ok) return;
                   const r = await deleteClient(client.id);
                   if (!r.ok) {
                     toast.show(r.error ?? "Couldn't delete client.", "error");

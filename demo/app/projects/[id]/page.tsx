@@ -41,6 +41,7 @@ import {
   canSeeProjectFinancials,
 } from "@/lib/access";
 import { useToast } from "@/components/Toast";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { Modal } from "@/components/Modal";
 import { PeoplePicker } from "@/components/PeoplePicker";
 import { toCsv, downloadCsv } from "@/lib/csv";
@@ -76,6 +77,7 @@ export default function ProjectDetailPage({
   const [role, , hydrated] = useRole();
   const router = useRouter();
   const toast = useToast();
+  const confirm = useConfirm();
   const [createOpen, setCreateOpen] = useState(false);
   const {
     forProject,
@@ -209,12 +211,13 @@ export default function ProjectDetailPage({
             {isAdmin && (
               <button
                 onClick={async () => {
-                  if (
-                    !confirm(
-                      `Delete "${project.name}"? Every task, remark, time log, attachment, and audit entry on this project goes with it. There's no undo.`,
-                    )
-                  )
-                    return;
+                  const ok = await confirm({
+                    title: `Delete "${project.name}"?`,
+                    body: "Every task, remark, time log, attachment, and audit entry on this project goes with it. There's no undo.",
+                    confirmLabel: "Delete project",
+                    danger: true,
+                  });
+                  if (!ok) return;
                   const r = await deleteProject(project.id);
                   if (!r.ok) {
                     toast.show(
