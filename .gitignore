@@ -28,3 +28,6 @@ Thumbs.db
 *.sql
 *.sql.gz
 *.dump
+# But DO check in Prisma migration SQL — they are source code, not a dump.
+!demo/prisma/migrations/**/*.sql
+!demo/prisma/post-push.sql
