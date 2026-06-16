@@ -13,6 +13,7 @@ import { AppShell } from "@/components/AppShell";
 import { useProjects } from "@/lib/projects-store";
 import { useToast } from "@/components/Toast";
 import { Modal } from "@/components/Modal";
+import { formatDateLong } from "@/lib/mock";
 
 export default function ClientsPage() {
   const { clients, projects, createClient } = useProjects();
@@ -118,10 +119,7 @@ export default function ClientsPage() {
                           </span>
                           <span className="text-xs text-ink-500 inline-flex items-center gap-1">
                             <Calendar size={11} />
-                            {new Date(p.targetDate).toLocaleDateString(
-                              "en-IN",
-                              { day: "numeric", month: "short" },
-                            )}
+                            {formatDateLong(p.targetDate)}
                           </span>
                           <ArrowRight
                             size={12}

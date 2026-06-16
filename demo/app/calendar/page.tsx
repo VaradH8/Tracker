@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { useTasks } from "@/lib/tasks-store";
 import { useRole } from "@/lib/role";
 import { useMyFirstName } from "@/lib/account-store";
-import { todayISO, type Task } from "@/lib/mock";
+import { formatDateLong, todayISO, type Task } from "@/lib/mock";
 
 const MONTHS = [
   "January",
@@ -219,11 +219,7 @@ export default function CalendarPage() {
               <div className="flex items-center gap-2 mb-3">
                 <CalendarClock size={16} className="text-brand-blue" />
                 <h2 className="font-heading text-base font-semibold">
-                  {new Date(selected + "T00:00:00").toLocaleDateString("en-IN", {
-                    day: "numeric",
-                    month: "long",
-                    weekday: "long",
-                  })}
+                  {formatDateLong(selected)}
                 </h2>
                 <span className="text-xs text-ink-500 ml-auto">
                   {selectedTasks.length} task

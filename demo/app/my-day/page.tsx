@@ -22,6 +22,7 @@ import {
   RECENT_ACTIVITY,
   RESOURCES,
   daysSince,
+  formatTodayLong,
   todayISO,
   type Task,
 } from "@/lib/mock";
@@ -38,15 +39,6 @@ import { toCsv, downloadCsv } from "@/lib/csv";
 const isOverdue = (d: string) => d < todayISO();
 const isDueToday = (d: string) => d === todayISO();
 
-/** "Wednesday, 6 May 2026" formatted from today's local date. */
-function formatTodayLong(): string {
-  return new Date().toLocaleDateString("en-IN", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-}
 const PRIO_ORDER = { Critical: 0, High: 1, Medium: 2, Low: 3 } as const;
 
 const REASSIGN_PEOPLE = RESOURCES.filter(

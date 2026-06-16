@@ -11,7 +11,13 @@ import {
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { StatCard } from "@/components/StatCard";
-import { statusPill, todayISO, type Task } from "@/lib/mock";
+import {
+  formatDateLong,
+  formatTodayLong,
+  statusPill,
+  todayISO,
+  type Task,
+} from "@/lib/mock";
 import { useTasks } from "@/lib/tasks-store";
 import { useProjects } from "@/lib/projects-store";
 import { useTaskDrawer } from "@/components/TaskDrawerProvider";
@@ -68,14 +74,7 @@ export default function OrgDashboardPage() {
         <header className="mb-6">
           <h1 className="font-heading text-3xl font-semibold">Dashboard</h1>
           <p className="text-sm text-ink-500 mt-1">
-            Org-wide health ·{" "}
-            {new Date().toLocaleDateString("en-IN", {
-              weekday: "long",
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            })}{" "}
-            ·{" "}
+            Org-wide health · {formatTodayLong()} ·{" "}
             <span className="text-ink-700">click any card to drill down</span>
           </p>
         </header>
@@ -175,10 +174,7 @@ export default function OrgDashboardPage() {
                           </span>
                         </td>
                         <td className="py-3 pr-4 text-ink-700">
-                          {new Date(t.targetDate).toLocaleDateString("en-IN", {
-                            day: "numeric",
-                            month: "short",
-                          })}
+                          {formatDateLong(t.targetDate)}
                           {t.overdueDays && (
                             <span className="ml-2 pill-red text-[10px] py-0">
                               +{t.overdueDays}d

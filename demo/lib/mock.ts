@@ -344,6 +344,35 @@ export function statusPill(s: Status): string {
   }
 }
 
+/** Format a date as "25 June 2026". Accepts ISO strings (YYYY-MM-DD),
+ *  full ISO timestamps, or Date objects. Empty / invalid input → "—".
+ *  This is the canonical UI date format for the app — anywhere a
+ *  date is shown to a user, route it through here. */
+export function formatDateLong(d: string | Date | null | undefined): string {
+  if (!d) return "—";
+  const date =
+    typeof d === "string"
+      ? new Date(d.length === 10 ? `${d}T00:00:00` : d)
+      : d;
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+/** Format today as a long form like "Monday, 25 June 2026". Used by
+ *  page subtitles. */
+export function formatTodayLong(): string {
+  return new Date().toLocaleDateString("en-IN", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
 /** Today's date as a YYYY-MM-DD string. Evaluated at call time so it
  *  reflects the actual current date — not the date a module bundle was
  *  built (which is what a top-level `new Date().toISOString()` would do).

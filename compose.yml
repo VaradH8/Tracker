@@ -54,6 +54,10 @@ services:
       UPLOAD_DIR: /uploads
     volumes:
       - ./uploads:/uploads
+      # Drop the historical-import CSVs into ./historical-import on
+      # the host, then run scripts/import-historical.ts inside the
+      # app container. Read-only — the script never writes back.
+      - ./historical-import:/import:ro
     networks: [tracker_net]
 
   caddy:

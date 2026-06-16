@@ -774,9 +774,11 @@ function formatRelativeDate(iso: string): string {
   if (diff === -1) return "Yesterday";
   if (diff > 1 && diff <= 6) return `in ${diff}d`;
   if (diff < -1 && diff >= -6) return `${-diff}d ago`;
+  // Far from today — show the canonical "25 June 2026" form.
   return target.toLocaleDateString("en-IN", {
     day: "numeric",
-    month: "short",
+    month: "long",
+    year: "numeric",
   });
 }
 

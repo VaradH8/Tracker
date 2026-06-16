@@ -11,7 +11,7 @@ import {
 import { AppShell } from "@/components/AppShell";
 import { useTasks } from "@/lib/tasks-store";
 import { useAccounts, useMyFirstName } from "@/lib/account-store";
-import { firstNameOf, type Task } from "@/lib/mock";
+import { firstNameOf, formatDateLong, type Task } from "@/lib/mock";
 import { ROLE_LABELS } from "@/lib/role";
 import { useProjects } from "@/lib/projects-store";
 
@@ -160,10 +160,7 @@ export default function TeamPage() {
                           </span>
                           <span className="text-ink-400 inline-flex items-center gap-1 shrink-0">
                             <Calendar size={10} />
-                            {new Date(t.targetDate).toLocaleDateString(
-                              "en-IN",
-                              { day: "numeric", month: "short" },
-                            )}
+                            {formatDateLong(t.targetDate)}
                           </span>
                         </li>
                       ))}

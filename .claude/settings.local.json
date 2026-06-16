@@ -104,7 +104,12 @@
       "Bash(git reset *)",
       "Bash(grep -n \"useRole\\\\|\\\\\\\\brole\\\\\\\\b\\\\\\\\|formatINR\" app/resources/page.tsx)",
       "Bash(rm \"demo/app/api/signout/route.ts\")",
-      "Bash(rmdir \"demo/app/api/signout\")"
+      "Bash(rmdir \"demo/app/api/signout\")",
+      "Bash(git check-ignore *)",
+      "Bash(npx vitest *)",
+      "Bash(npm test *)",
+      "Bash(docker build *)",
+      "Bash(sh -n -c 'set -e; npx prisma migrate deploy; if [ -f prisma/post-push.sql ]; then npx prisma db execute --file prisma/post-push.sql --schema prisma/schema.prisma; else echo \"WARN: prisma/post-push.sql not in image — skipping post-push extras. Index-based invariants may not be enforced.\"; fi; if [ \"$RUN_SEED\" = \"1\" ]; then npx prisma db seed || true; fi; exec node node_modules/next/dist/bin/next start -H 0.0.0.0 -p 3000')"
     ],
     "additionalDirectories": [
       "c:\\Users\\Varad\\Downloads\\Projects\\Varad\\project-tracker-prd\\project-tracker-prd\\demo\\lib"

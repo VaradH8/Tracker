@@ -18,6 +18,7 @@ import {
   PIPELINE,
   PIPELINE_STAGES,
   projectStatusPill,
+  formatDateLong,
   formatINR,
   type Project,
   type ProjectStatus,
@@ -280,10 +281,7 @@ function ActiveProjects({ role }: { role: Role }) {
                   </div>
                   <span className="inline-flex items-center gap-1">
                     <Calendar size={11} />
-                    {new Date(p.targetDate).toLocaleDateString("en-IN", {
-                      day: "numeric",
-                      month: "short",
-                    })}
+                    {formatDateLong(p.targetDate)}
                     <ArrowRight
                       size={12}
                       className="text-brand-blue ml-1 group-hover:translate-x-0.5 transition-transform"
@@ -511,11 +509,7 @@ function PipelineBoard({ role }: { role: Role }) {
                     </div>
                     <div className="flex items-center gap-1 text-[11px] text-ink-400 mt-2 pt-2 border-t border-ink-100">
                       <Calendar size={11} />
-                      Starts{" "}
-                      {new Date(d.expectedStart).toLocaleDateString("en-IN", {
-                        day: "numeric",
-                        month: "short",
-                      })}
+                      Starts {formatDateLong(d.expectedStart)}
                     </div>
                   </article>
                 ))}

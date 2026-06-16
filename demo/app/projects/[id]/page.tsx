@@ -21,6 +21,7 @@ import { TaskCard } from "@/components/TaskCard";
 import {
   TASK_TEMPLATES,
   currentWeek,
+  formatDateLong,
   todayISO,
   weekNumberOf,
   projectStatusPill,
@@ -268,10 +269,7 @@ export default function ProjectDetailPage({
           />
           <Stat
             label="Target"
-            value={new Date(project.targetDate).toLocaleDateString("en-IN", {
-              day: "numeric",
-              month: "short",
-            })}
+            value={formatDateLong(project.targetDate)}
             sub={project.targetDate < todayISO() ? "overdue" : "on calendar"}
             tone={project.targetDate < todayISO() ? "red" : "default"}
           />
