@@ -41,6 +41,19 @@ services:
       # Set to "1" on first boot to populate the demo accounts (varad/manasi/...).
       # Then change to "0" and redeploy.
       RUN_SEED: ${RUN_SEED:-0}
+      # SMTP — set in .env to enable real outbound mail. Empty values
+      # leave the app in EmailLog-only mode (no actual email sent).
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      # Attachments live on a host bind mount so they survive a stack
+      # rebuild. Mounted at /uploads inside the container.
+      UPLOAD_DIR: /uploads
+    volumes:
+      - ./uploads:/uploads
     networks: [tracker_net]
 
   caddy:
@@ -84,6 +97,44 @@ services:
       HEALTHCHECK_PORT: "8080"
     volumes:
       - ./backups:/backups
+    networks: [tracker_net]
+
+  # Off-host copy of the daily dumps. Loops every hour: if rclone is
+  # configured (RCLONE_BACKUP_DEST set), it syncs ./backups -> remote.
+  # If not, it sleeps quietly and the rest of the stack is unaffected.
+  # Container is light — Alpine + rclone, ~30 MB.
+  rclone_backup:
+    image: rclone/rclone:latest
+    restart: unless-stopped
+    depends_on: [pg_backup]
+    # Env vars of the form RCLONE_CONFIG_<REMOTE>_<KEY>=value configure
+    # an rclone remote called <REMOTE> without needing a config file
+    # on disk. See .env.example for B2 / S3 / GCS examples.
+    environment:
+      RCLONE_CONFIG_REMOTE_TYPE: ${RCLONE_CONFIG_REMOTE_TYPE:-}
+      RCLONE_CONFIG_REMOTE_PROVIDER: ${RCLONE_CONFIG_REMOTE_PROVIDER:-}
+      RCLONE_CONFIG_REMOTE_ENDPOINT: ${RCLONE_CONFIG_REMOTE_ENDPOINT:-}
+      RCLONE_CONFIG_REMOTE_ACCESS_KEY_ID: ${RCLONE_CONFIG_REMOTE_ACCESS_KEY_ID:-}
+      RCLONE_CONFIG_REMOTE_SECRET_ACCESS_KEY: ${RCLONE_CONFIG_REMOTE_SECRET_ACCESS_KEY:-}
+      RCLONE_BACKUP_DEST: ${RCLONE_BACKUP_DEST:-}
+    volumes:
+      - ./backups:/backups:ro
+    # Sleep 1h, check whether RCLONE_BACKUP_DEST is set. If yes, sync;
+    # if no, log and loop. Idempotent — rclone sync only uploads
+    # files that changed.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        while true; do
+          if [ -n "$$RCLONE_BACKUP_DEST" ]; then
+            echo "rclone sync /backups -> $$RCLONE_BACKUP_DEST"
+            rclone sync /backups "$$RCLONE_BACKUP_DEST" --transfers 4 || true
+          else
+            echo "rclone: RCLONE_BACKUP_DEST not set, skipping off-host copy"
+          fi
+          sleep 3600
+        done
     networks: [tracker_net]
 
 volumes:

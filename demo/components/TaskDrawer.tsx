@@ -40,6 +40,7 @@ import {
   type TaskAttachment,
 } from "@/lib/mock";
 import { useBlockDialog } from "./BlockDialogProvider";
+import { useToast } from "./Toast";
 import { useProjects } from "@/lib/projects-store";
 import { useNotifications } from "@/lib/notifications-store";
 
@@ -68,6 +69,7 @@ export function TaskDrawer({
   const me = useMyFirstName();
   const blockDialog = useBlockDialog();
   const { notify } = useNotifications();
+  const toast = useToast();
   const [newRemark, setNewRemark] = useState("");
   const [estimateEdit, setEstimateEdit] = useState<string>("");
   const [editingEstimate, setEditingEstimate] = useState(false);
@@ -147,16 +149,16 @@ export function TaskDrawer({
     setEditingEstimate(false);
   }
 
-  function onFileChosen(e: React.ChangeEvent<HTMLInputElement>) {
+  async function onFileChosen(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file || !task) return;
-    store.addAttachment(task.id, {
-      name: file.name,
-      size: formatBytes(file.size),
-      uploadedBy: me,
-      kind: kindFromName(file.name),
-    });
+    const res = await store.addAttachment(task.id, file);
+    if (!res.ok) {
+      toast.show(res.error, "error");
+    } else {
+      toast.show(`Uploaded "${file.name}".`);
+    }
   }
 
   return (
@@ -534,12 +536,13 @@ export function TaskDrawer({
                   className="flex items-center gap-2 text-sm py-1.5 px-2 rounded border border-ink-200"
                 >
                   <FileText size={14} className="text-ink-400 shrink-0" />
-                  <span
-                    className="flex-1 truncate text-ink-900"
-                    title={a.name}
+                  <a
+                    href={`/api/tasks/${task.id}/attachments/${a.id}`}
+                    className="flex-1 truncate text-ink-900 hover:text-brand-blue hover:underline"
+                    title={`Download ${a.name}`}
                   >
                     {a.name}
-                  </span>
+                  </a>
                   <span className="text-xs text-ink-400 shrink-0">
                     {a.size}
                   </span>
@@ -766,22 +769,6 @@ export function TaskDrawer({
       </aside>
     </div>
   );
-}
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function kindFromName(name: string): TaskAttachment["kind"] {
-  const ext = name.toLowerCase().split(".").pop() ?? "";
-  if (ext === "pdf") return "pdf";
-  if (["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(ext))
-    return "image";
-  if (["doc", "docx", "txt", "md"].includes(ext)) return "doc";
-  if (["xls", "xlsx", "csv"].includes(ext)) return "sheet";
-  return "other";
 }
 
 function auditVerb(action: string): string {

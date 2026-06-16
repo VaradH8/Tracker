@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { sendEmail } from "@/lib/mailer";
 
 /** POST { email } — issues a single-use password-reset token. Always
  *  returns 200 even if the email doesn't match an account, so we don't
@@ -26,17 +27,22 @@ export async function POST(req: Request) {
       });
       const origin = new URL(req.url).origin;
       const link = `${origin}/reset-password?token=${token.id}`;
-      // Until SMTP is wired this is the visible artifact. Admins can
-      // read /settings/emails and send the link to the user.
+      const subject = "Reset your Task Manager password";
+      const body = `Click the link to choose a new password. It expires in ${RESET_TTL_MIN} minutes.\n\n${link}`;
+      // EmailLog row is the audit surface — always written. SMTP is
+      // best-effort; if SMTP_* env vars aren't set, sendEmail is a
+      // no-op and the admin can still forward the link from
+      // /settings/emails.
       await prisma.emailLog.create({
         data: {
           recipientId: user.id,
           toEmail: user.email,
-          subject: "Reset your Task Manager password",
-          body: `Click the link to choose a new password. It expires in ${RESET_TTL_MIN} minutes.\n\n${link}`,
+          subject,
+          body,
           kind: "password_reset",
         },
       });
+      void sendEmail({ to: user.email, subject, body });
     }
   }
 

@@ -67,8 +67,8 @@ type Ctx = {
   toggleDependency: (id: number, depId: number) => Promise<void>;
   addAttachment: (
     id: number,
-    attachment: Omit<TaskAttachment, "id" | "when">,
-  ) => Promise<void>;
+    file: File,
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
   removeAttachment: (id: number, attId: number) => Promise<void>;
   approveTask: (id: number, approver: string) => Promise<void>;
   unapproveTask: (id: number) => Promise<void>;
@@ -246,13 +246,25 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   );
 
   const addAttachment = useCallback(
-    async (id: number, attachment: Omit<TaskAttachment, "id" | "when">) => {
+    async (
+      id: number,
+      file: File,
+    ): Promise<{ ok: true } | { ok: false; error: string }> => {
+      // Real multipart upload — the server saves the bytes to its
+      // /uploads volume and creates the DB row with a storageKey.
+      const form = new FormData();
+      form.append("file", file);
       const res = await fetch(`/api/tasks/${id}/attachments`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(attachment),
+        body: form,
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        return {
+          ok: false,
+          error: body.error ?? "Couldn't upload that file.",
+        };
+      }
       const body = await res.json().catch(() => ({}));
       if (body.attachment) {
         setTasks((prev) =>
@@ -269,6 +281,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
           ),
         );
       }
+      return { ok: true };
     },
     [],
   );

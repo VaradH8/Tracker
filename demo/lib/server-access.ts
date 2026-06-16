@@ -118,10 +118,13 @@ export async function userByFirstName(firstName: string) {
   });
 }
 
-/** Write a Notification + the matching EmailLog row in one shot.
- *  Mirrors what POST /api/notifications does, for callers that need
- *  to fire a notification directly from another route (e.g. leave
- *  approval / denial). */
+/** Write a Notification + the matching EmailLog row in one shot, and
+ *  fire a real SMTP email if SMTP_* env vars are configured. Mirrors
+ *  what POST /api/notifications does, for callers that need to fire a
+ *  notification directly from another route (e.g. leave approval /
+ *  denial, password reset). SMTP failure never breaks the in-app
+ *  notification — the EmailLog row stays as the admin-readable audit
+ *  trail either way. */
 export async function notifyUser(
   recipientId: string,
   opts: {
@@ -154,6 +157,14 @@ export async function notifyUser(
       },
     }),
   ]);
+  // Fire-and-forget the SMTP send. Imported lazily so the auth bundle
+  // doesn't pull nodemailer for routes that don't need it.
+  const { sendEmail } = await import("./mailer");
+  void sendEmail({
+    to: target.email,
+    subject: opts.title,
+    body: opts.body,
+  });
 }
 
 export async function writeAudit(
