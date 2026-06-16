@@ -49,8 +49,17 @@ USER app
 EXPOSE 3000
 
 # On boot:
-#   1. Sync the DB schema to match prisma/schema.prisma (idempotent;
-#      `db push` keeps existing data, never drops without confirmation).
-#   2. Optionally run the seed (set RUN_SEED=1 once on first boot).
-#   3. Start Next.
-CMD ["sh", "-c", "npx prisma db push --skip-generate --accept-data-loss && npx prisma db execute --file prisma/post-push.sql --schema prisma/schema.prisma && ([ \"$RUN_SEED\" = \"1\" ] && npx prisma db seed || true) && node node_modules/next/dist/bin/next start -H 0.0.0.0 -p 3000"]
+#   1. Apply any new migrations from prisma/migrations/. Idempotent: the
+#      _prisma_migrations table in the DB tracks what's already been
+#      applied. NEVER applies a destructive change without a migration
+#      file committed for it, so an accidental schema diff can no longer
+#      drop a column in production.
+#   2. Re-run post-push.sql for any extras Prisma can't express (e.g.
+#      the partial unique index on TimeEntry). Idempotent — safe to
+#      re-run.
+#   3. Optionally run the seed (set RUN_SEED=1 once on first boot).
+#   4. Start Next.
+#
+# First-time migration adoption on an existing prod DB: see
+# specs/MIGRATIONS.md (commit message of the migrate-deploy switch).
+CMD ["sh", "-c", "npx prisma migrate deploy && npx prisma db execute --file prisma/post-push.sql --schema prisma/schema.prisma && ([ \"$RUN_SEED\" = \"1\" ] && npx prisma db seed || true) && node node_modules/next/dist/bin/next start -H 0.0.0.0 -p 3000"]
