@@ -62,4 +62,12 @@ EXPOSE 3000
 #
 # First-time migration adoption on an existing prod DB: see
 # specs/MIGRATIONS.md (commit message of the migrate-deploy switch).
-CMD ["sh", "-c", "npx prisma migrate deploy && npx prisma db execute --file prisma/post-push.sql --schema prisma/schema.prisma && ([ \"$RUN_SEED\" = \"1\" ] && npx prisma db seed || true) && node node_modules/next/dist/bin/next start -H 0.0.0.0 -p 3000"]
+CMD ["sh", "-c", "set -e; \
+  npx prisma migrate deploy; \
+  if [ -f prisma/post-push.sql ]; then \
+    npx prisma db execute --file prisma/post-push.sql --schema prisma/schema.prisma; \
+  else \
+    echo 'WARN: prisma/post-push.sql not in image — skipping post-push extras. Index-based invariants may not be enforced.'; \
+  fi; \
+  if [ \"$RUN_SEED\" = \"1\" ]; then npx prisma db seed || true; fi; \
+  exec node node_modules/next/dist/bin/next start -H 0.0.0.0 -p 3000"]
