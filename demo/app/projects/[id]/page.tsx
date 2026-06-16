@@ -73,7 +73,13 @@ export default function ProjectDetailPage({
     toggleProjectMember,
   } = useProjects();
   const project = projects.find((p) => p.id === projectId);
-  if (projectsHydrated && !project) notFound();
+  const [isDeleting, setIsDeleting] = useState(false);
+  // Don't call notFound() while we're in the middle of deleting this
+  // very project — the store already removed it before the router has
+  // navigated to /projects, and throwing here trips the 404 page mid-
+  // redirect (which then crashes with a stale provider reference when
+  // the user clicks "Take me home").
+  if (projectsHydrated && !project && !isDeleting) notFound();
 
   const [role, , hydrated] = useRole();
   const router = useRouter();
@@ -123,14 +129,17 @@ export default function ProjectDetailPage({
         <div className="min-h-[60vh] grid place-items-center p-6">
           <div className="card p-8 max-w-md text-center">
             <h1 className="font-heading text-xl font-semibold mb-2">
-              {hydrated && projectsHydrated
-                ? "Not on this project"
-                : "Loading…"}
+              {isDeleting
+                ? "Project deleted"
+                : hydrated && projectsHydrated
+                  ? "Not on this project"
+                  : "Loading…"}
             </h1>
-            {hydrated && projectsHydrated && (
+            {(isDeleting || (hydrated && projectsHydrated)) && (
               <p className="text-sm text-ink-500">
-                You're not assigned to anything on this project. Taking you
-                back.
+                {isDeleting
+                  ? "Taking you back to the projects list."
+                  : "You're not assigned to anything on this project. Taking you back."}
               </p>
             )}
           </div>
@@ -219,16 +228,27 @@ export default function ProjectDetailPage({
                     danger: true,
                   });
                   if (!ok) return;
-                  const r = await deleteProject(project.id);
+                  // Capture the name for the toast before the store
+                  // update clears our `project` reference, and arm the
+                  // isDeleting flag so the render that happens between
+                  // "store update" and "router.replace lands" doesn't
+                  // throw via notFound().
+                  const deletedName = project.name;
+                  const deletedId = project.id;
+                  setIsDeleting(true);
+                  const r = await deleteProject(deletedId);
                   if (!r.ok) {
+                    setIsDeleting(false);
                     toast.show(
                       r.error ?? "Couldn't delete project.",
                       "error",
                     );
                     return;
                   }
-                  toast.show(`Project "${project.name}" deleted.`, "info");
-                  router.push("/projects");
+                  toast.show(`Project "${deletedName}" deleted.`, "info");
+                  // replace, not push — the deleted page shouldn't be
+                  // reachable via the browser back button.
+                  router.replace("/projects");
                 }}
                 className="btn-ghost border border-ink-200 text-brand-redText hover:bg-brand-redBg"
                 title="Delete project"
