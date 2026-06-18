@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import {
-  canAccessProject,
-  canManageProjectTasks,
+  canCreateProjectTasks,
   requireUser,
   userByFirstName,
   visibleProjectIds,
@@ -61,9 +60,10 @@ export async function POST(req: Request) {
   }
   // Per-project authority: anyone who is a Lead or Coordinator on this
   // specific project can create tasks, even if their global role is BD
-  // or Developer. Closes the "BD creates a project, can't add tasks"
-  // gap from the audit.
-  if (!(await canManageProjectTasks(user, projectId))) {
+  // or Developer. A BusinessDeveloper rostered on the project (e.g. the
+  // BD who created it) may also add tasks — but assigning developers to
+  // them stays with the Lead/Coordinator.
+  if (!(await canCreateProjectTasks(user, projectId))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

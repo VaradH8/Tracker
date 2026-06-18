@@ -1,6 +1,6 @@
 "use client";
 
-import { useAccounts } from "./account-store";
+import { useAccounts, type Account } from "./account-store";
 
 export type Role =
   | "Admin"
@@ -8,6 +8,34 @@ export type Role =
   | "Coordinator"
   | "BusinessDeveloper"
   | "Developer";
+
+/** The per-project team lanes, and the global Role each one draws from.
+ *  A "Leads" lane only offers people whose global role is Lead, etc. */
+export type ProjectRoleKey = "Lead" | "Coordinator" | "Developer" | "BD";
+
+const GLOBAL_FOR_PROJECT_ROLE: Record<ProjectRoleKey, Role> = {
+  Lead: "Lead",
+  Coordinator: "Coordinator",
+  Developer: "Developer",
+  BD: "BusinessDeveloper",
+};
+
+/**
+ * First names of active accounts whose *global* role matches a given
+ * team lane — so the "Developers" picker lists only Developers, the
+ * "Leads" picker only Leads, and so on. Optionally drops one person by
+ * id (used to keep the creator out of their own pickers).
+ */
+export function candidatesForProjectRole(
+  accounts: Account[],
+  lane: ProjectRoleKey,
+  excludeId?: string,
+): string[] {
+  const want = GLOBAL_FOR_PROJECT_ROLE[lane];
+  return accounts
+    .filter((a) => a.active && a.role === want && a.id !== excludeId)
+    .map((a) => a.name.split(" ")[0]);
+}
 
 export const ROLE_LABELS: Record<Role, string> = {
   Admin: "Admin",

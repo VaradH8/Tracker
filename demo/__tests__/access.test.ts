@@ -20,6 +20,7 @@ vi.mock("next/headers", () => ({
 import { prisma } from "@/lib/db";
 import {
   canAccessProject,
+  canCreateProjectTasks,
   canEditTasks,
   canManageProjectTasks,
   canManageUsers,
@@ -174,12 +175,48 @@ describe("canManageProjectTasks", () => {
     ).toBe(false);
   });
 
-  it("BD who created the project (and so is rostered as Coordinator) → true", async () => {
-    vi.mocked(prisma.projectMember.findFirst).mockResolvedValue({
-      userId: "user-businessdeveloper",
-    } as never);
+  it("BD rostered only as 'BD' (no Lead/Coord row) → false — they can't manage the team", async () => {
+    vi.mocked(prisma.projectMember.findFirst).mockResolvedValue(null);
     expect(
       await canManageProjectTasks(userWithRole("BusinessDeveloper"), 7),
+    ).toBe(false);
+  });
+});
+
+describe("canCreateProjectTasks", () => {
+  beforeEach(() => {
+    vi.mocked(prisma.projectMember.findFirst).mockReset();
+  });
+
+  it("global Coordinator → true via canManageProjectTasks, no extra lookup", async () => {
+    expect(
+      await canCreateProjectTasks(userWithRole("Coordinator"), 1),
     ).toBe(true);
+    expect(prisma.projectMember.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("BD rostered on the project (e.g. the creator) → true", async () => {
+    // First findFirst (Lead/Coord check in canManageProjectTasks) → null,
+    // second findFirst (any membership row) → a row.
+    vi.mocked(prisma.projectMember.findFirst)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ userId: "user-businessdeveloper" } as never);
+    expect(
+      await canCreateProjectTasks(userWithRole("BusinessDeveloper"), 7),
+    ).toBe(true);
+  });
+
+  it("BD not on the project → false", async () => {
+    vi.mocked(prisma.projectMember.findFirst).mockResolvedValue(null);
+    expect(
+      await canCreateProjectTasks(userWithRole("BusinessDeveloper"), 7),
+    ).toBe(false);
+  });
+
+  it("Developer with no Lead/Coord row → false (BD-only escape hatch doesn't apply)", async () => {
+    vi.mocked(prisma.projectMember.findFirst).mockResolvedValue(null);
+    expect(
+      await canCreateProjectTasks(userWithRole("Developer"), 7),
+    ).toBe(false);
   });
 });

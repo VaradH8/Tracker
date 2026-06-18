@@ -27,7 +27,12 @@ import {
 } from "@/lib/mock";
 import { useTasks } from "@/lib/tasks-store";
 import { useProjects } from "@/lib/projects-store";
-import { canManageProjects, useRole, type Role } from "@/lib/role";
+import {
+  canManageProjects,
+  candidatesForProjectRole,
+  useRole,
+  type Role,
+} from "@/lib/role";
 import { useAccounts, useMyFirstName } from "@/lib/account-store";
 import { canSeeProjectFinancials, visibleProjects } from "@/lib/access";
 import { useToast } from "@/components/Toast";
@@ -297,6 +302,7 @@ function ActiveProjects({ role }: { role: Role }) {
       {createOpen && (
         <CreateProjectModal
           clients={clients}
+          creatorRole={role}
           onClose={() => setCreateOpen(false)}
           onCreate={async ({
             name,
@@ -672,10 +678,12 @@ function NewDealModal({
 
 function CreateProjectModal({
   clients,
+  creatorRole,
   onClose,
   onCreate,
 }: {
   clients: { id: number; name: string }[];
+  creatorRole: Role;
   onClose: () => void;
   onCreate: (input: {
     name: string;
@@ -688,11 +696,27 @@ function CreateProjectModal({
     bds: string[];
   }) => void | Promise<void>;
 }) {
-  const { accounts } = useAccounts();
-  const candidates = accounts
-    .filter((a) => a.active)
-    .map((a) => a.name.split(" ")[0]);
-  const me = useMyFirstName();
+  const { accounts, current } = useAccounts();
+  // Each lane offers only people who hold that global role, and never the
+  // creator themselves — the server auto-rosters the creator in their own
+  // role, and it stays editable from the project's Team panel afterwards.
+  const leadCandidates = candidatesForProjectRole(accounts, "Lead", current?.id);
+  const coordCandidates = candidatesForProjectRole(
+    accounts,
+    "Coordinator",
+    current?.id,
+  );
+  const devCandidates = candidatesForProjectRole(
+    accounts,
+    "Developer",
+    current?.id,
+  );
+  const bdCandidates = candidatesForProjectRole(accounts, "BD", current?.id);
+
+  // A BD scopes the kick-off to picking the Lead + Co-ordinator; the
+  // Lead/Co-ordinator fill in developers afterwards. Everyone else
+  // (Admin/Lead/Coordinator) gets the full roster up front.
+  const isBD = creatorRole === "BusinessDeveloper";
 
   const [name, setName] = useState("");
   const [clientId, setClientId] = useState<string>(
@@ -701,7 +725,7 @@ function CreateProjectModal({
   const [newClient, setNewClient] = useState("");
   const [target, setTarget] = useState("");
   const [leads, setLeads] = useState<string[]>([]);
-  const [coords, setCoords] = useState<string[]>(me ? [me] : []);
+  const [coords, setCoords] = useState<string[]>([]);
   const [devs, setDevs] = useState<string[]>([]);
   const [bds, setBds] = useState<string[]>([]);
 
@@ -717,8 +741,9 @@ function CreateProjectModal({
   return (
     <Modal title="New project" onClose={onClose} size="lg">
       <p className="text-sm text-ink-500 mb-5">
-        Pick a client and assign the team. Only assigned people will see
-        this project in their Projects tab.
+        {isBD
+          ? "Pick a client and assign the Lead and Co-ordinator. They'll bring in the developers once the project is set up."
+          : "Pick a client and assign the team. Only assigned people will see this project in their Projects tab."}
       </p>
 
       <label className="block text-xs font-medium text-ink-700 mb-1.5">
@@ -774,28 +799,36 @@ function CreateProjectModal({
       <div className="space-y-3 mb-6">
         <PeoplePicker
           label="Leads"
-          candidates={candidates}
+          candidates={leadCandidates}
           selected={leads}
           onToggle={(n) => toggle(leads, setLeads, n)}
+          emptyHint="No Leads yet. Add users with the Lead role in Admin → Users."
         />
         <PeoplePicker
           label="Coordinators"
-          candidates={candidates}
+          candidates={coordCandidates}
           selected={coords}
           onToggle={(n) => toggle(coords, setCoords, n)}
+          emptyHint="No Co-ordinators yet. Add users with the Co-ordinator role in Admin → Users."
         />
-        <PeoplePicker
-          label="Developers"
-          candidates={candidates}
-          selected={devs}
-          onToggle={(n) => toggle(devs, setDevs, n)}
-        />
-        <PeoplePicker
-          label="Business Developers"
-          candidates={candidates}
-          selected={bds}
-          onToggle={(n) => toggle(bds, setBds, n)}
-        />
+        {!isBD && (
+          <>
+            <PeoplePicker
+              label="Developers"
+              candidates={devCandidates}
+              selected={devs}
+              onToggle={(n) => toggle(devs, setDevs, n)}
+              emptyHint="No Developers yet. Add users with the Developer role in Admin → Users."
+            />
+            <PeoplePicker
+              label="Business Developers"
+              candidates={bdCandidates}
+              selected={bds}
+              onToggle={(n) => toggle(bds, setBds, n)}
+              emptyHint="No Business Developers yet."
+            />
+          </>
+        )}
       </div>
 
       <div className="flex justify-end gap-2">

@@ -105,6 +105,25 @@ export async function canManageProjectTasks(
   return row !== null;
 }
 
+/** True if the user can *create* tasks on this project. A superset of
+ *  canManageProjectTasks: in addition to Lead/Coordinator authority, a
+ *  BusinessDeveloper who is rostered on the project (e.g. the BD who
+ *  created it) may add tasks. They can't manage the team or assign
+ *  developers though — that stays with the Lead/Coordinator, who pick
+ *  up the task's assignees afterwards. */
+export async function canCreateProjectTasks(
+  user: SessionUser,
+  projectId: number,
+): Promise<boolean> {
+  if (await canManageProjectTasks(user, projectId)) return true;
+  if (user.role !== "BusinessDeveloper") return false;
+  const row = await prisma.projectMember.findFirst({
+    where: { projectId, userId: user.id },
+    select: { userId: true },
+  });
+  return row !== null;
+}
+
 /** Look up a User by first name (case-insensitive). Internal tool: we
  *  assume first names are unique enough; returns the first match. */
 export async function userByFirstName(firstName: string) {

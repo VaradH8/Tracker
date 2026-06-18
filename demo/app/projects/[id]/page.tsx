@@ -33,7 +33,7 @@ import {
   useProjects,
   type ProjectMemberRole,
 } from "@/lib/projects-store";
-import { useRole, landingFor } from "@/lib/role";
+import { useRole, landingFor, candidatesForProjectRole } from "@/lib/role";
 import { useAccounts, useMyFirstName } from "@/lib/account-store";
 import {
   canAccessProject,
@@ -113,7 +113,13 @@ export default function ProjectDetailPage({
 
   const client = clients.find((c) => c.id === project?.clientId);
   const tasks = forProject(projectId);
-  const canEdit = role === "Admin" || role === "Coordinator";
+  // Lead + Co-ordinator own the team roster (they add developers) and the
+  // project's editable details. A Business Developer can't manage the
+  // team, but can still spin up tasks on the project they kicked off —
+  // the Lead/Co-ordinator then assign developers to those tasks.
+  const canManageTeam =
+    role === "Admin" || role === "Lead" || role === "Coordinator";
+  const canCreateTasks = canManageTeam || role === "BusinessDeveloper";
 
   const projectAudit = auditLog.filter(
     (a) => project && a.scope === project.name,
@@ -201,7 +207,7 @@ export default function ProjectDetailPage({
                 <Download size={16} className="mr-1.5" /> Export Excel
               </button>
             )}
-            {canEdit && (
+            {canManageTeam && (
               <button
                 onClick={() => setEditOpen(true)}
                 className="btn-ghost border border-ink-200"
@@ -210,7 +216,7 @@ export default function ProjectDetailPage({
                 Edit
               </button>
             )}
-            {canEdit && (
+            {canCreateTasks && (
               <button
                 onClick={() => setCreateOpen(true)}
                 className="btn-primary"
@@ -398,7 +404,7 @@ export default function ProjectDetailPage({
                         <TaskCard key={t.id} task={t} hideProject />
                       ))}
                     </div>
-                    {canEdit && (
+                    {canCreateTasks && (
                       <InlineAddTask
                         onAdd={(title) =>
                           addTask({ title, projectId, status: col.id })
@@ -436,7 +442,7 @@ export default function ProjectDetailPage({
                   role="Lead"
                   projectId={project.id}
                   members={project.leads}
-                  canEdit={canEdit}
+                  canEdit={canManageTeam}
                   onToggle={(name, role) =>
                     toggleProjectMember(project.id, name, role)
                   }
@@ -446,7 +452,7 @@ export default function ProjectDetailPage({
                   role="Coordinator"
                   projectId={project.id}
                   members={project.coordinators}
-                  canEdit={canEdit}
+                  canEdit={canManageTeam}
                   onToggle={(name, role) =>
                     toggleProjectMember(project.id, name, role)
                   }
@@ -456,7 +462,7 @@ export default function ProjectDetailPage({
                   role="Developer"
                   projectId={project.id}
                   members={project.developers}
-                  canEdit={canEdit}
+                  canEdit={canManageTeam}
                   onToggle={(name, role) =>
                     toggleProjectMember(project.id, name, role)
                   }
@@ -466,7 +472,7 @@ export default function ProjectDetailPage({
                   role="BD"
                   projectId={project.id}
                   members={project.bds}
-                  canEdit={canEdit}
+                  canEdit={canManageTeam}
                   onToggle={(name, role) =>
                     toggleProjectMember(project.id, name, role)
                   }
@@ -590,6 +596,7 @@ export default function ProjectDetailPage({
       {createOpen && (
         <CreateTaskModal
           projectName={project.name}
+          canAssign={canManageTeam}
           onClose={() => setCreateOpen(false)}
           onCreate={(input) => {
             addTask({ projectId, ...input });
@@ -629,9 +636,10 @@ function ProjectRoleLane({
   onToggle: (name: string, role: ProjectMemberRole) => void | Promise<void>;
 }) {
   const { accounts } = useAccounts();
-  const available = accounts
-    .filter((a) => a.active)
-    .map((a) => a.name.split(" ")[0]);
+  // The "+ Add…" dropdown for a lane only offers people whose global role
+  // matches it — adding to Developers lists only Developers, etc. People
+  // already on the lane render as removable chips regardless.
+  const available = candidatesForProjectRole(accounts, role);
   const others = available.filter((n) => !members.includes(n));
 
   return (
@@ -725,9 +733,14 @@ function EditProjectModal({
   }) => void | Promise<void>;
 }) {
   const { accounts } = useAccounts();
-  const candidates = accounts
-    .filter((a) => a.active)
-    .map((a) => a.name.split(" ")[0]);
+  // Role-scoped candidates per lane, unioned with whoever's already on the
+  // lane so existing members always stay visible and removable — even if
+  // their global role no longer matches.
+  const candidatesFor = (lane: "Lead" | "Coordinator" | "Developer" | "BD") =>
+    (current: string[]) =>
+      Array.from(
+        new Set([...candidatesForProjectRole(accounts, lane), ...current]),
+      );
 
   const [name, setName] = useState(project.name);
   const [status, setStatus] = useState(project.status);
@@ -799,25 +812,25 @@ function EditProjectModal({
       <div className="space-y-3 mb-4">
         <PeoplePicker
           label="Leads"
-          candidates={candidates}
+          candidates={candidatesFor("Lead")(leads)}
           selected={leads}
           onToggle={(n) => toggle(leads, setLeads, n)}
         />
         <PeoplePicker
           label="Coordinators"
-          candidates={candidates}
+          candidates={candidatesFor("Coordinator")(coords)}
           selected={coords}
           onToggle={(n) => toggle(coords, setCoords, n)}
         />
         <PeoplePicker
           label="Developers"
-          candidates={candidates}
+          candidates={candidatesFor("Developer")(devs)}
           selected={devs}
           onToggle={(n) => toggle(devs, setDevs, n)}
         />
         <PeoplePicker
           label="Business Developers"
-          candidates={candidates}
+          candidates={candidatesFor("BD")(bds)}
           selected={bds}
           onToggle={(n) => toggle(bds, setBds, n)}
         />
@@ -918,10 +931,12 @@ function EditProjectModal({
 
 function CreateTaskModal({
   projectName,
+  canAssign,
   onClose,
   onCreate,
 }: {
   projectName: string;
+  canAssign: boolean;
   onClose: () => void;
   onCreate: (input: {
     title: string;
@@ -1080,50 +1095,60 @@ function CreateTaskModal({
         className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
       />
 
-      <label className="block text-xs font-medium text-ink-700 mb-1.5">
-        Assign to{" "}
-        <span className="text-ink-400 font-normal">
-          (pick one or more — optional)
-        </span>
-      </label>
-      {teammates.length === 0 ? (
-        <p className="text-xs text-ink-400 italic mb-6">
-          No teammates yet. Add users in Admin → Users.
-        </p>
-      ) : (
-        <div className="flex flex-wrap gap-1.5 mb-6 p-2 rounded border border-ink-200 bg-ink-50">
-          {teammates.map((n) => {
-            const on = assignees.includes(n);
-            return (
-              <button
-                key={n}
-                type="button"
-                onClick={() => toggleAssignee(n)}
-                className={
-                  on
-                    ? "inline-flex items-center gap-1 pl-2 pr-2 py-0.5 rounded-pill bg-brand-blue text-white text-xs font-medium"
-                    : "inline-flex items-center gap-1 pl-2 pr-2 py-0.5 rounded-pill bg-white border border-ink-200 text-ink-700 hover:bg-ink-100 text-xs font-medium"
-                }
-              >
-                {on && (
-                  <svg
-                    width="11"
-                    height="11"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+      {canAssign ? (
+        <>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Assign to{" "}
+            <span className="text-ink-400 font-normal">
+              (pick one or more — optional)
+            </span>
+          </label>
+          {teammates.length === 0 ? (
+            <p className="text-xs text-ink-400 italic mb-6">
+              No teammates yet. Add users in Admin → Users.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5 mb-6 p-2 rounded border border-ink-200 bg-ink-50">
+              {teammates.map((n) => {
+                const on = assignees.includes(n);
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => toggleAssignee(n)}
+                    className={
+                      on
+                        ? "inline-flex items-center gap-1 pl-2 pr-2 py-0.5 rounded-pill bg-brand-blue text-white text-xs font-medium"
+                        : "inline-flex items-center gap-1 pl-2 pr-2 py-0.5 rounded-pill bg-white border border-ink-200 text-ink-700 hover:bg-ink-100 text-xs font-medium"
+                    }
                   >
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                )}
-                {n}
-              </button>
-            );
-          })}
-        </div>
+                    {on && (
+                      <svg
+                        width="11"
+                        height="11"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
+                    {n}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </>
+      ) : (
+        // BD creating a task: a Lead or Co-ordinator assigns the
+        // developers afterwards, so there's nothing to pick here.
+        <p className="text-xs text-ink-500 italic mb-6 p-2 rounded border border-ink-200 bg-ink-50">
+          A Lead or Co-ordinator will assign developers to this task.
+        </p>
       )}
 
       <div className="flex justify-end gap-2">
