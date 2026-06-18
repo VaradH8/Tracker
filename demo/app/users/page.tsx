@@ -27,6 +27,7 @@ import {
 
 const ROLES: Role[] = [
   "Admin",
+  "Lead",
   "Coordinator",
   "BusinessDeveloper",
   "Developer",

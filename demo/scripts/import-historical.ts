@@ -36,7 +36,12 @@ const IMPORT_DIR =
 /* Static mappings                                                     */
 /* ------------------------------------------------------------------ */
 
-type GlobalRole = "Admin" | "Coordinator" | "Developer" | "BusinessDeveloper";
+type GlobalRole =
+  | "Admin"
+  | "Lead"
+  | "Coordinator"
+  | "Developer"
+  | "BusinessDeveloper";
 
 type PersonSpec = {
   fullName: string;
@@ -50,7 +55,7 @@ const PEOPLE: Record<string, PersonSpec> = {
   Abhishek: {
     fullName: "Abhishek Bankar",
     email: "abhishek.bankar@inventivebizsol.com",
-    role: "Developer",
+    role: "Lead",
   },
   Adhil: {
     fullName: "Adhil Mohammed",
@@ -85,7 +90,7 @@ const PEOPLE: Record<string, PersonSpec> = {
   Javed: {
     fullName: "Javed Sutar",
     email: "javed.sutar@inventivebizsol.com",
-    role: "Developer",
+    role: "Admin",
   },
   Kiran: {
     fullName: "Kiran Jaware",
@@ -145,9 +150,13 @@ const PEOPLE: Record<string, PersonSpec> = {
     role: "Developer",
   },
   Varad: {
+    // The CSV's "Varad" maps to the day-to-day work account on the
+    // inv email + Lead role. The Gmail-based Admin account
+    // (varadhadawale@gmail.com, set up at bootstrap) is a separate
+    // login used for sysadmin tasks and stays untouched by this import.
     fullName: "Varad Hadawale",
-    email: "varadhadawale@gmail.com",
-    role: "Admin",
+    email: "varad.hadawale@inventivebizsol.com",
+    role: "Lead",
   },
   Viraj: {
     fullName: "Viraj Pangavhane",

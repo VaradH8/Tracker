@@ -56,6 +56,7 @@ export async function DELETE(
 
 const ROLES: Role[] = [
   "Admin",
+  "Lead",
   "Coordinator",
   "BusinessDeveloper",
   "Developer",

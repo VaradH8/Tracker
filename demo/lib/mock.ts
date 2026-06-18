@@ -106,7 +106,12 @@ export type Resource = {
   location: string;
   joined: string;
   designation: string;
-  primaryRole: "Admin" | "Coordinator" | "BusinessDeveloper" | "Developer";
+  primaryRole:
+    | "Admin"
+    | "Lead"
+    | "Coordinator"
+    | "BusinessDeveloper"
+    | "Developer";
   isAdmin: boolean;
   status: "Active" | "Deactivated";
   lastLogin: string;

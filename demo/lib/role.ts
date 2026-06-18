@@ -2,10 +2,16 @@
 
 import { useAccounts } from "./account-store";
 
-export type Role = "Admin" | "Coordinator" | "BusinessDeveloper" | "Developer";
+export type Role =
+  | "Admin"
+  | "Lead"
+  | "Coordinator"
+  | "BusinessDeveloper"
+  | "Developer";
 
 export const ROLE_LABELS: Record<Role, string> = {
   Admin: "Admin",
+  Lead: "Lead",
   Coordinator: "Co-ordinator",
   BusinessDeveloper: "Business Developer",
   Developer: "Developer",
@@ -35,6 +41,8 @@ export function landingFor(role: Role): string {
   switch (role) {
     case "Admin":
       return "/dashboard";
+    case "Lead":
+      return "/my-day";
     case "Coordinator":
       return "/my-day";
     case "BusinessDeveloper":
@@ -45,12 +53,16 @@ export function landingFor(role: Role): string {
 }
 
 export function canEditTasks(role: Role): boolean {
-  return role === "Admin" || role === "Coordinator";
+  // Lead acts like a senior Coordinator — same task-edit authority
+  // across projects they're on. (Per-project authority via
+  // canManageProjectTasks still kicks in for non-Lead/Coord users.)
+  return role === "Admin" || role === "Lead" || role === "Coordinator";
 }
 
 export function canManageProjects(role: Role): boolean {
   return (
     role === "Admin" ||
+    role === "Lead" ||
     role === "Coordinator" ||
     role === "BusinessDeveloper"
   );

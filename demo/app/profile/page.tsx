@@ -13,6 +13,14 @@ const NOTIF_PREFS: Record<Role, string[]> = {
     "Project health switches to At risk",
     "Weekly org summary",
   ],
+  Lead: [
+    "Tasks assigned to me",
+    "Sign-off requests on Done tasks across my projects",
+    "Status changes on tasks I own",
+    "@mentions in remarks",
+    "Daily 9 AM overdue digest across my projects",
+    "Weekly Monday team summary",
+  ],
   Coordinator: [
     "Tasks assigned to me",
     "Status changes on tasks I own",

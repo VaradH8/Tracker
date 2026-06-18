@@ -6,7 +6,7 @@ export function canSeeProjectFinancials(role: Role): boolean {
 }
 
 export function canSeeProjectAudit(role: Role): boolean {
-  return role === "Admin" || role === "Coordinator";
+  return role === "Admin" || role === "Lead" || role === "Coordinator";
 }
 
 export function canExportData(role: Role): boolean {
@@ -14,7 +14,12 @@ export function canExportData(role: Role): boolean {
 }
 
 export function canSeeRemarkAuthor(role: Role, isAssignee: boolean): boolean {
-  return role === "Admin" || role === "Coordinator" || isAssignee;
+  return (
+    role === "Admin" ||
+    role === "Lead" ||
+    role === "Coordinator" ||
+    isAssignee
+  );
 }
 
 const ALLOWED: Record<Role, string[]> = {
@@ -30,6 +35,17 @@ const ALLOWED: Record<Role, string[]> = {
     "/profile",
     "/calendar",
     "/notifications",
+  ],
+  Lead: [
+    "/my-day",
+    "/my-tasks",
+    "/projects",
+    "/resources",
+    "/leaves",
+    "/profile",
+    "/calendar",
+    "/notifications",
+    "/team",
   ],
   Coordinator: [
     "/my-day",

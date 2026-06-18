@@ -48,6 +48,16 @@ const NAV: Record<Role, NavItem[]> = {
     { href: "/leaves", label: "Leaves", Icon: CalendarCheck },
     { href: "/settings", label: "Settings", Icon: Settings },
   ],
+  Lead: [
+    { href: "/my-day", label: "My Day", Icon: Sun },
+    { href: "/projects", label: "Projects", Icon: FolderKanban },
+    { href: "/my-tasks", label: "My Tasks", Icon: ListTodo },
+    { href: "/team", label: "My team", Icon: Users2 },
+    { href: "/calendar", label: "Calendar", Icon: CalendarClock },
+    { href: "/resources", label: "Resources", Icon: Users },
+    { href: "/notifications", label: "Notifications", Icon: Bell },
+    { href: "/leaves", label: "Leaves", Icon: CalendarCheck },
+  ],
   Coordinator: [
     { href: "/my-day", label: "My Day", Icon: Sun },
     { href: "/projects", label: "Projects", Icon: FolderKanban },
@@ -76,6 +86,7 @@ const NAV: Record<Role, NavItem[]> = {
 
 const ROLE_COLOR: Record<Role, string> = {
   Admin: "bg-brand-red",
+  Lead: "bg-brand-blue",
   Coordinator: "bg-brand-blue",
   BusinessDeveloper: "bg-brand-yellow",
   Developer: "bg-brand-green",

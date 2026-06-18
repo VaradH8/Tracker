@@ -23,7 +23,9 @@ export function requireRole(
 }
 
 export function canEditTasks(role: SessionUser["role"]): boolean {
-  return role === "Admin" || role === "Coordinator";
+  // Lead is a senior tech lead with Coord-level task authority across
+  // projects they're on.
+  return role === "Admin" || role === "Lead" || role === "Coordinator";
 }
 
 export function canManageUsers(role: SessionUser["role"]): boolean {
@@ -35,7 +37,7 @@ export function canSeeProjectFinancials(role: SessionUser["role"]): boolean {
 }
 
 export function canSeeProjectAudit(role: SessionUser["role"]): boolean {
-  return role === "Admin" || role === "Coordinator";
+  return role === "Admin" || role === "Lead" || role === "Coordinator";
 }
 
 export async function visibleProjectIds(
