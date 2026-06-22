@@ -15,10 +15,15 @@ export async function GET() {
   const userOrResp = await requireUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
   const user = userOrResp;
-  // Non-admins only see their own account from this endpoint.
+  // Non-admins get the basic roster of active people — names + roles —
+  // so they can assign tasks and staff project teams. HR / contact fields
+  // (salary, phone, location) are redacted; only admins see those.
   if (!canManageUsers(user.role)) {
-    const me = await prisma.user.findUnique({ where: { id: user.id } });
-    return NextResponse.json({ users: me ? [serialize(me)] : [] });
+    const roster = await prisma.user.findMany({
+      where: { isActive: true },
+      orderBy: [{ name: "asc" }],
+    });
+    return NextResponse.json({ users: roster.map(serializeRoster) });
   }
   const users = await prisma.user.findMany({
     orderBy: [{ isActive: "desc" }, { createdAt: "asc" }],
@@ -76,6 +81,38 @@ function serialize(u: {
     phone: u.phone ?? "",
     location: u.location ?? "",
     hourlyRate: u.hourlyRate,
+    capacityPerWeek: u.capacityPerWeek,
+  };
+}
+
+/** Roster view for non-admins: identity + role only. Salary and personal
+ *  contact details are redacted so the people-pickers and team/resources
+ *  views work without leaking HR data. */
+function serializeRoster(u: {
+  id: string;
+  email: string;
+  name: string;
+  primaryRole: string;
+  isAdmin: boolean;
+  isActive: boolean;
+  lastLoginAt: Date | null;
+  createdAt: Date;
+  designation: string | null;
+  capacityPerWeek: number;
+}) {
+  return {
+    id: u.id,
+    email: u.email,
+    name: u.name,
+    role: u.primaryRole as Role,
+    isAdmin: u.isAdmin,
+    active: u.isActive,
+    lastLogin: u.lastLoginAt ? u.lastLoginAt.toISOString() : null,
+    createdAt: u.createdAt.toISOString(),
+    designation: u.designation ?? "",
+    phone: "",
+    location: "",
+    hourlyRate: 0,
     capacityPerWeek: u.capacityPerWeek,
   };
 }
