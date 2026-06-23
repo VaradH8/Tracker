@@ -48,8 +48,11 @@ function deriveResource(
       (today.getTime() - new Date(iso + "T00:00:00").getTime()) /
         (1000 * 60 * 60 * 24),
     );
+  // "Hours / 5d" = hours logged across the last working week. We look back
+  // over the past 7 calendar days but only count weekday (Mon–Fri) entries,
+  // so weekends don't dilute the figure.
   const hoursLast7 = myEntries
-    .filter((e) => daysAgo(e.date) < 7)
+    .filter((e) => daysAgo(e.date) < 7 && isWeekday(e.date))
     .reduce((s, e) => s + e.hours, 0);
   const hoursLast30 = myEntries
     .filter((e) => daysAgo(e.date) < 30)
@@ -87,6 +90,22 @@ function deriveResource(
     flags: [],
     hourlyRate: 0,
   };
+}
+
+/** True if an ISO date (YYYY-MM-DD) falls on Mon–Fri. */
+function isWeekday(iso: string): boolean {
+  const day = new Date(iso + "T00:00:00").getDay();
+  return day >= 1 && day <= 5;
+}
+
+/** Format a fractional hours value as "Xh Ym" (or "Ym" under an hour).
+ *  Rounds to the nearest minute so the UI never shows 1.716666h. */
+function fmtHM(hours: number): string {
+  const totalMin = Math.round(Math.max(0, hours) * 60);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  return `${m}m`;
 }
 
 const FILTERS: PerformanceFlag[] = ["On track", "Watch", "Idle"];
@@ -341,8 +360,8 @@ function ResourceCard({
 
       <div className="grid grid-cols-3 gap-3 mb-4">
         <Metric
-          label="Hours / 7d"
-          value={`${r.hoursLast7}h`}
+          label="Hours / 5d"
+          value={fmtHM(r.hoursLast7)}
           sub={`${utilization}% capacity`}
           subTone={utilizationTone}
         />
@@ -485,7 +504,7 @@ function ResourceDrawer({
               <div className="flex items-baseline justify-between mb-2">
                 <span className="text-sm text-ink-700">Hours logged</span>
                 <span className="font-heading text-lg font-semibold">
-                  {hours7}h / {r.capacityPerWeek}h
+                  {fmtHM(hours7)} / {r.capacityPerWeek}h
                 </span>
               </div>
               <div className="h-2 bg-ink-100 rounded-full overflow-hidden">

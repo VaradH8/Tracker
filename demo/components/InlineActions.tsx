@@ -298,9 +298,12 @@ function AssigneeMenu({
   onToggle: (name: string) => void;
 }) {
   const [q, setQ] = useState("");
+  // Only Developers and Co-ordinators can be assigned work — no BDs,
+  // Leads, or Admins. Split into tabs so you pick from one role at a time.
+  const [tab, setTab] = useState<"Developer" | "Coordinator">("Developer");
   const { accounts } = useAccounts();
   const people = accounts
-    .filter((a) => a.active && !a.isAdmin)
+    .filter((a) => a.active && a.role === tab)
     .filter((a) => a.name.toLowerCase().includes(q.toLowerCase()));
 
   return (
@@ -311,6 +314,22 @@ function AssigneeMenu({
             ? "Pick one or more"
             : `${selected.length} assigned — tap to add or remove`}
         </span>
+      </div>
+      <div className="flex border-b border-ink-100">
+        {(["Developer", "Coordinator"] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTab(t)}
+            className={`flex-1 px-3 py-1.5 text-xs font-medium ${
+              tab === t
+                ? "text-brand-blue border-b-2 border-brand-blue"
+                : "text-ink-500 hover:text-ink-900"
+            }`}
+          >
+            {t === "Developer" ? "Developers" : "Co-ordinators"}
+          </button>
+        ))}
       </div>
       <div className="p-1.5 border-b border-ink-100">
         <input
@@ -324,9 +343,9 @@ function AssigneeMenu({
       <ul className="text-sm max-h-56 overflow-y-auto py-1">
         {people.length === 0 && (
           <li className="px-3 py-2 text-xs text-ink-400 italic">
-            {accounts.length === 0
-              ? "No teammates yet — add users from Admin → Users."
-              : "No one matches."}
+            {tab === "Developer"
+              ? "No developers match."
+              : "No co-ordinators match."}
           </li>
         )}
         {people.map((a, i) => {
@@ -427,14 +446,18 @@ export function QuickActions({
         next: "BLOCK",
       });
       break;
-    case "In review":
-      buttons.push({
-        label: "Done",
-        tip: "Mark as Done",
-        icon: Check,
-        tone: "text-brand-green hover:bg-brand-greenBg",
-        next: "Done",
-      });
+      // Reviewing a submitted task is a checker's job: only Admin /
+      // Co-ordinator can sign it off as reviewed → Done. The doer can
+      // still pull it back if they submitted by mistake.
+      if (canEdit) {
+        buttons.push({
+          label: "Mark reviewed",
+          tip: "Reviewed — mark as Done",
+          icon: CheckCircle2,
+          tone: "text-brand-green hover:bg-brand-greenBg",
+          next: "Done",
+        });
+      }
       buttons.push({
         label: "Back",
         tip: "Move back to In Progress",
@@ -586,14 +609,14 @@ export function TimerControls({
 
   return (
     <div className="inline-flex items-center gap-1">
-      {/* Only show the static "logged total" chip when the timer is NOT
-          running. While running, the Stop button's live counter already
-          includes the closed-interval total — showing both was confusing
-          ("5s" + "01m 30s" looked like two separate clocks). */}
-      {!running && loggedHours > 0 && (
+      {/* The "logged total" chip shows time banked from earlier sessions.
+          The live counter on the Stop button below always starts this
+          session from 00s — so a fresh task starts at 0, and a resumed
+          one shows its earlier total here plus a clean session clock. */}
+      {loggedHours > 0 && (
         <span
           className="inline-flex items-center gap-1 text-[10px] text-ink-400"
-          title={`${loggedLabel} logged total`}
+          title={`${loggedLabel} logged earlier`}
         >
           <Clock size={11} /> {loggedLabel}
         </span>
@@ -609,10 +632,7 @@ export function TimerControls({
           title="Stop the timer (resume later with Start)"
         >
           <Square size={11} fill="currentColor" />
-          <ElapsedTimer
-            startedAt={active.startedAt}
-            baseHours={loggedHours}
-          />
+          <ElapsedTimer startedAt={active.startedAt} baseHours={0} />
         </button>
       ) : (
         <button

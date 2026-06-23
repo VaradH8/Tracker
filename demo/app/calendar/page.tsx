@@ -5,10 +5,12 @@ import { ChevronLeft, ChevronRight, CalendarClock } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { TaskCard } from "@/components/TaskCard";
 import { EmptyState } from "@/components/EmptyState";
+import { Popover } from "@/components/Popover";
+import { useTaskDrawer } from "@/components/TaskDrawerProvider";
 import { useTasks } from "@/lib/tasks-store";
 import { useRole } from "@/lib/role";
 import { useMyFirstName } from "@/lib/account-store";
-import { formatDateLong, todayISO, type Task } from "@/lib/mock";
+import { formatDateLong, statusPill, todayISO, type Task } from "@/lib/mock";
 
 const MONTHS = [
   "January",
@@ -34,6 +36,7 @@ export default function CalendarPage() {
   const [role] = useRole();
   const me = useMyFirstName();
   const { tasks } = useTasks();
+  const drawer = useTaskDrawer();
 
   // Compute "today" once per mount so the calendar opens on the actual
   // current month/day, not the date the bundle was built.
@@ -146,8 +149,8 @@ export default function CalendarPage() {
         </header>
 
         <div className="grid lg:grid-cols-[1fr_360px] gap-6">
-          <section className="card overflow-hidden">
-            <div className="grid grid-cols-7 border-b border-ink-200 bg-ink-50">
+          <section className="card">
+            <div className="grid grid-cols-7 border-b border-ink-200 bg-ink-50 rounded-t-card">
               {WEEKDAYS.map((d) => (
                 <div
                   key={d}
@@ -163,11 +166,13 @@ export default function CalendarPage() {
                 const isToday = c.iso === today;
                 const isSelected = c.iso === selected;
                 const isOverdueDay = c.iso < today;
+                const openCount = list.filter((t) => t.status !== "Done").length;
+                const hasOverdue = isOverdueDay && openCount > 0;
                 return (
-                  <button
+                  <div
                     key={c.iso}
                     onClick={() => setSelected(c.iso)}
-                    className={`min-h-[92px] border-r border-b border-ink-100 p-2 text-left flex flex-col gap-1 transition-colors ${
+                    className={`min-h-[92px] border-r border-b border-ink-100 p-2 text-left flex flex-col gap-1 transition-colors cursor-pointer ${
                       isSelected ? "bg-brand-blueBg" : "hover:bg-ink-50"
                     } ${c.isOther ? "bg-ink-50/40" : ""}`}
                   >
@@ -183,32 +188,33 @@ export default function CalendarPage() {
                       {c.day}
                     </span>
                     {list.length > 0 && (
-                      <ul className="space-y-0.5">
-                        {list.slice(0, 2).map((t) => {
-                          const overdue = isOverdueDay && t.status !== "Done";
-                          return (
-                            <li
-                              key={t.id}
-                              className={`text-[11px] truncate px-1 rounded ${
-                                t.status === "Done"
-                                  ? "text-ink-400 line-through"
-                                  : overdue
-                                    ? "text-brand-redText bg-brand-redBg"
-                                    : "text-ink-700 bg-brand-blueBg"
-                              }`}
-                            >
-                              {t.title}
-                            </li>
-                          );
-                        })}
-                        {list.length > 2 && (
-                          <li className="text-[11px] text-ink-500 px-1">
-                            +{list.length - 2} more
-                          </li>
+                      <Popover
+                        trigger={() => (
+                          <span
+                            className={`self-start inline-flex items-center gap-1 px-2 py-0.5 rounded-pill text-[11px] font-medium ${
+                              hasOverdue
+                                ? "bg-brand-redBg text-brand-redText"
+                                : "bg-brand-blueBg text-brand-blue"
+                            }`}
+                            title="Show tasks for this day"
+                          >
+                            {list.length} task{list.length === 1 ? "" : "s"}
+                          </span>
                         )}
-                      </ul>
+                      >
+                        {(close) => (
+                          <DayTaskPopup
+                            iso={c.iso}
+                            tasks={list}
+                            onOpen={(id) => {
+                              drawer.open(id);
+                              close();
+                            }}
+                          />
+                        )}
+                      </Popover>
                     )}
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -245,5 +251,41 @@ export default function CalendarPage() {
         </div>
       </div>
     </AppShell>
+  );
+}
+
+function DayTaskPopup({
+  iso,
+  tasks,
+  onOpen,
+}: {
+  iso: string;
+  tasks: Task[];
+  onOpen: (id: number) => void;
+}) {
+  return (
+    <div className="min-w-[240px] max-w-[300px]">
+      <div className="px-3 py-2 text-xs font-semibold text-ink-700 border-b border-ink-100">
+        {formatDateLong(iso)} · {tasks.length} task{tasks.length === 1 ? "" : "s"}
+      </div>
+      <ul className="max-h-72 overflow-y-auto py-1">
+        {tasks.map((t) => (
+          <li key={t.id}>
+            <button
+              type="button"
+              onClick={() => onOpen(t.id)}
+              className="w-full text-left px-3 py-1.5 hover:bg-ink-100 flex items-center gap-2"
+            >
+              <span className={`${statusPill(t.status)} shrink-0`}>
+                {t.status}
+              </span>
+              <span className="text-sm text-ink-900 truncate flex-1">
+                {t.title}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

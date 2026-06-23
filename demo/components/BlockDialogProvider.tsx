@@ -27,8 +27,10 @@ export function BlockDialogProvider({ children }: { children: ReactNode }) {
   const { notify } = useNotifications();
   const { accounts } = useAccounts();
   const me = useMyFirstName();
+  // A block is caused by a person doing the work — show developers and
+  // co-ordinators to pick from (not BDs/Leads/Admins).
   const people = accounts
-    .filter((a) => a.active && !a.isAdmin)
+    .filter((a) => a.active && (a.role === "Developer" || a.role === "Coordinator"))
     .map((a) => a.name.split(" ")[0]);
   const [taskId, setTaskId] = useState<number | null>(null);
 

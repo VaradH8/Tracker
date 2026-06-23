@@ -365,7 +365,23 @@ export function TaskDrawer({
             </div>
           </Field>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Start date" icon={<Calendar size={14} />}>
+              {canEdit ? (
+                <input
+                  type="date"
+                  value={task.startDate ?? ""}
+                  max={task.targetDate || undefined}
+                  onChange={(e) => store.setStartDate(task.id, e.target.value)}
+                  className="text-xs rounded border border-ink-200 px-2 py-1 bg-white w-full"
+                  aria-label="Start date"
+                />
+              ) : (
+                <span className="text-xs text-ink-700">
+                  {task.startDate ? task.startDate : "—"}
+                </span>
+              )}
+            </Field>
             <Field label="Target date" icon={<Calendar size={14} />}>
               <DateField
                 value={task.targetDate}

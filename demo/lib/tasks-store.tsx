@@ -59,6 +59,7 @@ type Ctx = {
   setStatus: (id: number, status: Status) => Promise<void>;
   setPriority: (id: number, priority: Priority) => Promise<void>;
   setTargetDate: (id: number, date: string) => Promise<void>;
+  setStartDate: (id: number, date: string) => Promise<void>;
   setDescription: (id: number, description: string) => Promise<void>;
   setAssignees: (id: number, names: string[]) => Promise<void>;
   toggleAssignee: (id: number, name: string) => Promise<void>;
@@ -162,6 +163,10 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   );
   const setTargetDate = useCallback(
     (id: number, date: string) => patchTask(id, { targetDate: date }),
+    [],
+  );
+  const setStartDate = useCallback(
+    (id: number, date: string) => patchTask(id, { startDate: date || null }),
     [],
   );
   const setDescription = useCallback(
@@ -556,6 +561,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         setStatus,
         setPriority,
         setTargetDate,
+        setStartDate,
         setDescription,
         setAssignees,
         toggleAssignee,

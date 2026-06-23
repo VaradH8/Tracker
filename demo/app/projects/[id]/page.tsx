@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState, type KeyboardEvent } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
 import {
@@ -19,7 +19,6 @@ import {
 import { AppShell } from "@/components/AppShell";
 import { TaskCard } from "@/components/TaskCard";
 import {
-  TASK_TEMPLATES,
   currentWeek,
   formatDateLong,
   todayISO,
@@ -404,13 +403,6 @@ export default function ProjectDetailPage({
                         <TaskCard key={t.id} task={t} hideProject />
                       ))}
                     </div>
-                    {canCreateTasks && (
-                      <InlineAddTask
-                        onAdd={(title) =>
-                          addTask({ title, projectId, status: col.id })
-                        }
-                      />
-                    )}
                   </div>
                 );
               })}
@@ -945,36 +937,34 @@ function CreateTaskModal({
     priority?: Priority;
     estimatedHours?: number | null;
     assignees?: string[];
+    startDate?: string;
+    targetDate?: string;
   }) => void;
 }) {
   const { accounts } = useAccounts();
-  const teammates = accounts
-    .filter((a) => a.active && !a.isAdmin)
+  // Assignable people, split by role — only Developers and Co-ordinators.
+  const devCandidates = accounts
+    .filter((a) => a.active && a.role === "Developer")
     .map((a) => a.name.split(" ")[0]);
+  const coordCandidates = accounts
+    .filter((a) => a.active && a.role === "Coordinator")
+    .map((a) => a.name.split(" ")[0]);
+  const [assigneeTab, setAssigneeTab] = useState<"Developer" | "Coordinator">(
+    "Developer",
+  );
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<Status>("To Do");
   const [priority, setPriority] = useState<Priority>("Medium");
   const [estHours, setEstHours] = useState("");
-  const [templateId, setTemplateId] = useState<string>("");
+  const [startDate, setStartDate] = useState("");
+  const [targetDate, setTargetDate] = useState("");
   const [assignees, setAssignees] = useState<string[]>([]);
 
   function toggleAssignee(name: string) {
     setAssignees((prev) =>
       prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name],
     );
-  }
-
-  function applyTemplate(id: string) {
-    setTemplateId(id);
-    if (!id) return;
-    const t = TASK_TEMPLATES.find((x) => String(x.id) === id);
-    if (!t) return;
-    if (!title.trim()) setTitle(t.name);
-    setDescription(t.description);
-    setStatus(t.defaultStatus);
-    setPriority(t.priority);
-    setEstHours(String(t.estimatedHours));
   }
 
   function submit() {
@@ -987,39 +977,17 @@ function CreateTaskModal({
       priority,
       estimatedHours: n != null && Number.isFinite(n) ? n : null,
       assignees: assignees.length ? assignees : undefined,
+      startDate: startDate || undefined,
+      targetDate: targetDate || undefined,
     });
   }
 
-  const chosenTemplate = TASK_TEMPLATES.find(
-    (x) => String(x.id) === templateId,
-  );
+  const tabCandidates =
+    assigneeTab === "Developer" ? devCandidates : coordCandidates;
 
   return (
     <Modal title="New task" onClose={onClose} size="lg">
       <p className="text-sm text-ink-500 mb-5 truncate">In {projectName}</p>
-
-      <label className="block text-xs font-medium text-ink-700 mb-1.5">
-        Start from a template{" "}
-        <span className="text-ink-400 font-normal">(optional)</span>
-      </label>
-      <select
-        value={templateId}
-        onChange={(e) => applyTemplate(e.target.value)}
-        className="w-full px-3 py-2 mb-1 rounded border border-ink-200 text-sm"
-      >
-        <option value="">Blank task</option>
-        {TASK_TEMPLATES.map((t) => (
-          <option key={t.id} value={t.id}>
-            {t.name}
-          </option>
-        ))}
-      </select>
-      {chosenTemplate && (
-        <p className="text-[11px] text-ink-500 mb-4 italic">
-          {chosenTemplate.hint}
-        </p>
-      )}
-      {!chosenTemplate && <div className="mb-4" />}
 
       <label className="block text-xs font-medium text-ink-700 mb-1.5">
         Task title
@@ -1081,6 +1049,35 @@ function CreateTaskModal({
         </div>
       </div>
 
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Start date{" "}
+            <span className="text-ink-400 font-normal">(optional)</span>
+          </label>
+          <input
+            type="date"
+            value={startDate}
+            max={targetDate || undefined}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Target date{" "}
+            <span className="text-ink-400 font-normal">(optional)</span>
+          </label>
+          <input
+            type="date"
+            value={targetDate}
+            min={startDate || undefined}
+            onChange={(e) => setTargetDate(e.target.value)}
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          />
+        </div>
+      </div>
+
       <label className="block text-xs font-medium text-ink-700 mb-1.5">
         Estimated hours{" "}
         <span className="text-ink-400 font-normal">(optional)</span>
@@ -1100,48 +1097,72 @@ function CreateTaskModal({
           <label className="block text-xs font-medium text-ink-700 mb-1.5">
             Assign to{" "}
             <span className="text-ink-400 font-normal">
-              (pick one or more — optional)
+              (developers &amp; co-ordinators — optional)
             </span>
           </label>
-          {teammates.length === 0 ? (
-            <p className="text-xs text-ink-400 italic mb-6">
-              No teammates yet. Add users in Admin → Users.
-            </p>
-          ) : (
-            <div className="flex flex-wrap gap-1.5 mb-6 p-2 rounded border border-ink-200 bg-ink-50">
-              {teammates.map((n) => {
-                const on = assignees.includes(n);
-                return (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => toggleAssignee(n)}
-                    className={
-                      on
-                        ? "inline-flex items-center gap-1 pl-2 pr-2 py-0.5 rounded-pill bg-brand-blue text-white text-xs font-medium"
-                        : "inline-flex items-center gap-1 pl-2 pr-2 py-0.5 rounded-pill bg-white border border-ink-200 text-ink-700 hover:bg-ink-100 text-xs font-medium"
-                    }
-                  >
-                    {on && (
-                      <svg
-                        width="11"
-                        height="11"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    )}
-                    {n}
-                  </button>
-                );
-              })}
+          <div className="mb-6 rounded border border-ink-200 bg-ink-50">
+            <div className="flex border-b border-ink-200">
+              {(["Developer", "Coordinator"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setAssigneeTab(t)}
+                  className={`flex-1 px-3 py-1.5 text-xs font-medium ${
+                    assigneeTab === t
+                      ? "text-brand-blue border-b-2 border-brand-blue bg-white"
+                      : "text-ink-500 hover:text-ink-900"
+                  }`}
+                >
+                  {t === "Developer" ? "Developers" : "Co-ordinators"}
+                </button>
+              ))}
             </div>
-          )}
+            {tabCandidates.length === 0 ? (
+              <p className="text-xs text-ink-400 italic p-3">
+                No {assigneeTab === "Developer" ? "developers" : "co-ordinators"}{" "}
+                available.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5 p-2">
+                {tabCandidates.map((n) => {
+                  const on = assignees.includes(n);
+                  return (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => toggleAssignee(n)}
+                      className={
+                        on
+                          ? "inline-flex items-center gap-1 pl-2 pr-2 py-0.5 rounded-pill bg-brand-blue text-white text-xs font-medium"
+                          : "inline-flex items-center gap-1 pl-2 pr-2 py-0.5 rounded-pill bg-white border border-ink-200 text-ink-700 hover:bg-ink-100 text-xs font-medium"
+                      }
+                    >
+                      {on && (
+                        <svg
+                          width="11"
+                          height="11"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
+                      {n}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {assignees.length > 0 && (
+              <p className="text-[11px] text-ink-500 px-2 pb-2">
+                Assigned: {assignees.join(", ")}
+              </p>
+            )}
+          </div>
         </>
       ) : (
         // BD creating a task: a Lead or Co-ordinator assigns the
@@ -1256,45 +1277,3 @@ function prettyAction(action: string): string {
   }
 }
 
-function InlineAddTask({ onAdd }: { onAdd: (title: string) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [title, setTitle] = useState("");
-
-  function commit() {
-    const t = title.trim();
-    if (t) onAdd(t);
-    setTitle("");
-    setEditing(false);
-  }
-  function onKey(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter") commit();
-    if (e.key === "Escape") {
-      setTitle("");
-      setEditing(false);
-    }
-  }
-
-  if (editing) {
-    return (
-      <div className="mt-2 card p-2">
-        <input
-          autoFocus
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onKeyDown={onKey}
-          onBlur={commit}
-          placeholder="Task title — Enter to save, Esc to cancel"
-          className="w-full text-sm focus:outline-none placeholder:text-ink-400"
-        />
-      </div>
-    );
-  }
-  return (
-    <button
-      onClick={() => setEditing(true)}
-      className="mt-2 w-full text-left text-sm text-ink-500 hover:text-brand-blue hover:bg-white px-2 py-1.5 rounded transition-colors flex items-center gap-1.5"
-    >
-      <Plus size={14} /> Add a task
-    </button>
-  );
-}
