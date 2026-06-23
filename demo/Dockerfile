@@ -42,6 +42,9 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/next.config.* ./
+# Maintenance scripts (run with `docker compose exec app npx tsx scripts/...`):
+# the historical CSV import and the domain user seed both live here.
+COPY --from=build /app/scripts ./scripts
 
 RUN chown -R app:app /app
 USER app
