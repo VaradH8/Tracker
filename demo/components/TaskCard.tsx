@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import type { Task } from "@/lib/mock";
-import { loggedHoursForTask } from "@/lib/mock";
 import { useProjects } from "@/lib/projects-store";
 import { useTaskDrawer } from "./TaskDrawerProvider";
 import { useTasks } from "@/lib/tasks-store";
@@ -90,7 +89,11 @@ export function TaskCard({
   const canEdit = role === "Admin" || role === "Coordinator";
   const overdue = !!task.overdueDays && task.status !== "Done";
   const project = projectById(task.projectId);
-  const loggedHours = loggedHoursForTask(task.id, store.timeEntries);
+  // Cumulative logged time = the task's server-tracked actualHours. This
+  // is incremented atomically every time a timer interval is closed, so
+  // it's the reliable source for the timer's running total (summing the
+  // client-side time-entry list went stale across start/stop cycles).
+  const loggedHours = task.actualHours ?? 0;
   const canRunTimer = isAssignee;
 
   const cls = [

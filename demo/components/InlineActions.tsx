@@ -609,14 +609,14 @@ export function TimerControls({
 
   return (
     <div className="inline-flex items-center gap-1">
-      {/* The "logged total" chip shows time banked from earlier sessions.
-          The live counter on the Stop button below always starts this
-          session from 00s — so a fresh task starts at 0, and a resumed
-          one shows its earlier total here plus a clean session clock. */}
-      {loggedHours > 0 && (
+      {/* When the timer is NOT running, show the cumulative logged total.
+          While running, the Stop button's live counter already shows the
+          cumulative total (banked time + this session counting up from it),
+          so we hide this chip to avoid two competing clocks. */}
+      {!running && loggedHours > 0 && (
         <span
           className="inline-flex items-center gap-1 text-[10px] text-ink-400"
-          title={`${loggedLabel} logged earlier`}
+          title={`${loggedLabel} logged total`}
         >
           <Clock size={11} /> {loggedLabel}
         </span>
@@ -632,7 +632,7 @@ export function TimerControls({
           title="Stop the timer (resume later with Start)"
         >
           <Square size={11} fill="currentColor" />
-          <ElapsedTimer startedAt={active.startedAt} baseHours={0} />
+          <ElapsedTimer startedAt={active.startedAt} baseHours={loggedHours} />
         </button>
       ) : (
         <button

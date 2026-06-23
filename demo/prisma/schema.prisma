@@ -350,7 +350,8 @@ model DomainProject {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
-  tasks DomainTask[]
+  tasks    DomainTask[]
+  workLogs DomainWorkLog[]
 
   @@index([ownerId])
 }
@@ -377,15 +378,17 @@ model DomainTask {
 }
 
 model DomainWorkLog {
-  id        Int         @id @default(autoincrement())
+  id        Int            @id @default(autoincrement())
   userId    String
-  user      DomainUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      DomainUser     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId Int?
+  project   DomainProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
   taskId    Int?
-  task      DomainTask? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  task      DomainTask?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
   date      DateTime // the IST day this log is for (midnight UTC of that date)
   hours     Float
   note      String
-  createdAt DateTime    @default(now())
+  createdAt DateTime       @default(now())
 
   @@index([userId, date])
 }

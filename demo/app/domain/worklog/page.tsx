@@ -10,14 +10,19 @@ type WorkLog = {
   hours: number;
   note: string;
   date: string;
+  project: string | null;
   task: string | null;
   createdAt: string;
 };
 
+type Project = { id: number; name: string };
+
 export default function WorkLogPage() {
   const [open, setOpen] = useState<boolean | null>(null);
   const [myTasks, setMyTasks] = useState<DomainTask[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [logs, setLogs] = useState<WorkLog[]>([]);
+  const [projectId, setProjectId] = useState("");
   const [taskId, setTaskId] = useState("");
   const [hours, setHours] = useState("");
   const [note, setNote] = useState("");
@@ -42,6 +47,10 @@ export default function WorkLogPage() {
       .then((r) => (r.ok ? r.json() : { tasks: [] }))
       .then((b) => setMyTasks(b.tasks ?? []))
       .catch(() => null);
+    fetch("/api/domain/projects")
+      .then((r) => (r.ok ? r.json() : { projects: [] }))
+      .then((b) => setProjects(b.projects ?? []))
+      .catch(() => null);
   }, []);
 
   async function submit() {
@@ -51,6 +60,7 @@ export default function WorkLogPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        projectId: projectId || undefined,
         taskId: taskId || undefined,
         hours: Number(hours),
         note,
@@ -66,6 +76,7 @@ export default function WorkLogPage() {
     setHours("");
     setNote("");
     setTaskId("");
+    setProjectId("");
     setOk("Logged.");
     void loadLogs();
   }
@@ -91,6 +102,22 @@ export default function WorkLogPage() {
       )}
 
       <div className="card p-5 mb-8">
+        <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          Project
+        </label>
+        <select
+          value={projectId}
+          onChange={(e) => setProjectId(e.target.value)}
+          disabled={!open}
+          className="w-full px-3 py-2 mb-3 rounded border border-ink-200 text-sm disabled:bg-ink-50"
+        >
+          <option value="">Which project did you work on?</option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
         <div className="grid sm:grid-cols-2 gap-3 mb-3">
           <div>
             <label className="block text-xs font-medium text-ink-700 mb-1.5">
@@ -165,6 +192,7 @@ export default function WorkLogPage() {
                 <div className="text-sm text-ink-900">{l.note}</div>
                 <div className="text-xs text-ink-500 mt-0.5">
                   {l.date}
+                  {l.project ? ` · ${l.project}` : ""}
                   {l.task ? ` · ${l.task}` : ""}
                 </div>
               </div>

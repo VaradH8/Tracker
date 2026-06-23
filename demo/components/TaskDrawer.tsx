@@ -33,7 +33,6 @@ import { useTasks } from "@/lib/tasks-store";
 import { useRole } from "@/lib/role";
 import { useMyFirstName } from "@/lib/account-store";
 import {
-  loggedHoursForTask,
   parseMentions,
   activeFirstNames,
   statusPill,
@@ -92,7 +91,9 @@ export function TaskDrawer({
     me === task.responsible ||
     (project?.leads ?? []).includes(me);
   const entries = store.entriesForTask(task.id);
-  const totalLogged = loggedHoursForTask(task.id, store.timeEntries);
+  // Server-tracked cumulative — reliable across start/stop cycles (see
+  // the note in TaskCard). Used for the timer total + estimate bar.
+  const totalLogged = task.actualHours ?? 0;
   const taskAudit = store.auditLog.filter((a) => a.taskTitle === task.title);
 
   function reassign(name: string) {
