@@ -305,3 +305,87 @@ model PipelineDeal {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 }
+
+/* ====================================================================
+   Domain module — a separate, self-contained mini-app living inside the
+   same database but sharing NOTHING with the tracker tables above.
+   Roles: Admin / Lead / TeamLead / Actionee. Its own accounts, sessions,
+   projects, tasks and daily work logs.
+   ==================================================================== */
+
+model DomainUser {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String
+  passwordHash  String
+  role          String   @default("Actionee") // Admin | Lead | TeamLead | Actionee
+  dailyCapacity Int      @default(8) // hours/day used for availability math
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sessions      DomainSession[]
+  projectsOwned DomainProject[] @relation("DomainProjectOwner")
+  tasksAssigned DomainTask[]    @relation("DomainTaskAssignee")
+  tasksCreated  DomainTask[]    @relation("DomainTaskCreator")
+  workLogs      DomainWorkLog[]
+}
+
+model DomainSession {
+  id        String     @id @default(cuid())
+  userId    String
+  user      DomainUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime   @default(now())
+
+  @@index([userId])
+}
+
+model DomainProject {
+  id          Int        @id @default(autoincrement())
+  name        String
+  description String?
+  ownerId     String
+  owner       DomainUser @relation("DomainProjectOwner", fields: [ownerId], references: [id])
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  tasks DomainTask[]
+
+  @@index([ownerId])
+}
+
+model DomainTask {
+  id          Int           @id @default(autoincrement())
+  projectId   Int
+  project     DomainProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  status      String        @default("To Do") // To Do | In Progress | Done
+  assigneeId  String?
+  assignee    DomainUser?   @relation("DomainTaskAssignee", fields: [assigneeId], references: [id])
+  createdById String
+  createdBy   DomainUser    @relation("DomainTaskCreator", fields: [createdById], references: [id])
+  targetDate  DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  workLogs DomainWorkLog[]
+
+  @@index([projectId])
+  @@index([assigneeId])
+}
+
+model DomainWorkLog {
+  id        Int         @id @default(autoincrement())
+  userId    String
+  user      DomainUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId    Int?
+  task      DomainTask? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  date      DateTime // the IST day this log is for (midnight UTC of that date)
+  hours     Float
+  note      String
+  createdAt DateTime    @default(now())
+
+  @@index([userId, date])
+}
