@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser } from "@/lib/domain-auth";
-import { DOMAIN_TASK_STATUSES, type DomainTaskStatus } from "@/lib/domain";
+import {
+  DOMAIN_TASK_STATUSES,
+  WORKING_ROLES,
+  type DomainRole,
+  type DomainTaskStatus,
+} from "@/lib/domain";
 
 const INCLUDE = {
   project: { select: { id: true, name: true } },
@@ -57,7 +62,7 @@ export async function PATCH(
       if (
         !assignee ||
         !assignee.isActive ||
-        (assignee.role !== "Actionee" && assignee.role !== "TeamLead")
+        !WORKING_ROLES.includes(assignee.role as DomainRole)
       ) {
         return NextResponse.json({ error: "Invalid assignee." }, { status: 400 });
       }

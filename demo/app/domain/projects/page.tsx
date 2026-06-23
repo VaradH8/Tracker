@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { useDomain } from "@/lib/domain-store";
+import { DOMAIN_ROLE_LABELS, type DomainRole } from "@/lib/domain";
 import { DomainTaskList, type DomainTask } from "@/components/DomainTaskList";
 
 type Project = {
@@ -170,8 +171,8 @@ function ProjectTasks({
   const [targetDate, setTargetDate] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const assignable = people.filter(
-    (p) => p.role === "Actionee" || p.role === "TeamLead",
+  const assignable = people.filter((p) =>
+    ["Actionee", "TeamLead", "SME"].includes(p.role),
   );
 
   const load = useCallback(async () => {
@@ -231,7 +232,7 @@ function ProjectTasks({
                   <option value="">Assign to…</option>
                   {assignable.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.name} ({p.role === "TeamLead" ? "Team Lead" : "Actionee"})
+                      {p.name} ({DOMAIN_ROLE_LABELS[p.role as DomainRole]})
                     </option>
                   ))}
                 </select>

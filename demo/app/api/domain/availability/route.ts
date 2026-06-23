@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
-import { istDayStart } from "@/lib/domain";
+import { istDayStart, WORKING_ROLES } from "@/lib/domain";
 
 /**
  * Resource availability for allocation — the thing Admin mainly cares
@@ -21,7 +21,7 @@ export async function GET() {
   const weekAgo = new Date(today.getTime() - 6 * 24 * 60 * 60 * 1000);
 
   const people = await prisma.domainUser.findMany({
-    where: { isActive: true, role: { in: ["Actionee", "TeamLead"] } },
+    where: { isActive: true, role: { in: WORKING_ROLES } },
     orderBy: { name: "asc" },
   });
 

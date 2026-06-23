@@ -3,12 +3,13 @@
  * from both client and server (no prisma, no next/headers).
  */
 
-export type DomainRole = "Admin" | "Lead" | "TeamLead" | "Actionee";
+export type DomainRole = "Admin" | "Lead" | "TeamLead" | "SME" | "Actionee";
 
 export const DOMAIN_ROLES: DomainRole[] = [
   "Admin",
   "Lead",
   "TeamLead",
+  "SME",
   "Actionee",
 ];
 
@@ -16,8 +17,13 @@ export const DOMAIN_ROLE_LABELS: Record<DomainRole, string> = {
   Admin: "Admin",
   Lead: "Lead",
   TeamLead: "Team Lead",
+  SME: "SME",
   Actionee: "Actionee",
 };
+
+/** Roles that do hands-on work — eligible to be assigned tasks and to
+ *  appear in the resource-availability view. */
+export const WORKING_ROLES: DomainRole[] = ["TeamLead", "SME", "Actionee"];
 
 export type DomainTaskStatus = "To Do" | "In Progress" | "Done";
 export const DOMAIN_TASK_STATUSES: DomainTaskStatus[] = [

@@ -47,7 +47,7 @@ export default function AvailabilityPage() {
         <p className="text-sm text-ink-500">Loading…</p>
       ) : rows.length === 0 ? (
         <p className="text-sm text-ink-400 italic">
-          No actionees or team leads yet.
+          No team members yet (actionees, SMEs, or team leads).
         </p>
       ) : (
         <div className="card overflow-hidden">

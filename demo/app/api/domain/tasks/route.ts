@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
+import { WORKING_ROLES, type DomainRole } from "@/lib/domain";
 
 const INCLUDE = {
   project: { select: { id: true, name: true } },
@@ -87,9 +88,9 @@ export async function POST(req: Request) {
     if (!assignee || !assignee.isActive) {
       return NextResponse.json({ error: "Assignee not found." }, { status: 400 });
     }
-    if (assignee.role !== "Actionee" && assignee.role !== "TeamLead") {
+    if (!WORKING_ROLES.includes(assignee.role as DomainRole)) {
       return NextResponse.json(
-        { error: "Tasks can only be assigned to Actionees or Team Leads." },
+        { error: "Tasks can only be assigned to Actionees, SMEs, or Team Leads." },
         { status: 400 },
       );
     }
