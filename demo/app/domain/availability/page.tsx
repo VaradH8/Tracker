@@ -1,16 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { DOMAIN_ROLE_LABELS, logWindowLabel, type DomainRole } from "@/lib/domain";
+import { DOMAIN_ROLE_LABELS, type DomainRole } from "@/lib/domain";
 
 type Resource = {
   id: string;
   name: string;
   role: DomainRole;
   capacity: number;
-  hoursToday: number;
-  hoursWeek: number;
-  availableToday: number;
+  allocated: number;
+  free: number;
   openTasks: number;
   status: "Free" | "Partial" | "Full";
 };
@@ -38,8 +37,9 @@ export default function AvailabilityPage() {
           Resource availability
         </h1>
         <p className="text-sm text-ink-500 mt-1">
-          Who has capacity to take on work today. Capacity is the person&apos;s
-          daily hours; logged hours come from the {logWindowLabel()} window.
+          Who has capacity to take on work. Based on the hours of work
+          currently assigned (open tasks) against each person&apos;s weekly
+          capacity — logging hours doesn&apos;t change this.
         </p>
       </header>
 
@@ -55,9 +55,8 @@ export default function AvailabilityPage() {
             <thead className="bg-ink-50 text-ink-500 text-xs uppercase tracking-wide">
               <tr>
                 <th className="text-left font-semibold px-4 py-2">Person</th>
-                <th className="text-left font-semibold px-4 py-2">Today</th>
-                <th className="text-left font-semibold px-4 py-2">Free today</th>
-                <th className="text-left font-semibold px-4 py-2">This week</th>
+                <th className="text-left font-semibold px-4 py-2">Allocated</th>
+                <th className="text-left font-semibold px-4 py-2">Free / week</th>
                 <th className="text-left font-semibold px-4 py-2">Open tasks</th>
                 <th className="text-left font-semibold px-4 py-2">Status</th>
               </tr>
@@ -72,12 +71,11 @@ export default function AvailabilityPage() {
                     </div>
                   </td>
                   <td className="px-4 py-2 text-ink-700">
-                    {r.hoursToday}h / {r.capacity}h
+                    {r.allocated}h / {r.capacity}h
                   </td>
                   <td className="px-4 py-2 font-medium text-ink-900">
-                    {r.availableToday}h
+                    {r.free}h
                   </td>
-                  <td className="px-4 py-2 text-ink-700">{r.hoursWeek}h</td>
                   <td className="px-4 py-2 text-ink-700">{r.openTasks}</td>
                   <td className="px-4 py-2">
                     <span

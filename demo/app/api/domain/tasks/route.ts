@@ -14,7 +14,9 @@ type TaskRow = {
   title: string;
   description: string | null;
   status: string;
+  startDate: Date | null;
   targetDate: Date | null;
+  estimatedHours: number | null;
   createdAt: Date;
   project: { id: number; name: string };
   assignee: { id: string; name: string; role: string } | null;
@@ -27,7 +29,9 @@ function serialize(t: TaskRow) {
     title: t.title,
     description: t.description,
     status: t.status,
+    startDate: t.startDate ? t.startDate.toISOString().slice(0, 10) : null,
     targetDate: t.targetDate ? t.targetDate.toISOString().slice(0, 10) : null,
+    estimatedHours: t.estimatedHours,
     projectId: t.project.id,
     projectName: t.project.name,
     assignee: t.assignee?.name ?? null,
@@ -35,6 +39,14 @@ function serialize(t: TaskRow) {
     createdBy: t.createdBy.name,
     createdAt: t.createdAt.toISOString(),
   };
+}
+
+/** Parse an estimated-hours value: a positive number, capped at a sane
+ *  ceiling, or null. */
+function parseHours(raw: unknown): number | null {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.min(1000, Math.round(n * 100) / 100);
 }
 
 export async function GET(req: Request) {
@@ -107,7 +119,9 @@ export async function POST(req: Request) {
       projectId,
       assigneeId,
       createdById: user.id,
+      startDate: body.startDate ? new Date(String(body.startDate)) : null,
       targetDate: body.targetDate ? new Date(String(body.targetDate)) : null,
+      estimatedHours: parseHours(body.estimatedHours),
     },
     include: INCLUDE,
   });

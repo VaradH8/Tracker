@@ -72,8 +72,18 @@ export async function PATCH(
     if (typeof body.title === "string" && body.title.trim()) {
       data.title = body.title.trim();
     }
+    if (typeof body.startDate === "string" || body.startDate === null) {
+      data.startDate = body.startDate ? new Date(body.startDate) : null;
+    }
     if (typeof body.targetDate === "string" || body.targetDate === null) {
       data.targetDate = body.targetDate ? new Date(body.targetDate) : null;
+    }
+    if (body.estimatedHours === null) {
+      data.estimatedHours = null;
+    } else if (body.estimatedHours !== undefined) {
+      const n = Number(body.estimatedHours);
+      data.estimatedHours =
+        Number.isFinite(n) && n > 0 ? Math.min(1000, Math.round(n * 100) / 100) : null;
     }
     if (body.assigneeId === null) {
       data.assigneeId = null;
@@ -107,9 +117,13 @@ export async function PATCH(
       title: updated.title,
       description: updated.description,
       status: updated.status,
+      startDate: updated.startDate
+        ? updated.startDate.toISOString().slice(0, 10)
+        : null,
       targetDate: updated.targetDate
         ? updated.targetDate.toISOString().slice(0, 10)
         : null,
+      estimatedHours: updated.estimatedHours,
       projectId: updated.project.id,
       projectName: updated.project.name,
       assignee: updated.assignee?.name ?? null,

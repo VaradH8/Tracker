@@ -362,14 +362,16 @@ model DomainTask {
   project     DomainProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
   title       String
   description String?
-  status      String        @default("To Do") // To Do | In Progress | Done
-  assigneeId  String?
-  assignee    DomainUser?   @relation("DomainTaskAssignee", fields: [assigneeId], references: [id])
-  createdById String
-  createdBy   DomainUser    @relation("DomainTaskCreator", fields: [createdById], references: [id])
-  targetDate  DateTime?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  status         String        @default("To Do") // To Do | In Progress | Done
+  assigneeId     String?
+  assignee       DomainUser?   @relation("DomainTaskAssignee", fields: [assigneeId], references: [id])
+  createdById    String
+  createdBy      DomainUser    @relation("DomainTaskCreator", fields: [createdById], references: [id])
+  startDate      DateTime?
+  targetDate     DateTime? // the deadline
+  estimatedHours Float? // hours the actionee should take to complete it
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   workLogs DomainWorkLog[]
 

@@ -285,7 +285,9 @@ function ProjectTasks({
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
+  const [startDate, setStartDate] = useState("");
   const [targetDate, setTargetDate] = useState("");
+  const [estHours, setEstHours] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const assignable = people.filter((p) =>
@@ -312,7 +314,9 @@ function ProjectTasks({
         projectId,
         title,
         assigneeId: assigneeId || undefined,
+        startDate: startDate || undefined,
         targetDate: targetDate || undefined,
+        estimatedHours: estHours || undefined,
       }),
     });
     if (!res.ok) {
@@ -321,7 +325,9 @@ function ProjectTasks({
     }
     setTitle("");
     setAssigneeId("");
+    setStartDate("");
     setTargetDate("");
+    setEstHours("");
     setAdding(false);
     void load();
     onTaskChange();
@@ -354,11 +360,40 @@ function ProjectTasks({
                   ))}
                 </select>
                 <input
-                  type="date"
-                  value={targetDate}
-                  onChange={(e) => setTargetDate(e.target.value)}
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  value={estHours}
+                  onChange={(e) => setEstHours(e.target.value)}
+                  placeholder="Hours to complete"
                   className="px-3 py-2 rounded border border-ink-200 text-sm"
                 />
+              </div>
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                <div>
+                  <label className="block text-[11px] text-ink-500 mb-1">
+                    Start date
+                  </label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    max={targetDate || undefined}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-ink-500 mb-1">
+                    Deadline
+                  </label>
+                  <input
+                    type="date"
+                    value={targetDate}
+                    min={startDate || undefined}
+                    onChange={(e) => setTargetDate(e.target.value)}
+                    className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+                  />
+                </div>
               </div>
               {error && <p className="text-xs text-brand-redText mb-2">{error}</p>}
               <div className="flex justify-end gap-2">

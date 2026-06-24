@@ -9,7 +9,9 @@ export type DomainTask = {
   title: string;
   description: string | null;
   status: string;
+  startDate: string | null;
   targetDate: string | null;
+  estimatedHours: number | null;
   projectId: number;
   projectName: string;
   assignee: string | null;
@@ -75,7 +77,10 @@ export function DomainTaskList({
             <div className="text-xs text-ink-500 mt-0.5">
               {!hideProject && <span>{t.projectName} · </span>}
               {t.assignee ? `Assigned to ${t.assignee}` : "Unassigned"}
-              {t.targetDate ? ` · due ${t.targetDate}` : ""}
+              {t.estimatedHours != null ? ` · ${t.estimatedHours}h` : ""}
+              {t.startDate || t.targetDate
+                ? ` · ${t.startDate ?? "?"} → ${t.targetDate ?? "?"}`
+                : ""}
             </div>
           </div>
           <span className={`px-2 py-0.5 rounded-pill text-xs font-medium ${statusCls(t.status)}`}>

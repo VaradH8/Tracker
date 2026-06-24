@@ -1,24 +1,26 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
-import { istDayStart, WORKING_ROLES } from "@/lib/domain";
+import { WORKING_ROLES } from "@/lib/domain";
+
+// A working week = 5 days at the person's daily capacity.
+const WORKING_DAYS = 5;
 
 /**
- * Resource availability for allocation — the thing Admin mainly cares
- * about. For each working person (Actionee + Team Lead) it returns:
- *   - capacity (hours/day),
- *   - hours logged today and over the last 7 days,
- *   - count of open (not-Done) assigned tasks,
- *   - a derived status: Free / Partial / Full.
+ * Resource availability for allocation. Availability is driven purely by
+ * the WORK ASSIGNED to each person, NOT by what they've logged — so
+ * logging hours never changes someone's availability. For each working
+ * person (Actionee / SME / Team Lead):
+ *   - weekly capacity  = dailyCapacity × 5,
+ *   - allocated        = sum of estimated hours on their open (not-Done) tasks,
+ *   - free             = capacity − allocated,
+ *   - status           = Free / Partial / Full.
  */
 export async function GET() {
   const userOrResp = await requireDomainUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
   const forbidden = requireDomainRole(userOrResp, ["Admin"]);
   if (forbidden) return forbidden;
-
-  const today = istDayStart();
-  const weekAgo = new Date(today.getTime() - 6 * 24 * 60 * 60 * 1000);
 
   const people = await prisma.domainUser.findMany({
     where: { isActive: true, role: { in: WORKING_ROLES } },
@@ -27,33 +29,24 @@ export async function GET() {
 
   const rows = await Promise.all(
     people.map(async (p) => {
-      const [todayAgg, weekAgg, openTasks] = await Promise.all([
-        prisma.domainWorkLog.aggregate({
-          where: { userId: p.id, date: today },
-          _sum: { hours: true },
-        }),
-        prisma.domainWorkLog.aggregate({
-          where: { userId: p.id, date: { gte: weekAgo } },
-          _sum: { hours: true },
-        }),
-        prisma.domainTask.count({
-          where: { assigneeId: p.id, status: { not: "Done" } },
-        }),
-      ]);
-      const hoursToday = todayAgg._sum.hours ?? 0;
-      const hoursWeek = weekAgg._sum.hours ?? 0;
-      const capacity = p.dailyCapacity;
-      const ratio = capacity > 0 ? hoursToday / capacity : 1;
-      const status = hoursToday <= 0 ? "Free" : ratio >= 1 ? "Full" : "Partial";
-      const availableToday = Math.max(0, capacity - hoursToday);
+      const agg = await prisma.domainTask.aggregate({
+        where: { assigneeId: p.id, status: { not: "Done" } },
+        _sum: { estimatedHours: true },
+        _count: true,
+      });
+      const capacity = p.dailyCapacity * WORKING_DAYS;
+      const allocated = agg._sum.estimatedHours ?? 0;
+      const openTasks = agg._count;
+      const free = Math.max(0, capacity - allocated);
+      const status =
+        allocated <= 0 ? "Free" : allocated >= capacity ? "Full" : "Partial";
       return {
         id: p.id,
         name: p.name,
         role: p.role,
         capacity,
-        hoursToday: Math.round(hoursToday * 100) / 100,
-        hoursWeek: Math.round(hoursWeek * 100) / 100,
-        availableToday: Math.round(availableToday * 100) / 100,
+        allocated: Math.round(allocated * 100) / 100,
+        free: Math.round(free * 100) / 100,
         openTasks,
         status,
       };
