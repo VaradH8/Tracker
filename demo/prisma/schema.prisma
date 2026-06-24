@@ -293,6 +293,19 @@ model Leave {
   createdAt DateTime @default(now())
 }
 
+/// Org-wide configuration, edited by admins on the Settings page. A
+/// single-row table (id is always 1). CSV columns keep it simple — the
+/// app splits workingDays / leaveTypes on read.
+model AppSettings {
+  id                 Int      @id @default(1)
+  smtpFrom           String?
+  workingHoursPerDay Int      @default(8)
+  workingDays        String   @default("Mon,Tue,Wed,Thu,Fri")
+  leaveTypes         String   @default("Sick Leave,Casual Leave,Paid Leave,Unpaid Leave")
+  annualLeaveQuota   Int      @default(12)
+  updatedAt          DateTime @updatedAt
+}
+
 model PipelineDeal {
   id             Int       @id @default(autoincrement())
   name           String

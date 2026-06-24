@@ -24,6 +24,7 @@ import {
   todayISO,
   weekNumberOf,
   projectStatusPill,
+  projectProgress,
   type Priority,
   type Status,
 } from "@/lib/mock";
@@ -102,6 +103,8 @@ export default function ProjectDetailPage({
   const [tab, setTab] = useState<Tab>("tasks");
   const [weekFilter, setWeekFilter] = useState<"all" | number>("all");
   const [editOpen, setEditOpen] = useState(false);
+  const [histQuery, setHistQuery] = useState("");
+  const [histDate, setHistDate] = useState("");
   const thisWeek = currentWeek();
 
   useEffect(() => {
@@ -123,6 +126,25 @@ export default function ProjectDetailPage({
   const projectAudit = auditLog.filter(
     (a) => project && a.scope === project.name,
   );
+  const filteredAudit = projectAudit.filter((a) => {
+    if (histDate && a.whenExact.slice(0, 10) !== histDate) return false;
+    if (histQuery.trim()) {
+      const q = histQuery.toLowerCase();
+      const hay = [
+        a.actor,
+        prettyAction(a.action),
+        a.action,
+        a.taskTitle,
+        a.before,
+        a.after,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
 
   const tabs: Tab[] = ["tasks", "details"];
   if (showAudit) tabs.push("history");
@@ -271,8 +293,8 @@ export default function ProjectDetailPage({
         >
           <Stat
             label="Progress"
-            value={`${project.progress}%`}
-            sub="of plan"
+            value={`${projectProgress(projectId, tasks)}%`}
+            sub={`${tasks.filter((t) => t.status === "Done").length}/${tasks.length} done`}
             tone="blue"
           />
           {showFinancials && (
@@ -534,22 +556,46 @@ export default function ProjectDetailPage({
 
         {activeTab === "history" && showAudit && (
           <div className="card p-6">
-            <div className="flex items-center gap-2 mb-4">
+            <div className="flex items-center gap-2 mb-4 flex-wrap">
               <History size={18} className="text-brand-blue" />
               <h2 className="font-heading text-lg font-semibold">
                 Activity history
               </h2>
-              <span className="text-xs text-ink-500">
-                · everything that's happened on this project
-              </span>
+              <div className="flex items-center gap-2 ml-auto">
+                <input
+                  value={histQuery}
+                  onChange={(e) => setHistQuery(e.target.value)}
+                  placeholder="Search activity…"
+                  className="px-3 py-1.5 rounded border border-ink-200 text-sm w-44"
+                />
+                <input
+                  type="date"
+                  value={histDate}
+                  onChange={(e) => setHistDate(e.target.value)}
+                  className="px-2 py-1.5 rounded border border-ink-200 text-sm"
+                />
+                {(histQuery || histDate) && (
+                  <button
+                    onClick={() => {
+                      setHistQuery("");
+                      setHistDate("");
+                    }}
+                    className="text-xs text-ink-500 hover:text-ink-900"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
-            {projectAudit.length === 0 ? (
+            {filteredAudit.length === 0 ? (
               <p className="text-sm text-ink-500 italic">
-                No activity yet on this project.
+                {projectAudit.length === 0
+                  ? "No activity yet on this project."
+                  : "No activity matches your filters."}
               </p>
             ) : (
               <ul className="divide-y divide-ink-100">
-                {projectAudit.map((a) => (
+                {filteredAudit.map((a) => (
                   <li key={a.id} className="py-3 flex items-start gap-3">
                     <div className="w-8 h-8 rounded-full bg-ink-100 grid place-items-center text-[10px] font-heading font-medium text-ink-700 shrink-0">
                       {a.actor[0]}
@@ -575,7 +621,12 @@ export default function ProjectDetailPage({
                           </code>
                         </p>
                       )}
-                      <span className="text-xs text-ink-400">{a.when}</span>
+                      <span
+                        className="text-xs text-ink-400"
+                        title={a.when}
+                      >
+                        {fmtExactWhen(a.whenExact)}
+                      </span>
                     </div>
                   </li>
                 ))}
@@ -704,7 +755,6 @@ function EditProjectModal({
     startDate: string;
     targetDate: string;
     budgetHours: number;
-    progress: number;
     health: string;
     description?: string;
   };
@@ -719,7 +769,6 @@ function EditProjectModal({
     startDate: string;
     targetDate: string;
     budgetHours: number;
-    progress: number;
     health: string;
     description: string | null;
   }) => void | Promise<void>;
@@ -743,7 +792,6 @@ function EditProjectModal({
   const [startDate, setStartDate] = useState(project.startDate);
   const [targetDate, setTargetDate] = useState(project.targetDate);
   const [budgetHours, setBudgetHours] = useState(String(project.budgetHours));
-  const [progress, setProgress] = useState(String(project.progress));
   const [health, setHealth] = useState(project.health);
   const [description, setDescription] = useState(project.description ?? "");
 
@@ -867,16 +915,11 @@ function EditProjectModal({
         </div>
         <div>
           <label className="block text-xs font-medium text-ink-700 mb-1.5">
-            Progress (%)
+            Progress
           </label>
-          <input
-            type="number"
-            min="0"
-            max="100"
-            value={progress}
-            onChange={(e) => setProgress(e.target.value)}
-            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
-          />
+          <p className="text-xs text-ink-500 px-3 py-2 rounded bg-ink-50 border border-ink-100">
+            Auto-calculated from completed tasks.
+          </p>
         </div>
       </div>
 
@@ -906,7 +949,6 @@ function EditProjectModal({
               startDate,
               targetDate,
               budgetHours: Number(budgetHours) || 0,
-              progress: Math.max(0, Math.min(100, Number(progress) || 0)),
               health,
               description: description.trim() || null,
             })
@@ -942,16 +984,19 @@ function CreateTaskModal({
   }) => void;
 }) {
   const { accounts } = useAccounts();
-  // Assignable people, split by role — only Developers and Co-ordinators.
+  // Assignable people, split by role — Developers, Co-ordinators, Leads.
   const devCandidates = accounts
     .filter((a) => a.active && a.role === "Developer")
     .map((a) => a.name.split(" ")[0]);
   const coordCandidates = accounts
     .filter((a) => a.active && a.role === "Coordinator")
     .map((a) => a.name.split(" ")[0]);
-  const [assigneeTab, setAssigneeTab] = useState<"Developer" | "Coordinator">(
-    "Developer",
-  );
+  const leadCandidates = accounts
+    .filter((a) => a.active && a.role === "Lead")
+    .map((a) => a.name.split(" ")[0]);
+  const [assigneeTab, setAssigneeTab] = useState<
+    "Developer" | "Coordinator" | "Lead"
+  >("Developer");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<Status>("To Do");
@@ -983,7 +1028,11 @@ function CreateTaskModal({
   }
 
   const tabCandidates =
-    assigneeTab === "Developer" ? devCandidates : coordCandidates;
+    assigneeTab === "Developer"
+      ? devCandidates
+      : assigneeTab === "Coordinator"
+        ? coordCandidates
+        : leadCandidates;
 
   return (
     <Modal title="New task" onClose={onClose} size="lg">
@@ -1097,12 +1146,12 @@ function CreateTaskModal({
           <label className="block text-xs font-medium text-ink-700 mb-1.5">
             Assign to{" "}
             <span className="text-ink-400 font-normal">
-              (developers &amp; co-ordinators — optional)
+              (developers, co-ordinators &amp; leads — optional)
             </span>
           </label>
           <div className="mb-6 rounded border border-ink-200 bg-ink-50">
             <div className="flex border-b border-ink-200">
-              {(["Developer", "Coordinator"] as const).map((t) => (
+              {(["Developer", "Coordinator", "Lead"] as const).map((t) => (
                 <button
                   key={t}
                   type="button"
@@ -1113,13 +1162,22 @@ function CreateTaskModal({
                       : "text-ink-500 hover:text-ink-900"
                   }`}
                 >
-                  {t === "Developer" ? "Developers" : "Co-ordinators"}
+                  {t === "Developer"
+                    ? "Developers"
+                    : t === "Coordinator"
+                      ? "Co-ordinators"
+                      : "Leads"}
                 </button>
               ))}
             </div>
             {tabCandidates.length === 0 ? (
               <p className="text-xs text-ink-400 italic p-3">
-                No {assigneeTab === "Developer" ? "developers" : "co-ordinators"}{" "}
+                No{" "}
+                {assigneeTab === "Developer"
+                  ? "developers"
+                  : assigneeTab === "Coordinator"
+                    ? "co-ordinators"
+                    : "leads"}{" "}
                 available.
               </p>
             ) : (
@@ -1252,6 +1310,14 @@ function HealthDot({ health }: { health: "green" | "yellow" | "red" }) {
       <span className={`w-2 h-2 rounded-full ${cls}`} /> {label}
     </span>
   );
+}
+
+/** ISO → "24-06-2026, 13:09" in the viewer's local time. */
+function fmtExactWhen(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}-${p(d.getMonth() + 1)}-${d.getFullYear()}, ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 function prettyAction(action: string): string {

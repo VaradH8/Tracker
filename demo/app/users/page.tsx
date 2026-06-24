@@ -18,6 +18,7 @@ import { AppShell } from "@/components/AppShell";
 import { EmptyState } from "@/components/EmptyState";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/components/Toast";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { ROLE_LABELS, type Role } from "@/lib/role";
 import {
   useAccounts,
@@ -45,6 +46,7 @@ export default function UsersPage() {
   const [resetting, setResetting] = useState<Account | null>(null);
   const [deleting, setDeleting] = useState<Account | null>(null);
   const toast = useToast();
+  const confirm = useConfirm();
 
   const visible = accounts
     .filter((a) => {
@@ -60,10 +62,17 @@ export default function UsersPage() {
       );
     });
 
-  function changeRole(id: string, role: Role) {
-    updateAccount(id, { role });
+  async function changeRole(id: string, role: Role) {
     const a = accounts.find((x) => x.id === id);
-    if (a) toast.show(`${a.name} is now ${ROLE_LABELS[role]}.`);
+    if (!a || a.role === role) return;
+    const ok = await confirm({
+      title: `Change ${a.name}'s role?`,
+      body: `${a.name} will go from ${ROLE_LABELS[a.role]} to ${ROLE_LABELS[role]}. This changes what they can see and do.`,
+      confirmLabel: `Make ${ROLE_LABELS[role]}`,
+    });
+    if (!ok) return;
+    await updateAccount(id, { role });
+    toast.show(`${a.name} is now ${ROLE_LABELS[role]}.`);
   }
 
   function toggleActive(a: Account) {

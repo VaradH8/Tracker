@@ -298,9 +298,11 @@ function AssigneeMenu({
   onToggle: (name: string) => void;
 }) {
   const [q, setQ] = useState("");
-  // Only Developers and Co-ordinators can be assigned work — no BDs,
-  // Leads, or Admins. Split into tabs so you pick from one role at a time.
-  const [tab, setTab] = useState<"Developer" | "Coordinator">("Developer");
+  // Work is assigned to Developers, Co-ordinators or Leads — split into
+  // tabs so you pick from one role at a time. (No BDs or Admins.)
+  const [tab, setTab] = useState<"Developer" | "Coordinator" | "Lead">(
+    "Developer",
+  );
   const { accounts } = useAccounts();
   const people = accounts
     .filter((a) => a.active && a.role === tab)
@@ -316,18 +318,22 @@ function AssigneeMenu({
         </span>
       </div>
       <div className="flex border-b border-ink-100">
-        {(["Developer", "Coordinator"] as const).map((t) => (
+        {(["Developer", "Coordinator", "Lead"] as const).map((t) => (
           <button
             key={t}
             type="button"
             onClick={() => setTab(t)}
-            className={`flex-1 px-3 py-1.5 text-xs font-medium ${
+            className={`flex-1 px-2 py-1.5 text-xs font-medium ${
               tab === t
                 ? "text-brand-blue border-b-2 border-brand-blue"
                 : "text-ink-500 hover:text-ink-900"
             }`}
           >
-            {t === "Developer" ? "Developers" : "Co-ordinators"}
+            {t === "Developer"
+              ? "Developers"
+              : t === "Coordinator"
+                ? "Co-ords"
+                : "Leads"}
           </button>
         ))}
       </div>
@@ -343,9 +349,13 @@ function AssigneeMenu({
       <ul className="text-sm max-h-56 overflow-y-auto py-1">
         {people.length === 0 && (
           <li className="px-3 py-2 text-xs text-ink-400 italic">
+            No{" "}
             {tab === "Developer"
-              ? "No developers match."
-              : "No co-ordinators match."}
+              ? "developers"
+              : tab === "Coordinator"
+                ? "co-ordinators"
+                : "leads"}{" "}
+            match.
           </li>
         )}
         {people.map((a, i) => {

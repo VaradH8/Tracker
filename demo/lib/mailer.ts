@@ -1,20 +1,30 @@
 import nodemailer, { type Transporter } from "nodemailer";
+import { getSettings } from "./settings";
 
 /**
- * Outbound email via SMTP. Configured purely through env vars so the
- * code knows nothing about a specific provider — drop in SES /
- * SendGrid / Postmark / a self-hosted Postfix by setting the right
- * SMTP_* values.
+ * Outbound email via SMTP. The transport (host/user/pass) comes from env
+ * vars; the From address is whatever an admin sets on the Settings page
+ * (AppSettings.smtpFrom), falling back to the SMTP_FROM env var.
  *
- * If any of SMTP_HOST / SMTP_USER / SMTP_PASS / SMTP_FROM is missing,
- * sendEmail() is a structured no-op (logs and returns ok: false). The
- * EmailLog DB row that the caller already writes is still the audit
- * surface, so admins can read /settings/emails and forward the
- * message manually until SMTP is configured.
+ * If host/user/pass aren't set, or there's no From address from either
+ * source, sendEmail() is a structured no-op. The EmailLog DB row the
+ * caller already writes is still the audit surface, so admins can read
+ * /settings/emails and forward the message manually until SMTP is set.
  */
 
 let cachedTransport: Transporter | null = null;
 let cachedTransportConfigured = false;
+
+/** The From address: admin-configured value wins, else the env var. */
+async function resolveFrom(): Promise<string | null> {
+  try {
+    const s = await getSettings();
+    if (s.smtpFrom && s.smtpFrom.trim()) return s.smtpFrom.trim();
+  } catch {
+    /* DB unavailable — fall back to env */
+  }
+  return process.env.SMTP_FROM ?? null;
+}
 
 function getTransport(): Transporter | null {
   if (cachedTransportConfigured) return cachedTransport;
@@ -23,8 +33,7 @@ function getTransport(): Transporter | null {
   const host = process.env.SMTP_HOST;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
-  const from = process.env.SMTP_FROM;
-  if (!host || !user || !pass || !from) {
+  if (!host || !user || !pass) {
     // Not configured. Stay silent — the caller's EmailLog row is the
     // user-visible artifact in this case.
     return null;
@@ -58,9 +67,13 @@ export async function sendEmail(opts: {
   if (!transport) {
     return { ok: false, reason: "SMTP not configured." };
   }
+  const from = await resolveFrom();
+  if (!from) {
+    return { ok: false, reason: "No From address configured." };
+  }
   try {
     await transport.sendMail({
-      from: process.env.SMTP_FROM,
+      from,
       to: opts.to,
       subject: opts.subject,
       text: opts.body,

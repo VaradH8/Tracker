@@ -70,6 +70,9 @@ export async function POST(req: Request) {
   );
   const description =
     typeof body.description === "string" ? body.description : null;
+  const health = ["green", "yellow", "red"].includes(String(body.health))
+    ? String(body.health)
+    : "green";
 
   if (!name) return NextResponse.json({ error: "Name is required." }, { status: 400 });
   if (!Number.isFinite(clientId)) {
@@ -112,7 +115,7 @@ export async function POST(req: Request) {
       budgetHours,
       loggedHours: 0,
       progress: 0,
-      health: "green",
+      health,
       description,
       members: { create: memberRows },
     },

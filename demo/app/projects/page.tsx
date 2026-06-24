@@ -18,6 +18,7 @@ import {
   PIPELINE,
   PIPELINE_STAGES,
   projectStatusPill,
+  projectProgress,
   formatDateLong,
   formatINR,
   type Project,
@@ -239,13 +240,13 @@ function ActiveProjects({ role }: { role: Role }) {
                   <div className="flex items-center justify-between text-xs text-ink-500 mb-1">
                     <span>Progress</span>
                     <span className="font-medium text-ink-700">
-                      {p.progress}%
+                      {projectProgress(p.id, tasks)}%
                     </span>
                   </div>
                   <div className="h-1.5 bg-ink-100 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-brand-blue"
-                      style={{ width: `${p.progress}%` }}
+                      style={{ width: `${projectProgress(p.id, tasks)}%` }}
                     />
                   </div>
                 </div>
@@ -308,7 +309,11 @@ function ActiveProjects({ role }: { role: Role }) {
             name,
             clientId,
             newClientName,
+            startDate,
             targetDate,
+            budgetHours,
+            description,
+            health,
             leads,
             coordinators,
             developers,
@@ -331,7 +336,11 @@ function ActiveProjects({ role }: { role: Role }) {
             const r = await createProject({
               name,
               clientId: resolvedClientId,
+              startDate: startDate || undefined,
               targetDate: targetDate || undefined,
+              budgetHours: budgetHours ?? undefined,
+              description: description || undefined,
+              health,
               leads,
               coordinators,
               developers,
@@ -689,7 +698,11 @@ function CreateProjectModal({
     name: string;
     clientId: number | null;
     newClientName: string | null;
+    startDate: string;
     targetDate: string;
+    budgetHours: number;
+    description: string;
+    health: string;
     leads: string[];
     coordinators: string[];
     developers: string[];
@@ -723,7 +736,11 @@ function CreateProjectModal({
     clients.length > 0 ? String(clients[0].id) : "__new__",
   );
   const [newClient, setNewClient] = useState("");
+  const [start, setStart] = useState("");
   const [target, setTarget] = useState("");
+  const [budgetHours, setBudgetHours] = useState("");
+  const [description, setDescription] = useState("");
+  const [health, setHealth] = useState("green");
   const [leads, setLeads] = useState<string[]>([]);
   const [coords, setCoords] = useState<string[]>([]);
   const [devs, setDevs] = useState<string[]>([]);
@@ -785,16 +802,71 @@ function CreateProjectModal({
         </div>
         <div>
           <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Health
+          </label>
+          <select
+            value={health}
+            onChange={(e) => setHealth(e.target.value)}
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          >
+            <option value="green">Green · on track</option>
+            <option value="yellow">Yellow · watch</option>
+            <option value="red">Red · at risk</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Start date
+          </label>
+          <input
+            type="date"
+            value={start}
+            max={target || undefined}
+            onChange={(e) => setStart(e.target.value)}
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
             Target date
           </label>
           <input
             type="date"
             value={target}
+            min={start || undefined}
             onChange={(e) => setTarget(e.target.value)}
             className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
           />
         </div>
+        <div>
+          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            Budget (hours)
+          </label>
+          <input
+            type="number"
+            min="0"
+            value={budgetHours}
+            onChange={(e) => setBudgetHours(e.target.value)}
+            placeholder="80"
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          />
+        </div>
       </div>
+
+      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+        Description{" "}
+        <span className="text-ink-400 font-normal">(optional)</span>
+      </label>
+      <textarea
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        rows={2}
+        placeholder="What's this project about?"
+        className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+      />
 
       <div className="space-y-3 mb-6">
         <PeoplePicker
@@ -841,7 +913,11 @@ function CreateProjectModal({
               name: name.trim() || "Untitled project",
               clientId: addingClient ? null : Number(clientId),
               newClientName: addingClient ? newClient.trim() : null,
+              startDate: start,
               targetDate: target,
+              budgetHours: Number(budgetHours) || 0,
+              description: description.trim(),
+              health,
               leads,
               coordinators: coords,
               developers: devs,

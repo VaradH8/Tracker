@@ -22,6 +22,7 @@ type CreateProjectInput = {
   targetDate?: string;
   budgetHours?: number;
   description?: string;
+  health?: string;
 };
 
 type ProjectRolePatch = {

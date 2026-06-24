@@ -228,6 +228,7 @@ export function serializeAudit(a: PrismaAudit): AuditEntry {
     before: a.before ?? undefined,
     after: a.after ?? undefined,
     when: relativeWhen(a.createdAt),
+    whenExact: a.createdAt.toISOString(),
   };
 }
 
@@ -302,7 +303,7 @@ export function serializeLeave(l: PrismaLeave): LeaveEntry {
     resourceName: l.user?.name ?? "—",
     start: l.start.toISOString().slice(0, 10),
     end: l.end.toISOString().slice(0, 10),
-    type: l.type as LeaveEntry["type"],
+    type: l.type,
     note: l.note ?? undefined,
     approved: l.approved,
   };

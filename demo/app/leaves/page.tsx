@@ -10,17 +10,73 @@ import { useToast } from "@/components/Toast";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { Modal } from "@/components/Modal";
 
-const TYPE_COLOR: Record<LeaveEntry["type"], string> = {
-  Vacation: "bg-brand-blueBg text-brand-blue",
-  Sick: "bg-brand-redBg text-brand-redText",
-  WFH: "bg-brand-greenBg text-brand-greenText",
-  Personal: "bg-brand-yellowBg text-brand-yellowText",
+/** Pick a pill colour for any leave type (types are configurable now). */
+function leaveTypeColor(type: string): string {
+  const t = type.toLowerCase();
+  if (t.includes("sick")) return "bg-brand-redBg text-brand-redText";
+  if (t.includes("casual") || t.includes("personal"))
+    return "bg-brand-yellowBg text-brand-yellowText";
+  if (t.includes("wfh") || t.includes("work from"))
+    return "bg-brand-greenBg text-brand-greenText";
+  if (t.includes("paid") || t.includes("vacation") || t.includes("annual"))
+    return "bg-brand-blueBg text-brand-blue";
+  return "bg-ink-100 text-ink-600";
+}
+
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** Count working days (per the configured working days) in [start, end]
+ *  inclusive. Used to turn a leave range into a number of leave days. */
+function workingDayCount(
+  startISO: string,
+  endISO: string,
+  workingDays: string[],
+): number {
+  const d = new Date(startISO + "T00:00:00");
+  const end = new Date(endISO + "T00:00:00");
+  if (Number.isNaN(d.getTime()) || Number.isNaN(end.getTime())) return 0;
+  let count = 0;
+  let guard = 0;
+  while (d <= end && guard < 1000) {
+    if (workingDays.includes(DAY_NAMES[d.getDay()])) count++;
+    d.setDate(d.getDate() + 1);
+    guard++;
+  }
+  return count;
+}
+
+type Balance = { quota: number; taken: number; remaining: number };
+
+/** Approved leave-days taken this calendar year for one person. */
+function leaveBalance(
+  leaves: LeaveEntry[],
+  resourceName: string,
+  quota: number,
+  workingDays: string[],
+): Balance {
+  const year = new Date().getFullYear();
+  const taken = leaves
+    .filter(
+      (l) =>
+        l.resourceName === resourceName &&
+        l.approved &&
+        new Date(l.start + "T00:00:00").getFullYear() === year,
+    )
+    .reduce((sum, l) => sum + workingDayCount(l.start, l.end, workingDays), 0);
+  return { quota, taken, remaining: Math.max(0, quota - taken) };
+}
+
+type LeaveSettings = {
+  leaveTypes: string[];
+  annualLeaveQuota: number;
+  workingDays: string[];
 };
 
 export default function LeavesPage() {
   const [role] = useRole();
   const [open, setOpen] = useState(false);
   const [leaves, setLeaves] = useState<LeaveEntry[]>([]);
+  const [settings, setSettings] = useState<LeaveSettings | null>(null);
   const fullVisibility = role === "Admin" || role === "Coordinator";
   const me = useMyFirstName();
   const { accounts } = useAccounts();
@@ -34,7 +90,15 @@ export default function LeavesPage() {
   }
   useEffect(() => {
     void refresh();
+    fetch("/api/settings", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b) => b && setSettings(b.settings))
+      .catch(() => null);
   }, []);
+
+  const leaveTypes = settings?.leaveTypes ?? [];
+  const quota = settings?.annualLeaveQuota ?? 0;
+  const workingDays = settings?.workingDays ?? ["Mon", "Tue", "Wed", "Thu", "Fri"];
 
   const myFirstName = me;
   const myFullName =
@@ -50,9 +114,14 @@ export default function LeavesPage() {
         open={open}
         setOpen={setOpen}
         onChanged={refresh}
+        quota={quota}
+        workingDays={workingDays}
+        leaveTypes={leaveTypes}
       />
     );
   }
+
+  const myBalance = leaveBalance(leaves, myFullName, quota, workingDays);
 
   const myLeaves = sorted.filter((l) => l.resourceName === myFullName);
   const teamOff = sorted
@@ -77,6 +146,21 @@ export default function LeavesPage() {
           <button onClick={() => setOpen(true)} className="btn-primary">
             <Plus size={16} className="mr-1.5" /> Request leave
           </button>
+        </div>
+
+        <div className="card p-5 mb-6">
+          <h2 className="font-heading text-sm font-semibold text-ink-700 mb-3">
+            Leave balance · {new Date().getFullYear()}
+          </h2>
+          <div className="grid grid-cols-3 gap-4">
+            <BalanceStat label="Annual quota" value={myBalance.quota} />
+            <BalanceStat label="Taken" value={myBalance.taken} tone="blue" />
+            <BalanceStat
+              label="Remaining"
+              value={myBalance.remaining}
+              tone={myBalance.remaining <= 0 ? "red" : "green"}
+            />
+          </div>
         </div>
 
         <div className="grid md:grid-cols-2 gap-6">
@@ -150,9 +234,37 @@ export default function LeavesPage() {
           onClose={() => setOpen(false)}
           requesterFirstName={myFirstName}
           onSubmitted={refresh}
+          leaveTypes={leaveTypes}
         />
       )}
     </AppShell>
+  );
+}
+
+function BalanceStat({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: number;
+  tone?: "default" | "blue" | "green" | "red";
+}) {
+  const cls =
+    tone === "blue"
+      ? "text-brand-blue"
+      : tone === "green"
+        ? "text-brand-greenText"
+        : tone === "red"
+          ? "text-brand-redText"
+          : "text-ink-900";
+  return (
+    <div className="bg-ink-50 rounded p-3">
+      <div className={`font-heading text-2xl font-semibold ${cls}`}>{value}</div>
+      <div className="text-[11px] text-ink-500 uppercase tracking-wide">
+        {label}
+      </div>
+    </div>
   );
 }
 
@@ -161,14 +273,26 @@ function FullLeavesView({
   open,
   setOpen,
   onChanged,
+  quota,
+  workingDays,
+  leaveTypes,
 }: {
   sorted: LeaveEntry[];
   open: boolean;
   setOpen: (v: boolean) => void;
   onChanged: () => Promise<void>;
+  quota: number;
+  workingDays: string[];
+  leaveTypes: string[];
 }) {
   const upcoming = sorted.filter((l) => l.start >= todayISO());
   const pending = sorted.filter((l) => !l.approved);
+  // Per-person balances across everyone who has any leave on record.
+  const names = Array.from(new Set(sorted.map((l) => l.resourceName))).sort();
+  const balances = names.map((n) => ({
+    name: n,
+    ...leaveBalance(sorted, n, quota, workingDays),
+  }));
 
   return (
     <AppShell>
@@ -262,7 +386,7 @@ function FullLeavesView({
                   </td>
                   <td className="py-2.5 pr-4">
                     <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded-pill text-[11px] font-medium ${TYPE_COLOR[l.type]}`}
+                      className={`inline-flex items-center px-2 py-0.5 rounded-pill text-[11px] font-medium ${leaveTypeColor(l.type)}`}
                     >
                       {l.type}
                     </span>
@@ -282,12 +406,54 @@ function FullLeavesView({
             </tbody>
           </table>
         </section>
+
+        <section className="card p-5 mt-6">
+          <h2 className="font-heading text-lg font-semibold mb-1">
+            Leave balances · {new Date().getFullYear()}
+          </h2>
+          <p className="text-xs text-ink-500 mb-4">
+            {quota} days allowed per year · approved leave counts against it.
+          </p>
+          {balances.length === 0 ? (
+            <p className="text-sm text-ink-500 italic">No leave on record yet.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-ink-500 font-heading font-semibold uppercase tracking-wide border-b border-ink-200">
+                  <th className="py-2 pr-4">Person</th>
+                  <th className="py-2 pr-4">Quota</th>
+                  <th className="py-2 pr-4">Taken</th>
+                  <th className="py-2 pr-4">Remaining</th>
+                </tr>
+              </thead>
+              <tbody>
+                {balances.map((b) => (
+                  <tr key={b.name} className="border-b border-ink-100">
+                    <td className="py-2.5 pr-4 text-ink-900 font-medium">
+                      {b.name}
+                    </td>
+                    <td className="py-2.5 pr-4 text-ink-700">{b.quota}</td>
+                    <td className="py-2.5 pr-4 text-ink-700">{b.taken}</td>
+                    <td
+                      className={`py-2.5 pr-4 font-medium ${
+                        b.remaining <= 0 ? "text-brand-redText" : "text-ink-900"
+                      }`}
+                    >
+                      {b.remaining}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
       </div>
 
       {open && (
         <RequestLeaveModal
           onClose={() => setOpen(false)}
           onSubmitted={onChanged}
+          leaveTypes={leaveTypes}
         />
       )}
     </AppShell>
@@ -382,7 +548,7 @@ function LeaveRow({
         </div>
       </div>
       <span
-        className={`inline-flex items-center px-2 py-0.5 rounded-pill text-[11px] font-medium ${TYPE_COLOR[l.type]}`}
+        className={`inline-flex items-center px-2 py-0.5 rounded-pill text-[11px] font-medium ${leaveTypeColor(l.type)}`}
       >
         {l.type}
       </span>
@@ -425,13 +591,16 @@ function RequestLeaveModal({
   onClose,
   requesterFirstName,
   onSubmitted,
+  leaveTypes,
 }: {
   onClose: () => void;
   requesterFirstName?: string;
   onSubmitted?: () => void;
+  leaveTypes: string[];
 }) {
   const toast = useToast();
-  const [type, setType] = useState("Vacation");
+  const types = leaveTypes.length > 0 ? leaveTypes : ["Sick Leave", "Casual Leave"];
+  const [type, setType] = useState(types[0]);
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [note, setNote] = useState("");
@@ -473,10 +642,9 @@ function RequestLeaveModal({
         onChange={(e) => setType(e.target.value)}
         className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm"
       >
-        <option>Vacation</option>
-        <option>Sick</option>
-        <option>WFH</option>
-        <option>Personal</option>
+        {types.map((t) => (
+          <option key={t}>{t}</option>
+        ))}
       </select>
 
       <div className="grid grid-cols-2 gap-3 mb-4">

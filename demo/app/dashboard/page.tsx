@@ -14,6 +14,7 @@ import { StatCard } from "@/components/StatCard";
 import {
   formatDateLong,
   formatTodayLong,
+  projectProgress,
   statusPill,
   todayISO,
   type Task,
@@ -243,7 +244,8 @@ export default function OrgDashboardPage() {
                     </div>
                     <div className="text-xs text-ink-500">
                       {p.coordinators[0] ?? p.leads[0] ?? "—"} ·{" "}
-                      {p.progress}% · {p.loggedHours}/{p.budgetHours}h
+                      {projectProgress(p.id, tasks)}% · {p.loggedHours}/
+                      {p.budgetHours}h
                     </div>
                   </div>
                   <ArrowRight size={14} className="text-ink-400 shrink-0" />

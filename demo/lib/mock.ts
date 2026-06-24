@@ -181,7 +181,8 @@ export type LeaveEntry = {
   resourceName: string;
   start: string;
   end: string;
-  type: "Vacation" | "Sick" | "WFH" | "Personal";
+  /** Configurable in Settings (Sick Leave / Casual Leave / …). */
+  type: string;
   note?: string;
   approved: boolean;
 };
@@ -189,6 +190,8 @@ export type LeaveEntry = {
 export type AuditEntry = {
   id: number;
   when: string;
+  /** Exact event time as an ISO string, for showing absolute date+time. */
+  whenExact: string;
   actor: string;
   action: string;
   scope: string;
@@ -464,6 +467,15 @@ export function loggedHours(
     .filter((e) => e.person === person)
     .filter((e) => withinDays == null || daysAgo(e.date) < withinDays)
     .reduce((sum, e) => sum + e.hours, 0);
+}
+
+/** Auto-calculated project progress: % of the project's tasks that are
+ *  Done. Replaces the old manually-typed progress field. */
+export function projectProgress(projectId: number, tasks: Task[]): number {
+  const own = tasks.filter((t) => t.projectId === projectId);
+  if (own.length === 0) return 0;
+  const done = own.filter((t) => t.status === "Done").length;
+  return Math.round((done / own.length) * 100);
 }
 
 /** Total hours logged against a single task by anyone. */
