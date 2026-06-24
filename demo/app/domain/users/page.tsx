@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import {
   DOMAIN_ROLES,
   DOMAIN_ROLE_LABELS,
   type DomainRole,
 } from "@/lib/domain";
+import { ConfirmButton } from "@/components/ConfirmButton";
+import { useDomain } from "@/lib/domain-store";
 
 type DUser = {
   id: string;
@@ -18,7 +20,9 @@ type DUser = {
 };
 
 export default function DomainUsersPage() {
+  const { current } = useDomain();
   const [users, setUsers] = useState<DUser[]>([]);
+  const [rowError, setRowError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({
     name: "",
@@ -63,6 +67,16 @@ export default function DomainUsersPage() {
       body: JSON.stringify(data),
     });
     if (res.ok) void load();
+  }
+
+  async function deleteUser(id: string) {
+    setRowError(null);
+    const res = await fetch(`/api/domain/users/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      void load();
+    } else {
+      setRowError((await res.json().catch(() => ({}))).error ?? "Couldn't delete.");
+    }
   }
 
   return (
@@ -140,6 +154,9 @@ export default function DomainUsersPage() {
         </div>
       )}
 
+      {rowError && (
+        <p className="text-xs text-brand-redText mb-2">{rowError}</p>
+      )}
       <div className="card overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-ink-50 text-ink-500 text-xs uppercase tracking-wide">
@@ -148,6 +165,7 @@ export default function DomainUsersPage() {
               <th className="text-left font-semibold px-4 py-2">Role</th>
               <th className="text-left font-semibold px-4 py-2">Capacity</th>
               <th className="text-left font-semibold px-4 py-2">Status</th>
+              <th className="text-right font-semibold px-4 py-2"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-ink-100">
@@ -195,6 +213,18 @@ export default function DomainUsersPage() {
                   >
                     {u.isActive ? "Active" : "Inactive"}
                   </button>
+                </td>
+                <td className="px-4 py-2 text-right">
+                  {u.id !== current?.id && (
+                    <ConfirmButton
+                      onConfirm={() => deleteUser(u.id)}
+                      title="Delete user"
+                      confirmLabel="Delete?"
+                      className="p-1 rounded text-ink-400 hover:text-brand-redText hover:bg-brand-redBg"
+                    >
+                      <Trash2 size={14} />
+                    </ConfirmButton>
+                  )}
                 </td>
               </tr>
             ))}

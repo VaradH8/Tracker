@@ -1,16 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useDomain } from "@/lib/domain-store";
 import { DOMAIN_ROLE_LABELS, type DomainRole } from "@/lib/domain";
 import { DomainTaskList, type DomainTask } from "@/components/DomainTaskList";
+import { ConfirmButton } from "@/components/ConfirmButton";
 
 type Project = {
   id: number;
   name: string;
   description: string | null;
   owner: string;
+  ownerId: string;
   taskCount: number;
 };
 
@@ -140,15 +142,130 @@ export default function DomainProjectsPage() {
               Select a project to see its tasks.
             </div>
           ) : (
-            <ProjectTasks
-              projectId={selected}
-              people={people}
-              canAssign={canAssign}
-              onTaskChange={loadProjects}
-            />
+            (() => {
+              const project = projects.find((p) => p.id === selected);
+              if (!project) return null;
+              const canManageProject =
+                current?.role === "Admin" || project.ownerId === current?.id;
+              return (
+                <>
+                  <ProjectHeader
+                    project={project}
+                    canManage={canManageProject}
+                    onRenamed={loadProjects}
+                    onDeleted={() => {
+                      setSelected(null);
+                      void loadProjects();
+                    }}
+                  />
+                  <ProjectTasks
+                    projectId={selected}
+                    people={people}
+                    canAssign={canAssign}
+                    onTaskChange={loadProjects}
+                  />
+                </>
+              );
+            })()
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function ProjectHeader({
+  project,
+  canManage,
+  onRenamed,
+  onDeleted,
+}: {
+  project: Project;
+  canManage: boolean;
+  onRenamed: () => void;
+  onDeleted: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(project.name);
+  const [desc, setDesc] = useState(project.description ?? "");
+
+  async function save() {
+    const res = await fetch(`/api/domain/projects/${project.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, description: desc }),
+    });
+    if (res.ok) {
+      setEditing(false);
+      onRenamed();
+    }
+  }
+
+  async function remove() {
+    const res = await fetch(`/api/domain/projects/${project.id}`, {
+      method: "DELETE",
+    });
+    if (res.ok) onDeleted();
+  }
+
+  if (editing) {
+    return (
+      <div className="card p-4 mb-4">
+        <input
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="w-full px-3 py-2 mb-2 rounded border border-ink-200 text-sm"
+        />
+        <textarea
+          value={desc}
+          onChange={(e) => setDesc(e.target.value)}
+          rows={2}
+          placeholder="Description (optional)"
+          className="w-full px-3 py-2 mb-2 rounded border border-ink-200 text-sm"
+        />
+        <div className="flex justify-end gap-2">
+          <button onClick={() => setEditing(false)} className="btn-ghost">
+            Cancel
+          </button>
+          <button onClick={save} disabled={!name.trim()} className="btn-primary">
+            Save
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-start justify-between gap-3 mb-4">
+      <div className="min-w-0">
+        <h2 className="font-heading text-lg font-semibold truncate">
+          {project.name}
+        </h2>
+        {project.description && (
+          <p className="text-sm text-ink-500 mt-0.5">{project.description}</p>
+        )}
+        <p className="text-xs text-ink-400 mt-0.5">Owner {project.owner}</p>
+      </div>
+      {canManage && (
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => setEditing(true)}
+            className="p-1.5 rounded text-ink-500 hover:bg-ink-100"
+            title="Edit project"
+          >
+            <Pencil size={15} />
+          </button>
+          <ConfirmButton
+            onConfirm={remove}
+            title="Delete project (and its tasks)"
+            confirmLabel="Delete project?"
+            className="p-1.5 rounded text-ink-400 hover:text-brand-redText hover:bg-brand-redBg"
+          >
+            <Trash2 size={15} />
+          </ConfirmButton>
+        </div>
+      )}
     </div>
   );
 }
@@ -267,6 +384,7 @@ function ProjectTasks({
       <DomainTaskList
         tasks={tasks}
         canManage={canAssign}
+        people={people}
         hideProject
         onChanged={() => {
           void load();

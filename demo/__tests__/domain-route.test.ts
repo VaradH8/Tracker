@@ -25,6 +25,13 @@ vi.mock("@/lib/domain-auth", () => ({
 import { requireDomainUser } from "@/lib/domain-auth";
 import { GET as availabilityGET } from "@/app/api/domain/availability/route";
 import { POST as usersPOST } from "@/app/api/domain/projects/route";
+import { DELETE as taskDELETE } from "@/app/api/domain/tasks/[id]/route";
+import { DELETE as userDELETE } from "@/app/api/domain/users/[id]/route";
+
+function delReq() {
+  return new Request("http://test/x", { method: "DELETE" });
+}
+const params = (id: string) => ({ params: Promise.resolve({ id }) });
 
 function actor(role: DomainRole) {
   return { id: `u-${role}`, email: `${role}@x.com`, name: role, role };
@@ -70,5 +77,15 @@ describe("domain route role gates", () => {
       body: JSON.stringify({ name: "X" }),
     });
     expect((await usersPOST(req)).status).toBe(403);
+  });
+
+  it("task delete: 403 for an Actionee (managers only)", async () => {
+    vi.mocked(requireDomainUser).mockResolvedValue(actor("Actionee"));
+    expect((await taskDELETE(delReq(), params("1"))).status).toBe(403);
+  });
+
+  it("user delete: 403 for a Team Lead (admin only)", async () => {
+    vi.mocked(requireDomainUser).mockResolvedValue(actor("TeamLead"));
+    expect((await userDELETE(delReq(), params("u-x"))).status).toBe(403);
   });
 });

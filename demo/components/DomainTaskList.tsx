@@ -1,6 +1,8 @@
 "use client";
 
+import { Trash2 } from "lucide-react";
 import { DOMAIN_TASK_STATUSES } from "@/lib/domain";
+import { ConfirmButton } from "./ConfirmButton";
 
 export type DomainTask = {
   id: number;
@@ -16,6 +18,8 @@ export type DomainTask = {
   createdAt: string;
 };
 
+export type Person = { id: string; name: string; role: string };
+
 function statusCls(status: string): string {
   if (status === "Done") return "bg-brand-greenBg text-brand-greenText";
   if (status === "In Progress") return "bg-brand-blueBg text-brand-blue";
@@ -25,21 +29,32 @@ function statusCls(status: string): string {
 export function DomainTaskList({
   tasks,
   canManage,
+  people = [],
   hideProject = false,
   onChanged,
 }: {
   tasks: DomainTask[];
-  /** Managers (Admin/Lead/TeamLead) — reserved for future reassign UI. */
+  /** Managers (Admin/Lead/TeamLead) get reassign + delete controls. */
   canManage: boolean;
+  people?: Person[];
   hideProject?: boolean;
   onChanged: () => void;
 }) {
-  async function setStatus(id: number, status: string) {
+  const assignable = people.filter((p) =>
+    ["Actionee", "TeamLead", "SME"].includes(p.role),
+  );
+
+  async function patch(id: number, body: Record<string, unknown>) {
     const res = await fetch(`/api/domain/tasks/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(body),
     });
+    if (res.ok) onChanged();
+  }
+
+  async function remove(id: number) {
+    const res = await fetch(`/api/domain/tasks/${id}`, { method: "DELETE" });
     if (res.ok) onChanged();
   }
 
@@ -54,11 +69,8 @@ export function DomainTaskList({
   return (
     <ul className="space-y-2">
       {tasks.map((t) => (
-        <li
-          key={t.id}
-          className="card p-3 flex items-center gap-3 flex-wrap"
-        >
-          <div className="flex-1 min-w-[180px]">
+        <li key={t.id} className="card p-3 flex items-center gap-3 flex-wrap">
+          <div className="flex-1 min-w-[160px]">
             <div className="text-sm font-medium text-ink-900">{t.title}</div>
             <div className="text-xs text-ink-500 mt-0.5">
               {!hideProject && <span>{t.projectName} · </span>}
@@ -71,7 +83,7 @@ export function DomainTaskList({
           </span>
           <select
             value={t.status}
-            onChange={(e) => setStatus(t.id, e.target.value)}
+            onChange={(e) => patch(t.id, { status: e.target.value })}
             className="text-xs rounded border border-ink-200 px-2 py-1 bg-white"
             aria-label="Change status"
           >
@@ -81,6 +93,34 @@ export function DomainTaskList({
               </option>
             ))}
           </select>
+          {canManage && (
+            <>
+              {assignable.length > 0 && (
+                <select
+                  value={t.assigneeId ?? ""}
+                  onChange={(e) =>
+                    patch(t.id, { assigneeId: e.target.value || null })
+                  }
+                  className="text-xs rounded border border-ink-200 px-2 py-1 bg-white max-w-[140px]"
+                  aria-label="Reassign"
+                >
+                  <option value="">Unassigned</option>
+                  {assignable.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <ConfirmButton
+                onConfirm={() => remove(t.id)}
+                title="Delete task"
+                className="p-1 rounded text-ink-400 hover:text-brand-redText hover:bg-brand-redBg"
+              >
+                <Trash2 size={14} />
+              </ConfirmButton>
+            </>
+          )}
         </li>
       ))}
     </ul>

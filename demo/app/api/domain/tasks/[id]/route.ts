@@ -14,6 +14,28 @@ const INCLUDE = {
   createdBy: { select: { id: true, name: true } },
 } as const;
 
+const MANAGER_ROLES: DomainRole[] = ["Admin", "Lead", "TeamLead"];
+
+/** Delete a task. Managers only (Admin/Lead/TeamLead). Any work logs that
+ *  referenced it keep their hours — the task link just goes null. */
+export async function DELETE(
+  _req: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  const userOrResp = await requireDomainUser();
+  if (userOrResp instanceof NextResponse) return userOrResp;
+  if (!MANAGER_ROLES.includes(userOrResp.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const { id: idStr } = await context.params;
+  const id = Number(idStr);
+  if (!Number.isFinite(id)) {
+    return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+  }
+  await prisma.domainTask.delete({ where: { id } }).catch(() => null);
+  return NextResponse.json({ ok: true });
+}
+
 /** Update a task. The assignee can move its status; Admin/Lead/TeamLead
  *  can also reassign, retitle, or set the target date. */
 export async function PATCH(

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Clock, AlertTriangle } from "lucide-react";
+import { Clock, AlertTriangle, Trash2 } from "lucide-react";
 import { withinLogWindow, logWindowLabel } from "@/lib/domain";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import type { DomainTask } from "@/components/DomainTaskList";
 
 type WorkLog = {
@@ -39,6 +40,11 @@ export default function WorkLogPage() {
   async function loadLogs() {
     const res = await fetch("/api/domain/worklogs", { cache: "no-store" });
     if (res.ok) setLogs((await res.json()).logs ?? []);
+  }
+
+  async function deleteLog(id: number) {
+    const res = await fetch(`/api/domain/worklogs/${id}`, { method: "DELETE" });
+    if (res.ok) void loadLogs();
   }
 
   useEffect(() => {
@@ -196,6 +202,13 @@ export default function WorkLogPage() {
                   {l.task ? ` · ${l.task}` : ""}
                 </div>
               </div>
+              <ConfirmButton
+                onConfirm={() => deleteLog(l.id)}
+                title="Delete this entry"
+                className="p-1 rounded text-ink-400 hover:text-brand-redText hover:bg-brand-redBg shrink-0"
+              >
+                <Trash2 size={14} />
+              </ConfirmButton>
             </li>
           ))}
         </ul>
