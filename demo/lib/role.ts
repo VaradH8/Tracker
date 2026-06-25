@@ -21,10 +21,10 @@ const GLOBAL_FOR_PROJECT_ROLE: Record<ProjectRoleKey, Role> = {
 };
 
 /**
- * First names of active accounts whose *global* role matches a given
- * team lane — so the "Developers" picker lists only Developers, the
- * "Leads" picker only Leads, and so on. Optionally drops one person by
- * id (used to keep the creator out of their own pickers).
+ * First names of active accounts eligible for a given team lane. A lane
+ * lists people whose global role matches it ("Developers" → Developers,
+ * etc.). Admins are additionally eligible for the Leads lane, since an
+ * admin can act as a project lead. Optionally drops one person by id.
  */
 export function candidatesForProjectRole(
   accounts: Account[],
@@ -32,8 +32,14 @@ export function candidatesForProjectRole(
   excludeId?: string,
 ): string[] {
   const want = GLOBAL_FOR_PROJECT_ROLE[lane];
+  const adminEligible = lane === "Lead";
   return accounts
-    .filter((a) => a.active && a.role === want && a.id !== excludeId)
+    .filter(
+      (a) =>
+        a.active &&
+        a.id !== excludeId &&
+        (a.role === want || (adminEligible && (a.role === "Admin" || a.isAdmin))),
+    )
     .map((a) => a.name.split(" ")[0]);
 }
 

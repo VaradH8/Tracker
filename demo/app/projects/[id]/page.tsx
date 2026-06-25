@@ -992,7 +992,7 @@ function CreateTaskModal({
     .filter((a) => a.active && a.role === "Coordinator")
     .map((a) => a.name.split(" ")[0]);
   const leadCandidates = accounts
-    .filter((a) => a.active && a.role === "Lead")
+    .filter((a) => a.active && (a.role === "Lead" || a.isAdmin))
     .map((a) => a.name.split(" ")[0]);
   const [assigneeTab, setAssigneeTab] = useState<
     "Developer" | "Coordinator" | "Lead"

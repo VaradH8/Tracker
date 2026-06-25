@@ -709,22 +709,14 @@ function CreateProjectModal({
     bds: string[];
   }) => void | Promise<void>;
 }) {
-  const { accounts, current } = useAccounts();
-  // Each lane offers only people who hold that global role, and never the
-  // creator themselves — the server auto-rosters the creator in their own
-  // role, and it stays editable from the project's Team panel afterwards.
-  const leadCandidates = candidatesForProjectRole(accounts, "Lead", current?.id);
-  const coordCandidates = candidatesForProjectRole(
-    accounts,
-    "Coordinator",
-    current?.id,
-  );
-  const devCandidates = candidatesForProjectRole(
-    accounts,
-    "Developer",
-    current?.id,
-  );
-  const bdCandidates = candidatesForProjectRole(accounts, "BD", current?.id);
+  const { accounts } = useAccounts();
+  // Each lane offers people who hold that global role (admins are also
+  // eligible as Leads). The creator is included too, so they can put
+  // themselves on the project.
+  const leadCandidates = candidatesForProjectRole(accounts, "Lead");
+  const coordCandidates = candidatesForProjectRole(accounts, "Coordinator");
+  const devCandidates = candidatesForProjectRole(accounts, "Developer");
+  const bdCandidates = candidatesForProjectRole(accounts, "BD");
 
   // A BD scopes the kick-off to picking the Lead + Co-ordinator; the
   // Lead/Co-ordinator fill in developers afterwards. Everyone else

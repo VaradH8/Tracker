@@ -305,7 +305,10 @@ function AssigneeMenu({
   );
   const { accounts } = useAccounts();
   const people = accounts
-    .filter((a) => a.active && a.role === tab)
+    // Admins are also eligible under the Leads tab (an admin can lead).
+    .filter(
+      (a) => a.active && (a.role === tab || (tab === "Lead" && a.isAdmin)),
+    )
     .filter((a) => a.name.toLowerCase().includes(q.toLowerCase()));
 
   return (
