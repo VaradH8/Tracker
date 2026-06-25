@@ -91,6 +91,26 @@ export function TaskDrawer({
     me === task.responsible ||
     (project?.leads ?? []).includes(me);
   const entries = store.entriesForTask(task.id);
+  // Roll the individual start/stop intervals up into one line per person
+  // per day — the total time, plus how many sessions made it up — instead
+  // of a noisy row for every 3-second stretch.
+  const timeGroups = Object.values(
+    entries.reduce(
+      (acc, e) => {
+        const key = `${e.person}__${e.date}`;
+        if (!acc[key]) {
+          acc[key] = { key, person: e.person, date: e.date, hours: 0, ids: [] };
+        }
+        acc[key].hours += e.hours;
+        acc[key].ids.push(e.id);
+        return acc;
+      },
+      {} as Record<
+        string,
+        { key: string; person: string; date: string; hours: number; ids: number[] }
+      >,
+    ),
+  ).sort((a, b) => b.date.localeCompare(a.date) || a.person.localeCompare(b.person));
   // Server-tracked cumulative — reliable across start/stop cycles (see
   // the note in TaskCard). Used for the timer total + estimate bar.
   const totalLogged = task.actualHours ?? 0;
@@ -640,36 +660,40 @@ export function TaskDrawer({
             )}
 
             <ul className="space-y-1.5 mb-1">
-              {entries.map((e) => {
-                const canDeleteEntry = canEdit || e.person === me;
+              {timeGroups.map((g) => {
+                const canDeleteEntry = canEdit || g.person === me;
+                const sessions = g.ids.length;
                 return (
                   <li
-                    key={e.id}
+                    key={g.key}
                     className="flex items-center gap-2 text-sm py-1 group"
                   >
                     <span className="w-16 shrink-0 font-mono font-medium text-ink-900 text-xs">
-                      {formatDuration(e.hours)}
+                      {formatDuration(g.hours)}
                     </span>
-                    <span className="text-ink-700">{e.person}</span>
-                    {e.note && (
-                      <span className="text-ink-400 truncate">· {e.note}</span>
-                    )}
+                    <span className="text-ink-700">{g.person}</span>
+                    <span className="text-ink-400 text-xs">
+                      · {sessions} session{sessions === 1 ? "" : "s"}
+                    </span>
                     <span className="ml-auto text-xs text-ink-400 shrink-0">
-                      {e.date}
+                      {g.date}
                     </span>
                     {canDeleteEntry && (
                       <button
                         onClick={async () => {
                           const ok = await confirm({
-                            title: "Remove this time entry?",
-                            body: `${formatDuration(e.hours)} logged on ${e.date}.`,
+                            title: "Remove this day's time?",
+                            body: `${formatDuration(g.hours)} across ${sessions} session${sessions === 1 ? "" : "s"} on ${g.date} will be removed.`,
                             confirmLabel: "Remove",
                             danger: true,
                           });
-                          if (ok) void store.deleteTimeEntry(e.id);
+                          if (!ok) return;
+                          for (const id of g.ids) {
+                            await store.deleteTimeEntry(id);
+                          }
                         }}
                         className="opacity-0 group-hover:opacity-100 transition-opacity p-1 -m-1 text-ink-400 hover:text-brand-redText"
-                        aria-label="Delete time entry"
+                        aria-label="Delete this day's time"
                       >
                         <Trash2 size={12} />
                       </button>
@@ -677,7 +701,7 @@ export function TaskDrawer({
                   </li>
                 );
               })}
-              {entries.length === 0 && (
+              {timeGroups.length === 0 && (
                 <li className="text-xs text-ink-400 italic">
                   No time logged yet.
                 </li>
