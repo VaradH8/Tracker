@@ -489,9 +489,12 @@ export function parseSheet(
 
     const wk = detectWeekHeader(row);
     if (wk != null) {
+      // Only advance the week. Do NOT clear the column mapping or the
+      // sticky sub-project here: AMC and Samanvay declare the column
+      // header once at the top and never repeat it per week, so clearing
+      // would drop every task after the first week header. Sheets that DO
+      // repeat the header simply re-detect and overwrite `columns` below.
       currentWeek = wk;
-      columns = null;
-      stickySubProject = "";
       continue;
     }
 
