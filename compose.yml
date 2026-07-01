@@ -1,4 +1,4 @@
-name: tracker
+
 
 # Production stack: Postgres + Next.js app + Caddy reverse proxy.
 # Caddy terminates TLS (auto Let's Encrypt) on 443 and forwards to the
