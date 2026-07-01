@@ -1,18 +1,18 @@
-
-
-# Production stack: Postgres + Next.js app + Caddy reverse proxy.
-# Caddy terminates TLS (auto Let's Encrypt) on 443 and forwards to the
-# app container on its private docker network. Port 80 is used for the
-# Let's Encrypt HTTP-01 challenge and HTTP→HTTPS redirect.
+# Production stack for the shared Inventive Swarm.
 #
-# All public traffic enters via Caddy. The app and Postgres have no
-# host port mappings — they're only reachable from inside the docker
-# network.
+# Ingress goes through the existing Traefik reverse proxy (external),
+# which terminates TLS on the `https` entrypoint (cert resolver `le`)
+# and routes ${PUBLIC_HOST} -> app:3000. There is NO Caddy and NO
+# published host ports here — Traefik owns 80/443.
+#
+# Postgres + the app image (pulled from GHCR) + nightly backups run on
+# the manager node. Stateful data lives in named volumes (bind mounts
+# aren't reliable across a Swarm), and the stateful services are pinned
+# to node.role==manager so their volumes stay put.
 
 services:
   postgres:
     image: postgres:16-alpine
-    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-tracker}
       POSTGRES_USER: ${POSTGRES_USER:-tracker}
@@ -25,64 +25,63 @@ services:
       timeout: 5s
       retries: 20
     networks: [tracker_net]
+    deploy:
+      restart_policy:
+        condition: any
+      placement:
+        constraints: ["node.role == manager"]
 
   app:
     # Pre-built in GitHub Actions and pushed to GHCR (public). Swarm
     # can't build images, so we pull this instead of a local build.
     image: ghcr.io/varadh8/tracker-app:latest
-    restart: unless-stopped
     depends_on:
       - postgres
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-tracker}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tracker}?schema=public
       NODE_ENV: production
-      # Set to "1" on first boot to populate the demo accounts (varad/manasi/...).
-      # Then change to "0" and redeploy.
+      # Set to "1" on first boot to populate the demo accounts, then
+      # back to "0" and redeploy.
       RUN_SEED: ${RUN_SEED:-0}
-      # SMTP — set in .env to enable real outbound mail. Empty values
-      # leave the app in EmailLog-only mode (no actual email sent).
+      # SMTP — leave blank to keep EmailLog-only mode (no real mail).
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_SECURE: ${SMTP_SECURE:-}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-}
-      # Attachments live on a host bind mount so they survive a stack
-      # rebuild. Mounted at /uploads inside the container.
       UPLOAD_DIR: /uploads
     volumes:
-      - ./uploads:/uploads
-      # Drop the historical-import CSVs into ./historical-import on
-      # the host, then run scripts/import-historical.ts inside the
-      # app container. Read-only — the script never writes back.
-      - ./historical-import:/import:ro
-    networks: [tracker_net]
+      - tracker_uploads:/uploads
+    networks:
+      - tracker_net
+      - traefik-public
+    deploy:
+      restart_policy:
+        condition: any
+      placement:
+        constraints: ["node.role == manager"]
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=traefik-public"
+        - "traefik.constraint-label=traefik-public"
+        # HTTP -> HTTPS redirect
+        - "traefik.http.middlewares.tracker-redirect.redirectscheme.scheme=https"
+        - "traefik.http.routers.tracker-http.rule=Host(`${PUBLIC_HOST}`)"
+        - "traefik.http.routers.tracker-http.entrypoints=http"
+        - "traefik.http.routers.tracker-http.middlewares=tracker-redirect"
+        # HTTPS router (Let's Encrypt via the `le` resolver)
+        - "traefik.http.routers.tracker-https.rule=Host(`${PUBLIC_HOST}`)"
+        - "traefik.http.routers.tracker-https.entrypoints=https"
+        - "traefik.http.routers.tracker-https.tls=true"
+        - "traefik.http.routers.tracker-https.tls.certresolver=le"
+        # The app listens on 3000
+        - "traefik.http.services.tracker.loadbalancer.server.port=3000"
 
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    depends_on: [app]
-    environment:
-      PUBLIC_HOST: ${PUBLIC_HOST:?PUBLIC_HOST is required}
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    networks: [tracker_net]
-
-  # Daily pg_dump → ./backups on the host. Keeps 14 daily / 8 weekly /
-  # 6 monthly snapshots, prunes the rest. Restore with:
-  #   gunzip -c backups/daily/<file>.sql.gz | docker compose exec -T postgres \
-  #     psql -U $POSTGRES_USER -d $POSTGRES_DB
-  # The bind-mount makes it trivial to rsync the backups folder
-  # off-host (cron job on the VM, or a once-a-day scp). Once that's
-  # set up the backups survive a full VM loss.
+  # Daily pg_dump into the tracker_backups volume. Keeps 14 daily /
+  # 8 weekly / 6 monthly snapshots.
   pg_backup:
     image: prodrigestivill/postgres-backup-local:16
-    restart: unless-stopped
     depends_on:
       - postgres
     environment:
@@ -97,20 +96,21 @@ services:
       BACKUP_KEEP_MONTHS: "6"
       HEALTHCHECK_PORT: "8080"
     volumes:
-      - ./backups:/backups
+      - tracker_backups:/backups
     networks: [tracker_net]
+    deploy:
+      restart_policy:
+        condition: any
+      placement:
+        constraints: ["node.role == manager"]
 
-  # Off-host copy of the daily dumps. Loops every hour: if rclone is
-  # configured (RCLONE_BACKUP_DEST set), it syncs ./backups -> remote.
-  # If not, it sleeps quietly and the rest of the stack is unaffected.
-  # Container is light — Alpine + rclone, ~30 MB.
+  # Optional off-host copy of the daily dumps. Loops hourly: if rclone
+  # is configured (RCLONE_BACKUP_DEST set) it syncs the backups volume
+  # to the remote; otherwise it sleeps quietly.
   rclone_backup:
     image: rclone/rclone:latest
-    restart: unless-stopped
-    depends_on: [pg_backup]
-    # Env vars of the form RCLONE_CONFIG_<REMOTE>_<KEY>=value configure
-    # an rclone remote called <REMOTE> without needing a config file
-    # on disk. See .env.example for B2 / S3 / GCS examples.
+    depends_on:
+      - pg_backup
     environment:
       RCLONE_CONFIG_REMOTE_TYPE: ${RCLONE_CONFIG_REMOTE_TYPE:-}
       RCLONE_CONFIG_REMOTE_PROVIDER: ${RCLONE_CONFIG_REMOTE_PROVIDER:-}
@@ -119,10 +119,7 @@ services:
       RCLONE_CONFIG_REMOTE_SECRET_ACCESS_KEY: ${RCLONE_CONFIG_REMOTE_SECRET_ACCESS_KEY:-}
       RCLONE_BACKUP_DEST: ${RCLONE_BACKUP_DEST:-}
     volumes:
-      - ./backups:/backups:ro
-    # Sleep 1h, check whether RCLONE_BACKUP_DEST is set. If yes, sync;
-    # if no, log and loop. Idempotent — rclone sync only uploads
-    # files that changed.
+      - tracker_backups:/backups:ro
     entrypoint:
       - /bin/sh
       - -c
@@ -137,16 +134,21 @@ services:
           sleep 3600
         done
     networks: [tracker_net]
+    deploy:
+      restart_policy:
+        condition: any
+      placement:
+        constraints: ["node.role == manager"]
 
 volumes:
   tracker_pgdata:
-  # Caddy persists its issued Let's Encrypt certs + ACME state here.
-  # Without this, Caddy would request a fresh cert on every restart
-  # and you'd quickly hit Let's Encrypt's rate limits.
-  caddy_data:
-  caddy_config:
+  tracker_uploads:
+  tracker_backups:
 
 networks:
+  # Internal overlay for app <-> postgres <-> backups.
   tracker_net:
     driver: overlay
-    attachable: true
+  # Traefik's shared ingress network (already exists on the Swarm).
+  traefik-public:
+    external: true
