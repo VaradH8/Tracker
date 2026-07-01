@@ -148,3 +148,29 @@ export async function createDomainAccount(
 export async function countDomainUsers(): Promise<number> {
   return prisma.domainUser.count();
 }
+
+/** A signed-in domain user changes their own password. Verifies the
+ *  current password, enforces the shared strength rules, and rejects a
+ *  no-op change. */
+export async function changeDomainPassword(
+  userId: string,
+  currentPassword: string,
+  nextPassword: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!currentPassword || !nextPassword) {
+    return { ok: false, error: "Enter your current and new password." };
+  }
+  const user = await prisma.domainUser.findUnique({ where: { id: userId } });
+  if (!user) return { ok: false, error: "Account not found." };
+  const ok = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!ok) return { ok: false, error: "Current password doesn't match." };
+  const pwIssue = passwordIssue(nextPassword);
+  if (pwIssue) return { ok: false, error: pwIssue };
+  const same = await bcrypt.compare(nextPassword, user.passwordHash);
+  if (same) {
+    return { ok: false, error: "New password must be different from the current one." };
+  }
+  const passwordHash = await bcrypt.hash(nextPassword, 10);
+  await prisma.domainUser.update({ where: { id: user.id }, data: { passwordHash } });
+  return { ok: true };
+}

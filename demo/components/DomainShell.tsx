@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutGrid, FolderKanban, ClipboardList, Users, Gauge, LogOut } from "lucide-react";
+import { LayoutGrid, FolderKanban, ClipboardList, Users, Gauge, LogOut, KeyRound } from "lucide-react";
 import { useDomain } from "@/lib/domain-store";
 import { DOMAIN_ROLE_LABELS, type DomainRole } from "@/lib/domain";
 import type { ReactNode } from "react";
@@ -63,12 +63,24 @@ export function DomainShell({ children }: { children: ReactNode }) {
             })}
           </nav>
           <div className="flex items-center gap-3 shrink-0">
-            <div className="text-right leading-tight">
+            <Link
+              href="/domain/account"
+              className="text-right leading-tight rounded px-1 hover:bg-ink-100"
+              title="Account & password"
+            >
               <div className="text-sm font-medium text-ink-900">{current.name}</div>
               <div className="text-[11px] text-ink-500">
                 {DOMAIN_ROLE_LABELS[current.role]}
               </div>
-            </div>
+            </Link>
+            <Link
+              href="/domain/account"
+              className="p-2 rounded hover:bg-ink-100 text-ink-500"
+              title="Account & password"
+              aria-label="Account and password"
+            >
+              <KeyRound size={16} />
+            </Link>
             <button
               onClick={async () => {
                 await signOut();
