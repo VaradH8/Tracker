@@ -49,6 +49,17 @@ export async function visibleProjectIds(
   // where they have a task even if no one's added them to the roster yet.
   if (user.role === "Admin") return "all";
 
+  // Coordinators are scoped to the projects they actually coordinate —
+  // NOT projects where they merely appear as a worker/assignee. This
+  // keeps one coordinator from seeing another coordinator's projects.
+  if (user.role === "Coordinator") {
+    const coord = await prisma.projectMember.findMany({
+      where: { userId: user.id, role: "Coordinator" },
+      select: { projectId: true },
+    });
+    return Array.from(new Set(coord.map((m) => m.projectId)));
+  }
+
   const memberships = await prisma.projectMember.findMany({
     where: { userId: user.id },
     select: { projectId: true },

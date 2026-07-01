@@ -94,6 +94,12 @@ export function visibleProjects(
   // to (any of the four per-project roles) or where they have a task.
   if (role === "Admin") return allProjects;
 
+  // Coordinators: only the projects they coordinate (mirrors the
+  // server-side rule in lib/server-access.ts visibleProjectIds).
+  if (role === "Coordinator") {
+    return allProjects.filter((p) => p.coordinators.includes(me));
+  }
+
   const fromTasks = new Set(
     allTasks
       .filter((t) => t.assignees.includes(me))
