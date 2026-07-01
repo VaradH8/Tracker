@@ -27,10 +27,9 @@ services:
     networks: [tracker_net]
 
   app:
-    build:
-      context: ./demo
-      dockerfile: Dockerfile
-    image: tracker-app:latest
+    # Pre-built in GitHub Actions and pushed to GHCR (public). Swarm
+    # can't build images, so we pull this instead of a local build.
+    image: ghcr.io/varadh8/tracker-app:latest
     restart: unless-stopped
     depends_on:
       - postgres
@@ -149,4 +148,5 @@ volumes:
 
 networks:
   tracker_net:
-    driver: bridge
+    driver: overlay
+    attachable: true
