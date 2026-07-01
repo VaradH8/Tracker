@@ -33,8 +33,7 @@ services:
     image: tracker-app:latest
     restart: unless-stopped
     depends_on:
-      postgres:
-        condition: service_healthy
+      - postgres
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-tracker}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tracker}?schema=public
       NODE_ENV: production
@@ -86,8 +85,7 @@ services:
     image: prodrigestivill/postgres-backup-local:16
     restart: unless-stopped
     depends_on:
-      postgres:
-        condition: service_healthy
+      - postgres
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_DB: ${POSTGRES_DB:-tracker}
