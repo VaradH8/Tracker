@@ -62,19 +62,15 @@ services:
       placement:
         constraints: ["node.role == manager"]
       labels:
+        # This Traefik uses the swarm provider with entrypoints named
+        # `web` (:80) and `websecure` (:443); http->https redirect is
+        # global, and its default provider network is traefik-public.
         - "traefik.enable=true"
-        - "traefik.docker.network=traefik-public"
         - "traefik.constraint-label=traefik-public"
-        # HTTP -> HTTPS redirect
-        - "traefik.http.middlewares.tracker-redirect.redirectscheme.scheme=https"
-        - "traefik.http.routers.tracker-http.rule=Host(`${PUBLIC_HOST}`)"
-        - "traefik.http.routers.tracker-http.entrypoints=http"
-        - "traefik.http.routers.tracker-http.middlewares=tracker-redirect"
-        # HTTPS router (Let's Encrypt via the `le` resolver)
-        - "traefik.http.routers.tracker-https.rule=Host(`${PUBLIC_HOST}`)"
-        - "traefik.http.routers.tracker-https.entrypoints=https"
-        - "traefik.http.routers.tracker-https.tls=true"
-        - "traefik.http.routers.tracker-https.tls.certresolver=le"
+        - "traefik.http.routers.tracker.rule=Host(`${PUBLIC_HOST}`)"
+        - "traefik.http.routers.tracker.entrypoints=websecure"
+        - "traefik.http.routers.tracker.tls=true"
+        - "traefik.http.routers.tracker.tls.certresolver=le"
         # The app listens on 3000
         - "traefik.http.services.tracker.loadbalancer.server.port=3000"
 
