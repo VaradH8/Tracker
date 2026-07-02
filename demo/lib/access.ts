@@ -25,6 +25,7 @@ export function canSeeRemarkAuthor(role: Role, isAssignee: boolean): boolean {
 const ALLOWED: Record<Role, string[]> = {
   Admin: [
     "/dashboard",
+    "/analytics",
     "/projects",
     "/resources",
     "/clients",

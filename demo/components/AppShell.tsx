@@ -20,6 +20,7 @@ import {
   X,
   CalendarClock,
   Users2,
+  BarChart3,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Logo } from "./Logo";
@@ -39,6 +40,7 @@ type NavItem = {
 const NAV: Record<Role, NavItem[]> = {
   Admin: [
     { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
+    { href: "/analytics", label: "Analytics", Icon: BarChart3 },
     { href: "/projects", label: "Projects", Icon: FolderKanban },
     { href: "/calendar", label: "Calendar", Icon: CalendarClock },
     { href: "/resources", label: "Resources", Icon: Users },
