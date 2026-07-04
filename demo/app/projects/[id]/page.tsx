@@ -11,6 +11,7 @@ import {
   Clock,
   Users,
   Plus,
+  Upload,
   Download,
   History,
   Trash2,
@@ -45,6 +46,7 @@ import { useToast } from "@/components/Toast";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { Modal } from "@/components/Modal";
 import { PeoplePicker } from "@/components/PeoplePicker";
+import { ImportTasksModal } from "@/components/ImportTasksModal";
 import { toCsv, downloadCsv } from "@/lib/csv";
 
 const COLUMNS: { id: Status; title: string; accent: string }[] = [
@@ -86,11 +88,13 @@ export default function ProjectDetailPage({
   const toast = useToast();
   const confirm = useConfirm();
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const {
     forProject,
     addTask,
     tasks: allTasks,
     auditLog,
+    refresh: refreshTasks,
   } = useTasks();
 
   const me = useMyFirstName();
@@ -122,6 +126,9 @@ export default function ProjectDetailPage({
   const canManageTeam =
     role === "Admin" || role === "Lead" || role === "Coordinator";
   const canCreateTasks = canManageTeam || role === "BusinessDeveloper";
+  // "Import Tasks" is Admin/Coordinator only (the server enforces the same
+  // gate, and scopes Coordinators to projects they coordinate).
+  const canImportTasks = role === "Admin" || role === "Coordinator";
 
   const projectAudit = auditLog.filter(
     (a) => project && a.scope === project.name,
@@ -235,6 +242,15 @@ export default function ProjectDetailPage({
                 title="Edit project"
               >
                 Edit
+              </button>
+            )}
+            {canImportTasks && (
+              <button
+                onClick={() => setImportOpen(true)}
+                className="btn-ghost border border-ink-200"
+                title="Import tasks from a spreadsheet"
+              >
+                <Upload size={16} className="mr-1.5" /> Import Tasks
               </button>
             )}
             {canCreateTasks && (
@@ -646,6 +662,15 @@ export default function ProjectDetailPage({
             setCreateOpen(false);
             toast.show(`Task "${input.title}" created.`);
           }}
+        />
+      )}
+
+      {importOpen && (
+        <ImportTasksModal
+          projectId={projectId}
+          projectName={project.name}
+          onClose={() => setImportOpen(false)}
+          onImported={refreshTasks}
         />
       )}
 
