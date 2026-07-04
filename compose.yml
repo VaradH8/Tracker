@@ -40,8 +40,11 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-tracker}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tracker}?schema=public
       NODE_ENV: production
-      # Set to "1" on first boot to populate the demo accounts, then
-      # back to "0" and redeploy.
+      # Runs `prisma db seed` on boot when "1". The seed is now a safe
+      # first-boot bootstrap: it only populates an EMPTY database and
+      # skips (touching nothing) once real users exist, so leaving this at
+      # "1" can no longer wipe production data on redeploy/restart. Still,
+      # "0" after first boot is tidiest.
       RUN_SEED: ${RUN_SEED:-0}
       # SMTP — leave blank to keep EmailLog-only mode (no real mail).
       SMTP_HOST: ${SMTP_HOST:-}

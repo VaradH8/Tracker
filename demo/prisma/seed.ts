@@ -96,8 +96,7 @@ const AUDIT = [
   { actorEmail: "varad@example.com", action: "user.role_change", scope: null, taskTitle: "kiran@example.com", before: "Developer", after: "Coordinator", offsetMinutes: -4320 },
 ];
 
-async function main() {
-  console.log("Wiping existing data…");
+async function wipeAll() {
   await prisma.emailLog.deleteMany();
   await prisma.auditEntry.deleteMany();
   await prisma.notification.deleteMany();
@@ -114,6 +113,39 @@ async function main() {
   await prisma.client.deleteMany();
   await prisma.session.deleteMany();
   await prisma.user.deleteMany();
+}
+
+async function main() {
+  // DATA-SAFETY GUARD.
+  //
+  // `prisma db seed` runs on every container boot when RUN_SEED=1. This
+  // seed is a first-boot BOOTSTRAP, not a reset — it must never destroy a
+  // database that already holds real users and their work. So we only ever
+  // seed a genuinely EMPTY database.
+  //
+  // A destructive wipe-and-reseed (for local dev, to get back to a known
+  // demo state) is still available, but ONLY when explicitly asked for via
+  // SEED_FORCE_RESET=1. That flag is never set on the deploy path, so a
+  // redeploy — or an app restart under restart_policy:any — can no longer
+  // wipe production data even if RUN_SEED is left at 1.
+  const existingUsers = await prisma.user.count();
+  const forceReset = process.env.SEED_FORCE_RESET === "1";
+
+  if (existingUsers > 0 && !forceReset) {
+    console.log(
+      `Seed skipped: database already has ${existingUsers} user(s); ` +
+        "existing data left untouched.",
+    );
+    console.log(
+      "  (To wipe and re-seed demo data locally, run with SEED_FORCE_RESET=1 — DESTRUCTIVE.)",
+    );
+    return;
+  }
+
+  if (forceReset && existingUsers > 0) {
+    console.log("SEED_FORCE_RESET=1 — wiping existing data…");
+    await wipeAll();
+  }
 
   console.log("Seeding users…");
   const passwordHash = await bcrypt.hash(DEFAULT_PASSWORD, 10);
