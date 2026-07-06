@@ -22,6 +22,7 @@ import { TaskCard } from "@/components/TaskCard";
 import {
   currentWeek,
   formatDateLong,
+  taskInWeek,
   todayISO,
   weekNumberOf,
   projectStatusPill,
@@ -398,14 +399,10 @@ export default function ProjectDetailPage({
               {weekFilter !== "all" && (
                 <span className="text-xs text-ink-500">
                   {
-                    tasks.filter(
-                      (t) => weekNumberOf(t.targetDate) === weekFilter,
-                    ).length
+                    tasks.filter((t) => taskInWeek(t, weekFilter)).length
                   }{" "}
                   task{
-                    tasks.filter(
-                      (t) => weekNumberOf(t.targetDate) === weekFilter,
-                    ).length === 1
+                    tasks.filter((t) => taskInWeek(t, weekFilter)).length === 1
                       ? ""
                       : "s"
                   }{" "}
@@ -418,9 +415,7 @@ export default function ProjectDetailPage({
                 const colTasks = tasks
                   .filter((t) => t.status === col.id)
                   .filter(
-                    (t) =>
-                      weekFilter === "all" ||
-                      weekNumberOf(t.targetDate) === weekFilter,
+                    (t) => weekFilter === "all" || taskInWeek(t, weekFilter),
                   );
                 return (
                   <div

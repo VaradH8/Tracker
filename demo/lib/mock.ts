@@ -427,6 +427,35 @@ export function currentWeek(): number {
 }
 
 /**
+ * Statuses that represent unfinished-but-underway work. A task in one of
+ * these at the end of its week rolls forward into the next week (see
+ * taskInWeek) instead of dropping off the tracker. "To Do" is not carried
+ * (it hasn't been picked up yet) and "Done" ends the carry.
+ */
+export function isCarriedForward(status: Status): boolean {
+  return status === "In Progress" || status === "In review";
+}
+
+/**
+ * Whether a task belongs in a given ISO week's list.
+ *
+ * Base rule: a task lives in the week its target date falls in.
+ * Carry-forward: if a task is still In Progress or In review at the end of
+ * its week, it keeps appearing every following week until it's marked Done —
+ * so unfinished work is never lost. It's the same task object each week (no
+ * duplicate row) and all its details ride along.
+ *
+ * Status is the task's current value (the app keeps no per-week history), so
+ * "at the end of the week" is judged by where the task stands now: a task
+ * still open carries into the current week and beyond; once Done it stops.
+ */
+export function taskInWeek(task: Task, week: number): boolean {
+  const native = weekNumberOf(task.targetDate);
+  if (native === week) return true;
+  return native < week && isCarriedForward(task.status);
+}
+
+/**
  * @deprecated Computed once at module load (sticks at build time on the
  * client bundle). Use currentWeek() instead.
  */

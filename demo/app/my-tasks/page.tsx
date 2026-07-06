@@ -7,6 +7,7 @@ import { TaskCard } from "@/components/TaskCard";
 import { EmptyState } from "@/components/EmptyState";
 import {
   currentWeek,
+  taskInWeek,
   todayISO,
   weekNumberOf,
   type Status,
@@ -61,10 +62,12 @@ export default function MyTasksPage() {
     return Array.from(set).sort((a, b) => a - b);
   }, [mine, thisWeek]);
 
+  // A specific week shows its own tasks plus any still In Progress / In
+  // review that were carried forward from an earlier week (see taskInWeek).
   const afterWeek =
     weekFilter === "all"
       ? mine
-      : mine.filter((t) => weekNumberOf(t.targetDate) === weekFilter);
+      : mine.filter((t) => taskInWeek(t, weekFilter));
   const shown = focus ? afterWeek.filter(inFocus) : afterWeek;
 
   return (
