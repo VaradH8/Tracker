@@ -27,6 +27,7 @@ import {
 import { useTasks } from "@/lib/tasks-store";
 import { ROLE_LABELS, type Role } from "@/lib/role";
 import { useAccounts, type Account } from "@/lib/account-store";
+import { useTaskDrawer } from "@/components/TaskDrawerProvider";
 
 /**
  * Derive a Resource-shaped record from a real Account + live task/time
@@ -436,6 +437,7 @@ function ResourceDrawer({
   onClose: () => void;
 }) {
   const { tasks, timeEntries } = useTasks();
+  const drawer = useTaskDrawer();
   const person = firstNameOf(r.name);
   const myTasks = tasks.filter((t) => t.assignees.includes(person));
   const hours7 = loggedHours(person, timeEntries, 7);
@@ -583,28 +585,31 @@ function ResourceDrawer({
 
           <section>
             <h4 className="text-xs font-semibold text-ink-700 uppercase tracking-wide mb-2">
-              Active assignments ({myTasks.filter((t) => t.status !== "Done").length})
+              Assignments ({myTasks.length})
             </h4>
             <ul className="space-y-2">
-              {myTasks.filter((t) => t.status !== "Done").length === 0 ? (
+              {myTasks.length === 0 ? (
                 <li className="text-xs text-ink-500 italic">
-                  No active assignments.
+                  No tasks assigned.
                 </li>
               ) : (
-                myTasks
-                  .filter((t) => t.status !== "Done")
-                  .slice(0, 5)
-                  .map((t) => (
-                    <li
-                      key={t.id}
-                      className="card p-3 text-sm flex items-center gap-2"
+                myTasks.map((t) => (
+                  <li key={t.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        drawer.open(t.id);
+                      }}
+                      className="card p-3 text-sm flex items-center gap-2 w-full text-left hover:shadow-md hover:border-brand-blue transition"
                     >
                       <span className="flex-1 truncate">{t.title}</span>
                       <span className={`pill-grey text-[10px] py-0`}>
                         {t.status}
                       </span>
-                    </li>
-                  ))
+                    </button>
+                  </li>
+                ))
               )}
             </ul>
           </section>
