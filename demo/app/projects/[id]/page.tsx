@@ -24,7 +24,7 @@ import {
   formatDateLong,
   taskInWeek,
   todayISO,
-  weekNumberOf,
+  weekAnchorOf,
   projectStatusPill,
   projectProgress,
   type Priority,
@@ -107,6 +107,9 @@ export default function ProjectDetailPage({
 
   const [tab, setTab] = useState<Tab>("tasks");
   const [weekFilter, setWeekFilter] = useState<"all" | number>("all");
+  // Task status filter for the board: all tasks, only open (not Done), or
+  // only overdue (past target date and still open).
+  const [taskView, setTaskView] = useState<"all" | "open" | "overdue">("all");
   const [editOpen, setEditOpen] = useState(false);
   const [histQuery, setHistQuery] = useState("");
   const [histDate, setHistDate] = useState("");
@@ -381,7 +384,7 @@ export default function ProjectDetailPage({
                   Next week (W{thisWeek + 1})
                 </option>
                 {Array.from(
-                  new Set(tasks.map((t) => weekNumberOf(t.targetDate))),
+                  new Set(tasks.map((t) => weekAnchorOf(t))),
                 )
                   .filter(
                     (w) =>
@@ -409,6 +412,26 @@ export default function ProjectDetailPage({
                   this week
                 </span>
               )}
+              <span className="text-xs text-ink-500 ml-2">Show</span>
+              {(
+                [
+                  { id: "all", label: "All" },
+                  { id: "open", label: "Open" },
+                  { id: "overdue", label: "Overdue" },
+                ] as const
+              ).map((v) => (
+                <button
+                  key={v.id}
+                  onClick={() => setTaskView(v.id)}
+                  className={
+                    taskView === v.id
+                      ? "pill-blue cursor-pointer"
+                      : "pill-grey cursor-pointer hover:bg-ink-200"
+                  }
+                >
+                  {v.label}
+                </button>
+              ))}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
               {COLUMNS.map((col) => {
@@ -416,6 +439,12 @@ export default function ProjectDetailPage({
                   .filter((t) => t.status === col.id)
                   .filter(
                     (t) => weekFilter === "all" || taskInWeek(t, weekFilter),
+                  )
+                  .filter(
+                    (t) =>
+                      taskView === "all" ||
+                      (taskView === "open" && t.status !== "Done") ||
+                      (taskView === "overdue" && !!t.overdueDays),
                   );
                 return (
                   <div
@@ -468,9 +497,10 @@ export default function ProjectDetailPage({
                   projectId={project.id}
                   members={project.leads}
                   canEdit={canManageTeam}
-                  onToggle={(name, role) =>
-                    toggleProjectMember(project.id, name, role)
-                  }
+                  onToggle={async (name, role) => {
+                    const r = await toggleProjectMember(project.id, name, role);
+                    if (!r.ok) toast.show(r.error);
+                  }}
                 />
                 <ProjectRoleLane
                   label="Coordinators"
@@ -478,9 +508,10 @@ export default function ProjectDetailPage({
                   projectId={project.id}
                   members={project.coordinators}
                   canEdit={canManageTeam}
-                  onToggle={(name, role) =>
-                    toggleProjectMember(project.id, name, role)
-                  }
+                  onToggle={async (name, role) => {
+                    const r = await toggleProjectMember(project.id, name, role);
+                    if (!r.ok) toast.show(r.error);
+                  }}
                 />
                 <ProjectRoleLane
                   label="Developers"
@@ -488,9 +519,10 @@ export default function ProjectDetailPage({
                   projectId={project.id}
                   members={project.developers}
                   canEdit={canManageTeam}
-                  onToggle={(name, role) =>
-                    toggleProjectMember(project.id, name, role)
-                  }
+                  onToggle={async (name, role) => {
+                    const r = await toggleProjectMember(project.id, name, role);
+                    if (!r.ok) toast.show(r.error);
+                  }}
                 />
                 <ProjectRoleLane
                   label="Business Developers"
@@ -498,9 +530,10 @@ export default function ProjectDetailPage({
                   projectId={project.id}
                   members={project.bds}
                   canEdit={canManageTeam}
-                  onToggle={(name, role) =>
-                    toggleProjectMember(project.id, name, role)
-                  }
+                  onToggle={async (name, role) => {
+                    const r = await toggleProjectMember(project.id, name, role);
+                    if (!r.ok) toast.show(r.error);
+                  }}
                 />
               </div>
 
@@ -674,7 +707,13 @@ export default function ProjectDetailPage({
           project={project}
           onClose={() => setEditOpen(false)}
           onSave={async (patch) => {
-            await updateProject(project.id, patch);
+            const result = await updateProject(project.id, patch);
+            if (!result.ok) {
+              // Surface the real failure instead of a false "saved" —
+              // otherwise the edit silently vanishes on the next refresh.
+              toast.show(result.error);
+              return;
+            }
             toast.show("Project updated.");
             setEditOpen(false);
           }}

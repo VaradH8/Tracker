@@ -206,7 +206,7 @@ export async function POST(
   if (action === "done" && task.status !== "Done") {
     await prisma.task.update({
       where: { id: taskId },
-      data: { status: "Done" },
+      data: { status: "Done", completedAt: new Date() },
     });
     await writeAudit(user.id, "task.status_change", {
       scope: task.project.name,

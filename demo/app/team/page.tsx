@@ -1,17 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import {
-  Users2,
-  ArrowRight,
-  AlertTriangle,
-  Calendar,
-  FolderKanban,
-} from "lucide-react";
+import { Users2, ArrowRight, FolderKanban } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { useTasks } from "@/lib/tasks-store";
 import { useAccounts, useMyFirstName } from "@/lib/account-store";
-import { firstNameOf, formatDateLong, type Task } from "@/lib/mock";
+import { firstNameOf, type Task } from "@/lib/mock";
 import { ROLE_LABELS } from "@/lib/role";
 import { useProjects } from "@/lib/projects-store";
 
@@ -142,39 +136,6 @@ export default function TeamPage() {
                       tone={overdue > 0 ? "red" : "default"}
                     />
                   </div>
-                  {open.length > 0 ? (
-                    <ul className="space-y-1.5 mb-3">
-                      {open.slice(0, 3).map((t) => (
-                        <li
-                          key={t.id}
-                          className="flex items-center gap-2 text-xs"
-                        >
-                          {t.overdueDays && (
-                            <AlertTriangle
-                              size={11}
-                              className="text-brand-redText shrink-0"
-                            />
-                          )}
-                          <span className="flex-1 truncate text-ink-700">
-                            {t.title}
-                          </span>
-                          <span className="text-ink-400 inline-flex items-center gap-1 shrink-0">
-                            <Calendar size={10} />
-                            {formatDateLong(t.targetDate)}
-                          </span>
-                        </li>
-                      ))}
-                      {open.length > 3 && (
-                        <li className="text-xs text-ink-400 italic">
-                          +{open.length - 3} more
-                        </li>
-                      )}
-                    </ul>
-                  ) : (
-                    <p className="text-xs text-ink-400 italic mb-3">
-                      No open tasks right now.
-                    </p>
-                  )}
                   <Link
                     href="/resources"
                     className="text-xs text-brand-blue hover:underline inline-flex items-center gap-1"

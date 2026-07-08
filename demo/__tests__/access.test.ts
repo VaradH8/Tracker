@@ -24,7 +24,10 @@ import {
   canEditTasks,
   canManageProjectTasks,
   canManageUsers,
+  canSeeAllProjectTasks,
   canSeeProjectAudit,
+  canSeeTask,
+  taskAssignmentFilter,
   visibleProjectIds,
 } from "@/lib/server-access";
 import type { SessionUser } from "@/lib/auth";
@@ -59,6 +62,68 @@ describe("role gate helpers (synchronous)", () => {
     expect(canSeeProjectAudit("Coordinator")).toBe(true);
     expect(canSeeProjectAudit("Developer")).toBe(false);
     expect(canSeeProjectAudit("BusinessDeveloper")).toBe(false);
+  });
+
+  it("canSeeAllProjectTasks: oversight roles only (Admin/Lead/Coordinator)", () => {
+    expect(canSeeAllProjectTasks("Admin")).toBe(true);
+    expect(canSeeAllProjectTasks("Lead")).toBe(true);
+    expect(canSeeAllProjectTasks("Coordinator")).toBe(true);
+    expect(canSeeAllProjectTasks("Developer")).toBe(false);
+    expect(canSeeAllProjectTasks("BusinessDeveloper")).toBe(false);
+  });
+
+  it("taskAssignmentFilter: matches assigned-to-me OR responsible-for", () => {
+    expect(taskAssignmentFilter("user-1")).toEqual({
+      OR: [
+        { assignees: { some: { userId: "user-1" } } },
+        { responsibleId: "user-1" },
+      ],
+    });
+  });
+});
+
+describe("canSeeTask", () => {
+  beforeEach(() => {
+    vi.mocked(prisma.taskAssignee.findUnique).mockReset();
+  });
+
+  it("oversight role sees any task without a DB lookup", async () => {
+    const ok = await canSeeTask(userWithRole("Coordinator"), {
+      id: 1,
+      responsibleId: "someone-else",
+    });
+    expect(ok).toBe(true);
+    expect(prisma.taskAssignee.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("Developer sees a task they're responsible for without an assignee lookup", async () => {
+    const ok = await canSeeTask(userWithRole("Developer"), {
+      id: 1,
+      responsibleId: "user-developer",
+    });
+    expect(ok).toBe(true);
+    expect(prisma.taskAssignee.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("Developer sees a task they're assigned to", async () => {
+    vi.mocked(prisma.taskAssignee.findUnique).mockResolvedValue({
+      taskId: 1,
+      userId: "user-developer",
+    } as never);
+    const ok = await canSeeTask(userWithRole("Developer"), {
+      id: 1,
+      responsibleId: "someone-else",
+    });
+    expect(ok).toBe(true);
+  });
+
+  it("Developer cannot see a task they're neither assigned to nor responsible for", async () => {
+    vi.mocked(prisma.taskAssignee.findUnique).mockResolvedValue(null);
+    const ok = await canSeeTask(userWithRole("Developer"), {
+      id: 1,
+      responsibleId: "someone-else",
+    });
+    expect(ok).toBe(false);
   });
 });
 

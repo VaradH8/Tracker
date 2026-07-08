@@ -9,7 +9,7 @@ import {
   currentWeek,
   taskInWeek,
   todayISO,
-  weekNumberOf,
+  weekAnchorOf,
   type Status,
   type Task,
 } from "@/lib/mock";
@@ -57,7 +57,7 @@ export default function MyTasksPage() {
   const thisWeek = currentWeek();
   const weeksWithMine = useMemo(() => {
     const set = new Set<number>();
-    for (const t of mine) set.add(weekNumberOf(t.targetDate));
+    for (const t of mine) set.add(weekAnchorOf(t));
     set.add(thisWeek);
     return Array.from(set).sort((a, b) => a - b);
   }, [mine, thisWeek]);

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import {
   canAccessProject,
   canEditTasks,
+  completedAtUpdate,
   isTaskAssignee,
   requireUser,
   writeAudit,
@@ -63,6 +64,7 @@ export async function POST(
     data: {
       status: body.status,
       actualHours: body.actualHours ?? undefined,
+      completedAt: completedAtUpdate(existing.status, body.status),
     },
     include: { assignees: { include: { user: true } }, project: true },
   });

@@ -22,13 +22,14 @@ import {
   RECENT_ACTIVITY,
   RESOURCES,
   daysSince,
+  firstNameOf,
   formatTodayLong,
   todayISO,
   type Task,
 } from "@/lib/mock";
 import { useProjects } from "@/lib/projects-store";
 import { useRole } from "@/lib/role";
-import { useMyFirstName } from "@/lib/account-store";
+import { useAccounts, useMyFirstName } from "@/lib/account-store";
 import { useTasks } from "@/lib/tasks-store";
 import { useToast } from "@/components/Toast";
 import { toCsv, downloadCsv } from "@/lib/csv";
@@ -40,10 +41,6 @@ const isOverdue = (d: string) => d < todayISO();
 const isDueToday = (d: string) => d === todayISO();
 
 const PRIO_ORDER = { Critical: 0, High: 1, Medium: 2, Low: 3 } as const;
-
-const REASSIGN_PEOPLE = RESOURCES.filter(
-  (r) => r.status === "Active" && !r.isAdmin,
-).map((r) => r.name.split(" ")[0]);
 
 export default function MyDayPage() {
   const [role] = useRole();
@@ -160,6 +157,7 @@ function CoordinatorMyDay() {
               Icon={AlertTriangle}
               tasks={overdue}
               emptyText="Nothing overdue — your team is current."
+              projects={projects}
             />
 
             <BulkTaskSection
@@ -316,23 +314,76 @@ function PlainTaskSection({
   );
 }
 
-/* A titled list with multi-select + bulk reassign / bulk due-date. */
+/* A titled list with multi-select + bulk reassign / bulk due-date, plus an
+ * optional Project dropdown that narrows the list to one project. */
 function BulkTaskSection({
   title,
   Icon,
   tasks,
   emptyText,
+  projects,
 }: {
   title: string;
   Icon: typeof Truck;
   tasks: Task[];
   emptyText: string;
+  /** When provided, renders a Project filter listing the projects that
+   *  actually have tasks in this section. */
+  projects?: { id: number; name: string }[];
 }) {
   const { bulkReassign, bulkSetTargetDate } = useTasks();
+  const { accounts } = useAccounts();
   const toast = useToast();
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [projectFilter, setProjectFilter] = useState<number | "all">("all");
 
-  const ids = [...selected].filter((id) => tasks.some((t) => t.id === id));
+  // Only offer projects that have at least one task in this section.
+  const availableProjects = (projects ?? []).filter((p) =>
+    tasks.some((t) => t.projectId === p.id),
+  );
+  const showProjectFilter = availableProjects.length > 0;
+  // If the selected project no longer has tasks here, fall back to "all"
+  // so the list can't get stuck on an empty filter.
+  const activeFilter =
+    projectFilter !== "all" &&
+    availableProjects.some((p) => p.id === projectFilter)
+      ? projectFilter
+      : "all";
+  const visibleTasks =
+    activeFilter === "all"
+      ? tasks
+      : tasks.filter((t) => t.projectId === activeFilter);
+
+  const ids = [...selected].filter((id) =>
+    visibleTasks.some((t) => t.id === id),
+  );
+
+  // Role-aware reassignment: the "Reassign to…" list only offers people
+  // whose global role matches the role(s) of the selected tasks' current
+  // assignees — so a Developer's task can only be handed to another
+  // Developer, a Lead's to a Lead, and so on. If a selected task is
+  // unassigned there's no role to match, so we fall back to every active
+  // (non-admin) account.
+  const selectedTasks = tasks.filter((t) => ids.includes(t.id));
+  const requiredRoles = new Set<string>();
+  for (const t of selectedTasks) {
+    for (const name of t.assignees) {
+      const acc = accounts.find((a) => firstNameOf(a.name) === name);
+      if (acc) requiredRoles.add(acc.role);
+    }
+  }
+  const reassignPeople = Array.from(
+    new Set(
+      accounts
+        .filter(
+          (a) =>
+            a.active &&
+            !a.isAdmin &&
+            (requiredRoles.size === 0 || requiredRoles.has(a.role)),
+        )
+        .map((a) => firstNameOf(a.name)),
+    ),
+  ).sort();
 
   function toggle(id: number) {
     setSelected((prev) => {
@@ -364,11 +415,35 @@ function BulkTaskSection({
       <div className="flex items-center gap-2 mb-4">
         <Icon size={18} className="text-brand-red" />
         <h2 className="font-heading text-lg font-semibold">{title}</h2>
-        <span className="text-xs text-ink-500">({tasks.length})</span>
+        <span className="text-xs text-ink-500">({visibleTasks.length})</span>
+        {showProjectFilter && (
+          <select
+            value={activeFilter === "all" ? "all" : String(activeFilter)}
+            onChange={(e) =>
+              setProjectFilter(
+                e.target.value === "all" ? "all" : Number(e.target.value),
+              )
+            }
+            className="ml-auto text-xs rounded border border-ink-200 px-2 py-1 bg-white"
+            title="Filter by project"
+            aria-label="Filter overdue tasks by project"
+          >
+            <option value="all">All projects</option>
+            {availableProjects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       {tasks.length === 0 ? (
         <p className="text-sm text-ink-500 italic">{emptyText}</p>
+      ) : visibleTasks.length === 0 ? (
+        <p className="text-sm text-ink-500 italic">
+          No overdue tasks on this project.
+        </p>
       ) : (
         <>
           {ids.length > 0 && (
@@ -382,7 +457,7 @@ function BulkTaskSection({
                 className="text-xs rounded border border-ink-200 px-2 py-1 bg-white"
               >
                 <option value="">Reassign to…</option>
-                {REASSIGN_PEOPLE.map((p) => (
+                {reassignPeople.map((p) => (
                   <option key={p} value={p}>
                     {p}
                   </option>
@@ -403,7 +478,7 @@ function BulkTaskSection({
             </div>
           )}
           <div className="space-y-2">
-            {tasks.map((t) => (
+            {visibleTasks.map((t) => (
               <div key={t.id} className="flex items-start gap-2">
                 <input
                   type="checkbox"
