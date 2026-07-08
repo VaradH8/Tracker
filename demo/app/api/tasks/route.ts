@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import {
   canCreateProjectTasks,
   canSeeAllProjectTasks,
+  notifyUser,
   requireUser,
   taskAssignmentFilter,
   userByFirstName,
@@ -121,6 +122,23 @@ export async function POST(req: Request) {
     scope: task.project.name,
     taskTitle: task.title,
   });
+
+  // Notify everyone assigned at creation time (in-app + EmailLog + SMTP).
+  // Assigning via the drawer later goes through POST /api/notifications;
+  // this covers the create-with-assignees path, which previously fired
+  // nothing at all. Skip the creator — no point notifying yourself.
+  await Promise.all(
+    validAssignees
+      .filter((u) => u.id !== user.id)
+      .map((u) =>
+        notifyUser(u.id, {
+          kind: "assigned",
+          title: "Assigned to a task",
+          body: task.title,
+          taskId: task.id,
+        }),
+      ),
+  );
 
   return NextResponse.json({ task: serializeTask(task) }, { status: 201 });
 }

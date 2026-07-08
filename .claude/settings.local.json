@@ -109,7 +109,22 @@
       "Bash(npx vitest *)",
       "Bash(npm test *)",
       "Bash(docker build *)",
-      "Bash(sh -n -c 'set -e; npx prisma migrate deploy; if [ -f prisma/post-push.sql ]; then npx prisma db execute --file prisma/post-push.sql --schema prisma/schema.prisma; else echo \"WARN: prisma/post-push.sql not in image — skipping post-push extras. Index-based invariants may not be enforced.\"; fi; if [ \"$RUN_SEED\" = \"1\" ]; then npx prisma db seed || true; fi; exec node node_modules/next/dist/bin/next start -H 0.0.0.0 -p 3000')"
+      "Bash(sh -n -c 'set -e; npx prisma migrate deploy; if [ -f prisma/post-push.sql ]; then npx prisma db execute --file prisma/post-push.sql --schema prisma/schema.prisma; else echo \"WARN: prisma/post-push.sql not in image — skipping post-push extras. Index-based invariants may not be enforced.\"; fi; if [ \"$RUN_SEED\" = \"1\" ]; then npx prisma db seed || true; fi; exec node node_modules/next/dist/bin/next start -H 0.0.0.0 -p 3000')",
+      "Bash(npx tsc *)",
+      "Bash(node -e \"console.log\\('xlsx', require\\('xlsx/package.json'\\).version\\)\")",
+      "Bash(DATABASE_URL=\"postgresql://placeholder:placeholder@localhost:5432/placeholder?schema=public\" NEXT_TELEMETRY_DISABLED=1 npm run build)",
+      "Bash(DATABASE_URL=\"postgresql://placeholder:placeholder@localhost:5432/placeholder?schema=public\" npx prisma generate)",
+      "Bash(DATABASE_URL=\"postgresql://placeholder:placeholder@localhost:5432/placeholder?schema=public\" npx prisma validate)",
+      "Bash(node -e \"console.log\\(require\\('bcryptjs'\\).hashSync\\('Tracker@2026', 10\\)\\)\")",
+      "Bash(perl -0pi -e 's/\\\\$\\\\{TYPE_COLOR\\\\[l\\\\.type\\\\]\\\\}/\\\\${leaveTypeColor\\(l.type\\)}/g' app/leaves/page.tsx)",
+      "Bash(openssl rand *)",
+      "Bash(git commit -m ' *)",
+      "Bash(cd \"c:\\\\Users\\\\Varad\\\\Downloads\\\\Projects\\\\Varad\\\\project-tracker-prd\\\\project-tracker-prd\\\\demo\" && sed -n '461/,/^}/p' lib/mock.ts | sed -n '1,60p' | grep -A10 \"export function loggedHours\\\\|export function onTimeRate\" && echo \"=== access Admin ALLOWED ===\" && sed -n '25,40p' lib/access.ts)",
+      "Bash(git fetch *)",
+      "Bash(git pull *)",
+      "Bash(git stash *)",
+      "Bash(echo \"ignore-check: $?\")",
+      "Bash(git commit -m 'Notifications: send real SMTP email for task assignments *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Varad\\Downloads\\Projects\\Varad\\project-tracker-prd\\project-tracker-prd\\demo\\lib"

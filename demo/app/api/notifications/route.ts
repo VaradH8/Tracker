@@ -96,6 +96,11 @@ export async function POST(req: Request) {
       },
     }),
   ]);
+  // Fire the real SMTP email, matching notifyUser(). Lazy import so the
+  // auth bundle doesn't pull nodemailer. Best-effort: SMTP failure never
+  // breaks the in-app notification — the EmailLog row is the audit trail.
+  const { sendEmail } = await import("@/lib/mailer");
+  void sendEmail({ to: target.email, subject: title, body: text });
   return NextResponse.json({ notification: serializeNotification(notif) });
 }
 
