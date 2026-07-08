@@ -104,6 +104,7 @@ type PrismaTask = {
   actualHours: number | null;
   important: boolean;
   overdueDays: number | null;
+  completedAt: Date | null;
   responsibleId: string | null;
   responsible?: { name: string } | null;
   approvedById: string | null;
@@ -131,6 +132,7 @@ export function serializeTask(t: PrismaTask): Task {
     actualHours: t.actualHours ?? undefined,
     important: t.important,
     overdueDays: overdueDaysFor(t.targetDate, t.status),
+    completedAt: t.completedAt ? t.completedAt.toISOString().slice(0, 10) : null,
     remarks: (t.remarks ?? []).map(serializeRemark),
     attachments: (t.attachments ?? []).map(serializeAttachment),
     dependsOn: (t.blockedBy ?? []).map((d) => d.blockerTaskId),

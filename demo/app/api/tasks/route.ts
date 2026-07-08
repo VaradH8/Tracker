@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import {
   canCreateProjectTasks,
+  canSeeAllProjectTasks,
   requireUser,
+  taskAssignmentFilter,
   userByFirstName,
   visibleProjectIds,
   writeAudit,
@@ -32,7 +34,13 @@ export async function GET(req: Request) {
   if (ids !== "all") where.projectId = { in: ids };
   if (projectId) where.projectId = Number(projectId);
   if (mineOnly) {
+    // Explicit "assigned to me" filter — strictly assignees.
     where.assignees = { some: { userId: user.id } };
+  } else if (!canSeeAllProjectTasks(user.role)) {
+    // Assignment-based visibility: non-oversight roles (Developer, BD)
+    // only see their own tasks even within a project they can access,
+    // rather than the whole project board.
+    Object.assign(where, taskAssignmentFilter(user.id));
   }
 
   const tasks = await prisma.task.findMany({

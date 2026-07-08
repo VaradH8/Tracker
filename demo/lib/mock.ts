@@ -61,6 +61,9 @@ export type Task = {
   estimatedHours: number | null;
   actualHours?: number | null;
   important: boolean;
+  /** Date (YYYY-MM-DD) the task was marked Done, or null. Anchors a
+   *  completed task to the week it was finished on the weekly board. */
+  completedAt?: string | null;
   overdueDays?: number;
   remarks?: Remark[];
   /** IDs of tasks that block this one. The task can't progress until they're Done. */
@@ -439,7 +442,12 @@ export function isCarriedForward(status: Status): boolean {
 /**
  * Whether a task belongs in a given ISO week's list.
  *
- * Base rule: a task lives in the week its target date falls in.
+ * Completed tasks: a Done task settles into the week it was *completed*
+ * (from completedAt) and shows only there — it never carries forward and
+ * never appears in its earlier target/carry weeks. Legacy Done rows with
+ * no completedAt fall back to their target week.
+ *
+ * Open tasks — base rule: a task lives in the week its target date falls in.
  * Carry-forward: if a task is still In Progress or In review at the end of
  * its week, it keeps appearing every following week until it's marked Done —
  * so unfinished work is never lost. It's the same task object each week (no
@@ -450,9 +458,21 @@ export function isCarriedForward(status: Status): boolean {
  * still open carries into the current week and beyond; once Done it stops.
  */
 export function taskInWeek(task: Task, week: number): boolean {
+  if (task.status === "Done") return weekAnchorOf(task) === week;
   const native = weekNumberOf(task.targetDate);
   if (native === week) return true;
   return native < week && isCarriedForward(task.status);
+}
+
+/** The primary ISO week a task is filed under on the weekly board: its
+ *  completion week once Done (falling back to the target week for legacy
+ *  rows with no completedAt), otherwise its target week. Use this to
+ *  populate a week picker so every task's week is selectable. */
+export function weekAnchorOf(task: Task): number {
+  if (task.status === "Done") {
+    return weekNumberOf(task.completedAt ?? task.targetDate);
+  }
+  return weekNumberOf(task.targetDate);
 }
 
 /**

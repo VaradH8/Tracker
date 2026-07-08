@@ -141,6 +141,12 @@ model Task {
   important      Boolean   @default(false)
   overdueDays    Int?
 
+  // Set when the task is first moved to Done; cleared if it's reopened.
+  // Drives which ISO week a completed task settles into on the weekly
+  // board — a finished task shows in the week it was completed, not its
+  // target week, and never carries forward.
+  completedAt    DateTime?
+
   // Person Responsible: the user who created / assigned this task (singular).
   // Person Accountable: the users actually performing it (many) — see TaskAssignee.
   responsibleId String?

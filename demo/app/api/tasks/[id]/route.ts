@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import {
   canAccessProject,
-  canEditTasks,
   canManageProjectTasks,
+  canSeeTask,
+  completedAtUpdate,
   isTaskAssignee,
   requireUser,
   userByFirstName,
@@ -40,6 +41,11 @@ export async function GET(
   });
   if (!task) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (!(await canAccessProject(user, task.projectId))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  // Assignment-based visibility: within an accessible project, a
+  // non-oversight user may only open their own tasks.
+  if (!(await canSeeTask(user, task))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -91,6 +97,10 @@ export async function PATCH(
       );
     }
     data.status = body.status;
+    // Stamp / clear the completion time so the task settles into the
+    // week it was finished on the weekly board.
+    const completedAt = completedAtUpdate(existing.status, body.status);
+    if (completedAt !== undefined) data.completedAt = completedAt;
   }
   if (editor) {
     if (typeof body.title === "string" && body.title.trim()) {

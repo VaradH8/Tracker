@@ -65,13 +65,13 @@ type Ctx = {
       description: string | null;
     }> &
       ProjectRolePatch,
-  ) => Promise<void>;
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
   deleteProject: (id: number) => Promise<{ ok: boolean; error?: string }>;
   toggleProjectMember: (
     id: number,
     name: string,
     role: ProjectMemberRole,
-  ) => Promise<void>;
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
   updateClient: (
     id: number,
     patch: Partial<{
@@ -163,7 +163,13 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patch),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        return {
+          ok: false as const,
+          error: body.error ?? "Couldn't save the project.",
+        };
+      }
       const body = await res.json().catch(() => ({}));
       if (body.project) {
         setProjects((prev) =>
@@ -172,6 +178,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
           ),
         );
       }
+      return { ok: true as const };
     },
     [],
   );
@@ -193,13 +200,20 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, role, action: "toggle" }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        return {
+          ok: false as const,
+          error: body.error ?? "Couldn't update the team roster.",
+        };
+      }
       const body = await res.json().catch(() => ({}));
       if (body.project) {
         setProjects((prev) =>
           prev.map((p) => (p.id === id ? (body.project as Project) : p)),
         );
       }
+      return { ok: true as const };
     },
     [],
   );

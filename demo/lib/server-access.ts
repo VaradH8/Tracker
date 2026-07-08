@@ -40,6 +40,53 @@ export function canSeeProjectAudit(role: SessionUser["role"]): boolean {
   return role === "Admin" || role === "Lead" || role === "Coordinator";
 }
 
+/** Oversight roles see every task in the projects they can access — they
+ *  run the project and need the full board to assign and track work.
+ *  Everyone else (Developer, BusinessDeveloper) is scoped to their *own*
+ *  tasks: ones assigned to them or that they're the responsible owner of.
+ *  See {@link taskAssignmentFilter}. */
+export function canSeeAllProjectTasks(role: SessionUser["role"]): boolean {
+  return role === "Admin" || role === "Lead" || role === "Coordinator";
+}
+
+/** Prisma `where` fragment matching only the tasks a non-oversight user
+ *  is entitled to see: assigned to them, or they're responsible for it
+ *  (e.g. a BD who created the task). Combine with a project scope. */
+export function taskAssignmentFilter(userId: string) {
+  return {
+    OR: [
+      { assignees: { some: { userId } } },
+      { responsibleId: userId },
+    ],
+  };
+}
+
+/** True if this user is allowed to see a specific task, given its
+ *  project + responsible owner. Oversight roles see all; others must be
+ *  an assignee or the responsible owner. Assumes project access has
+ *  already been checked by the caller. */
+export async function canSeeTask(
+  user: SessionUser,
+  task: { id: number; responsibleId: string | null },
+): Promise<boolean> {
+  if (canSeeAllProjectTasks(user.role)) return true;
+  if (task.responsibleId === user.id) return true;
+  return isTaskAssignee(user.id, task.id);
+}
+
+/** The `completedAt` value to write when a task's status changes from
+ *  `prev` to `next`. Stamps the completion time on the first move to Done,
+ *  clears it if the task is reopened, and leaves it untouched otherwise.
+ *  Returns `undefined` to mean "don't touch this column". */
+export function completedAtUpdate(
+  prev: string,
+  next: string,
+): Date | null | undefined {
+  if (next === "Done" && prev !== "Done") return new Date();
+  if (next !== "Done" && prev === "Done") return null;
+  return undefined;
+}
+
 export async function visibleProjectIds(
   user: SessionUser,
 ): Promise<number[] | "all"> {

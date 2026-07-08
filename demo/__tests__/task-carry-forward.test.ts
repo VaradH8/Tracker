@@ -58,6 +58,27 @@ describe("taskInWeek", () => {
     expect(taskInWeek(taskWith("Done"), NATIVE + 1)).toBe(false);
   });
 
+  it("anchors a completed task to the week it was completed, not its target week", () => {
+    // Target week 28, but finished two weeks later (week 30).
+    const done: Task = {
+      ...taskWith("Done"),
+      completedAt: "2026-07-20", // ISO week 30
+    };
+    expect(weekNumberOf("2026-07-20")).toBe(NATIVE + 2);
+    // Shows only in the completion week…
+    expect(taskInWeek(done, NATIVE + 2)).toBe(true);
+    // …and nowhere else — not its target week, its carry weeks, or after.
+    expect(taskInWeek(done, NATIVE)).toBe(false);
+    expect(taskInWeek(done, NATIVE + 1)).toBe(false);
+    expect(taskInWeek(done, NATIVE + 3)).toBe(false);
+  });
+
+  it("falls back to the target week for legacy Done rows with no completedAt", () => {
+    const done = { ...taskWith("Done"), completedAt: null };
+    expect(taskInWeek(done, NATIVE)).toBe(true);
+    expect(taskInWeek(done, NATIVE + 1)).toBe(false);
+  });
+
   it("does NOT carry To Do or Blocked tasks forward", () => {
     expect(taskInWeek(taskWith("To Do"), NATIVE + 1)).toBe(false);
     expect(taskInWeek(taskWith("Blocked"), NATIVE + 1)).toBe(false);
