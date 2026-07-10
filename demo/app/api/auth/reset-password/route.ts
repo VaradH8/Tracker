@@ -1,18 +1,20 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
-import { passwordIssue } from "@/lib/auth";
+import { passwordIssue, hashResetToken } from "@/lib/auth";
 
 /** POST { token, password } — consumes a reset token and rewrites the
- *  user's passwordHash. Single-use: marks `usedAt` on the token and
- *  also invalidates every existing session on the account so a logged-
- *  in attacker doesn't survive the reset. */
+ *  user's passwordHash. The token from the link is the raw secret; we
+ *  hash it and look the row up by that hash (the DB only stores hashes).
+ *  Single-use: marks `usedAt` on the token and also invalidates every
+ *  existing session on the account so a logged-in attacker doesn't
+ *  survive the reset. */
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
-  const tokenId = String(body.token ?? "");
+  const rawToken = String(body.token ?? "");
   const password = String(body.password ?? "");
 
-  if (!tokenId) {
+  if (!rawToken) {
     return NextResponse.json({ error: "Missing token." }, { status: 400 });
   }
   const issue = passwordIssue(password);
@@ -20,6 +22,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: issue }, { status: 400 });
   }
 
+  const tokenId = hashResetToken(rawToken);
   const token = await prisma.passwordResetToken.findUnique({
     where: { id: tokenId },
   });

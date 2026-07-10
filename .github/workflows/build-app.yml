@@ -16,7 +16,47 @@ env:
   IMAGE: ghcr.io/varadh8/tracker-app
 
 jobs:
+  # Gate: typecheck + unit tests + a production build must pass before we
+  # publish an image. Without this, a broken build could be pushed to
+  # :latest and pulled into production on the next redeploy.
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: demo
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: demo/package-lock.json
+
+      - name: Install deps
+        run: npm ci --no-audit --no-fund
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Production build
+        # A placeholder DATABASE_URL is enough — the build doesn't connect,
+        # it only needs the var to be present for module-load validation.
+        env:
+          DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder?schema=public
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: npm run build
+
   build:
+    needs: verify
     runs-on: ubuntu-latest
     permissions:
       contents: read

@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import {
+  canAccessProject,
   canManageUsers,
   requireUser,
   userByFirstName,
 } from "@/lib/server-access";
+import { rateLimit } from "@/lib/rate-limit";
 import { serializeNotification } from "@/lib/serializers";
 
 /** GET — current user's notifications, newest first. */
@@ -38,13 +40,39 @@ const PUBLIC_NOTIFICATION_KINDS = new Set([
 /** POST — create a notification + an EmailLog twin. The frontend just
  *  passes `recipient` as a first name; the server resolves it.
  *
- *  Restricted to in-app flows: the caller must be writing one of the
- *  user-facing kinds AND addressing a real teammate. Without this,
- *  any signed-in user could spam arbitrary subjects/bodies to anyone. */
+ *  Every legitimate call is tied to a task the actor is working on
+ *  (assignment, reassignment, mention, block, status change). We require
+ *  and verify that binding here:
+ *    - `taskId` must reference a real task,
+ *    - the actor must have access to that task's project.
+ *  This stops a signed-in user from firing an out-of-context email (with
+ *  attacker-chosen subject/body and a real company From address) at an
+ *  arbitrary colleague — the classic phishing/spam vector. A per-actor
+ *  rate limit blunts bulk abuse and keeps a runaway client from burning
+ *  the SMTP daily quota, which would silently drop everyone's mail.
+ *
+ *  Residual: within a project they legitimately belong to, an actor can
+ *  still author the body — acceptable for an internal tool, and every
+ *  send is captured in EmailLog for audit. */
+const NOTIFY_MAX_PER_WINDOW = 30;
+const NOTIFY_WINDOW_MS = 5 * 60 * 1000;
+
 export async function POST(req: Request) {
   const userOrResp = await requireUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
   const actor = userOrResp;
+
+  const gate = rateLimit(
+    `notify:${actor.id}`,
+    NOTIFY_MAX_PER_WINDOW,
+    NOTIFY_WINDOW_MS,
+  );
+  if (!gate.ok) {
+    return NextResponse.json(
+      { error: "Too many notifications. Slow down and try again shortly." },
+      { status: 429 },
+    );
+  }
 
   const body = await req.json().catch(() => ({}));
   const recipientName = String(body.recipient ?? "");
@@ -62,6 +90,26 @@ export async function POST(req: Request) {
   }
   if (!title.trim()) {
     return NextResponse.json({ error: "Title required." }, { status: 400 });
+  }
+
+  // Bind the notification to a task the actor can actually see. This is
+  // the control that turns "email anyone anything" into "notify about a
+  // task you work on".
+  if (taskId === null) {
+    return NextResponse.json(
+      { error: "A notification must reference a task." },
+      { status: 400 },
+    );
+  }
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { projectId: true },
+  });
+  if (!task) {
+    return NextResponse.json({ error: "Task not found." }, { status: 404 });
+  }
+  if (!(await canAccessProject(actor, task.projectId))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const target = await userByFirstName(recipientName);
