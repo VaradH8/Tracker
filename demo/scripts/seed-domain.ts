@@ -5,17 +5,27 @@
  * Run from the app container:
  *   docker compose exec app npx tsx scripts/seed-domain.ts
  *
- * Everyone is created with the same temporary password below; they should
- * reset it on first sign-in. Roles come straight from the roster.
+ * Each new account gets its OWN random temporary password, printed once
+ * to the console next to the email — hand each person theirs and have
+ * them change it on first sign-in. (An earlier version shared one hard-
+ * coded password across everyone, which meant anyone who knew the pattern
+ * could log in as any un-reset user.) Roles come straight from the roster.
  */
 
 import bcrypt from "bcryptjs";
+import { randomBytes } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-const TEMP_PASSWORD = "Tracker@2026";
 const EMAIL_DOMAIN = "inventivebizsol.com";
+
+/** A short, human-typeable random temp password (unique per user). */
+function newTempPassword(): string {
+  // 9 url-safe bytes → 12 chars, plus a fixed suffix so it always clears
+  // the letter+digit/symbol policy in passwordIssue().
+  return randomBytes(9).toString("base64url") + "9!";
+}
 
 type Role = "Admin" | "Lead" | "TeamLead" | "SME" | "Actionee";
 
@@ -51,9 +61,9 @@ function emailFor(p: Person): string {
 
 async function main() {
   console.log("\n--- seed-domain ---");
-  const passwordHash = await bcrypt.hash(TEMP_PASSWORD, 10);
   let created = 0;
   let skipped = 0;
+  const issued: { email: string; password: string }[] = [];
 
   for (const p of ROSTER) {
     const email = emailFor(p);
@@ -63,21 +73,31 @@ async function main() {
       skipped += 1;
       continue;
     }
+    const tempPassword = newTempPassword();
     await prisma.domainUser.create({
       data: {
         name: `${p.first} ${p.last}`,
         email,
-        passwordHash,
+        passwordHash: await bcrypt.hash(tempPassword, 10),
         role: p.role,
         isActive: true,
       },
     });
+    issued.push({ email, password: tempPassword });
     console.log(`  + ${email.padEnd(40)} ${p.role}`);
     created += 1;
   }
 
   console.log(`\nDone. ${created} created, ${skipped} already existed.`);
-  console.log(`Temp password for new accounts: ${TEMP_PASSWORD}\n`);
+  if (issued.length) {
+    console.log(
+      "\nTemp passwords (unique per user — share privately, they must reset on first sign-in):",
+    );
+    for (const row of issued) {
+      console.log(`  ${row.email.padEnd(40)} ${row.password}`);
+    }
+    console.log("");
+  }
 }
 
 main()

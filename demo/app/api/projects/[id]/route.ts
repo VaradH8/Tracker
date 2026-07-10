@@ -84,6 +84,15 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
+  // Per-project scoping: a global Coordinator/Lead may only edit projects
+  // they're actually on. Without this a Coordinator scoped to project A
+  // could PATCH project B — rename it, rewrite its entire roster. The read
+  // side (visibleProjectIds) is scoped, so the write side must be too.
+  // Admin passes through (canAccessProject returns true for "all").
+  if (!(await canAccessProject(user, projectId))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const body = await req.json().catch(() => ({}));
   const data: Record<string, unknown> = {};
   if (typeof body.name === "string" && body.name.trim()) data.name = body.name.trim();

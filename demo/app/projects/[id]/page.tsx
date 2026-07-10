@@ -685,10 +685,14 @@ export default function ProjectDetailPage({
           projectName={project.name}
           canAssign={canManageTeam}
           onClose={() => setCreateOpen(false)}
-          onCreate={(input) => {
-            addTask({ projectId, ...input });
+          onCreate={async (input) => {
             setCreateOpen(false);
-            toast.show(`Task "${input.title}" created.`);
+            const r = await addTask({ projectId, ...input });
+            if (r.ok) {
+              toast.show(`Task "${input.title}" created.`);
+            } else {
+              toast.show(r.error ?? "Couldn't create the task.", "error");
+            }
           }}
         />
       )}

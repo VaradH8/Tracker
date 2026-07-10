@@ -34,7 +34,10 @@ services:
   app:
     # Pre-built in GitHub Actions and pushed to GHCR (public). Swarm
     # can't build images, so we pull this instead of a local build.
-    image: ghcr.io/varadh8/tracker-app:latest
+    # CI publishes both :latest and :<git-sha>. Pin APP_IMAGE_TAG to a
+    # SHA in production so redeploys are reproducible and a rollback is
+    # just "set the previous SHA and redeploy". Defaults to :latest.
+    image: ghcr.io/varadh8/tracker-app:${APP_IMAGE_TAG:-latest}
     depends_on:
       - postgres
     environment:
@@ -56,6 +59,15 @@ services:
       UPLOAD_DIR: /uploads
     volumes:
       - tracker_uploads:/uploads
+    # Liveness/readiness via the app's own /api/health (checks Postgres).
+    # start_period gives migrate+boot time before failures count, so a
+    # slow first boot doesn't flap. wget ships with the node:alpine image.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
     networks:
       - tracker_net
       - traefik-public

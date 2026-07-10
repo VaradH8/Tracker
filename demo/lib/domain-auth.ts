@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 import { prisma } from "./db";
 import { passwordIssue } from "./auth";
+import { rateLimit } from "./rate-limit";
 import { DOMAIN_ROLES, type DomainRole } from "./domain";
 
 /**
@@ -90,13 +91,44 @@ export function requireDomainRole(
   return null;
 }
 
+// Brute-force throttle for domain sign-in, mirroring the tracker's login
+// gate. Per-email and per-IP, fixed 15-minute window.
+const DOMAIN_LOGIN_MAX_PER_EMAIL = 5;
+const DOMAIN_LOGIN_MAX_PER_IP = 20;
+const DOMAIN_LOGIN_WINDOW_MS = 15 * 60 * 1000;
+
 export async function domainSignIn(
   email: string,
   password: string,
+  ip: string | null = null,
 ): Promise<{ ok: true; user: DomainSessionUser } | { ok: false; error: string }> {
   const q = email.trim().toLowerCase();
   if (!q || !password) {
     return { ok: false, error: "Enter your email and password." };
+  }
+  const emailGate = rateLimit(
+    `domain-login:em:${q}`,
+    DOMAIN_LOGIN_MAX_PER_EMAIL,
+    DOMAIN_LOGIN_WINDOW_MS,
+  );
+  if (!emailGate.ok) {
+    return {
+      ok: false,
+      error: `Too many failed attempts. Try again in ${Math.ceil(emailGate.retryInSec / 60)} min.`,
+    };
+  }
+  if (ip) {
+    const ipGate = rateLimit(
+      `domain-login:ip:${ip}`,
+      DOMAIN_LOGIN_MAX_PER_IP,
+      DOMAIN_LOGIN_WINDOW_MS,
+    );
+    if (!ipGate.ok) {
+      return {
+        ok: false,
+        error: `Too many failed attempts. Try again in ${Math.ceil(ipGate.retryInSec / 60)} min.`,
+      };
+    }
   }
   const user = await prisma.domainUser.findUnique({ where: { email: q } });
   const GENERIC = "Wrong email or password.";

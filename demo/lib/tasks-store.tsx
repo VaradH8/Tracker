@@ -73,7 +73,7 @@ type Ctx = {
   removeAttachment: (id: number, attId: number) => Promise<void>;
   approveTask: (id: number, approver: string) => Promise<void>;
   unapproveTask: (id: number) => Promise<void>;
-  addTask: (input: AddTaskInput) => Promise<void>;
+  addTask: (input: AddTaskInput) => Promise<{ ok: boolean; error?: string }>;
   deleteTask: (id: number) => Promise<{ ok: boolean; error?: string }>;
   addRemark: (taskId: number, author: string, body: string) => Promise<void>;
   deleteRemark: (taskId: number, remarkId: number) => Promise<void>;
@@ -418,22 +418,26 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        // Roll back and surface the error to the caller via console
+        // Roll the optimistic card back out and hand the error to the
+        // caller so it can show a toast instead of pretending it worked.
         setTasks((prev) => prev.filter((t) => t.id !== tempId));
-        console.error("addTask failed:", body.error ?? res.statusText);
-        return;
+        const error = body.error ?? res.statusText ?? "Couldn't create the task.";
+        console.error("addTask failed:", error);
+        return { ok: false, error };
       }
       const body = await res.json().catch(() => ({}));
       if (body.task) {
         setTasks((prev) =>
           prev.map((t) => (t.id === tempId ? (body.task as Task) : t)),
         );
-      } else {
-        setTasks((prev) => prev.filter((t) => t.id !== tempId));
+        return { ok: true };
       }
+      setTasks((prev) => prev.filter((t) => t.id !== tempId));
+      return { ok: false, error: "The server didn't return the new task." };
     } catch (e) {
       setTasks((prev) => prev.filter((t) => t.id !== tempId));
       console.error("addTask network error:", e);
+      return { ok: false, error: "Network error — check your connection and retry." };
     }
   }, []);
 

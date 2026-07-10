@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { randomBytes, createHash } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "./db";
 import type { Role } from "./role";
@@ -42,6 +43,26 @@ export function passwordIssue(pw: string): string | null {
     return "Password needs at least one letter and one digit/symbol.";
   }
   return null;
+}
+
+/* ------------------------------------------------------------------ */
+/* Password-reset tokens                                               */
+/* ------------------------------------------------------------------ */
+
+/** A fresh, high-entropy reset token to embed in the emailed link. 32
+ *  random bytes (~256 bits), url-safe. This is the secret the user
+ *  presents; only its hash is ever stored (see hashResetToken), so the
+ *  raw value can't be recovered from the database. */
+export function newResetToken(): string {
+  return randomBytes(32).toString("base64url");
+}
+
+/** SHA-256 of a reset token — the value stored as PasswordResetToken.id
+ *  and recomputed at redeem time to look the row up. A plain hash (no
+ *  salt) is fine here: the input is already 256 bits of randomness, so
+ *  there's nothing to brute-force. */
+export function hashResetToken(rawToken: string): string {
+  return createHash("sha256").update(rawToken).digest("hex");
 }
 
 /* ------------------------------------------------------------------ */

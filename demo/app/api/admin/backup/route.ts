@@ -102,8 +102,52 @@ export async function POST(req: Request) {
     summary[t.key] = res.count ?? 0;
   }
 
+  // Realign the autoincrement sequences. createMany inserts rows with
+  // their original integer ids but never advances the underlying
+  // sequence, so without this the very next task/project/client/etc.
+  // insert would try id=1 and collide (P2002) until the sequence
+  // organically caught up — i.e. the app would reject writes right after
+  // a "successful" restore. setval each Int-PK table to its current MAX.
+  await resetSequences();
+
   await writeAudit(actor.id, "backup.import", {
     after: `Restored ${Object.values(summary).reduce((a, b) => a + b, 0)} rows`,
   });
   return NextResponse.json({ ok: true, restored: summary });
+}
+
+/** Tables whose primary key is a Postgres `serial`/autoincrement `Int`.
+ *  String-cuid PKs (User, Session, PasswordResetToken, DomainUser,
+ *  DomainSession) mint their own ids and need no sequence fix-up. */
+const INT_PK_TABLES = [
+  "Client",
+  "Project",
+  "Task",
+  "TaskAttachment",
+  "TimeEntry",
+  "Remark",
+  "AuditEntry",
+  "Notification",
+  "EmailLog",
+  "Leave",
+  "PipelineDeal",
+  "DomainProject",
+  "DomainTask",
+  "DomainWorkLog",
+] as const;
+
+async function resetSequences() {
+  for (const table of INT_PK_TABLES) {
+    // pg_get_serial_sequence resolves the sequence backing "id". The third
+    // setval arg (is_called) is false for an empty table so the first
+    // insert still gets id 1, and true otherwise so the next insert gets
+    // MAX+1.
+    await prisma.$executeRawUnsafe(
+      `SELECT setval(
+         pg_get_serial_sequence('"${table}"', 'id'),
+         COALESCE((SELECT MAX("id") FROM "${table}"), 1),
+         (SELECT MAX("id") IS NOT NULL FROM "${table}")
+       )`,
+    );
+  }
 }
