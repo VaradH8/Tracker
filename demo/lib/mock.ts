@@ -430,13 +430,13 @@ export function currentWeek(): number {
 }
 
 /**
- * Statuses that represent unfinished-but-underway work. A task in one of
- * these at the end of its week rolls forward into the next week (see
- * taskInWeek) instead of dropping off the tracker. "To Do" is not carried
- * (it hasn't been picked up yet) and "Done" ends the carry.
+ * Statuses that represent unfinished work. Every task that isn't Done
+ * rolls forward into the next week (see taskInWeek) instead of dropping
+ * off the tracker — To Do, In Progress, Blocked, and In review all stay
+ * visible in the current week until completed. "Done" ends the carry.
  */
 export function isCarriedForward(status: Status): boolean {
-  return status === "In Progress" || status === "In review";
+  return status !== "Done";
 }
 
 /**
@@ -448,10 +448,10 @@ export function isCarriedForward(status: Status): boolean {
  * no completedAt fall back to their target week.
  *
  * Open tasks — base rule: a task lives in the week its target date falls in.
- * Carry-forward: if a task is still In Progress or In review at the end of
- * its week, it keeps appearing every following week until it's marked Done —
- * so unfinished work is never lost. It's the same task object each week (no
- * duplicate row) and all its details ride along.
+ * Carry-forward: any task not yet Done at the end of its week keeps
+ * appearing every following week until it's marked Done — so unfinished
+ * work is never lost. It's the same task object each week (no duplicate
+ * row) and all its details ride along.
  *
  * Status is the task's current value (the app keeps no per-week history), so
  * "at the end of the week" is judged by where the task stands now: a task

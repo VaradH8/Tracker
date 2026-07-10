@@ -243,7 +243,7 @@ export function TaskDrawer({
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
-          <h2 className="font-heading text-lg font-semibold leading-tight">
+          <h2 className="font-heading text-lg font-semibold leading-tight break-words">
             {task.title}
           </h2>
 

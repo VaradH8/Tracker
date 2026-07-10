@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { prisma } from "@/lib/db";
 import { canAccessProject, requireUser, writeAudit } from "@/lib/server-access";
-import { commitTaskRows, parseTaskRows, type ParsedTaskRow } from "@/lib/import/tasks";
+import {
+  commitTaskRows,
+  normalizeCell,
+  parseTaskRows,
+  type ParsedTaskRow,
+} from "@/lib/import/tasks";
 
 // A tasks sheet is tiny, but cap the upload so a bad file can't exhaust
 // memory.
@@ -84,7 +89,10 @@ export async function POST(
   let workbook: XLSX.WorkBook;
   try {
     const buf = Buffer.from(await file.arrayBuffer());
-    workbook = XLSX.read(buf, { type: "buffer" });
+    // cellDates keeps date cells as real Date objects instead of letting
+    // SheetJS reformat them to a locale string (e.g. "29-Jun-2026" →
+    // "6/29/26"), which the DD/MM date parser would then misread.
+    workbook = XLSX.read(buf, { type: "buffer", cellDates: true });
   } catch {
     return NextResponse.json(
       { error: "Couldn't read that file — is it a valid .xlsx or .csv?" },
@@ -98,12 +106,16 @@ export async function POST(
   let rawRowCount = 0;
   let anyHeader = false;
   for (const name of workbook.SheetNames) {
-    const rows = XLSX.utils.sheet_to_json<string[]>(workbook.Sheets[name], {
+    // raw:true so Date cells arrive as Date objects (see cellDates above);
+    // normalizeCell then renders each cell to a string — dates as
+    // yyyy-mm-dd, everything else via String() — for the pure parser.
+    const rawRows = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[name], {
       header: 1,
-      raw: false,
+      raw: true,
       defval: "",
       blankrows: false,
-    }) as string[][];
+    }) as unknown[][];
+    const rows = rawRows.map((r) => r.map(normalizeCell));
     const res = parseTaskRows(rows);
     if (res.headerFound) anyHeader = true;
     rawRowCount += res.rawRowCount;

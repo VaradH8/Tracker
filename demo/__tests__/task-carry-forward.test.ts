@@ -27,11 +27,11 @@ function taskWith(status: Status): Task {
 }
 
 describe("isCarriedForward", () => {
-  it("carries only In Progress and In review", () => {
+  it("carries every status except Done", () => {
+    expect(isCarriedForward("To Do")).toBe(true);
     expect(isCarriedForward("In Progress")).toBe(true);
+    expect(isCarriedForward("Blocked")).toBe(true);
     expect(isCarriedForward("In review")).toBe(true);
-    expect(isCarriedForward("To Do")).toBe(false);
-    expect(isCarriedForward("Blocked")).toBe(false);
     expect(isCarriedForward("Done")).toBe(false);
   });
 });
@@ -79,9 +79,12 @@ describe("taskInWeek", () => {
     expect(taskInWeek(done, NATIVE + 1)).toBe(false);
   });
 
-  it("does NOT carry To Do or Blocked tasks forward", () => {
-    expect(taskInWeek(taskWith("To Do"), NATIVE + 1)).toBe(false);
-    expect(taskInWeek(taskWith("Blocked"), NATIVE + 1)).toBe(false);
+  it("carries overdue To Do and Blocked tasks forward so they stay visible", () => {
+    for (const s of ["To Do", "Blocked"] as Status[]) {
+      const t = taskWith(s);
+      expect(taskInWeek(t, NATIVE + 1)).toBe(true); // Week 29
+      expect(taskInWeek(t, NATIVE + 5)).toBe(true); // keeps rolling
+    }
   });
 
   it("never shows a task in a week before its target week", () => {

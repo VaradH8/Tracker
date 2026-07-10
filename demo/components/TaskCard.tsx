@@ -133,7 +133,7 @@ export function TaskCard({
       <button
         type="button"
         onClick={() => drawer.open(task.id)}
-        className="text-left w-full text-sm text-ink-900 leading-snug mb-3 hover:text-brand-blue"
+        className="text-left w-full min-w-0 break-words text-sm text-ink-900 leading-snug mb-3 hover:text-brand-blue"
       >
         {task.title}
       </button>

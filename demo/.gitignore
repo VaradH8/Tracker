@@ -14,3 +14,6 @@ prisma/dev.db
 prisma/dev.db-journal
 *.db
 *.db-journal
+
+# TypeScript incremental build state
+*.tsbuildinfo
