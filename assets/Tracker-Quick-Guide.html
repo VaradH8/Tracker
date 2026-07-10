@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project Tracker — Role Guide</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Josefin+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F7F3EE; --surface:#FFFFFF; --text:#1A1A1A; --muted:#6B6B6B; --border:#E5DED3;
+  }
+  *{margin:0; padding:0; box-sizing:border-box;}
+  body{background:#E9E3DA; color:var(--text); font-family:'Josefin Sans',sans-serif;}
+
+  /* one A4 page per role */
+  .page{
+    width:210mm; min-height:296mm; background:var(--bg); margin:8mm auto;
+    padding:10mm 14mm 16mm; position:relative;
+    box-shadow:0 2px 14px rgba(0,0,0,.14);
+  }
+  @media print{
+    body{background:var(--bg);}
+    .page{margin:0; box-shadow:none; page-break-after:always; min-height:auto; height:296mm; overflow:hidden;}
+    .page:last-child{page-break-after:auto;}
+  }
+  @page{size:A4; margin:0;}
+
+  /* per-role accent */
+  .role-lead{--accent:#3C6AC8;}
+  .role-coord{--accent:#3F8F5B;}
+  .role-bd{--accent:#D08A2E;}
+  .role-dev{--accent:#C8573C;}
+
+  /* header */
+  .header{margin-bottom:12px;}
+  .header-tag{
+    display:inline-block; font-size:10px; font-weight:500; letter-spacing:.22em;
+    text-transform:uppercase; color:var(--accent); border:1px solid var(--border);
+    background:var(--surface); padding:5px 13px; border-radius:3px; margin-bottom:14px;
+  }
+  .header h1{
+    font-family:'Syne',sans-serif; font-size:28px; font-weight:800; line-height:1.05;
+    letter-spacing:.04em; text-transform:uppercase;
+  }
+  .header h1 span{color:var(--accent);}
+  .header-sub{margin-top:8px; font-size:12.5px; font-weight:300; color:var(--muted); line-height:1.6; max-width:560px; letter-spacing:.02em;}
+  .header-divider{width:40px; height:2px; background:var(--accent); margin-top:11px;}
+
+  /* section */
+  .section{margin-bottom:11px;}
+  .section-label{
+    display:flex; align-items:center; gap:12px; font-family:'Syne',sans-serif;
+    font-size:10px; font-weight:700; letter-spacing:.22em; text-transform:uppercase;
+    color:var(--muted); margin-bottom:8px;
+  }
+  .section-label::after{content:''; flex:1; height:1px; background:var(--border);}
+
+  /* flow strip (the graphic) */
+  .flowstrip{
+    display:flex; align-items:center; flex-wrap:wrap; gap:8px;
+    background:var(--surface); border:1px solid var(--border); border-radius:6px;
+    padding:10px 14px;
+  }
+  .fpill{
+    font-family:'Syne',sans-serif; font-size:11px; font-weight:700; letter-spacing:.08em;
+    text-transform:uppercase; padding:8px 14px; border-radius:4px;
+    border:1px solid var(--border); background:var(--bg); color:var(--muted); white-space:nowrap;
+  }
+  .fpill.hot{background:var(--accent); border-color:var(--accent); color:#fff;}
+  .fpill.soft{border-color:var(--accent); color:var(--accent); background:rgba(0,0,0,0.015);}
+  .farrow{color:var(--accent); font-size:14px; font-weight:600;}
+  .fnote{width:100%; font-size:11px; font-weight:300; color:var(--muted); margin-top:6px; letter-spacing:.02em; line-height:1.5;}
+  .fnote strong{color:var(--accent); font-weight:600;}
+
+  /* numbered day steps */
+  .rules-list{display:flex; flex-direction:column; gap:6px;}
+  .rule-item{
+    display:flex; gap:14px; background:var(--surface); border:1px solid var(--border);
+    border-radius:6px; padding:7px 14px; align-items:flex-start;
+  }
+  .rule-num{
+    font-family:'Syne',sans-serif; font-size:19px; font-weight:800; color:var(--border);
+    line-height:1.1; min-width:28px; letter-spacing:-.01em; user-select:none;
+  }
+  .rule-body{flex:1;}
+  .rule-title{
+    font-family:'Syne',sans-serif; font-size:11.5px; font-weight:700; text-transform:uppercase;
+    letter-spacing:.08em; color:var(--text); margin-bottom:3px;
+  }
+  .rule-title em{font-style:normal; color:var(--accent);}
+  .rule-desc{font-size:11.5px; font-weight:300; color:var(--muted); line-height:1.5; letter-spacing:.01em;}
+
+  /* can / can't split */
+  .split{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .split-card{background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:12px 15px;}
+  .split-card h4{
+    font-family:'Syne',sans-serif; font-size:11px; font-weight:700; text-transform:uppercase;
+    letter-spacing:.14em; padding-bottom:8px; margin-bottom:10px; border-bottom:1px solid var(--border);
+  }
+  .split-card.can h4{color:var(--accent);}
+  .split-card.cant h4{color:var(--muted);}
+  .split-card ul{list-style:none; display:flex; flex-direction:column; gap:5px;}
+  .split-card li{
+    font-size:11px; font-weight:300; color:var(--muted); padding-left:14px;
+    position:relative; line-height:1.5; letter-spacing:.01em;
+  }
+  .split-card.can li::before{content:'✓'; position:absolute; left:0; color:var(--accent); font-size:10px; font-weight:600;}
+  .split-card.cant li::before{content:'✕'; position:absolute; left:0; color:#B9AFA0; font-size:10px;}
+
+  /* pages grid */
+  .arch-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:8px;}
+  .arch-card{
+    background:var(--surface); border:1px solid var(--border); border-radius:6px;
+    padding:10px 11px 9px; position:relative; overflow:hidden;
+  }
+  .arch-card::before{content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--accent);}
+  .arch-name{font-family:'Syne',sans-serif; font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.06em;}
+  .arch-note{font-size:10.5px; font-weight:300; color:var(--muted); margin-top:4px; line-height:1.5;}
+
+  /* tip box */
+  .info-box{
+    background:var(--surface); border:1px solid var(--border); border-left:2px solid var(--accent);
+    border-radius:6px; padding:10px 14px; font-size:11.5px; font-weight:300;
+    color:var(--muted); line-height:1.6;
+  }
+  .info-box strong{color:var(--accent); font-weight:600;}
+
+  kbd{
+    background:var(--bg); border:1px solid var(--border); border-radius:3px;
+    padding:1px 6px; font-size:10.5px; font-family:monospace; color:var(--text);
+  }
+
+  /* footer */
+  .footer{
+    position:absolute; bottom:9mm; left:15mm; right:15mm;
+    padding-top:10px; border-top:1px solid var(--border);
+    font-size:10px; font-weight:400; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--muted); display:flex; justify-content:space-between;
+  }
+</style>
+</head>
+<body>
+
+<!-- ════════════════ PAGE 1 · LEAD ════════════════ -->
+<div class="page role-lead">
+  <div class="header">
+    <div class="header-tag">Role 01 · Signs in to → My Day</div>
+    <h1>The Lead<br><span>Own it. Sign it off.</span></h1>
+    <p class="header-sub">You own delivery on your projects: set the plan, shape the team, watch health — and give the final ✓ before work is truly done.</p>
+    <div class="header-divider"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Your one big job — sign-off</div>
+    <div class="flowstrip">
+      <span class="fpill">Task marked Done</span><span class="farrow">→</span>
+      <span class="fpill soft">“Needs sign-off” banner</span><span class="farrow">→</span>
+      <span class="fpill hot">Approve ✓</span>
+      <span class="farrow">or</span>
+      <span class="fpill">Send back with a remark</span>
+      <div class="fnote">Doers can never approve their own work. Every approval is <strong>logged</strong> with your name and time.</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Your day, in 5 moves</div>
+    <div class="rules-list">
+      <div class="rule-item"><div class="rule-num">01</div><div class="rule-body"><div class="rule-title">Open <em>My Day</em></div><div class="rule-desc">Scan the cards: due today, overdue, blocked, and idle team-mates.</div></div></div>
+      <div class="rule-item"><div class="rule-num">02</div><div class="rule-body"><div class="rule-title">Jump into a slipping project</div><div class="rule-desc">Check its board by week; open the History tab to see who changed what.</div></div></div>
+      <div class="rule-item"><div class="rule-num">03</div><div class="rule-body"><div class="rule-title">Approve <em>Done</em> tasks</div><div class="rule-desc">Or send them back with a remark — you are the quality gate.</div></div></div>
+      <div class="rule-item"><div class="rule-num">04</div><div class="rule-body"><div class="rule-title">Adjust the plan</div><div class="rule-desc">Change roster or dates; the team is notified automatically.</div></div></div>
+      <div class="rule-item"><div class="rule-num">05</div><div class="rule-body"><div class="rule-title">Clear <em>Leaves</em></div><div class="rule-desc">Approve or deny pending leave requests.</div></div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Can &amp; can't</div>
+    <div class="split">
+      <div class="split-card can"><h4>You can</h4><ul>
+        <li>Create projects &amp; tasks; manage the team roster</li>
+        <li>Sign off (or revoke) Done work on your projects</li>
+        <li>See financials (hours vs. budget) &amp; full history</li>
+        <li>Approve leave · export data · review Resources</li>
+      </ul></div>
+      <div class="split-card cant"><h4>You can't</h4><ul>
+        <li>Day-to-day task edits — that's the Co-ordinator</li>
+        <li>Import tasks from spreadsheets</li>
+        <li>Manage users or system settings (Admin only)</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Your pages</div>
+    <div class="arch-grid">
+      <div class="arch-card"><div class="arch-name">My Day</div><div class="arch-note">Team command centre — start here</div></div>
+      <div class="arch-card"><div class="arch-name">Projects</div><div class="arch-note">Boards, details &amp; audit history</div></div>
+      <div class="arch-card"><div class="arch-name">Resources</div><div class="arch-note">Who's loaded, who's idle</div></div>
+      <div class="arch-card"><div class="arch-name">Leaves</div><div class="arch-note">Pending approvals queue</div></div>
+    </div>
+  </div>
+
+  <div class="info-box"><strong>Remember:</strong> people only see a project if they're on its team roster — add someone and it appears for them instantly. Press <kbd>Ctrl/⌘ + K</kbd> to jump anywhere.</div>
+
+  <div class="footer"><span>Project Tracker · Role Guide</span><span>Lead · 1 / 4</span></div>
+</div>
+
+<!-- ════════════════ PAGE 2 · CO-ORDINATOR ════════════════ -->
+<div class="page role-coord">
+  <div class="header">
+    <div class="header-tag">Role 02 · Signs in to → My Day</div>
+    <h1>The Co-ordinator<br><span>Make the week happen.</span></h1>
+    <p class="header-sub">You're the engine room. Assign work, move dates, unblock people, keep every board current — you have the fullest hands-on control of any role.</p>
+    <div class="header-divider"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">The board you run — every task moves like this</div>
+    <div class="flowstrip">
+      <span class="fpill">To Do</span><span class="farrow">→</span>
+      <span class="fpill hot">In Progress</span><span class="farrow">→</span>
+      <span class="fpill">In review</span><span class="farrow">→</span>
+      <span class="fpill soft">Done ✓</span>
+      <div class="fnote"><strong>Blocked</strong> can happen from In Progress (a reason is captured) — it lands on your My Day instantly. Anything not Done <strong>carries forward</strong> to next week automatically.</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Your day, in 5 moves</div>
+    <div class="rules-list">
+      <div class="rule-item"><div class="rule-num">01</div><div class="rule-body"><div class="rule-title">Open <em>My Day</em></div><div class="rule-desc">Due today · overdue · blocked · idle — your whole team at a glance.</div></div></div>
+      <div class="rule-item"><div class="rule-num">02</div><div class="rule-body"><div class="rule-title">Clear the overdue pile — in bulk</div><div class="rule-desc">Tick several tasks → reassign or set a new date in one go. The list only offers people with the same role as the current owner.</div></div></div>
+      <div class="rule-item"><div class="rule-num">03</div><div class="rule-body"><div class="rule-title">Keep boards honest</div><div class="rule-desc">Add missing tasks, set priorities, assign developers — you can edit <em>any</em> field on any task in your projects.</div></div></div>
+      <div class="rule-item"><div class="rule-num">04</div><div class="rule-body"><div class="rule-title">Unblock people</div><div class="rule-desc">Chase the dependency or the person; flip the task back to In Progress.</div></div></div>
+      <div class="rule-item"><div class="rule-num">05</div><div class="rule-body"><div class="rule-title">Star what matters ⭐</div><div class="rule-desc">The Important star pins a task to the org-wide Dashboard for leadership.</div></div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Can &amp; can't</div>
+    <div class="split">
+      <div class="split-card can"><h4>You can</h4><ul>
+        <li>Edit everything on any task: priority, dates, assignees, status, dependencies, star ⭐</li>
+        <li>Bulk reassign / re-date from My Day</li>
+        <li>Import a spreadsheet of tasks into a project</li>
+        <li>Sign off Done work · approve leave · export</li>
+      </ul></div>
+      <div class="split-card cant"><h4>You can't</h4><ul>
+        <li>Manage users or system settings (Admin only)</li>
+        <li>That's it — everything else is yours</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Your pages</div>
+    <div class="arch-grid">
+      <div class="arch-card"><div class="arch-name">My Day</div><div class="arch-note">Chase overdue &amp; blocked here</div></div>
+      <div class="arch-card"><div class="arch-name">Projects</div><div class="arch-note">Boards · Import Tasks button</div></div>
+      <div class="arch-card"><div class="arch-name">Resources</div><div class="arch-note">Balance the team's load</div></div>
+      <div class="arch-card"><div class="arch-name">Calendar</div><div class="arch-note">All tasks by target date</div></div>
+    </div>
+  </div>
+
+  <div class="info-box"><strong>Fast editing:</strong> click a priority pill, date, or avatar right on the card to change it — no menus. <kbd>Ctrl/⌘ + K</kbd> jumps anywhere.</div>
+
+  <div class="footer"><span>Project Tracker · Role Guide</span><span>Co-ordinator · 2 / 4</span></div>
+</div>
+
+<!-- ════════════════ PAGE 3 · BUSINESS DEVELOPER ════════════════ -->
+<div class="page role-bd">
+  <div class="header">
+    <div class="header-tag">Role 03 · Signs in to → Pipeline</div>
+    <h1>The Business Developer<br><span>Win it. Hand it off.</span></h1>
+    <p class="header-sub">You live at the front of the funnel: track deals, keep the client directory fresh, and turn every win into a project for delivery to run.</p>
+    <div class="header-divider"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Your board — drag deals across four stages</div>
+    <div class="flowstrip">
+      <span class="fpill">Lead</span><span class="farrow">→</span>
+      <span class="fpill">Quoted</span><span class="farrow">→</span>
+      <span class="fpill hot">Won</span><span class="farrow">→</span>
+      <span class="fpill soft">Kicked off</span>
+      <div class="fnote">Each deal shows value, win probability &amp; expected start; the header sums the <strong>weighted open value</strong> (value × probability).</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Your day, in 4 moves</div>
+    <div class="rules-list">
+      <div class="rule-item"><div class="rule-num">01</div><div class="rule-body"><div class="rule-title">Open the <em>Pipeline</em></div><div class="rule-desc">Drag deals between stages; add a New deal or drop a dead one.</div></div></div>
+      <div class="rule-item"><div class="rule-num">02</div><div class="rule-body"><div class="rule-title">Deal won? Kick off the project</div><div class="rule-desc">Create the project, pick the client (or add a new one), and name its <em>Lead + Co-ordinator</em>.</div></div></div>
+      <div class="rule-item"><div class="rule-num">03</div><div class="rule-body"><div class="rule-title">Keep <em>Clients</em> fresh</div><div class="rule-desc">Contacts, industry, and each client's list of projects.</div></div></div>
+      <div class="rule-item"><div class="rule-num">04</div><div class="rule-body"><div class="rule-title">Hand off &amp; watch</div><div class="rule-desc">Delivery staffs the project and runs the tasks; you keep sight of financials and status.</div></div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Can &amp; can't</div>
+    <div class="split">
+      <div class="split-card can"><h4>You can</h4><ul>
+        <li>Manage the Pipeline — add, drag &amp; drop deals</li>
+        <li>Add clients &amp; keep the directory current</li>
+        <li>Create a project and name its Lead + Co-ordinator</li>
+        <li>Create first tasks on a project you kicked off</li>
+        <li>See financials on your projects · export data</li>
+      </ul></div>
+      <div class="split-card cant"><h4>You can't</h4><ul>
+        <li>Manage a project's team roster or delivery details</li>
+        <li>Edit task fields, assign developers, or sign off</li>
+        <li>See audit history · import tasks · manage users</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Your pages</div>
+    <div class="arch-grid">
+      <div class="arch-card"><div class="arch-name">Pipeline</div><div class="arch-note">Your home — the deal board</div></div>
+      <div class="arch-card"><div class="arch-name">Clients</div><div class="arch-note">Directory · Add client</div></div>
+      <div class="arch-card"><div class="arch-name">Projects</div><div class="arch-note">The ones you kicked off</div></div>
+      <div class="arch-card"><div class="arch-name">Calendar</div><div class="arch-note">Your own work by date</div></div>
+    </div>
+  </div>
+
+  <div class="info-box"><strong>The handoff rule:</strong> you open the door — create the project, name the Lead &amp; Co-ordinator — then delivery takes it from there. You'll be notified of new intake and project status changes.</div>
+
+  <div class="footer"><span>Project Tracker · Role Guide</span><span>Business Developer · 3 / 4</span></div>
+</div>
+
+<!-- ════════════════ PAGE 4 · DEVELOPER ════════════════ -->
+<div class="page role-dev">
+  <div class="header">
+    <div class="header-tag">Role 04 · Signs in to → My Tasks</div>
+    <h1>The Developer<br><span>One click at a time.</span></h1>
+    <p class="header-sub">Your world is simple: the tasks assigned to you, one button to move each forward, and a timer that logs your effort as you go.</p>
+    <div class="header-divider"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Every task — buttons on the card do it all</div>
+    <div class="flowstrip">
+      <span class="fpill">To Do</span><span class="farrow">— Start →</span>
+      <span class="fpill hot">In Progress</span><span class="farrow">— Review →</span>
+      <span class="fpill">In review</span><span class="farrow">→</span>
+      <span class="fpill soft">Done ✓</span>
+      <div class="fnote"><strong>Stuck?</strong> Hit <strong>Block</strong> + a reason — your Co-ordinator sees it immediately; Unblock returns it. <strong>Start</strong> also runs the timer; <strong>Done</strong> stops it and sends the task for sign-off.</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Your day, in 5 moves</div>
+    <div class="rules-list">
+      <div class="rule-item"><div class="rule-num">01</div><div class="rule-body"><div class="rule-title">Open <em>My Tasks</em> in Focus mode</div><div class="rule-desc">Only what needs attention now: due, overdue, in progress. “Show all” reveals the backlog.</div></div></div>
+      <div class="rule-item"><div class="rule-num">02</div><div class="rule-body"><div class="rule-title">Hit <em>Start</em> on the top task</div><div class="rule-desc">Timer runs, status flips to In Progress. Stop pauses; resume any time — even days later.</div></div></div>
+      <div class="rule-item"><div class="rule-num">03</div><div class="rule-body"><div class="rule-title">Stuck? <em>Block</em> it with a reason</div><div class="rule-desc">Don't sit on it quietly — a blocked task gets help fast.</div></div></div>
+      <div class="rule-item"><div class="rule-num">04</div><div class="rule-body"><div class="rule-title">Finished? Click <em>Done</em></div><div class="rule-desc">Timer stops; the task goes to a Lead/Co-ordinator for sign-off.</div></div></div>
+      <div class="rule-item"><div class="rule-num">05</div><div class="rule-body"><div class="rule-title">Check <em>Notifications</em></div><div class="rule-desc">Reply to @mentions; type <kbd>@</kbd> in a remark to loop someone in.</div></div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Can &amp; can't</div>
+    <div class="split">
+      <div class="split-card can"><h4>You can</h4><ul>
+        <li>Update status &amp; run the timer on your own tasks</li>
+        <li>Add remarks, attachments &amp; @mention colleagues</li>
+        <li>Self-assign to tasks on projects you're on</li>
+        <li>Use the Calendar &amp; request leave</li>
+      </ul></div>
+      <div class="split-card cant"><h4>You can't</h4><ul>
+        <li>Edit priority, dates or assignees on tasks · star ⭐</li>
+        <li>Create projects, manage rosters, or sign off work</li>
+        <li>See budgets, the pipeline, history, or exports</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Your pages</div>
+    <div class="arch-grid">
+      <div class="arch-card"><div class="arch-name">My Tasks</div><div class="arch-note">Your home — five-column board</div></div>
+      <div class="arch-card"><div class="arch-name">Projects</div><div class="arch-note">Browse the ones you're on</div></div>
+      <div class="arch-card"><div class="arch-name">Calendar</div><div class="arch-note">Your tasks by target date</div></div>
+      <div class="arch-card"><div class="arch-name">Leaves</div><div class="arch-note">Request time off · see balance</div></div>
+    </div>
+  </div>
+
+  <div class="info-box"><strong>Nothing gets lost:</strong> tasks you don't finish carry forward to next week automatically — just keep the status honest and the timer running. <kbd>Ctrl/⌘ + K</kbd> jumps anywhere.</div>
+
+  <div class="footer"><span>Project Tracker · Role Guide</span><span>Developer · 4 / 4</span></div>
+</div>
+
+</body>
+</html>

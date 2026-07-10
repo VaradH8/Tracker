@@ -124,10 +124,30 @@
       "Bash(git pull *)",
       "Bash(git stash *)",
       "Bash(echo \"ignore-check: $?\")",
-      "Bash(git commit -m 'Notifications: send real SMTP email for task assignments *)"
+      "Bash(git commit -m 'Notifications: send real SMTP email for task assignments *)",
+      "Bash(git rebase *)",
+      "Bash(GIT_EDITOR=true git rebase --continue)",
+      "Bash(git -c core.editor=true rebase --continue)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(ls .git/rebase-merge/)",
+      "Bash(cat .git/rebase-merge/stopped-sha)",
+      "Bash(git update-index *)",
+      "Bash(echo \"commit-exit=$?\")",
+      "Bash(echo \"continue-exit=$?\")",
+      "Bash(git branch *)",
+      "Bash(git checkout *)",
+      "Bash(\"/c/Program Files/Google/Chrome/Application/chrome.exe\" --headless=new --disable-gpu --no-pdf-header-footer --virtual-time-budget=10000 --print-to-pdf=\"C:/Users/Varad/Downloads/Projects/Varad/project-tracker-prd/project-tracker-prd/assets/Tracker-Quick-Guide.pdf\" \"file:///C:/Users/Varad/Downloads/Projects/Varad/project-tracker-prd/project-tracker-prd/assets/Tracker-Quick-Guide.html\")",
+      "Bash(grep -il \"ssh\\\\|43.242\" \"c:\\\\Users\\\\Varad\\\\Downloads\\\\Projects\\\\Varad\\\\project-tracker-prd\\\\project-tracker-prd\\\\DEPLOY.md\" && grep -n \"ssh\\\\|43.242\\\\|root@\\\\|ubuntu@\" \"c:\\\\Users\\\\Varad\\\\Downloads\\\\Projects\\\\Varad\\\\project-tracker-prd\\\\project-tracker-prd\\\\DEPLOY.md\" | head -20; ls ~/.ssh 2>/dev/null)",
+      "Read(//c/Users/Varad/**)",
+      "Bash(gh run *)",
+      "PowerShell(gh run list --limit 5)",
+      "Bash(curl -s \"https://api.github.com/repos/VaradH8/Tracker/actions/runs?per_page=5\")",
+      "Bash(git rev-list *)",
+      "Bash(git commit -m 'Add Tracker quick guide \\(HTML + PDF\\) *)"
     ],
     "additionalDirectories": [
-      "c:\\Users\\Varad\\Downloads\\Projects\\Varad\\project-tracker-prd\\project-tracker-prd\\demo\\lib"
+      "c:\\Users\\Varad\\Downloads\\Projects\\Varad\\project-tracker-prd\\project-tracker-prd\\demo\\lib",
+      "C:\\Users\\Varad\\Desktop"
     ]
   }
 }
