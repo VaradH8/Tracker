@@ -16,6 +16,7 @@ Build the Project Tracker MVP described in this folder. Read the documents in th
 6. **Use the tech stack in `specs/07-tech-stack.md`**. Don't substitute frameworks without an explicit reason.
 7. **Both Manager and User land on `/my-day`** — not on a team board, not on a generic dashboard.
 8. **Test the import using `assets/Ongoing_Projects.xlsx`** — this is the real data the system has to handle.
+9. **Never lose data on redeployment.** A redeploy or container restart must preserve all existing users and application data. No code change may delete, wipe, reset, or overwrite persisted data unless that destruction is the *directly intended* purpose of the change (and even then it must be explicit and guarded). In particular: migrations must be additive/non-destructive by default, seeds must only bootstrap an empty database (never wipe a populated one), and any destructive operation must be opt-in behind an explicit flag that is never part of the deploy path.
 
 ## How I want you to work
 
@@ -57,6 +58,7 @@ A working Docker Compose stack that:
 - Don't use JWT (use server sessions, simpler to revoke)
 - Don't build a mobile app (responsive web is enough)
 - Don't reproduce the spreadsheet's data quirks; normalize them on import
+- Don't wipe, reset, or re-seed a populated database on deploy/restart — see Hard rule 9. Existing data survives every redeployment unless destruction is explicitly intended and guarded.
 
 ## When you finish a phase
 
