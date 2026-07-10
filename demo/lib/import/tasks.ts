@@ -66,6 +66,30 @@ function normalise(s: unknown): string {
     .trim();
 }
 
+/**
+ * Coerce one raw spreadsheet cell to a string for parsing.
+ *
+ * The important case is dates. When the sheet is read with `cellDates:true`,
+ * SheetJS hands us real `Date` objects for date cells — which we render as
+ * `yyyy-mm-dd` using LOCAL components. That matters: SheetJS builds the Date
+ * at local midnight of the intended calendar day, so local getters recover
+ * that day regardless of the server timezone (verified under IST/UTC). We do
+ * NOT use `toISOString()` here — in a +TZ it would shift to the previous day.
+ *
+ * Reading dates this way sidesteps a nasty silent-corruption bug: with
+ * `raw:false`, SheetJS reformats "29-Jun-2026" to US "6/29/26", which the
+ * DD/MM/YYYY date parser would then misread as day 6 / month 29.
+ */
+export function normalizeCell(cell: unknown): string {
+  if (cell instanceof Date && !Number.isNaN(cell.getTime())) {
+    const y = cell.getFullYear();
+    const m = String(cell.getMonth() + 1).padStart(2, "0");
+    const d = String(cell.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+  return String(cell ?? "");
+}
+
 function mapStatus(raw: string): string {
   return STATUS_MAP[normalise(raw).toLowerCase()] ?? "To Do";
 }
@@ -119,12 +143,15 @@ function parseHoursCell(raw: string): number | null {
 /** Split a "Adhil, Mansi / Ravish" style people cell into first names. */
 function splitNames(raw: string): string[] {
   const s = normalise(raw);
-  if (!s || /tbd|n\/?a|none/i.test(s)) return [];
+  if (!s) return [];
   const out: string[] = [];
   const seen = new Set<string>();
   for (const part of s.split(/[,+/&;]| and /i)) {
     const name = part.trim().replace(/\.$/, "");
     if (!name) continue;
+    // Drop placeholder tokens — but ONLY as a whole fragment, never as a
+    // substring, so a real name like "Sanjana" (contains "na") survives.
+    if (/^(tbd|n\/?a|na|none|-|—)$/i.test(name)) continue;
     const key = name.toLowerCase();
     if (!seen.has(key)) {
       seen.add(key);
