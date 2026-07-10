@@ -73,7 +73,9 @@ export function DomainTaskList({
       {tasks.map((t) => (
         <li key={t.id} className="card p-3 flex items-center gap-3 flex-wrap">
           <div className="flex-1 min-w-[160px]">
-            <div className="text-sm font-medium text-ink-900">{t.title}</div>
+            <div className="text-sm font-medium text-ink-900 break-words">
+              {t.title}
+            </div>
             <div className="text-xs text-ink-500 mt-0.5">
               {!hideProject && <span>{t.projectName} · </span>}
               {t.assignee ? `Assigned to ${t.assignee}` : "Unassigned"}
