@@ -19,7 +19,7 @@ const WORKING_DAYS = 5;
 export async function GET() {
   const userOrResp = await requireDomainUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
-  const forbidden = requireDomainRole(userOrResp, ["Admin"]);
+  const forbidden = requireDomainRole(userOrResp, ["Admin", "Lead"]);
   if (forbidden) return forbidden;
 
   const people = await prisma.domainUser.findMany({

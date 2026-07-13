@@ -18,7 +18,7 @@ const NAV: NavItem[] = [
   { href: "/domain", label: "Dashboard", icon: LayoutGrid, roles: ["Admin", "Lead", "TeamLead", "Actionee"] },
   { href: "/domain/projects", label: "Projects", icon: FolderKanban, roles: ["Admin", "Lead", "TeamLead", "Actionee"] },
   { href: "/domain/worklog", label: "Work log", icon: ClipboardList, roles: ["Admin", "Lead", "TeamLead", "Actionee"] },
-  { href: "/domain/availability", label: "Availability", icon: Gauge, roles: ["Admin"] },
+  { href: "/domain/availability", label: "Availability", icon: Gauge, roles: ["Admin", "Lead"] },
   { href: "/domain/users", label: "Users", icon: Users, roles: ["Admin"] },
 ];
 
