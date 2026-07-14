@@ -69,7 +69,18 @@ export async function POST(req: Request) {
           kind: "password_reset",
         },
       });
-      void sendEmail({ to: user.email, subject, body });
+      const { renderNotificationEmail } = await import("@/lib/email-html");
+      void sendEmail({
+        to: user.email,
+        subject,
+        body,
+        html: renderNotificationEmail({
+          heading: "Reset your password",
+          intro: `Click the button to choose a new password. The link expires in ${RESET_TTL_MIN} minutes. If you didn't ask for this, you can ignore this email.`,
+          ctaUrl: link,
+          ctaLabel: "Choose a new password",
+        }),
+      });
     }
   }
 

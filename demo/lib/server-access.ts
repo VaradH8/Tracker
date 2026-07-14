@@ -211,6 +211,11 @@ export async function notifyUser(
     title: string;
     body: string;
     taskId?: number | null;
+    /** Who did the thing — shown as "Assigned by" in the email. */
+    actorName?: string | null;
+    /** Request origin (e.g. https://tracker.example.com). When present
+     *  the email gets an "Open in Tracker" button to /notifications. */
+    baseUrl?: string | null;
   },
 ) {
   const target = await prisma.user.findUnique({ where: { id: recipientId } });
@@ -237,12 +242,30 @@ export async function notifyUser(
     }),
   ]);
   // Fire-and-forget the SMTP send. Imported lazily so the auth bundle
-  // doesn't pull nodemailer for routes that don't need it.
+  // doesn't pull nodemailer for routes that don't need it. The email is
+  // the rich version: task details card + CTA when we have them; the
+  // in-app notification and EmailLog keep the short title/body.
   const { sendEmail } = await import("./mailer");
+  const { renderNotificationEmail, taskEmailDetails } = await import(
+    "./email-html"
+  );
+  const details = opts.taskId
+    ? await taskEmailDetails(opts.taskId, opts.actorName)
+    : null;
+  const subject = details
+    ? `${opts.title} — ${details.title.slice(0, 80)}`
+    : opts.title;
   void sendEmail({
     to: target.email,
-    subject: opts.title,
+    subject,
     body: opts.body,
+    html: renderNotificationEmail({
+      heading: opts.title,
+      // When the body is just the task title, the card already shows it.
+      intro: details && opts.body.trim() === details.title.trim() ? null : opts.body,
+      task: details,
+      ctaUrl: opts.baseUrl ? `${opts.baseUrl}/notifications` : null,
+    }),
   });
 }
 

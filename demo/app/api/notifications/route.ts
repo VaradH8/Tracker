@@ -147,8 +147,28 @@ export async function POST(req: Request) {
   // Fire the real SMTP email, matching notifyUser(). Lazy import so the
   // auth bundle doesn't pull nodemailer. Best-effort: SMTP failure never
   // breaks the in-app notification — the EmailLog row is the audit trail.
+  // The email itself is the rich version: subject carries the task title,
+  // and the HTML body shows project / priority / due date / assigner with
+  // a button to /notifications (where clicking opens the task drawer).
   const { sendEmail } = await import("@/lib/mailer");
-  void sendEmail({ to: target.email, subject: title, body: text });
+  const { renderNotificationEmail, taskEmailDetails } = await import(
+    "@/lib/email-html"
+  );
+  const details = await taskEmailDetails(taskId, actor.name);
+  const subject = details
+    ? `${title} — ${details.title.slice(0, 80)}`
+    : title;
+  void sendEmail({
+    to: target.email,
+    subject,
+    body: text,
+    html: renderNotificationEmail({
+      heading: title,
+      intro: details && text.trim() === details.title.trim() ? null : text,
+      task: details,
+      ctaUrl: `${new URL(req.url).origin}/notifications`,
+    }),
+  });
   return NextResponse.json({ notification: serializeNotification(notif) });
 }
 

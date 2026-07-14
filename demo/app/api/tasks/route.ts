@@ -136,6 +136,8 @@ export async function POST(req: Request) {
           title: "Assigned to a task",
           body: task.title,
           taskId: task.id,
+          actorName: user.name,
+          baseUrl: new URL(req.url).origin,
         }),
       ),
   );

@@ -62,6 +62,9 @@ export async function sendEmail(opts: {
   to: string;
   subject: string;
   body: string;
+  /** Optional rich version (see lib/email-html.ts). `body` stays as the
+   *  text/plain fallback for clients that don't render HTML. */
+  html?: string;
 }): Promise<{ ok: boolean; reason?: string }> {
   const transport = getTransport();
   if (!transport) {
@@ -77,6 +80,7 @@ export async function sendEmail(opts: {
       to: opts.to,
       subject: opts.subject,
       text: opts.body,
+      html: opts.html,
     });
     return { ok: true };
   } catch (e) {
