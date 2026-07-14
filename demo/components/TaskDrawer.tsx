@@ -560,14 +560,12 @@ export function TaskDrawer({
                   ({task.attachments?.length ?? 0})
                 </span>
               </h3>
-              {canEdit && (
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="text-xs text-brand-blue hover:underline inline-flex items-center gap-1"
-                >
-                  <Upload size={12} /> Upload
-                </button>
-              )}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="text-xs text-brand-blue hover:underline inline-flex items-center gap-1"
+              >
+                <Upload size={12} /> Upload
+              </button>
             </div>
             <ul className="space-y-1.5">
               {(task.attachments ?? []).map((a) => (

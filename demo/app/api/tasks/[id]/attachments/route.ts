@@ -3,12 +3,7 @@ import { randomBytes } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 import { prisma } from "@/lib/db";
-import {
-  canAccessProject,
-  canEditTasks,
-  isTaskAssignee,
-  requireUser,
-} from "@/lib/server-access";
+import { canAccessProject, requireUser } from "@/lib/server-access";
 import { serializeAttachment } from "@/lib/serializers";
 
 /** Max bytes accepted per uploaded file. Anything larger gets rejected
@@ -59,11 +54,9 @@ export async function POST(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const editor = canEditTasks(user.role);
-  const assignee = await isTaskAssignee(user.id, taskId);
-  if (!editor && !assignee) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  // Anyone who can see the project can attach files — Developers and
+  // Business Developers included, assigned to the task or not. Removing
+  // an attachment stays editor/assignee-only (see [attId]/route.ts).
 
   const form = await req.formData().catch(() => null);
   if (!form) {
