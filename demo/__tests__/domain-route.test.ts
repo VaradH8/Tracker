@@ -6,6 +6,8 @@ vi.mock("@/lib/db", () => ({
   prisma: {
     domainUser: { findMany: vi.fn(), count: vi.fn() },
     domainProject: { findMany: vi.fn() },
+    domainTask: { findMany: vi.fn() },
+    domainWorkLog: { findMany: vi.fn() },
   },
 }));
 
@@ -25,6 +27,7 @@ vi.mock("@/lib/domain-auth", () => ({
 import { requireDomainUser } from "@/lib/domain-auth";
 import { prisma } from "@/lib/db";
 import { GET as availabilityGET } from "@/app/api/domain/availability/route";
+import { GET as kpisGET } from "@/app/api/domain/kpis/route";
 import { POST as usersPOST } from "@/app/api/domain/projects/route";
 import { DELETE as taskDELETE } from "@/app/api/domain/tasks/[id]/route";
 import { DELETE as userDELETE } from "@/app/api/domain/users/[id]/route";
@@ -64,6 +67,31 @@ describe("domain route role gates", () => {
     vi.mocked(requireDomainUser).mockResolvedValue(actor("Lead"));
     vi.mocked(prisma.domainUser.findMany).mockResolvedValue([]);
     expect((await availabilityGET()).status).toBe(200);
+  });
+
+  it("kpis: 401 when no session", async () => {
+    vi.mocked(requireDomainUser).mockResolvedValue(
+      NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    );
+    expect((await kpisGET()).status).toBe(401);
+  });
+
+  it("kpis: 403 for a Lead (admin-only)", async () => {
+    vi.mocked(requireDomainUser).mockResolvedValue(actor("Lead"));
+    expect((await kpisGET()).status).toBe(403);
+  });
+
+  it("kpis: 403 for an Actionee", async () => {
+    vi.mocked(requireDomainUser).mockResolvedValue(actor("Actionee"));
+    expect((await kpisGET()).status).toBe(403);
+  });
+
+  it("kpis: 200 for an Admin", async () => {
+    vi.mocked(requireDomainUser).mockResolvedValue(actor("Admin"));
+    vi.mocked(prisma.domainUser.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.domainTask.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.domainWorkLog.findMany).mockResolvedValue([]);
+    expect((await kpisGET()).status).toBe(200);
   });
 
   it("project create: 403 for an Actionee", async () => {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutGrid, FolderKanban, ClipboardList, Users, Gauge, LogOut, KeyRound } from "lucide-react";
+import { LayoutGrid, FolderKanban, ClipboardList, Users, Gauge, BarChart3, LogOut, KeyRound } from "lucide-react";
 import { useDomain } from "@/lib/domain-store";
 import { DOMAIN_ROLE_LABELS, type DomainRole } from "@/lib/domain";
 import type { ReactNode } from "react";
@@ -19,6 +19,7 @@ const NAV: NavItem[] = [
   { href: "/domain/projects", label: "Projects", icon: FolderKanban, roles: ["Admin", "Lead", "TeamLead", "Actionee"] },
   { href: "/domain/worklog", label: "Work log", icon: ClipboardList, roles: ["Admin", "Lead", "TeamLead", "Actionee"] },
   { href: "/domain/availability", label: "Availability", icon: Gauge, roles: ["Admin", "Lead"] },
+  { href: "/domain/kpis", label: "KPIs", icon: BarChart3, roles: ["Admin"] },
   { href: "/domain/users", label: "Users", icon: Users, roles: ["Admin"] },
 ];
 
