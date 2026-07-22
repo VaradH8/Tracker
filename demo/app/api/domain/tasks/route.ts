@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
-import { WORKING_ROLES, type DomainRole } from "@/lib/domain";
+import { WORKING_ROLES, parseEstimatedHours, type DomainRole } from "@/lib/domain";
 
 const INCLUDE = {
   project: { select: { id: true, name: true } },
@@ -39,14 +39,6 @@ function serialize(t: TaskRow) {
     createdBy: t.createdBy.name,
     createdAt: t.createdAt.toISOString(),
   };
-}
-
-/** Parse an estimated-hours value: a positive number, capped at a sane
- *  ceiling, or null. */
-function parseHours(raw: unknown): number | null {
-  const n = Number(raw);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return Math.min(1000, Math.round(n * 100) / 100);
 }
 
 export async function GET(req: Request) {
@@ -121,7 +113,7 @@ export async function POST(req: Request) {
       createdById: user.id,
       startDate: body.startDate ? new Date(String(body.startDate)) : null,
       targetDate: body.targetDate ? new Date(String(body.targetDate)) : null,
-      estimatedHours: parseHours(body.estimatedHours),
+      estimatedHours: parseEstimatedHours(body.estimatedHours),
     },
     include: INCLUDE,
   });

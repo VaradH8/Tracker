@@ -1,9 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Layers } from "lucide-react";
 import { useDomain } from "@/lib/domain-store";
-import { DOMAIN_ROLE_LABELS, type DomainRole } from "@/lib/domain";
+import {
+  DOMAIN_ROLE_LABELS,
+  MAX_BULK_TASKS,
+  distributeEvenly,
+  type DomainRole,
+} from "@/lib/domain";
 import { DomainTaskList, type DomainTask } from "@/components/DomainTaskList";
 import { ConfirmButton } from "@/components/ConfirmButton";
 
@@ -270,6 +275,182 @@ function ProjectHeader({
   );
 }
 
+/** Create a run of like-for-like tasks ("20 supports") and let the server
+ *  spread them evenly over the people picked here — 20 across 4 is 5 each. */
+function BulkAddTasks({
+  projectId,
+  assignable,
+  onCancel,
+  onCreated,
+}: {
+  projectId: number;
+  assignable: Person[];
+  onCancel: () => void;
+  onCreated: () => void;
+}) {
+  const [prefix, setPrefix] = useState("");
+  const [count, setCount] = useState("");
+  const [picked, setPicked] = useState<string[]>([]);
+  const [estHours, setEstHours] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [targetDate, setTargetDate] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const n = Number(count);
+  const validCount = Number.isInteger(n) && n >= 1 && n <= MAX_BULK_TASKS;
+
+  // Same round-robin the server runs, so the preview can't disagree with
+  // what actually gets created.
+  const spread = validCount ? distributeEvenly(n, picked) : [];
+  const previewFor = (id: string) => spread.filter((a) => a === id).length;
+
+  function toggle(id: string) {
+    setPicked((ids) =>
+      ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id],
+    );
+  }
+
+  async function submit() {
+    setError(null);
+    setBusy(true);
+    const res = await fetch("/api/domain/tasks/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId,
+        titlePrefix: prefix,
+        count: n,
+        assigneeIds: picked,
+        estimatedHours: estHours || undefined,
+        startDate: startDate || undefined,
+        targetDate: targetDate || undefined,
+      }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setError((await res.json()).error ?? "Couldn't create the tasks.");
+      return;
+    }
+    onCreated();
+  }
+
+  return (
+    <div className="card p-4">
+      <div className="grid grid-cols-[1fr_110px] gap-2 mb-2">
+        <input
+          autoFocus
+          value={prefix}
+          onChange={(e) => setPrefix(e.target.value)}
+          placeholder="Batch name, e.g. Support or Cable"
+          className="px-3 py-2 rounded border border-ink-200 text-sm"
+        />
+        <input
+          type="number"
+          min="1"
+          max={MAX_BULK_TASKS}
+          value={count}
+          onChange={(e) => setCount(e.target.value)}
+          placeholder="How many"
+          className="px-3 py-2 rounded border border-ink-200 text-sm"
+        />
+      </div>
+      {prefix.trim() && validCount && (
+        <p className="text-xs text-ink-500 mb-3">
+          Creates {n} tasks: {prefix.trim()} 1 … {prefix.trim()} {n}
+        </p>
+      )}
+
+      <label className="block text-[11px] text-ink-500 mb-1">
+        Split evenly across
+      </label>
+      {assignable.length === 0 ? (
+        <p className="text-xs text-ink-400 italic mb-2">
+          No one is available to take these on yet.
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {assignable.map((p) => {
+            const on = picked.includes(p.id);
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => toggle(p.id)}
+                aria-pressed={on}
+                className={`px-2.5 py-1 rounded-pill text-xs font-medium border transition ${
+                  on
+                    ? "bg-brand-blueBg text-brand-blue border-brand-blue"
+                    : "bg-white text-ink-600 border-ink-200 hover:bg-ink-100"
+                }`}
+              >
+                {p.name}
+                {on && validCount ? ` · ${previewFor(p.id)}` : ""}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {picked.length === 0 && (
+        <p className="text-xs text-ink-400 italic mb-3">
+          Pick nobody and the tasks are created unassigned.
+        </p>
+      )}
+
+      <div className="grid grid-cols-3 gap-2 mb-2">
+        <div>
+          <label className="block text-[11px] text-ink-500 mb-1">
+            Hours per task
+          </label>
+          <input
+            type="number"
+            step="0.5"
+            min="0"
+            value={estHours}
+            onChange={(e) => setEstHours(e.target.value)}
+            placeholder="Optional"
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-[11px] text-ink-500 mb-1">Start date</label>
+          <input
+            type="date"
+            value={startDate}
+            max={targetDate || undefined}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-[11px] text-ink-500 mb-1">Deadline</label>
+          <input
+            type="date"
+            value={targetDate}
+            min={startDate || undefined}
+            onChange={(e) => setTargetDate(e.target.value)}
+            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+          />
+        </div>
+      </div>
+
+      {error && <p className="text-xs text-brand-redText mb-2">{error}</p>}
+      <div className="flex justify-end gap-2">
+        <button onClick={onCancel} className="btn-ghost">
+          Cancel
+        </button>
+        <button
+          onClick={submit}
+          disabled={!prefix.trim() || !validCount || busy}
+          className="btn-primary"
+        >
+          {busy ? "Creating…" : `Create ${validCount ? n : ""} tasks`}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ProjectTasks({
   projectId,
   people,
@@ -283,6 +464,7 @@ function ProjectTasks({
 }) {
   const [tasks, setTasks] = useState<DomainTask[]>([]);
   const [adding, setAdding] = useState(false);
+  const [bulking, setBulking] = useState(false);
   const [title, setTitle] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -409,10 +591,26 @@ function ProjectTasks({
                 </button>
               </div>
             </div>
+          ) : bulking ? (
+            <BulkAddTasks
+              projectId={projectId}
+              assignable={assignable}
+              onCancel={() => setBulking(false)}
+              onCreated={() => {
+                setBulking(false);
+                void load();
+                onTaskChange();
+              }}
+            />
           ) : (
-            <button onClick={() => setAdding(true)} className="btn-primary">
-              <Plus size={16} className="mr-1.5" /> Add task
-            </button>
+            <div className="flex gap-2">
+              <button onClick={() => setAdding(true)} className="btn-primary">
+                <Plus size={16} className="mr-1.5" /> Add task
+              </button>
+              <button onClick={() => setBulking(true)} className="btn-ghost">
+                <Layers size={16} className="mr-1.5" /> Bulk add &amp; split
+              </button>
+            </div>
           )}
         </div>
       )}
