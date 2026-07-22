@@ -25,6 +25,32 @@ export const DOMAIN_ROLE_LABELS: Record<DomainRole, string> = {
  *  appear in the resource-availability view. */
 export const WORKING_ROLES: DomainRole[] = ["TeamLead", "SME", "Actionee"];
 
+/** Ceiling on a single bulk-create request, so one typo in the quantity
+ *  box can't spawn thousands of tasks. */
+export const MAX_BULK_TASKS = 200;
+
+/** Spread `count` items across `assignees` by round-robin, so 20 items
+ *  over 4 people is 5 each and 22 is 6,6,5,5 — the earlier names in the
+ *  list absorb the remainder. Returns one assignee per item, or all nulls
+ *  when nobody was picked (the tasks land unassigned). */
+export function distributeEvenly<T>(count: number, assignees: T[]): (T | null)[] {
+  if (assignees.length === 0) return Array<T | null>(count).fill(null);
+  return Array.from({ length: count }, (_, i) => assignees[i % assignees.length]);
+}
+
+/** Titles for a bulk batch: "Support" x 20 becomes "Support 1" … "Support 20". */
+export function bulkTaskTitles(prefix: string, count: number): string[] {
+  return Array.from({ length: count }, (_, i) => `${prefix} ${i + 1}`);
+}
+
+/** Parse an estimated-hours value: a positive number, capped at a sane
+ *  ceiling, or null. */
+export function parseEstimatedHours(raw: unknown): number | null {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.min(1000, Math.round(n * 100) / 100);
+}
+
 export type DomainTaskStatus = "To Do" | "In Progress" | "Done";
 export const DOMAIN_TASK_STATUSES: DomainTaskStatus[] = [
   "To Do",

@@ -26,6 +26,7 @@ vi.mock("@/lib/domain-auth", () => ({
 
 import { requireDomainUser } from "@/lib/domain-auth";
 import { prisma } from "@/lib/db";
+import { POST as bulkTasksPOST } from "@/app/api/domain/tasks/bulk/route";
 import { GET as availabilityGET } from "@/app/api/domain/availability/route";
 import { GET as kpisGET } from "@/app/api/domain/kpis/route";
 import { POST as usersPOST } from "@/app/api/domain/projects/route";
@@ -122,5 +123,27 @@ describe("domain route role gates", () => {
   it("user delete: 403 for a Team Lead (admin only)", async () => {
     vi.mocked(requireDomainUser).mockResolvedValue(actor("TeamLead"));
     expect((await userDELETE(delReq(), params("u-x"))).status).toBe(403);
+  });
+
+  it("bulk task create: 403 for an Actionee (managers only)", async () => {
+    vi.mocked(requireDomainUser).mockResolvedValue(actor("Actionee"));
+    const req = new Request("http://test/api/domain/tasks/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: 1, titlePrefix: "Support", count: 20 }),
+    });
+    expect((await bulkTasksPOST(req)).status).toBe(403);
+  });
+
+  it("bulk task create: 401 when no session", async () => {
+    vi.mocked(requireDomainUser).mockResolvedValue(
+      NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    );
+    const req = new Request("http://test/api/domain/tasks/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: 1, titlePrefix: "Support", count: 20 }),
+    });
+    expect((await bulkTasksPOST(req)).status).toBe(401);
   });
 });
