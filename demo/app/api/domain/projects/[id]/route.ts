@@ -60,8 +60,43 @@ export async function PATCH(
   if (typeof body.description === "string" || body.description === null) {
     data.description = body.description ? String(body.description).trim() : null;
   }
+
+  // Forecast inputs. Each is independently clearable with null, so a Lead
+  // can drop a handover date they set by mistake.
+  for (const field of ["startDate", "handoverDate"] as const) {
+    if (body[field] === undefined) continue;
+    if (body[field] === null || body[field] === "") {
+      data[field] = null;
+      continue;
+    }
+    const d = new Date(String(body[field]));
+    if (Number.isNaN(d.getTime())) {
+      return NextResponse.json({ error: `Invalid ${field}.` }, { status: 400 });
+    }
+    data[field] = d;
+  }
+  if (body.totalTags !== undefined) {
+    const tags = Number(body.totalTags);
+    if (!Number.isInteger(tags) || tags < 0) {
+      return NextResponse.json(
+        { error: "Total tags must be a whole number of 0 or more." },
+        { status: 400 },
+      );
+    }
+    data.totalTags = tags;
+  }
+
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
+  }
+
+  const start = (data.startDate as Date | null | undefined) ?? undefined;
+  const handover = (data.handoverDate as Date | null | undefined) ?? undefined;
+  if (start && handover && handover < start) {
+    return NextResponse.json(
+      { error: "Handover can't fall before the project starts." },
+      { status: 400 },
+    );
   }
   const updated = await prisma.domainProject.update({
     where: { id },

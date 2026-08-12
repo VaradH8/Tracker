@@ -27,14 +27,15 @@ function serialize(u: {
   };
 }
 
-/** Admin sees the full roster; everyone else gets the lightweight list of
- *  active people (id, name, role) needed to assign tasks. */
+/** Admins and Leads see the full roster — Leads manage their own team's
+ *  members. Everyone else gets the lightweight list of active people
+ *  (id, name, role) needed to assign tasks. */
 export async function GET() {
   const userOrResp = await requireDomainUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
   const user = userOrResp;
 
-  if (user.role !== "Admin") {
+  if (user.role !== "Admin" && user.role !== "Lead") {
     const roster = await prisma.domainUser.findMany({
       where: { isActive: true },
       orderBy: { name: "asc" },
@@ -49,15 +50,27 @@ export async function GET() {
   return NextResponse.json({ users: users.map(serialize) });
 }
 
+/**
+ * Add a member. Leads can do this as well as Admins — they're the ones
+ * building out their own team — but only an Admin can mint another Admin
+ * or Lead, so a Lead can't promote their way up.
+ */
 export async function POST(req: Request) {
   const userOrResp = await requireDomainUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
-  const forbidden = requireDomainRole(userOrResp, ["Admin"]);
+  const actor = userOrResp;
+  const forbidden = requireDomainRole(actor, ["Admin", "Lead"]);
   if (forbidden) return forbidden;
 
   const body = await req.json().catch(() => ({}));
   const roleInput = String(body.role ?? "Actionee") as DomainRole;
   const role = DOMAIN_ROLES.includes(roleInput) ? roleInput : "Actionee";
+  if (actor.role !== "Admin" && (role === "Admin" || role === "Lead")) {
+    return NextResponse.json(
+      { error: "Only an Admin can add Admins or Leads." },
+      { status: 403 },
+    );
+  }
   const r = await createDomainAccount({
     name: String(body.name ?? ""),
     email: String(body.email ?? ""),

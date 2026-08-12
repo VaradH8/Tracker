@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutGrid, FolderKanban, ClipboardList, Users, Gauge, BarChart3, LogOut, KeyRound } from "lucide-react";
+import { LayoutGrid, FolderKanban, ClipboardList, Users, Gauge, BarChart3, LogOut, KeyRound, TrendingUp, Tags, CheckSquare } from "lucide-react";
 import { useDomain } from "@/lib/domain-store";
 import { DOMAIN_ROLE_LABELS, type DomainRole } from "@/lib/domain";
 import type { ReactNode } from "react";
@@ -14,13 +14,20 @@ type NavItem = {
   roles: DomainRole[];
 };
 
+const WORKERS: DomainRole[] = ["TeamLead", "SME", "Actionee"];
+const EVERYONE: DomainRole[] = ["Admin", "Lead", ...WORKERS];
+
 const NAV: NavItem[] = [
-  { href: "/domain", label: "Dashboard", icon: LayoutGrid, roles: ["Admin", "Lead", "TeamLead", "Actionee"] },
-  { href: "/domain/projects", label: "Projects", icon: FolderKanban, roles: ["Admin", "Lead", "TeamLead", "Actionee"] },
-  { href: "/domain/worklog", label: "Work log", icon: ClipboardList, roles: ["Admin", "Lead", "TeamLead", "Actionee"] },
+  { href: "/domain", label: "Dashboard", icon: LayoutGrid, roles: EVERYONE },
+  { href: "/domain/projects", label: "Projects", icon: FolderKanban, roles: EVERYONE },
+  { href: "/domain/my-tags", label: "My tags", icon: Tags, roles: WORKERS },
+  { href: "/domain/worklog", label: "Work log", icon: ClipboardList, roles: EVERYONE },
+  { href: "/domain/approvals", label: "Approvals", icon: CheckSquare, roles: ["Admin", "Lead"] },
+  { href: "/domain/forecast", label: "Forecast", icon: TrendingUp, roles: ["Admin", "Lead"] },
   { href: "/domain/availability", label: "Availability", icon: Gauge, roles: ["Admin", "Lead"] },
   { href: "/domain/kpis", label: "KPIs", icon: BarChart3, roles: ["Admin"] },
-  { href: "/domain/users", label: "Users", icon: Users, roles: ["Admin"] },
+  // Leads add members to their own team; only an Admin can create Admins or Leads.
+  { href: "/domain/users", label: "Users", icon: Users, roles: ["Admin", "Lead"] },
 ];
 
 export function DomainShell({ children }: { children: ReactNode }) {

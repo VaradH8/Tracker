@@ -348,6 +348,13 @@ model DomainUser {
   tasksAssigned DomainTask[]    @relation("DomainTaskAssignee")
   tasksCreated  DomainTask[]    @relation("DomainTaskCreator")
   workLogs      DomainWorkLog[]
+
+  allocations         DomainAllocation[]    @relation("DomainAllocationUser")
+  allocationsCreated  DomainAllocation[]    @relation("DomainAllocationCreator")
+  tagAssignments      DomainTagAssignment[] @relation("DomainTagAssignee")
+  tagAssignmentsMade  DomainTagAssignment[] @relation("DomainTagAssignmentCreator")
+  tagSubmissions      DomainTagSubmission[] @relation("DomainTagSubmitter")
+  tagReviews          DomainTagSubmission[] @relation("DomainTagReviewer")
 }
 
 model DomainSession {
@@ -369,10 +376,122 @@ model DomainProject {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
+  // Forecast inputs. totalTags is the whole deliverable for the project;
+  // handoverDate is the date it's promised to the client. Both optional so
+  // projects created before the forecast feature keep working.
+  startDate    DateTime?
+  handoverDate DateTime?
+  totalTags    Int       @default(0)
+
   tasks    DomainTask[]
   workLogs DomainWorkLog[]
 
+  divisions      DomainProjectDivision[]
+  allocations    DomainAllocation[]
+  tagAssignments DomainTagAssignment[]
+
   @@index([ownerId])
+}
+
+/// A discipline a project's tags belong to (Electrical, Piping, …). Global
+/// catalogue so the same name means the same thing across projects; Leads
+/// attach the ones a project actually uses via DomainProjectDivision.
+model DomainDivision {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  projects       DomainProjectDivision[]
+  tagAssignments DomainTagAssignment[]
+}
+
+/// Join between a project and a division it uses, carrying that division's
+/// share of the tag count.
+model DomainProjectDivision {
+  id         Int            @id @default(autoincrement())
+  projectId  Int
+  project    DomainProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  divisionId Int
+  division   DomainDivision @relation(fields: [divisionId], references: [id], onDelete: Cascade)
+  totalTags  Int            @default(0)
+  createdAt  DateTime       @default(now())
+
+  @@unique([projectId, divisionId])
+  @@index([divisionId])
+}
+
+/// A resource booked onto a project for a window of time. This is what the
+/// forecast reads to answer "who is free, and from when" and what raises
+/// the conflict prompt when the same person is booked twice over.
+model DomainAllocation {
+  id          Int           @id @default(autoincrement())
+  projectId   Int
+  project     DomainProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId      String
+  user        DomainUser    @relation("DomainAllocationUser", fields: [userId], references: [id], onDelete: Cascade)
+  startDate   DateTime
+  endDate     DateTime
+  /// Set when someone is let go of the project early — from this date they
+  /// count as available even though endDate hasn't arrived.
+  releasedAt  DateTime?
+  createdById String
+  createdBy   DomainUser    @relation("DomainAllocationCreator", fields: [createdById], references: [id])
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@unique([projectId, userId])
+  @@index([userId])
+}
+
+/// "100 Electrical tags on Project X to Mukesh." One row per
+/// project+division+person; deliveredCount only ever moves on Lead approval.
+model DomainTagAssignment {
+  id             Int             @id @default(autoincrement())
+  projectId      Int
+  project        DomainProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  divisionId     Int?
+  division       DomainDivision? @relation(fields: [divisionId], references: [id], onDelete: SetNull)
+  assigneeId     String
+  assignee       DomainUser      @relation("DomainTagAssignee", fields: [assigneeId], references: [id], onDelete: Cascade)
+  assignedCount  Int
+  deliveredCount Int             @default(0)
+  createdById    String
+  createdBy      DomainUser      @relation("DomainTagAssignmentCreator", fields: [createdById], references: [id])
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  submissions DomainTagSubmission[]
+
+  @@index([projectId])
+  @@index([assigneeId])
+  @@index([divisionId])
+}
+
+/// An actionee's end-of-day "I finished N tags", pending a Lead's review.
+/// approvedCount is what the Lead actually signed off, which may be less
+/// than the claimed completedCount.
+model DomainTagSubmission {
+  id             Int                 @id @default(autoincrement())
+  assignmentId   Int
+  assignment     DomainTagAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  /// The IST day the work is claimed for (midnight UTC of that date).
+  date           DateTime
+  completedCount Int
+  status         String              @default("Pending") // Pending | Approved | Rejected
+  approvedCount  Int?
+  note           String?
+  submittedById  String
+  submittedBy    DomainUser          @relation("DomainTagSubmitter", fields: [submittedById], references: [id], onDelete: Cascade)
+  reviewedById   String?
+  reviewedBy     DomainUser?         @relation("DomainTagReviewer", fields: [reviewedById], references: [id])
+  reviewedAt     DateTime?
+  reviewNote     String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@index([assignmentId, date])
+  @@index([status])
+  @@index([submittedById])
 }
 
 model DomainTask {

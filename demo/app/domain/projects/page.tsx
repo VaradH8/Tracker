@@ -11,6 +11,10 @@ import {
 } from "@/lib/domain";
 import { DomainTaskList, type DomainTask } from "@/components/DomainTaskList";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import {
+  CreateProjectForm,
+  TagAssignmentPanel,
+} from "@/components/DomainProjectForecast";
 
 type Project = {
   id: number;
@@ -19,6 +23,10 @@ type Project = {
   owner: string;
   ownerId: string;
   taskCount: number;
+  handoverDate?: string | null;
+  totalTags?: number;
+  divisions?: { id: number; name: string; totalTags: number }[];
+  resources?: { id: string; name: string; startDate: string; endDate: string }[];
 };
 
 type Person = { id: string; name: string; role: string };
@@ -29,9 +37,6 @@ export default function DomainProjectsPage() {
   const [people, setPeople] = useState<Person[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
-  const [name, setName] = useState("");
-  const [desc, setDesc] = useState("");
-  const [error, setError] = useState<string | null>(null);
 
   const canCreateProject =
     current?.role === "Admin" || current?.role === "Lead";
@@ -53,22 +58,6 @@ export default function DomainProjectsPage() {
       .catch(() => null);
   }, [loadProjects]);
 
-  async function createProject() {
-    setError(null);
-    const res = await fetch("/api/domain/projects", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, description: desc }),
-    });
-    if (!res.ok) {
-      setError((await res.json()).error ?? "Couldn't create project.");
-      return;
-    }
-    setName("");
-    setDesc("");
-    setCreating(false);
-    void loadProjects();
-  }
 
   return (
     <div>
@@ -89,35 +78,14 @@ export default function DomainProjectsPage() {
       </div>
 
       {creating && (
-        <div className="card p-4 mb-6">
-          <input
-            autoFocus
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Project name"
-            className="w-full px-3 py-2 mb-2 rounded border border-ink-200 text-sm"
-          />
-          <textarea
-            value={desc}
-            onChange={(e) => setDesc(e.target.value)}
-            placeholder="Description (optional)"
-            rows={2}
-            className="w-full px-3 py-2 mb-2 rounded border border-ink-200 text-sm"
-          />
-          {error && <p className="text-xs text-brand-redText mb-2">{error}</p>}
-          <div className="flex justify-end gap-2">
-            <button onClick={() => setCreating(false)} className="btn-ghost">
-              Cancel
-            </button>
-            <button
-              onClick={createProject}
-              disabled={!name.trim()}
-              className="btn-primary"
-            >
-              Create
-            </button>
-          </div>
-        </div>
+        <CreateProjectForm
+          people={people}
+          onCancel={() => setCreating(false)}
+          onCreated={() => {
+            setCreating(false);
+            void loadProjects();
+          }}
+        />
       )}
 
       <div className="grid lg:grid-cols-[320px_1fr] gap-6">
@@ -162,6 +130,12 @@ export default function DomainProjectsPage() {
                       setSelected(null);
                       void loadProjects();
                     }}
+                  />
+                  <TagAssignmentPanel
+                    project={project}
+                    people={people}
+                    canAssign={canAssign}
+                    onChanged={loadProjects}
                   />
                   <ProjectTasks
                     projectId={selected}
