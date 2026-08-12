@@ -51,6 +51,46 @@ export function parseEstimatedHours(raw: unknown): number | null {
   return Math.min(1000, Math.round(n * 100) / 100);
 }
 
+/**
+ * A project's divisions can't promise more tags than the project has.
+ * Returns an error message when they do, else null.
+ *
+ * A project total of 0 means "not set yet" — we can't police a budget that
+ * hasn't been declared, so the divisions are left alone.
+ */
+export function divisionTagsIssue(
+  projectTotalTags: number,
+  divisionTags: number[],
+): string | null {
+  if (!Number.isFinite(projectTotalTags) || projectTotalTags <= 0) return null;
+  const sum = divisionTags.reduce((a, b) => a + (Number(b) || 0), 0);
+  if (sum > projectTotalTags) {
+    return `Division tags add up to ${sum}, which is more than the project's ${projectTotalTags}. Reduce the divisions or raise the project total.`;
+  }
+  return null;
+}
+
+/**
+ * Tags handed to people can't exceed what the project (or the division,
+ * where one applies) actually has. `cap` is the relevant ceiling and
+ * `alreadyAssigned` what's already been handed out against it.
+ */
+export function assignmentCapIssue(
+  cap: number,
+  alreadyAssigned: number,
+  requested: number,
+  label: string,
+): string | null {
+  if (!Number.isFinite(cap) || cap <= 0) return null;
+  const remaining = cap - alreadyAssigned;
+  if (requested > remaining) {
+    return remaining <= 0
+      ? `All ${cap} ${label} tags are already assigned.`
+      : `Only ${remaining} of the ${cap} ${label} tags are left to assign.`;
+  }
+  return null;
+}
+
 export type DomainTaskStatus = "To Do" | "In Progress" | "Done";
 export const DOMAIN_TASK_STATUSES: DomainTaskStatus[] = [
   "To Do",

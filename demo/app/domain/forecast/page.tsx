@@ -329,6 +329,8 @@ type SimResult = {
     rate: number;
     fullRate: number;
     concurrentProjects: number;
+    measuredRate: number | null;
+    overridden: boolean;
     usingDefaultRate: boolean;
   }[];
   conflicts: {
@@ -344,7 +346,11 @@ function Simulator({ onDone }: { onDone: () => void }) {
   const [people, setPeople] = useState<{ id: string; name: string; role: string }[]>([]);
   const [picked, setPicked] = useState<string[]>([]);
   const [totalTags, setTotalTags] = useState("");
+  const [startDate, setStartDate] = useState("");
   const [handoverDate, setHandoverDate] = useState("");
+  /** Per-person tags/day the Lead wants to assume, keyed by user id.
+   *  Blank means "use their measured rate". */
+  const [rateOverrides, setRateOverrides] = useState<Record<string, string>>({});
   const [result, setResult] = useState<SimResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -372,7 +378,13 @@ function Simulator({ onDone }: { onDone: () => void }) {
       body: JSON.stringify({
         totalTags: Number(totalTags),
         resourceIds: picked,
+        startDate: startDate || null,
         handoverDate: handoverDate || null,
+        rateOverrides: Object.fromEntries(
+          Object.entries(rateOverrides)
+            .filter(([id, v]) => picked.includes(id) && Number(v) > 0)
+            .map(([id, v]) => [id, Number(v)]),
+        ),
       }),
     });
     const body = await res.json().catch(() => ({}));
@@ -420,6 +432,15 @@ function Simulator({ onDone }: { onDone: () => void }) {
           />
         </label>
         <label className="text-sm">
+          <span className="block text-ink-700 mb-1">Start date</span>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="w-full border border-ink-200 rounded px-2 py-1.5"
+          />
+        </label>
+        <label className="text-sm">
           <span className="block text-ink-700 mb-1">Handover date</span>
           <input
             type="date"
@@ -428,30 +449,51 @@ function Simulator({ onDone }: { onDone: () => void }) {
             className="w-full border border-ink-200 rounded px-2 py-1.5"
           />
         </label>
-        <div className="text-sm">
-          <span className="block text-ink-700 mb-1">Resources</span>
-          <div className="border border-ink-200 rounded max-h-28 overflow-y-auto p-1">
-            {people.length === 0 ? (
-              <p className="text-xs text-ink-400 p-1">No resources available.</p>
-            ) : (
-              people.map((p) => (
-                <label key={p.id} className="flex items-center gap-2 px-1 py-0.5 text-sm">
+      </div>
+
+      <div className="text-sm mt-3">
+        <span className="block text-ink-700 mb-1">
+          Resources — tick who&apos;s on it, and override their tags/day if you
+          want to test a different pace
+        </span>
+        <div className="border border-ink-200 rounded max-h-44 overflow-y-auto divide-y divide-ink-100">
+          {people.length === 0 ? (
+            <p className="text-xs text-ink-400 p-2">No resources available.</p>
+          ) : (
+            people.map((p) => {
+              const on = picked.includes(p.id);
+              return (
+                <div key={p.id} className="flex items-center gap-2 px-2 py-1.5">
+                  <label className="flex items-center gap-2 flex-1 min-w-0">
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      onChange={(e) =>
+                        setPicked((prev) =>
+                          e.target.checked
+                            ? [...prev, p.id]
+                            : prev.filter((id) => id !== p.id),
+                        )
+                      }
+                    />
+                    <span className="truncate">{p.name}</span>
+                  </label>
                   <input
-                    type="checkbox"
-                    checked={picked.includes(p.id)}
+                    type="number"
+                    min={1}
+                    disabled={!on}
+                    value={rateOverrides[p.id] ?? ""}
                     onChange={(e) =>
-                      setPicked((prev) =>
-                        e.target.checked
-                          ? [...prev, p.id]
-                          : prev.filter((id) => id !== p.id),
-                      )
+                      setRateOverrides((prev) => ({ ...prev, [p.id]: e.target.value }))
                     }
+                    placeholder="tags/day"
+                    title="Leave blank to use their measured rate"
+                    className="w-24 border border-ink-200 rounded px-2 py-1 text-sm disabled:bg-ink-50 disabled:text-ink-400"
                   />
-                  {p.name}
-                </label>
-              ))
-            )}
-          </div>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 
@@ -478,7 +520,13 @@ function Simulator({ onDone }: { onDone: () => void }) {
             {result.resources
               .map(
                 (r) =>
-                  `${r.name} ${r.rate}/day${r.usingDefaultRate ? " (default)" : ""}${
+                  `${r.name} ${r.rate}/day${
+                    r.overridden
+                      ? ` (you set ${r.fullRate}${r.measuredRate ? `, measured ${r.measuredRate}` : ""})`
+                      : r.usingDefaultRate
+                        ? " (default)"
+                        : ""
+                  }${
                     r.concurrentProjects > 1
                       ? ` — shared across ${r.concurrentProjects} projects`
                       : ""

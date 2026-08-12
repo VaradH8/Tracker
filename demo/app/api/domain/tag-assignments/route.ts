@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
-import { WORKING_ROLES, type DomainRole } from "@/lib/domain";
+import { WORKING_ROLES, assignmentCapIssue, type DomainRole } from "@/lib/domain";
+import { toISODate } from "@/lib/forecast";
 
 /**
  * "100 Electrical tags on Project X to Mukesh."
@@ -15,7 +16,9 @@ import { WORKING_ROLES, type DomainRole } from "@/lib/domain";
  */
 
 const INCLUDE = {
-  project: { select: { id: true, name: true, handoverDate: true } },
+  project: {
+    select: { id: true, name: true, handoverDate: true, client: true },
+  },
   division: { select: { id: true, name: true } },
   assignee: { select: { id: true, name: true, role: true } },
   createdBy: { select: { id: true, name: true } },
@@ -25,8 +28,15 @@ type Row = {
   id: number;
   assignedCount: number;
   deliveredCount: number;
+  startDate: Date | null;
+  targetDate: Date | null;
   createdAt: Date;
-  project: { id: number; name: string; handoverDate: Date | null };
+  project: {
+    id: number;
+    name: string;
+    handoverDate: Date | null;
+    client: string | null;
+  };
   division: { id: number; name: string } | null;
   assignee: { id: string; name: string; role: string };
   createdBy: { id: string; name: string };
@@ -38,6 +48,7 @@ function serialize(a: Row, pendingTags = 0) {
     id: a.id,
     projectId: a.project.id,
     projectName: a.project.name,
+    client: a.project.client,
     handoverDate: a.project.handoverDate
       ? a.project.handoverDate.toISOString().slice(0, 10)
       : null,
@@ -49,6 +60,8 @@ function serialize(a: Row, pendingTags = 0) {
     deliveredCount: a.deliveredCount,
     remainingCount: remaining,
     pendingCount: pendingTags,
+    startDate: a.startDate ? toISODate(a.startDate) : null,
+    targetDate: a.targetDate ? toISODate(a.targetDate) : null,
     createdBy: a.createdBy.name,
     createdAt: a.createdAt.toISOString(),
   };
@@ -128,7 +141,7 @@ export async function POST(req: Request) {
   const [project, assignee] = await Promise.all([
     prisma.domainProject.findUnique({
       where: { id: projectId },
-      include: { divisions: { select: { divisionId: true } } },
+      include: { divisions: { select: { divisionId: true, totalTags: true } } },
     }),
     prisma.domainUser.findUnique({ where: { id: assigneeId } }),
   ]);
@@ -167,6 +180,40 @@ export async function POST(req: Request) {
     );
   }
 
+  const startDate = body.startDate ? new Date(String(body.startDate)) : null;
+  const targetDate = body.targetDate ? new Date(String(body.targetDate)) : null;
+  if (startDate && Number.isNaN(startDate.getTime())) {
+    return NextResponse.json({ error: "Invalid start date." }, { status: 400 });
+  }
+  if (targetDate && Number.isNaN(targetDate.getTime())) {
+    return NextResponse.json({ error: "Invalid target date." }, { status: 400 });
+  }
+  if (startDate && targetDate && targetDate < startDate) {
+    return NextResponse.json(
+      { error: "The target date can't fall before the start date." },
+      { status: 400 },
+    );
+  }
+
+  // You can't hand out more tags than the division (or the project, when
+  // there are no divisions) actually holds.
+  const siblings = await prisma.domainTagAssignment.findMany({
+    where: { projectId, divisionId },
+    select: { assignedCount: true },
+  });
+  const alreadyAssigned = siblings.reduce((s, a) => s + a.assignedCount, 0);
+  const cap =
+    divisionId === null
+      ? project.totalTags
+      : (project.divisions.find((d) => d.divisionId === divisionId)?.totalTags ?? 0);
+  const capIssue = assignmentCapIssue(
+    cap,
+    alreadyAssigned,
+    assignedCount,
+    divisionId === null ? "project" : "division",
+  );
+  if (capIssue) return NextResponse.json({ error: capIssue }, { status: 400 });
+
   // Same project + division + person tops up the existing row rather than
   // creating a second one, so "another 50 tags to Mukesh" reads as 150.
   const existing = await prisma.domainTagAssignment.findFirst({
@@ -176,7 +223,12 @@ export async function POST(req: Request) {
   const assignment = existing
     ? await prisma.domainTagAssignment.update({
         where: { id: existing.id },
-        data: { assignedCount: existing.assignedCount + assignedCount },
+        data: {
+          assignedCount: existing.assignedCount + assignedCount,
+          // Dates given on a top-up refresh the batch; omitted, they stand.
+          ...(startDate ? { startDate } : {}),
+          ...(targetDate ? { targetDate } : {}),
+        },
         include: INCLUDE,
       })
     : await prisma.domainTagAssignment.create({
@@ -185,6 +237,8 @@ export async function POST(req: Request) {
           divisionId,
           assigneeId,
           assignedCount,
+          startDate,
+          targetDate,
           createdById: user.id,
         },
         include: INCLUDE,

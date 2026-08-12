@@ -13,6 +13,7 @@ import { DomainTaskList, type DomainTask } from "@/components/DomainTaskList";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import {
   CreateProjectForm,
+  EditProjectForm,
   TagAssignmentPanel,
 } from "@/components/DomainProjectForecast";
 
@@ -23,8 +24,10 @@ type Project = {
   owner: string;
   ownerId: string;
   taskCount: number;
+  startDate?: string | null;
   handoverDate?: string | null;
   totalTags?: number;
+  client?: string | null;
   divisions?: { id: number; name: string; totalTags: number }[];
   resources?: { id: string; name: string; startDate: string; endDate: string }[];
 };
@@ -37,6 +40,7 @@ export default function DomainProjectsPage() {
   const [people, setPeople] = useState<Person[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
+  const [editingProject, setEditingProject] = useState<number | null>(null);
 
   const canCreateProject =
     current?.role === "Admin" || current?.role === "Lead";
@@ -125,12 +129,24 @@ export default function DomainProjectsPage() {
                   <ProjectHeader
                     project={project}
                     canManage={canManageProject}
-                    onRenamed={loadProjects}
+                    onEdit={() => setEditingProject(project.id)}
                     onDeleted={() => {
                       setSelected(null);
+                      setEditingProject(null);
                       void loadProjects();
                     }}
                   />
+                  {editingProject === project.id && (
+                    <EditProjectForm
+                      project={project}
+                      people={people}
+                      onCancel={() => setEditingProject(null)}
+                      onSaved={() => {
+                        setEditingProject(null);
+                        void loadProjects();
+                      }}
+                    />
+                  )}
                   <TagAssignmentPanel
                     project={project}
                     people={people}
@@ -156,63 +172,19 @@ export default function DomainProjectsPage() {
 function ProjectHeader({
   project,
   canManage,
-  onRenamed,
+  onEdit,
   onDeleted,
 }: {
   project: Project;
   canManage: boolean;
-  onRenamed: () => void;
+  onEdit: () => void;
   onDeleted: () => void;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(project.name);
-  const [desc, setDesc] = useState(project.description ?? "");
-
-  async function save() {
-    const res = await fetch(`/api/domain/projects/${project.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, description: desc }),
-    });
-    if (res.ok) {
-      setEditing(false);
-      onRenamed();
-    }
-  }
-
   async function remove() {
     const res = await fetch(`/api/domain/projects/${project.id}`, {
       method: "DELETE",
     });
     if (res.ok) onDeleted();
-  }
-
-  if (editing) {
-    return (
-      <div className="card p-4 mb-4">
-        <input
-          autoFocus
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="w-full px-3 py-2 mb-2 rounded border border-ink-200 text-sm"
-        />
-        <textarea
-          value={desc}
-          onChange={(e) => setDesc(e.target.value)}
-          rows={2}
-          placeholder="Description (optional)"
-          className="w-full px-3 py-2 mb-2 rounded border border-ink-200 text-sm"
-        />
-        <div className="flex justify-end gap-2">
-          <button onClick={() => setEditing(false)} className="btn-ghost">
-            Cancel
-          </button>
-          <button onClick={save} disabled={!name.trim()} className="btn-primary">
-            Save
-          </button>
-        </div>
-      </div>
-    );
   }
 
   return (
@@ -224,12 +196,17 @@ function ProjectHeader({
         {project.description && (
           <p className="text-sm text-ink-500 mt-0.5">{project.description}</p>
         )}
-        <p className="text-xs text-ink-400 mt-0.5">Owner {project.owner}</p>
+        <p className="text-xs text-ink-400 mt-0.5">
+          Owner {project.owner}
+          {project.client && ` · Client ${project.client}`}
+          {project.handoverDate && ` · Handover ${project.handoverDate}`}
+          {project.totalTags ? ` · ${project.totalTags} tags` : ""}
+        </p>
       </div>
       {canManage && (
         <div className="flex items-center gap-2 shrink-0">
           <button
-            onClick={() => setEditing(true)}
+            onClick={onEdit}
             className="p-1.5 rounded text-ink-500 hover:bg-ink-100"
             title="Edit project"
           >

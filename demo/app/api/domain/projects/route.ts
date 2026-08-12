@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
-import { WORKING_ROLES, type DomainRole } from "@/lib/domain";
+import { WORKING_ROLES, divisionTagsIssue, type DomainRole } from "@/lib/domain";
 import { allocationConflicts, projectForecasts } from "@/lib/domain-forecast";
 import { toISODate } from "@/lib/forecast";
 
@@ -22,6 +22,7 @@ type ProjectRow = {
   startDate: Date | null;
   handoverDate: Date | null;
   totalTags: number;
+  client: string | null;
   divisions: {
     divisionId: number;
     totalTags: number;
@@ -48,6 +49,7 @@ function serialize(p: ProjectRow) {
     startDate: p.startDate ? toISODate(p.startDate) : null,
     handoverDate: p.handoverDate ? toISODate(p.handoverDate) : null,
     totalTags: p.totalTags,
+    client: p.client,
     divisions: p.divisions.map((d) => ({
       id: d.division.id,
       name: d.division.name,
@@ -166,6 +168,15 @@ export async function POST(req: Request) {
     new Map(resolvedDivisions.map((d) => [d.divisionId, d])).values(),
   );
 
+  // The divisions can't promise more tags than the project has.
+  const budgetIssue = divisionTagsIssue(
+    totalTags,
+    dedupedDivisions.map((d) => d.totalTags),
+  );
+  if (budgetIssue) {
+    return NextResponse.json({ error: budgetIssue }, { status: 400 });
+  }
+
   // Resources to allocate. Bookings run for the project window; without a
   // handover date there's no window, so they're skipped with a note.
   const resourceIds: string[] = Array.isArray(body.resourceIds)
@@ -215,6 +226,10 @@ export async function POST(req: Request) {
       startDate,
       handoverDate,
       totalTags,
+      client:
+        typeof body.client === "string" && body.client.trim()
+          ? body.client.trim()
+          : null,
       divisions: dedupedDivisions.length
         ? { create: dedupedDivisions }
         : undefined,

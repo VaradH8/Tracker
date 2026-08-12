@@ -6,8 +6,11 @@ import { CheckCircle2, Clock } from "lucide-react";
 type Assignment = {
   id: number;
   projectName: string;
+  client: string | null;
   divisionName: string | null;
   handoverDate: string | null;
+  startDate: string | null;
+  targetDate: string | null;
   assignedCount: number;
   deliveredCount: number;
   remainingCount: number;
@@ -148,7 +151,9 @@ function AssignmentCard({ a, onSubmitted }: { a: Assignment; onSubmitted: () => 
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);
+  /** The count just submitted, echoed back so the actionee can see exactly
+   *  what went to their Lead rather than an empty box. */
+  const [justSubmitted, setJustSubmitted] = useState<number | null>(null);
 
   // What's left to claim once delivered and already-pending tags are taken off.
   const claimable = Math.max(0, a.assignedCount - a.deliveredCount - a.pendingCount);
@@ -171,9 +176,9 @@ function AssignmentCard({ a, onSubmitted }: { a: Assignment; onSubmitted: () => 
       setError(body.error ?? "Couldn't submit that.");
       return;
     }
+    setJustSubmitted(body.submission?.completedCount ?? Number(count));
     setCount("");
     setNote("");
-    setDone(true);
     onSubmitted();
   }
 
@@ -185,9 +190,15 @@ function AssignmentCard({ a, onSubmitted }: { a: Assignment; onSubmitted: () => 
         <div>
           <h3 className="font-heading font-semibold text-ink-900">{a.projectName}</h3>
           <p className="text-xs text-ink-500 mt-0.5">
+            {a.client ? `${a.client} · ` : ""}
             {a.divisionName ? `${a.divisionName} division · ` : ""}
             Handover {fmt(a.handoverDate)}
           </p>
+          {(a.startDate || a.targetDate) && (
+            <p className="text-xs text-ink-500 mt-0.5">
+              Your dates: {fmt(a.startDate)} → {fmt(a.targetDate)}
+            </p>
+          )}
         </div>
         <div className="text-right">
           <div className="text-lg font-heading font-semibold text-ink-900">
@@ -225,7 +236,7 @@ function AssignmentCard({ a, onSubmitted }: { a: Assignment; onSubmitted: () => 
               value={count}
               onChange={(e) => {
                 setCount(e.target.value);
-                setDone(false);
+                setJustSubmitted(null);
               }}
               placeholder={String(Math.min(claimable, 70))}
               className="w-28 border border-ink-200 rounded px-2 py-1.5"
@@ -250,9 +261,11 @@ function AssignmentCard({ a, onSubmitted }: { a: Assignment; onSubmitted: () => 
         </div>
       )}
 
-      {done && (
-        <p className="text-xs text-brand-greenText mt-2 inline-flex items-center gap-1">
-          <CheckCircle2 size={12} /> Sent to your Lead for approval.
+      {justSubmitted !== null && (
+        <p className="text-sm text-brand-greenText mt-2 inline-flex items-center gap-1.5">
+          <CheckCircle2 size={14} />
+          You submitted <strong>{justSubmitted} tag{justSubmitted === 1 ? "" : "s"}</strong> —
+          sent to your Lead for approval.
         </p>
       )}
       {error && <p className="text-sm text-brand-redText mt-2">{error}</p>}

@@ -88,6 +88,12 @@ function ReviewCard({ s, onReviewed }: { s: Submission; onReviewed: () => void }
   const [reviewNote, setReviewNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Default on whenever the Lead signs off a different number than was
+  // claimed — a silent haircut is the one outcome nobody should find out
+  // about by accident.
+  const [notify, setNotify] = useState(true);
+
+  const differs = Number(approved) !== s.completedCount;
 
   async function review(action: "approve" | "reject") {
     setBusy(true);
@@ -99,6 +105,7 @@ function ReviewCard({ s, onReviewed }: { s: Submission; onReviewed: () => void }
         action,
         approvedCount: action === "approve" ? Number(approved) : undefined,
         reviewNote: reviewNote || undefined,
+        notify,
       }),
     });
     const body = await res.json().catch(() => ({}));
@@ -166,6 +173,23 @@ function ReviewCard({ s, onReviewed }: { s: Submission; onReviewed: () => void }
         >
           <X size={14} /> Reject
         </button>
+      </div>
+
+      <div className="mt-2 flex items-center gap-2 flex-wrap">
+        <label className="flex items-center gap-1.5 text-xs text-ink-600">
+          <input
+            type="checkbox"
+            checked={notify}
+            onChange={(e) => setNotify(e.target.checked)}
+          />
+          Notify {s.assigneeName}
+        </label>
+        {differs && (
+          <span className="text-xs text-brand-yellowText">
+            You&apos;re approving {approved} of {s.completedCount} — worth telling
+            them why in the note.
+          </span>
+        )}
       </div>
 
       {error && <p className="text-sm text-brand-redText mt-2">{error}</p>}

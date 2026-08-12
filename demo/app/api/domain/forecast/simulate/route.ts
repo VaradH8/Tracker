@@ -74,9 +74,23 @@ export async function POST(req: Request) {
     : [];
   const clashesById = new Map(existing.map((e) => [e.id, e.clashes]));
 
+  // Per-person tags/day the Lead typed in, as { userId: rate }. An override
+  // beats the person's measured history — it's how you ask "what if Mukesh
+  // could do 40 a day?" A blank or invalid entry falls back to the
+  // measured rate.
+  const overrides: Record<string, unknown> =
+    body.rateOverrides && typeof body.rateOverrides === "object"
+      ? (body.rateOverrides as Record<string, unknown>)
+      : {};
+
   const resources = people.map((p) => {
     const own = rates.get(p.id) ?? null;
-    const fullRate = effectiveRate(own);
+    const rawOverride = Number(overrides[p.id]);
+    const override =
+      Number.isFinite(rawOverride) && rawOverride > 0
+        ? Math.round(rawOverride * 100) / 100
+        : null;
+    const fullRate = override ?? effectiveRate(own);
     // +1 for this hypothetical project itself.
     const concurrentProjects = (clashesById.get(p.id)?.length ?? 0) + 1;
     return {
@@ -86,7 +100,11 @@ export async function POST(req: Request) {
       rate: splitRate(fullRate, concurrentProjects),
       fullRate,
       concurrentProjects,
-      usingDefaultRate: own === null,
+      /** The rate their approved history actually supports, so a Lead can
+       *  see how far an override departs from reality. */
+      measuredRate: own,
+      overridden: override !== null,
+      usingDefaultRate: own === null && override === null,
     };
   });
 

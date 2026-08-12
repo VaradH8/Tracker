@@ -382,6 +382,10 @@ model DomainProject {
   startDate    DateTime?
   handoverDate DateTime?
   totalTags    Int       @default(0)
+  /// Who the work is for. A plain name, deliberately NOT a link to the
+  /// tracker's Client table — the Domain module stays self-contained.
+  /// Shown to actionees so they know whose work they're holding.
+  client       String?
 
   tasks    DomainTask[]
   workLogs DomainWorkLog[]
@@ -455,6 +459,11 @@ model DomainTagAssignment {
   assignee       DomainUser      @relation("DomainTagAssignee", fields: [assigneeId], references: [id], onDelete: Cascade)
   assignedCount  Int
   deliveredCount Int             @default(0)
+  /// When this batch of tags should be worked and finished by. Separate
+  /// from the project's own dates — one person's slice of a project often
+  /// runs to a tighter date than the handover.
+  startDate      DateTime?
+  targetDate     DateTime?
   createdById    String
   createdBy      DomainUser      @relation("DomainTagAssignmentCreator", fields: [createdById], references: [id])
   createdAt      DateTime        @default(now())

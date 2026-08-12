@@ -2,6 +2,65 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
 import { toISODate } from "@/lib/forecast";
+import { sendEmail } from "@/lib/mailer";
+
+/**
+ * Tell the actionee what a Lead decided about their submission. The
+ * EmailLog row is the record that we notified; the actual send is
+ * best-effort and no-ops when SMTP isn't configured, so review never
+ * fails because of mail. The note is also shown in-app on My tags, which
+ * is where most people will actually read it.
+ */
+async function notifyActionee(opts: {
+  toEmail: string;
+  actioneeName: string;
+  projectName: string;
+  divisionName: string | null;
+  date: string;
+  submitted: number;
+  approved: number;
+  outcome: "Approved" | "Rejected";
+  reviewerName: string;
+  reviewNote: string | null;
+}): Promise<void> {
+  const where = `${opts.projectName}${opts.divisionName ? ` · ${opts.divisionName}` : ""}`;
+  const headline =
+    opts.outcome === "Rejected"
+      ? `${opts.reviewerName} did not approve your ${opts.submitted} tag(s) on ${where}.`
+      : opts.approved === opts.submitted
+        ? `${opts.reviewerName} approved all ${opts.submitted} tag(s) on ${where}.`
+        : `${opts.reviewerName} approved ${opts.approved} of the ${opts.submitted} tag(s) you submitted on ${where}.`;
+
+  const body = [
+    `Hi ${opts.actioneeName},`,
+    "",
+    headline,
+    `Work date: ${opts.date}`,
+    opts.reviewNote ? `Note from your Lead: ${opts.reviewNote}` : null,
+    "",
+    "Open the Domain module to see your current tag position.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const subject =
+    opts.outcome === "Rejected"
+      ? `Tag submission not approved — ${where}`
+      : `Tag submission approved (${opts.approved}) — ${where}`;
+
+  // recipientId stays null: EmailLog links to the tracker's User table and
+  // this recipient is a DomainUser, a deliberately separate identity.
+  await prisma.emailLog.create({
+    data: {
+      recipientId: null,
+      toEmail: opts.toEmail,
+      subject,
+      body,
+      kind: "domain_tag_review",
+    },
+  });
+  await sendEmail({ to: opts.toEmail, subject, body });
+}
 
 /**
  * Lead review of a claimed tag count — the hinge the whole feature turns
@@ -41,7 +100,15 @@ export async function PATCH(
 
   const submission = await prisma.domainTagSubmission.findUnique({
     where: { id },
-    include: { assignment: true },
+    include: {
+      assignment: {
+        include: {
+          project: { select: { name: true } },
+          division: { select: { name: true } },
+          assignee: { select: { name: true, email: true } },
+        },
+      },
+    },
   });
   if (!submission) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -58,6 +125,11 @@ export async function PATCH(
       ? body.reviewNote.trim()
       : null;
 
+  // Whether to tell the actionee. Defaults to on whenever the decision
+  // differs from what they claimed — a silent haircut is the one outcome
+  // nobody should discover by accident. `notify: false` opts out.
+  const notifyRequested = body.notify;
+
   if (action === "reject") {
     const updated = await prisma.domainTagSubmission.update({
       where: { id },
@@ -70,6 +142,24 @@ export async function PATCH(
       },
       include: { assignment: true },
     });
+
+    let notified = false;
+    if (notifyRequested !== false) {
+      await notifyActionee({
+        toEmail: submission.assignment.assignee.email,
+        actioneeName: submission.assignment.assignee.name,
+        projectName: submission.assignment.project.name,
+        divisionName: submission.assignment.division?.name ?? null,
+        date: toISODate(submission.date),
+        submitted: submission.completedCount,
+        approved: 0,
+        outcome: "Rejected",
+        reviewerName: user.name,
+        reviewNote,
+      });
+      notified = true;
+    }
+
     return NextResponse.json({
       submission: {
         id: updated.id,
@@ -78,6 +168,7 @@ export async function PATCH(
         date: toISODate(updated.date),
         deliveredCount: updated.assignment.deliveredCount,
       },
+      notified,
     });
   }
 
@@ -131,6 +222,26 @@ export async function PATCH(
     select: { assignedCount: true, deliveredCount: true, projectId: true },
   });
 
+  // Notify by default when the Lead signed off a different number than was
+  // claimed; on an exact match only if they asked for it.
+  const countChanged = approvedCount !== submission.completedCount;
+  let notified = false;
+  if (notifyRequested === true || (notifyRequested !== false && countChanged)) {
+    await notifyActionee({
+      toEmail: submission.assignment.assignee.email,
+      actioneeName: submission.assignment.assignee.name,
+      projectName: submission.assignment.project.name,
+      divisionName: submission.assignment.division?.name ?? null,
+      date: toISODate(submission.date),
+      submitted: submission.completedCount,
+      approved: approvedCount,
+      outcome: "Approved",
+      reviewerName: user.name,
+      reviewNote,
+    });
+    notified = true;
+  }
+
   return NextResponse.json({
     submission: {
       id: updated.id,
@@ -141,5 +252,6 @@ export async function PATCH(
       assignedCount: assignment?.assignedCount ?? 0,
       projectId: assignment?.projectId ?? null,
     },
+    notified,
   });
 }
