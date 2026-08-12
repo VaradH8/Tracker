@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
 import { allocationConflicts, ratesByUser } from "@/lib/domain-forecast";
-import { effectiveRate, forecastDelivery, toISODate } from "@/lib/forecast";
+import { effectiveRate, forecastDelivery, splitRate, toISODate } from "@/lib/forecast";
 
 /**
  * What-if forecasting. A Lead enters a tag count, the people they'd put on
@@ -59,13 +59,33 @@ export async function POST(req: Request) {
   }
 
   const rates = await ratesByUser();
+
+  // Existing bookings that overlap the proposed window: the simulated
+  // project would be one more call on the same person, so their rate is
+  // shared rather than assumed whole. Without a handover date there's no
+  // window to test, and we take them as undivided.
+  const existing = handoverDate
+    ? await Promise.all(
+        people.map(async (p) => ({
+          id: p.id,
+          clashes: await allocationConflicts(p.id, startDate, handoverDate),
+        })),
+      )
+    : [];
+  const clashesById = new Map(existing.map((e) => [e.id, e.clashes]));
+
   const resources = people.map((p) => {
     const own = rates.get(p.id) ?? null;
+    const fullRate = effectiveRate(own);
+    // +1 for this hypothetical project itself.
+    const concurrentProjects = (clashesById.get(p.id)?.length ?? 0) + 1;
     return {
       id: p.id,
       name: p.name,
       role: p.role,
-      rate: effectiveRate(own),
+      rate: splitRate(fullRate, concurrentProjects),
+      fullRate,
+      concurrentProjects,
       usingDefaultRate: own === null,
     };
   });
@@ -77,19 +97,15 @@ export async function POST(req: Request) {
     handoverDate,
   });
 
-  // Only meaningful with an end date to test against: without a handover
-  // we'd be checking availability over an open-ended window.
-  const conflicts = handoverDate
-    ? (
-        await Promise.all(
-          people.map(async (p) => ({
-            resourceId: p.id,
-            resourceName: p.name,
-            conflicts: await allocationConflicts(p.id, startDate, handoverDate),
-          })),
-        )
-      ).filter((r) => r.conflicts.length > 0)
-    : [];
+  // Reuses the overlap lookup done above for the rate split — the same
+  // bookings that divide someone's time are the ones worth reporting.
+  const conflicts = people
+    .map((p) => ({
+      resourceId: p.id,
+      resourceName: p.name,
+      conflicts: clashesById.get(p.id) ?? [],
+    }))
+    .filter((r) => r.conflicts.length > 0);
 
   return NextResponse.json({
     simulation: {

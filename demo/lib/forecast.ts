@@ -98,6 +98,20 @@ export function effectiveRate(rate: number | null | undefined): number {
   return rate && rate > 0 ? rate : DEFAULT_TAGS_PER_DAY;
 }
 
+/**
+ * Nobody works on two projects at once. When someone is booked on several
+ * overlapping projects, their rate is shared evenly between them rather
+ * than counted in full on each — otherwise two parallel projects both
+ * forecast as though they had the person's whole day.
+ *
+ * An even split is the neutral assumption; a Lead who knows the real
+ * emphasis can reflect it by adjusting the allocation windows.
+ */
+export function splitRate(rate: number, concurrentProjects: number): number {
+  if (concurrentProjects <= 1) return rate;
+  return Math.round((rate / concurrentProjects) * 100) / 100;
+}
+
 export type ForecastInput = {
   /** Tags still to deliver (assigned total minus approved deliveries). */
   remainingTags: number;

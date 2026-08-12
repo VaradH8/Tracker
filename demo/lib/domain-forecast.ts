@@ -12,6 +12,7 @@ import {
   forecastDelivery,
   personalRate,
   rangesOverlap,
+  splitRate,
   toISODate,
   type ForecastResult,
 } from "./forecast";
@@ -158,7 +159,18 @@ export type ProjectForecast = {
   remainingTags: number;
   pendingApprovalTags: number;
   divisions: { id: number; name: string; totalTags: number; assignedTags: number; deliveredTags: number }[];
-  resources: { id: string; name: string; rate: number; usingDefaultRate: boolean }[];
+  resources: {
+    id: string;
+    name: string;
+    /** What this project actually gets: the full rate divided by however
+     *  many overlapping projects the person is booked on. */
+    rate: number;
+    /** Their undivided rate, before any sharing. */
+    fullRate: number;
+    /** How many overlapping projects they're split across (1 = undivided). */
+    concurrentProjects: number;
+    usingDefaultRate: boolean;
+  }[];
   /** The date the projection counts from — today, unless the project is
    *  staffed from a later date. */
   startsFrom: string;
@@ -197,6 +209,25 @@ export async function projectForecasts(
   const rates = await ratesByUser();
   const now = new Date();
 
+  // Every booking in the system, so a person's rate can be shared across
+  // the projects they're on at the same time. Fetched once and grouped,
+  // rather than re-queried per project.
+  const allAllocations = await prisma.domainAllocation.findMany({
+    select: {
+      userId: true,
+      projectId: true,
+      startDate: true,
+      endDate: true,
+      releasedAt: true,
+    },
+  });
+  const allocationsByUser = new Map<string, typeof allAllocations>();
+  for (const a of allAllocations) {
+    const list = allocationsByUser.get(a.userId) ?? [];
+    list.push(a);
+    allocationsByUser.set(a.userId, list);
+  }
+
   // Claimed-but-not-yet-approved tags, so a Lead can see what's sitting in
   // the review queue against each project.
   const pending = await prisma.domainTagSubmission.groupBy({
@@ -233,12 +264,35 @@ export async function projectForecasts(
     );
     const people = allocated.length > 0 ? allocated : fromAssignments;
 
+    // The stretch this project's delivery actually spans. Used to decide
+    // which of a person's other bookings genuinely compete with this one.
+    const allocEnds = p.allocations.map((a) =>
+      (a.releasedAt ?? a.endDate).getTime(),
+    );
+    const windowEnd =
+      p.handoverDate ??
+      (allocEnds.length > 0 ? new Date(Math.max(...allocEnds)) : from);
+
+    /** How many overlapping projects this person is split across. Always
+     *  at least 1 — someone holding tags without a formal booking still
+     *  counts as working on this one. */
+    const concurrentFor = (userId: string): number => {
+      const overlapping = (allocationsByUser.get(userId) ?? []).filter((a) =>
+        rangesOverlap(from, windowEnd, a.startDate, a.releasedAt ?? a.endDate),
+      );
+      return Math.max(1, overlapping.length);
+    };
+
     const resources = people.map((u) => {
       const r = rates.get(u.id) ?? null;
+      const fullRate = effectiveRate(r);
+      const concurrentProjects = concurrentFor(u.id);
       return {
         id: u.id,
         name: u.name,
-        rate: effectiveRate(r),
+        rate: splitRate(fullRate, concurrentProjects),
+        fullRate,
+        concurrentProjects,
         usingDefaultRate: r === null,
       };
     });

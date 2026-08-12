@@ -9,6 +9,7 @@ import {
   nthWorkingDay,
   personalRate,
   rangesOverlap,
+  splitRate,
   toISODate,
   workingDaysBetween,
 } from "@/lib/forecast";
@@ -73,6 +74,30 @@ describe("personalRate", () => {
     expect(effectiveRate(null)).toBe(DEFAULT_TAGS_PER_DAY);
     expect(effectiveRate(0)).toBe(DEFAULT_TAGS_PER_DAY);
     expect(effectiveRate(12)).toBe(12);
+  });
+});
+
+describe("splitRate", () => {
+  it("leaves an undivided person alone", () => {
+    expect(splitRate(20, 1)).toBe(20);
+    expect(splitRate(20, 0)).toBe(20);
+  });
+
+  it("halves someone booked on two projects at once", () => {
+    expect(splitRate(20, 2)).toBe(10);
+  });
+
+  it("splits evenly across three and rounds to two decimals", () => {
+    expect(splitRate(10, 3)).toBe(3.33);
+  });
+
+  it("never lets parallel projects each claim the whole person", () => {
+    // The point of the split: the shares add back up to one person's day,
+    // rather than to N times it.
+    const full = 30;
+    for (const n of [2, 3, 4, 5]) {
+      expect(splitRate(full, n) * n).toBeCloseTo(full, 1);
+    }
   });
 });
 

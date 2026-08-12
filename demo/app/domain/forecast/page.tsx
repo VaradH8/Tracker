@@ -44,7 +44,14 @@ type ProjectRow = {
   remainingTags: number;
   pendingApprovalTags: number;
   divisions: { id: number; name: string; totalTags: number; assignedTags: number; deliveredTags: number }[];
-  resources: { id: string; name: string; rate: number; usingDefaultRate: boolean }[];
+  resources: {
+    id: string;
+    name: string;
+    rate: number;
+    fullRate: number;
+    concurrentProjects: number;
+    usingDefaultRate: boolean;
+  }[];
   startsFrom: string;
   forecast: Forecast;
 };
@@ -210,6 +217,18 @@ export default function ForecastPage() {
                         </span>
                       )}
                     </p>
+                    {p.resources.some((r) => r.concurrentProjects > 1) && (
+                      <p className="text-xs text-brand-yellowText mt-1">
+                        Shared time:{" "}
+                        {p.resources
+                          .filter((r) => r.concurrentProjects > 1)
+                          .map(
+                            (r) =>
+                              `${r.name} ${r.rate}/day of ${r.fullRate} (across ${r.concurrentProjects} projects)`,
+                          )
+                          .join(" · ")}
+                      </p>
+                    )}
                   </div>
                 </div>
               </article>
@@ -304,7 +323,14 @@ export default function ForecastPage() {
 
 type SimResult = {
   forecast: Forecast;
-  resources: { id: string; name: string; rate: number; usingDefaultRate: boolean }[];
+  resources: {
+    id: string;
+    name: string;
+    rate: number;
+    fullRate: number;
+    concurrentProjects: number;
+    usingDefaultRate: boolean;
+  }[];
   conflicts: {
     resourceName: string;
     conflicts: { projectName: string; startDate: string; endDate: string; availableFrom: string }[];
@@ -449,7 +475,16 @@ function Simulator({ onDone }: { onDone: () => void }) {
           </div>
           <p className="text-sm text-ink-500 mt-1">{result.forecast.reason}</p>
           <p className="text-xs text-ink-500 mt-1">
-            {result.resources.map((r) => `${r.name} ${r.rate}/day${r.usingDefaultRate ? " (default)" : ""}`).join(" · ")}
+            {result.resources
+              .map(
+                (r) =>
+                  `${r.name} ${r.rate}/day${r.usingDefaultRate ? " (default)" : ""}${
+                    r.concurrentProjects > 1
+                      ? ` — shared across ${r.concurrentProjects} projects`
+                      : ""
+                  }`,
+              )
+              .join(" · ")}
           </p>
 
           {result.conflicts.length > 0 && (
