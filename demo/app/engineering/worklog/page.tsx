@@ -5,6 +5,9 @@ import { Clock, AlertTriangle, Trash2 } from "lucide-react";
 import { withinLogWindow, logWindowLabel } from "@/lib/domain";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import type { DomainTask } from "@/components/DomainTaskList";
+import { DomainPage, PageHeader } from "@/components/DomainPage";
+import { DomainTeamLogs } from "@/components/DomainTeamLogs";
+import { useDomain } from "@/lib/domain-store";
 
 type WorkLog = {
   id: number;
@@ -19,6 +22,10 @@ type WorkLog = {
 type Project = { id: number; name: string };
 
 export default function WorkLogPage() {
+  const { current } = useDomain();
+  // Admins see everyone; Leads see the people doing the work.
+  const canSeeTeam = current?.role === "Admin" || current?.role === "Lead";
+  const [tab, setTab] = useState<"mine" | "team">("mine");
   const [open, setOpen] = useState<boolean | null>(null);
   const [myTasks, setMyTasks] = useState<DomainTask[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -88,14 +95,45 @@ export default function WorkLogPage() {
   }
 
   return (
-    <div className="max-w-[760px]">
-      <header className="mb-6">
-        <h1 className="font-heading text-2xl font-semibold">Work log</h1>
-        <p className="text-sm text-ink-500 mt-1">
-          Record what you did today. Entries are only accepted between{" "}
-          {logWindowLabel()}.
-        </p>
-      </header>
+    <DomainPage width={tab === "team" ? "wide" : "narrow"}>
+      <PageHeader
+        title="Work log"
+        description={
+          tab === "team"
+            ? "What the team has logged. Filter by person and date range."
+            : `Record what you did today. Entries are only accepted between ${logWindowLabel()}.`
+        }
+      />
+
+      {canSeeTeam && (
+        <div className="flex items-center gap-1 mb-5">
+          <button
+            onClick={() => setTab("mine")}
+            className={`px-3 py-1.5 rounded text-sm font-medium ${
+              tab === "mine"
+                ? "bg-brand-blueBg text-brand-blue"
+                : "text-ink-600 hover:bg-ink-100"
+            }`}
+          >
+            My log
+          </button>
+          <button
+            onClick={() => setTab("team")}
+            className={`px-3 py-1.5 rounded text-sm font-medium ${
+              tab === "team"
+                ? "bg-brand-blueBg text-brand-blue"
+                : "text-ink-600 hover:bg-ink-100"
+            }`}
+          >
+            Team logs
+          </button>
+        </div>
+      )}
+
+      {tab === "team" && <DomainTeamLogs />}
+
+      {tab === "mine" && (
+        <>
 
       {open === false && (
         <div className="card p-4 mb-6 border-brand-yellowBorder bg-brand-yellowBg flex items-start gap-2">
@@ -213,6 +251,8 @@ export default function WorkLogPage() {
           ))}
         </ul>
       )}
-    </div>
+        </>
+      )}
+    </DomainPage>
   );
 }

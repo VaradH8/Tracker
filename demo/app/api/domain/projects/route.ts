@@ -9,7 +9,15 @@ const INCLUDE = {
   owner: { select: { id: true, name: true } },
   _count: { select: { tasks: true } },
   divisions: { include: { division: { select: { id: true, name: true } } } },
-  allocations: { include: { user: { select: { id: true, name: true } } } },
+  allocations: {
+    include: { user: { select: { id: true, name: true, role: true } } },
+    orderBy: { startDate: "asc" },
+  },
+  // Enough of the tag position to draw a progress bar on the index without
+  // a second round trip per project.
+  tagAssignments: {
+    select: { assigneeId: true, assignedCount: true, deliveredCount: true },
+  },
 } as const;
 
 type ProjectRow = {
@@ -33,7 +41,13 @@ type ProjectRow = {
     startDate: Date;
     endDate: Date;
     releasedAt: Date | null;
-    user: { id: string; name: string };
+    expectedTagsPerDay: number | null;
+    user: { id: string; name: string; role: string };
+  }[];
+  tagAssignments: {
+    assigneeId: string;
+    assignedCount: number;
+    deliveredCount: number;
   }[];
 };
 
@@ -62,7 +76,12 @@ function serialize(p: ProjectRow) {
       startDate: toISODate(a.startDate),
       endDate: toISODate(a.endDate),
       releasedAt: a.releasedAt ? toISODate(a.releasedAt) : null,
+      expectedTagsPerDay: a.expectedTagsPerDay,
+      role: a.user.role,
     })),
+    assignedTags: p.tagAssignments.reduce((s, a) => s + a.assignedCount, 0),
+    deliveredTags: p.tagAssignments.reduce((s, a) => s + a.deliveredCount, 0),
+    peopleEngaged: new Set(p.tagAssignments.map((a) => a.assigneeId)).size,
   };
 }
 

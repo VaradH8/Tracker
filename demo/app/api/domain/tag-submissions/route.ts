@@ -14,7 +14,7 @@ import { toISODate } from "@/lib/forecast";
 const INCLUDE = {
   assignment: {
     include: {
-      project: { select: { id: true, name: true } },
+      project: { select: { id: true, name: true, client: true } },
       division: { select: { id: true, name: true } },
       assignee: { select: { id: true, name: true } },
     },
@@ -37,7 +37,7 @@ type Row = {
   assignment: {
     assignedCount: number;
     deliveredCount: number;
-    project: { id: number; name: string };
+    project: { id: number; name: string; client: string | null };
     division: { id: number; name: string } | null;
     assignee: { id: string; name: string };
   };
@@ -57,6 +57,7 @@ function serialize(s: Row) {
     reviewNote: s.reviewNote,
     projectId: s.assignment.project.id,
     projectName: s.assignment.project.name,
+    client: s.assignment.project.client,
     divisionName: s.assignment.division?.name ?? null,
     assigneeId: s.assignment.assignee.id,
     assigneeName: s.assignment.assignee.name,
@@ -82,16 +83,30 @@ export async function GET(req: Request) {
   const status = url.searchParams.get("status");
   const projectId = url.searchParams.get("projectId");
   const mine = url.searchParams.get("mine") === "true";
+  // Everything already decided — the approval history, newest decision first.
+  const reviewed = url.searchParams.get("reviewed") === "true";
   const scopedToSelf = mine || user.role === "Actionee" || user.role === "SME";
+
+  // Both filters narrow the same relation, so they have to be merged rather
+  // than spread over each other — two `assignment:` keys would silently
+  // drop the first.
+  const assignmentWhere = {
+    ...(scopedToSelf ? { assigneeId: user.id } : {}),
+    ...(projectId ? { projectId: Number(projectId) } : {}),
+  };
 
   const submissions = await prisma.domainTagSubmission.findMany({
     where: {
-      ...(status ? { status } : {}),
-      ...(scopedToSelf ? { assignment: { assigneeId: user.id } } : {}),
-      ...(projectId ? { assignment: { projectId: Number(projectId) } } : {}),
+      ...(reviewed ? { status: { in: ["Approved", "Rejected"] } } : {}),
+      ...(status && !reviewed ? { status } : {}),
+      ...(Object.keys(assignmentWhere).length > 0
+        ? { assignment: assignmentWhere }
+        : {}),
     },
     include: INCLUDE,
-    orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+    orderBy: reviewed
+      ? [{ reviewedAt: "desc" }]
+      : [{ date: "desc" }, { createdAt: "desc" }],
     take: 200,
   });
   return NextResponse.json({ submissions: submissions.map(serialize) });
@@ -159,17 +174,52 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid date." }, { status: 400 });
   }
 
-  const submission = await prisma.domainTagSubmission.create({
-    data: {
-      assignmentId,
-      date,
-      completedCount,
-      submittedById: user.id,
-      note:
-        typeof body.note === "string" && body.note.trim() ? body.note.trim() : null,
-    },
-    include: INCLUDE,
-  });
+  /**
+   * The headroom check above reads pending + delivered before writing, so
+   * two claims filed at the same moment could both pass it. Re-check inside
+   * a transaction and abort if the position moved underneath us — the hard
+   * ceiling is still enforced at approval, but catching it here means the
+   * actionee is told immediately rather than at review time.
+   */
+  const RACED = "HEADROOM_MOVED";
+  let submission;
+  try {
+    submission = await prisma.$transaction(async (tx) => {
+      const fresh = await tx.domainTagAssignment.findUnique({
+        where: { id: assignmentId },
+        include: { submissions: { where: { status: "Pending" } } },
+      });
+      if (!fresh) throw new Error(RACED);
+      const queued = fresh.submissions.reduce((s, x) => s + x.completedCount, 0);
+      if (completedCount > fresh.assignedCount - fresh.deliveredCount - queued) {
+        throw new Error(RACED);
+      }
+      return tx.domainTagSubmission.create({
+        data: {
+          assignmentId,
+          date,
+          completedCount,
+          submittedById: user.id,
+          note:
+            typeof body.note === "string" && body.note.trim()
+              ? body.note.trim()
+              : null,
+        },
+        include: INCLUDE,
+      });
+    });
+  } catch (e) {
+    if (e instanceof Error && e.message === RACED) {
+      return NextResponse.json(
+        {
+          error:
+            "Another submission was filed against this assignment just now — reload and check what's left.",
+        },
+        { status: 409 },
+      );
+    }
+    throw e;
+  }
 
   return NextResponse.json({ submission: serialize(submission) }, { status: 201 });
 }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { KeyRound } from "lucide-react";
 import { useDomain } from "@/lib/domain-store";
 import { DOMAIN_ROLE_LABELS } from "@/lib/domain";
+import { DomainPage, PageHeader } from "@/components/DomainPage";
 
 export default function DomainAccountPage() {
   const { current } = useDomain();
@@ -39,11 +40,8 @@ export default function DomainAccountPage() {
   }
 
   return (
-    <div className="max-w-md">
-      <div className="mb-6">
-        <h1 className="font-heading text-2xl font-semibold">Account</h1>
-        <p className="text-sm text-ink-500 mt-1">Manage your sign-in details.</p>
-      </div>
+    <DomainPage width="narrow">
+      <PageHeader title="Account" description="Manage your sign-in details." />
 
       {current && (
         <div className="card p-4 mb-6 text-sm">
@@ -109,6 +107,6 @@ export default function DomainAccountPage() {
           </div>
         </div>
       </div>
-    </div>
+    </DomainPage>
   );
 }

@@ -20,11 +20,11 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Preselect the Domain tab when arriving via the domain area's redirect.
+  // Preselect the Engineering tab when arriving via that area's redirect.
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
-      if (params.get("domain") === "1") setTab("domain");
+      if (params.get("engineering") === "1") setTab("domain");
     }
   }, []);
 
@@ -67,7 +67,7 @@ export default function LoginPage() {
                     : "px-4 py-2 text-sm font-medium text-ink-500 hover:text-ink-900 capitalize"
                 }
               >
-                {t === "tracker" ? "Tracker" : "Domain"}
+                {t === "tracker" ? "Tracker" : "Engineering"}
               </button>
             ))}
           </div>
@@ -167,7 +167,7 @@ function DomainLogin() {
       .then((r) => (r.ok ? r.json() : { user: null, needsBootstrap: false }))
       .then((b) => {
         if (b.user) {
-          router.replace("/domain");
+          router.replace("/engineering");
           return;
         }
         setNeedsBootstrap(!!b.needsBootstrap);
@@ -195,7 +195,7 @@ function DomainLogin() {
       setError((await res.json().catch(() => ({}))).error ?? "Sign-in failed.");
       return;
     }
-    router.replace("/domain");
+    router.replace("/engineering");
   }
 
   if (needsBootstrap === null) {
@@ -205,12 +205,12 @@ function DomainLogin() {
   return (
     <>
       <h1 className="font-heading text-xl font-semibold mb-1">
-        {needsBootstrap ? "Set up the Domain admin" : "Domain sign in"}
+        {needsBootstrap ? "Set up the Engineering admin" : "Engineering sign in"}
       </h1>
       <p className="text-sm text-ink-500 mb-5">
         {needsBootstrap
-          ? "No domain accounts yet — create the first admin to get started."
-          : "Sign in to the domain module."}
+          ? "No Engineering accounts yet — create the first admin to get started."
+          : "Sign in to the Engineering module."}
       </p>
       <form onSubmit={submit}>
         {needsBootstrap && (

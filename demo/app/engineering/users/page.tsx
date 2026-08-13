@@ -9,6 +9,7 @@ import {
 } from "@/lib/domain";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { useDomain } from "@/lib/domain-store";
+import { DomainPage, PageHeader } from "@/components/DomainPage";
 
 type DUser = {
   id: string;
@@ -16,6 +17,7 @@ type DUser = {
   email: string;
   role: DomainRole;
   dailyCapacity: number;
+  expectedTagsPerDay: number | null;
   isActive: boolean;
 };
 
@@ -30,6 +32,7 @@ export default function DomainUsersPage() {
     password: "",
     role: "Actionee" as DomainRole,
     dailyCapacity: "8",
+    expectedTagsPerDay: "",
   });
   const [error, setError] = useState<string | null>(null);
 
@@ -49,13 +52,23 @@ export default function DomainUsersPage() {
       body: JSON.stringify({
         ...form,
         dailyCapacity: Number(form.dailyCapacity),
+        expectedTagsPerDay: form.expectedTagsPerDay
+          ? Number(form.expectedTagsPerDay)
+          : undefined,
       }),
     });
     if (!res.ok) {
       setError((await res.json()).error ?? "Couldn't add user.");
       return;
     }
-    setForm({ name: "", email: "", password: "", role: "Actionee", dailyCapacity: "8" });
+    setForm({
+      name: "",
+      email: "",
+      password: "",
+      role: "Actionee",
+      dailyCapacity: "8",
+      expectedTagsPerDay: "",
+    });
     setAdding(false);
     void load();
   }
@@ -80,12 +93,13 @@ export default function DomainUsersPage() {
   }
 
   return (
-    <div>
+    <DomainPage width="wide">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="font-heading text-2xl font-semibold">People</h1>
           <p className="text-sm text-ink-500 mt-1">
-            Add domain users and set their role and daily capacity.
+            Add domain users and set their role, capacity, and the tags a day
+            you expect them to complete.
           </p>
         </div>
         <button onClick={() => setAdding((v) => !v)} className="btn-primary">
@@ -136,6 +150,24 @@ export default function DomainUsersPage() {
               className="px-3 py-2 rounded border border-ink-200 text-sm"
             />
           </div>
+          <div className="sm:col-span-2">
+            <input
+              type="number"
+              min="1"
+              step="0.5"
+              value={form.expectedTagsPerDay}
+              onChange={(e) =>
+                setForm({ ...form, expectedTagsPerDay: e.target.value })
+              }
+              placeholder="Average tags per day (e.g. 40)"
+              className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+            />
+            <p className="text-xs text-ink-400 mt-1">
+              Used for forecasting until they build up approved history, at
+              which point their measured rate takes over. Leave blank to use
+              the house default.
+            </p>
+          </div>
           {error && (
             <p className="text-xs text-brand-redText sm:col-span-2">{error}</p>
           )}
@@ -164,6 +196,7 @@ export default function DomainUsersPage() {
               <th className="text-left font-semibold px-4 py-2">Name</th>
               <th className="text-left font-semibold px-4 py-2">Role</th>
               <th className="text-left font-semibold px-4 py-2">Capacity</th>
+              <th className="text-left font-semibold px-4 py-2">Avg tags/day</th>
               <th className="text-left font-semibold px-4 py-2">Status</th>
               <th className="text-right font-semibold px-4 py-2"></th>
             </tr>
@@ -203,6 +236,24 @@ export default function DomainUsersPage() {
                   <span className="text-xs text-ink-400 ml-1">h/day</span>
                 </td>
                 <td className="px-4 py-2">
+                  <input
+                    type="number"
+                    min="1"
+                    step="0.5"
+                    defaultValue={u.expectedTagsPerDay ?? ""}
+                    placeholder="default"
+                    onBlur={(e) => {
+                      const raw = e.target.value.trim();
+                      const v = raw === "" ? null : Number(raw);
+                      if (v !== u.expectedTagsPerDay) {
+                        patch(u.id, { expectedTagsPerDay: v });
+                      }
+                    }}
+                    className="w-20 text-xs rounded border border-ink-200 px-2 py-1"
+                  />
+                  <span className="text-xs text-ink-400 ml-1">tags/day</span>
+                </td>
+                <td className="px-4 py-2">
                   <button
                     onClick={() => patch(u.id, { isActive: !u.isActive })}
                     className={`text-xs px-2 py-1 rounded-pill font-medium ${
@@ -231,6 +282,6 @@ export default function DomainUsersPage() {
           </tbody>
         </table>
       </div>
-    </div>
+    </DomainPage>
   );
 }

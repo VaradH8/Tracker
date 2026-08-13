@@ -18,7 +18,7 @@ function Gate({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    if (hydrated && !current) router.replace("/login?domain=1");
+    if (hydrated && !current) router.replace("/login?engineering=1");
   }, [hydrated, current, router]);
 
   if (!hydrated) {

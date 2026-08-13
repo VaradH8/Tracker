@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, Clock, AlertTriangle, Users } from "lucide-react";
 import { DOMAIN_ROLE_LABELS, type DomainRole } from "@/lib/domain";
+import { DomainPage, PageHeader } from "@/components/DomainPage";
 
 type UserKpi = {
   id: string;
@@ -40,14 +41,11 @@ export default function KpisPage() {
   const { users, weeks, totals } = data;
 
   return (
-    <div>
-      <header className="mb-6">
-        <h1 className="font-heading text-2xl font-semibold">Team KPIs</h1>
-        <p className="text-sm text-ink-500 mt-1">
-          Output per person — completed tasks, logged hours, and overdue
-          load. Completed counts cover the last 30 days.
-        </p>
-      </header>
+    <DomainPage width="wide">
+      <PageHeader
+        title="Team KPIs"
+        description="Output per person — completed tasks, logged hours, and overdue load. Completed counts cover the last 30 days."
+      />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatTile
@@ -162,7 +160,7 @@ export default function KpisPage() {
           </div>
         </>
       )}
-    </div>
+    </DomainPage>
   );
 }
 

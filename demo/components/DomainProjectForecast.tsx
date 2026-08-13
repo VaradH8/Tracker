@@ -1,7 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Trash2, Pencil, AlertTriangle, X } from "lucide-react";
+import { Plus, Trash2, Pencil, X } from "lucide-react";
+import { DOMAIN_ROLE_LABELS } from "@/lib/domain";
+import {
+  RateField,
+  ResourceChecklist,
+  ResourceDetail,
+  ResourceSelect,
+  useAvailability,
+  type Availability,
+} from "@/components/DomainResourcePicker";
 
 /**
  * The forecast-facing pieces of the Domain projects page: creating and
@@ -52,6 +61,7 @@ function ScopeFields({
   picked,
   setPicked,
   workers,
+  availability,
 }: {
   totalTags: string;
   divisions: DivisionDraft[];
@@ -59,6 +69,7 @@ function ScopeFields({
   picked: string[];
   setPicked: (fn: (p: string[]) => string[]) => void;
   workers: ForecastPerson[];
+  availability: Map<string, Availability>;
 }) {
   const divisionSum = divisions.reduce((s, d) => s + (Number(d.totalTags) || 0), 0);
   const total = Number(totalTags) || 0;
@@ -129,32 +140,14 @@ function ScopeFields({
 
       <div className="mb-3">
         <span className="block text-sm text-ink-700 mb-1">Resources</span>
-        {workers.length === 0 ? (
-          <p className="text-xs text-ink-400 italic">No allocatable people yet.</p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {workers.map((p) => {
-              const on = picked.includes(p.id);
-              return (
-                <button
-                  key={p.id}
-                  onClick={() =>
-                    setPicked((prev) =>
-                      on ? prev.filter((id) => id !== p.id) : [...prev, p.id],
-                    )
-                  }
-                  className={`px-2.5 py-1 rounded-pill text-xs font-medium border ${
-                    on
-                      ? "bg-brand-blueBg text-brand-blue border-brand-blue"
-                      : "bg-white text-ink-600 border-ink-200"
-                  }`}
-                >
-                  {p.name}
-                </button>
-              );
-            })}
-          </div>
-        )}
+        <ResourceChecklist
+          people={workers}
+          picked={picked}
+          availability={availability}
+          onToggle={(id, next) =>
+            setPicked((prev) => (next ? [...prev, id] : prev.filter((x) => x !== id)))
+          }
+        />
         <p className="text-xs text-ink-400 mt-1">
           Bookings run from the start date to handover. Clashes are reported,
           not blocked.
@@ -201,6 +194,7 @@ export function CreateProjectForm({
   const [result, setResult] = useState<CreateResult | null>(null);
 
   const workers = people.filter((p) => WORKING.includes(p.role));
+  const { byId: availability } = useAvailability();
 
   async function submit() {
     setBusy(true);
@@ -346,6 +340,7 @@ export function CreateProjectForm({
         picked={picked}
         setPicked={setPicked}
         workers={workers}
+        availability={availability}
       />
 
       {error && <p className="text-xs text-brand-redText mb-2">{error}</p>}
@@ -398,6 +393,7 @@ export function EditProjectForm({
   const [error, setError] = useState<string | null>(null);
 
   const workers = people.filter((p) => WORKING.includes(p.role));
+  const { byId: availability } = useAvailability();
 
   async function save() {
     setBusy(true);
@@ -500,6 +496,7 @@ export function EditProjectForm({
         picked={picked}
         setPicked={setPicked}
         workers={workers}
+        availability={availability}
       />
 
       {error && <p className="text-xs text-brand-redText mb-2">{error}</p>}
@@ -528,73 +525,375 @@ type AssignmentRow = {
   targetDate: string | null;
 };
 
-type AvailabilityRow = {
-  id: string;
-  name: string;
-  status: string;
-  availableFrom: string | null;
-  projects: {
-    projectName: string;
-    startDate: string;
-    endDate: string;
-    openTags: number;
-  }[];
-};
 
-/** Division-wise tag assignment for one project, with per-division
- *  totals, dates, edit/remove, and a read on whether the person is busy. */
+/**
+ * A project's tag position, broken out per allocated resource.
+ *
+ * The flat list this replaced merged everyone's assignments together, so a
+ * Lead couldn't see what any one person was carrying without reading the
+ * whole thing. Each resource booked on the project now gets its own
+ * section — their divisions, dates and progress, their own totals, and an
+ * Assign tags button that already knows who it's for.
+ */
 export function TagAssignmentPanel({
   project,
   people,
   canAssign,
+  rows,
   onChanged,
 }: {
   project: ForecastProject;
   people: ForecastPerson[];
   canAssign: boolean;
+  /** Owned by the page, which also renders the project header from it. */
+  rows: AssignmentRow[];
   onChanged: () => void;
 }) {
-  const [rows, setRows] = useState<AssignmentRow[]>([]);
-  const [availability, setAvailability] = useState<AvailabilityRow[]>([]);
-  const [open, setOpen] = useState(false);
-  const [assigneeId, setAssigneeId] = useState("");
+  const { byId: availability, reload: reloadAvailability } =
+    useAvailability(canAssign);
+  /** Which person's section has its assign form open; "new" = someone not
+   *  yet on the project. */
+  const [assigningTo, setAssigningTo] = useState<string | null>(null);
+  const [editing, setEditing] = useState<number | null>(null);
+
+  const workers = people.filter((p) => WORKING.includes(p.role));
+  const divisions = project.divisions ?? [];
+
+  // Per-division project rollup — the whole-project view above the people.
+  const divisionRollup = divisions.map((d) => {
+    const forDiv = rows.filter((r) => r.divisionId === d.id);
+    return {
+      ...d,
+      assigned: forDiv.reduce((s, r) => s + r.assignedCount, 0),
+      delivered: forDiv.reduce((s, r) => s + r.deliveredCount, 0),
+    };
+  });
+
+  // One section per person: everyone booked on the project, plus anyone
+  // holding tags without a formal booking (otherwise their work would be
+  // invisible here).
+  const sections = (() => {
+    const map = new Map<string, { id: string; name: string; items: AssignmentRow[] }>();
+    for (const r of project.resources ?? []) {
+      map.set(r.id, { id: r.id, name: r.name, items: [] });
+    }
+    for (const a of rows) {
+      const entry = map.get(a.assigneeId) ?? {
+        id: a.assigneeId,
+        name: a.assigneeName,
+        items: [],
+      };
+      entry.items.push(a);
+      map.set(a.assigneeId, entry);
+    }
+    // Most tags outstanding first — where a Lead's attention belongs.
+    return Array.from(map.values()).sort((a, b) => {
+      const open = (x: typeof a) =>
+        x.items.reduce((s, i) => s + (i.assignedCount - i.deliveredCount), 0);
+      return open(b) - open(a) || a.name.localeCompare(b.name);
+    });
+  })();
+
+  const totalAssigned = rows.reduce((s, r) => s + r.assignedCount, 0);
+  const totalDelivered = rows.reduce((s, r) => s + r.deliveredCount, 0);
+  const master = project.totalTags || 0;
+
+  return (
+    <section className="card p-5 mb-5">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <div>
+          <h3 className="font-heading text-lg font-semibold text-ink-900">
+            Tags by division
+          </h3>
+          <p className="text-sm text-ink-500 mt-0.5">
+            How the project&apos;s tags split across disciplines, and who is
+            carrying them.
+          </p>
+        </div>
+        {canAssign && (
+          <button
+            onClick={() => setAssigningTo(assigningTo === "new" ? null : "new")}
+            className="btn-ghost text-sm"
+          >
+            <Plus size={14} className="mr-1" /> Assign to someone else
+          </button>
+        )}
+      </div>
+
+      {divisionRollup.length > 0 && (
+        <div className="mb-5 overflow-x-auto">
+          <table className="w-full text-sm min-w-[420px]">
+            <thead className="bg-ink-50 text-ink-500 text-xs uppercase tracking-wide">
+              <tr>
+                <th className="text-left font-semibold px-3 py-2">Division</th>
+                <th className="text-right font-semibold px-3 py-2">Total</th>
+                <th className="text-right font-semibold px-3 py-2">Assigned</th>
+                <th className="text-right font-semibold px-3 py-2">Delivered</th>
+                <th className="text-right font-semibold px-3 py-2">Left</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-ink-100">
+              {divisionRollup.map((d) => (
+                <tr key={d.id}>
+                  <td className="px-3 py-2 text-ink-900 font-medium">{d.name}</td>
+                  <td className="px-3 py-2 text-right text-ink-700">
+                    {d.totalTags || "—"}
+                  </td>
+                  <td className="px-3 py-2 text-right text-ink-700">{d.assigned}</td>
+                  <td className="px-3 py-2 text-right text-brand-greenText font-semibold">
+                    {d.delivered}
+                  </td>
+                  <td className="px-3 py-2 text-right text-ink-700">
+                    {Math.max(0, (d.totalTags || d.assigned) - d.delivered)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Assigning to somebody not already on the project. */}
+      {assigningTo === "new" && (
+        <div className="mb-5 p-4 rounded-card border border-ink-200 bg-ink-50">
+          <AssignForm
+            projectId={project.id}
+            divisions={divisions}
+            workers={workers}
+            availability={availability}
+            onRateSaved={reloadAvailability}
+            onDone={() => {
+              setAssigningTo(null);
+              onChanged();
+            }}
+            onCancel={() => setAssigningTo(null)}
+          />
+        </div>
+      )}
+
+      <h4 className="font-heading text-sm font-semibold text-ink-700 uppercase tracking-wide mb-2">
+        Allocated resources
+      </h4>
+
+      {sections.length === 0 ? (
+        <p className="text-sm text-ink-400 italic">
+          Nobody is allocated to this project yet. Edit the project to book
+          resources, or use &ldquo;Assign to someone else&rdquo;.
+        </p>
+      ) : (
+        <div className="grid gap-3">
+          {sections.map((sec) => {
+            const a = availability.get(sec.id);
+            const assigned = sec.items.reduce((s, r) => s + r.assignedCount, 0);
+            const delivered = sec.items.reduce((s, r) => s + r.deliveredCount, 0);
+            const pending = sec.items.reduce((s, r) => s + r.pendingCount, 0);
+            const pct = assigned > 0 ? (delivered / assigned) * 100 : 0;
+
+            return (
+              <div
+                key={sec.id}
+                className="rounded-card border border-ink-200 overflow-hidden"
+              >
+                <div className="flex items-start justify-between gap-3 px-4 py-3 bg-ink-50 border-b border-ink-200 flex-wrap">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-heading font-semibold text-ink-900">
+                        {sec.name}
+                      </span>
+                      {a && (
+                        <span
+                          className={`px-2 py-0.5 rounded-pill text-[11px] font-medium ${
+                            a.status === "Free"
+                              ? "bg-brand-greenBg text-brand-greenText"
+                              : "bg-brand-yellowBg text-brand-yellowText"
+                          }`}
+                        >
+                          {a.status === "Free" ? "Free" : "Busy"}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-ink-500 mt-0.5">
+                      {a ? (
+                        <>
+                          {DOMAIN_ROLE_LABELS[a.role]} ·{" "}
+                          <strong className="text-ink-700">{a.rate}/day</strong>
+                          {a.usingDefaultRate && " (assumed)"}
+                          {a.status !== "Free" &&
+                            ` · frees up ${fmt(a.availableFrom)}`}
+                        </>
+                      ) : (
+                        "Not booked on this project"
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 shrink-0">
+                    <div className="text-right">
+                      <div className="font-heading font-semibold text-ink-900">
+                        {delivered} / {assigned}
+                      </div>
+                      <div className="text-[11px] text-ink-500">
+                        delivered
+                        {pending > 0 && (
+                          <span className="text-brand-yellowText">
+                            {" "}
+                            · {pending} pending
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {canAssign && (
+                      <button
+                        onClick={() =>
+                          setAssigningTo(assigningTo === sec.id ? null : sec.id)
+                        }
+                        className="btn-primary text-sm"
+                      >
+                        <Plus size={14} className="mr-1" /> Assign tags
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {assigned > 0 && (
+                  <div className="h-1 bg-ink-100">
+                    <div
+                      className="h-full bg-brand-green"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                )}
+
+                {assigningTo === sec.id && (
+                  <div className="px-4 py-3 border-b border-ink-100 bg-white">
+                    <AssignForm
+                      projectId={project.id}
+                      divisions={divisions}
+                      workers={workers}
+                      availability={availability}
+                      lockedAssignee={{ id: sec.id, name: sec.name }}
+                      onRateSaved={reloadAvailability}
+                      onDone={() => {
+                        setAssigningTo(null);
+                        onChanged();
+                      }}
+                      onCancel={() => setAssigningTo(null)}
+                    />
+                  </div>
+                )}
+
+                {sec.items.length === 0 ? (
+                  <p className="px-4 py-3 text-xs text-ink-400 italic">
+                    No tags assigned to {sec.name} yet.
+                  </p>
+                ) : (
+                  <ul className="divide-y divide-ink-100">
+                    {sec.items.map((r) =>
+                      editing === r.id ? (
+                        <EditAssignmentRow
+                          key={r.id}
+                          row={r}
+                          divisions={divisions}
+                          workers={workers}
+                          onCancel={() => setEditing(null)}
+                          onSaved={() => {
+                            setEditing(null);
+                            onChanged();
+                          }}
+                        />
+                      ) : (
+                        <li
+                          key={r.id}
+                          className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm"
+                        >
+                          <div className="min-w-0">
+                            <span className="text-ink-900 font-medium">
+                              {r.divisionName ?? "No division"}
+                            </span>
+                            {(r.startDate || r.targetDate) && (
+                              <span className="text-ink-500">
+                                {" "}
+                                · {fmt(r.startDate)} → {fmt(r.targetDate)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span className="text-ink-700">
+                              <strong className="text-brand-greenText">
+                                {r.deliveredCount}
+                              </strong>{" "}
+                              / {r.assignedCount}
+                              {r.pendingCount > 0 && (
+                                <span className="text-brand-yellowText">
+                                  {" "}
+                                  (+{r.pendingCount})
+                                </span>
+                              )}
+                            </span>
+                            {canAssign && (
+                              <button
+                                onClick={() => setEditing(r.id)}
+                                className="btn-ghost text-xs"
+                                aria-label={`Edit ${sec.name}'s ${r.divisionName ?? ""} assignment`}
+                              >
+                                <Pencil size={13} />
+                              </button>
+                            )}
+                          </div>
+                        </li>
+                      ),
+                    )}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/**
+ * The assign-tags form. When opened from a person's section the assignee
+ * is fixed and shown as a name; the general entry point keeps the picker
+ * so a Lead can bring somebody new onto the project.
+ */
+function AssignForm({
+  projectId,
+  divisions,
+  workers,
+  availability,
+  lockedAssignee,
+  onDone,
+  onCancel,
+  onRateSaved,
+}: {
+  projectId: number;
+  divisions: { id: number; name: string }[];
+  workers: ForecastPerson[];
+  availability: Map<string, Availability>;
+  lockedAssignee?: { id: string; name: string };
+  onDone: () => void;
+  onCancel: () => void;
+  onRateSaved: () => void;
+}) {
+  const [assigneeId, setAssigneeId] = useState(lockedAssignee?.id ?? "");
   const [divisionId, setDivisionId] = useState("");
   const [count, setCount] = useState("");
   const [startDate, setStartDate] = useState("");
   const [targetDate, setTargetDate] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [editing, setEditing] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(() => {
-    fetch(`/api/domain/tag-assignments?projectId=${project.id}`, { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : { assignments: [] }))
-      .then((b) => setRows(b.assignments ?? []))
-      .catch(() => setRows([]));
-  }, [project.id]);
-
-  useEffect(load, [load]);
-
-  useEffect(() => {
-    if (!canAssign) return;
-    fetch("/api/domain/resources/availability", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : { resources: [] }))
-      .then((b) => setAvailability(b.resources ?? []))
-      .catch(() => setAvailability([]));
-  }, [canAssign, rows.length]);
-
-  const workers = people.filter((p) => WORKING.includes(p.role));
-  const divisions = project.divisions ?? [];
-  const picked = availability.find((a) => a.id === assigneeId);
-
-  async function assign() {
+  async function submit() {
     setBusy(true);
     setError(null);
     const res = await fetch("/api/domain/tag-assignments", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        projectId: project.id,
+        projectId,
         assigneeId,
         divisionId: divisionId || undefined,
         assignedCount: Number(count),
@@ -608,250 +907,101 @@ export function TagAssignmentPanel({
       setError(body.error ?? "Couldn't assign tags.");
       return;
     }
-    setCount("");
-    setStartDate("");
-    setTargetDate("");
-    setOpen(false);
-    load();
-    onChanged();
+    onDone();
   }
 
-  // Per-division rollup: what the division holds, what's been handed out
-  // and what's actually delivered.
-  const divisionRollup = divisions.map((d) => {
-    const forDiv = rows.filter((r) => r.divisionId === d.id);
-    return {
-      ...d,
-      assigned: forDiv.reduce((s, r) => s + r.assignedCount, 0),
-      delivered: forDiv.reduce((s, r) => s + r.deliveredCount, 0),
-    };
-  });
-
-  const totalAssigned = rows.reduce((s, r) => s + r.assignedCount, 0);
-  const totalDelivered = rows.reduce((s, r) => s + r.deliveredCount, 0);
-  const master = project.totalTags || 0;
-
   return (
-    <section className="card p-4 mb-4">
-      <div className="flex items-center justify-between mb-2">
-        <div>
-          <h3 className="font-heading font-semibold text-ink-900">Tags</h3>
-          <p className="text-xs text-ink-500">
-            {totalDelivered} delivered · {totalAssigned} assigned
-            {master > 0 && ` · ${master} in the project`}
-            {master > 0 && totalAssigned < master && (
-              <span className="text-brand-yellowText">
-                {" "}
-                · {master - totalAssigned} not yet assigned
-              </span>
-            )}
-          </p>
-        </div>
-        {canAssign && (
-          <button onClick={() => setOpen((v) => !v)} className="btn-ghost text-sm">
-            <Plus size={14} className="mr-1" /> Assign tags
-          </button>
+    <div>
+      <div className="flex flex-wrap items-end gap-x-3 gap-y-5 pb-4">
+        {lockedAssignee ? (
+          <div className="text-sm">
+            <span className="block text-ink-700 mb-1">Assigning to</span>
+            <span className="inline-block px-2.5 py-1.5 rounded bg-brand-blueBg text-brand-blue font-medium">
+              {lockedAssignee.name}
+            </span>
+          </div>
+        ) : (
+          <label className="text-sm">
+            <span className="block text-ink-700 mb-1">Person</span>
+            <ResourceSelect
+              people={workers}
+              value={assigneeId}
+              onChange={setAssigneeId}
+              availability={availability}
+              className="px-2 py-1.5 rounded border border-ink-200 text-sm min-w-[240px]"
+            />
+          </label>
         )}
+
+        {assigneeId && (
+          <RateField
+            userId={assigneeId}
+            availability={availability}
+            onSaved={onRateSaved}
+          />
+        )}
+
+        {divisions.length > 0 && (
+          <label className="text-sm">
+            <span className="block text-ink-700 mb-1">Division</span>
+            <select
+              value={divisionId}
+              onChange={(e) => setDivisionId(e.target.value)}
+              className="px-2 py-1.5 rounded border border-ink-200 text-sm"
+            >
+              <option value="">Pick…</option>
+              {divisions.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <label className="text-sm">
+          <span className="block text-ink-700 mb-1">Tags</span>
+          <input
+            type="number"
+            min={1}
+            value={count}
+            onChange={(e) => setCount(e.target.value)}
+            placeholder="100"
+            className="w-24 px-2 py-1.5 rounded border border-ink-200"
+          />
+        </label>
+        <label className="text-sm">
+          <span className="block text-ink-700 mb-1">Start</span>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="px-2 py-1.5 rounded border border-ink-200"
+          />
+        </label>
+        <label className="text-sm">
+          <span className="block text-ink-700 mb-1">Target</span>
+          <input
+            type="date"
+            value={targetDate}
+            onChange={(e) => setTargetDate(e.target.value)}
+            className="px-2 py-1.5 rounded border border-ink-200"
+          />
+        </label>
+        <button
+          onClick={submit}
+          disabled={busy || !assigneeId || !count}
+          className="btn-primary disabled:opacity-50"
+        >
+          {busy ? "Assigning…" : "Assign"}
+        </button>
+        <button onClick={onCancel} className="btn-ghost">
+          Cancel
+        </button>
       </div>
 
-      {divisionRollup.length > 0 && (
-        <div className="mb-3 overflow-x-auto">
-          <table className="w-full text-sm min-w-[420px]">
-            <thead className="bg-ink-50 text-ink-500 text-xs uppercase tracking-wide">
-              <tr>
-                <th className="text-left font-semibold px-3 py-1.5">Division</th>
-                <th className="text-left font-semibold px-3 py-1.5">Tags</th>
-                <th className="text-left font-semibold px-3 py-1.5">Assigned</th>
-                <th className="text-left font-semibold px-3 py-1.5">Delivered</th>
-                <th className="text-left font-semibold px-3 py-1.5">Left</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-ink-100">
-              {divisionRollup.map((d) => (
-                <tr key={d.id}>
-                  <td className="px-3 py-1.5 text-ink-900">{d.name}</td>
-                  <td className="px-3 py-1.5 text-ink-700">{d.totalTags || "—"}</td>
-                  <td className="px-3 py-1.5 text-ink-700">{d.assigned}</td>
-                  <td className="px-3 py-1.5 text-ink-900 font-medium">{d.delivered}</td>
-                  <td className="px-3 py-1.5 text-ink-700">
-                    {Math.max(0, (d.totalTags || d.assigned) - d.delivered)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {open && (
-        <div className="mb-3 pb-3 border-b border-ink-100">
-          <div className="flex flex-wrap items-end gap-2">
-            <label className="text-sm">
-              <span className="block text-ink-700 mb-1">Person</span>
-              <select
-                value={assigneeId}
-                onChange={(e) => setAssigneeId(e.target.value)}
-                className="px-2 py-1.5 rounded border border-ink-200 text-sm"
-              >
-                <option value="">Pick…</option>
-                {workers.map((p) => {
-                  const a = availability.find((x) => x.id === p.id);
-                  return (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                      {a && a.status === "Allocated" ? " (busy)" : " (free)"}
-                    </option>
-                  );
-                })}
-              </select>
-            </label>
-            {divisions.length > 0 && (
-              <label className="text-sm">
-                <span className="block text-ink-700 mb-1">Division</span>
-                <select
-                  value={divisionId}
-                  onChange={(e) => setDivisionId(e.target.value)}
-                  className="px-2 py-1.5 rounded border border-ink-200 text-sm"
-                >
-                  <option value="">Pick…</option>
-                  {divisions.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            <label className="text-sm">
-              <span className="block text-ink-700 mb-1">Tags</span>
-              <input
-                type="number"
-                min={1}
-                value={count}
-                onChange={(e) => setCount(e.target.value)}
-                placeholder="100"
-                className="w-24 px-2 py-1.5 rounded border border-ink-200"
-              />
-            </label>
-            <label className="text-sm">
-              <span className="block text-ink-700 mb-1">Start</span>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="px-2 py-1.5 rounded border border-ink-200"
-              />
-            </label>
-            <label className="text-sm">
-              <span className="block text-ink-700 mb-1">Target</span>
-              <input
-                type="date"
-                value={targetDate}
-                onChange={(e) => setTargetDate(e.target.value)}
-                className="px-2 py-1.5 rounded border border-ink-200"
-              />
-            </label>
-            <button
-              onClick={assign}
-              disabled={busy || !assigneeId || !count}
-              className="btn-primary disabled:opacity-50"
-            >
-              {busy ? "Assigning…" : "Assign"}
-            </button>
-          </div>
-
-          {/* What this person already has on, so the Lead isn't assigning blind. */}
-          {picked && (
-            <div
-              className={`mt-2 p-2.5 rounded text-xs ${
-                picked.status === "Allocated"
-                  ? "bg-brand-yellowBg border border-brand-yellowBorder"
-                  : "bg-brand-greenBg"
-              }`}
-            >
-              {picked.status === "Allocated" ? (
-                <>
-                  <div className="flex items-center gap-1.5 font-medium text-brand-yellowText">
-                    <AlertTriangle size={12} /> {picked.name} is already working on:
-                  </div>
-                  <ul className="mt-1 space-y-0.5 text-ink-700">
-                    {picked.projects.map((p) => (
-                      <li key={p.projectName}>
-                        {p.projectName} · {fmt(p.startDate)} → {fmt(p.endDate)}
-                        {p.openTags > 0 && ` · ${p.openTags} tags still open`}
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="mt-1 text-ink-700">
-                    Frees up {picked.availableFrom ? fmt(picked.availableFrom) : "now"}.
-                  </div>
-                </>
-              ) : (
-                <span className="text-brand-greenText">
-                  {picked.name} has nothing booked — free now.
-                </span>
-              )}
-            </div>
-          )}
-          {error && <p className="text-xs text-brand-redText mt-2">{error}</p>}
-        </div>
-      )}
-
-      {rows.length === 0 ? (
-        <p className="text-xs text-ink-400 italic">No tags assigned yet.</p>
-      ) : (
-        <ul className="space-y-1.5">
-          {rows.map((r) =>
-            editing === r.id ? (
-              <EditAssignmentRow
-                key={r.id}
-                row={r}
-                divisions={divisions}
-                workers={workers}
-                onCancel={() => setEditing(null)}
-                onSaved={() => {
-                  setEditing(null);
-                  load();
-                  onChanged();
-                }}
-              />
-            ) : (
-              <li key={r.id} className="flex items-center justify-between gap-2 text-sm">
-                <div className="min-w-0">
-                  <span className="text-ink-900">{r.assigneeName}</span>
-                  {r.divisionName && (
-                    <span className="text-ink-500"> · {r.divisionName}</span>
-                  )}
-                  {(r.startDate || r.targetDate) && (
-                    <span className="text-ink-500">
-                      {" "}
-                      · {fmt(r.startDate)} → {fmt(r.targetDate)}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-ink-700">
-                    {r.deliveredCount} / {r.assignedCount}
-                    {r.pendingCount > 0 && (
-                      <span className="text-brand-yellowText"> (+{r.pendingCount})</span>
-                    )}
-                  </span>
-                  {canAssign && (
-                    <button
-                      onClick={() => setEditing(r.id)}
-                      className="btn-ghost text-xs"
-                      aria-label={`Edit ${r.assigneeName}'s assignment`}
-                    >
-                      <Pencil size={13} />
-                    </button>
-                  )}
-                </div>
-              </li>
-            ),
-          )}
-        </ul>
-      )}
-    </section>
+      {!lockedAssignee && <ResourceDetail a={availability.get(assigneeId)} />}
+      {error && <p className="text-xs text-brand-redText mt-2">{error}</p>}
+    </div>
   );
 }
 
@@ -878,6 +1028,7 @@ function EditAssignmentRow({
   const [targetDate, setTargetDate] = useState(row.targetDate ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { byId: availability } = useAvailability();
 
   async function save() {
     setBusy(true);
@@ -922,17 +1073,13 @@ function EditAssignmentRow({
       <div className="flex flex-wrap items-end gap-2">
         <label className="text-xs">
           <span className="block text-ink-700 mb-1">Person</span>
-          <select
+          <ResourceSelect
+            people={workers}
             value={assigneeId}
-            onChange={(e) => setAssigneeId(e.target.value)}
-            className="px-2 py-1 rounded border border-ink-200 text-sm"
-          >
-            {workers.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+            onChange={setAssigneeId}
+            availability={availability}
+            className="px-2 py-1 rounded border border-ink-200 text-sm min-w-[200px]"
+          />
         </label>
         {divisions.length > 0 && (
           <label className="text-xs">
@@ -997,6 +1144,7 @@ function EditAssignmentRow({
           <Trash2 size={13} />
         </button>
       </div>
+      <ResourceDetail a={availability.get(assigneeId)} />
       {error && <p className="text-xs text-brand-redText mt-1.5">{error}</p>}
     </li>
   );

@@ -13,6 +13,7 @@ function serialize(u: {
   email: string;
   role: string;
   dailyCapacity: number;
+  expectedTagsPerDay: number | null;
   isActive: boolean;
   createdAt: Date;
 }) {
@@ -22,6 +23,7 @@ function serialize(u: {
     email: u.email,
     role: u.role as DomainRole,
     dailyCapacity: u.dailyCapacity,
+    expectedTagsPerDay: u.expectedTagsPerDay,
     isActive: u.isActive,
     createdAt: u.createdAt.toISOString(),
   };
@@ -41,7 +43,12 @@ export async function GET() {
       orderBy: { name: "asc" },
     });
     return NextResponse.json({
-      users: roster.map((u) => ({ id: u.id, name: u.name, role: u.role })),
+      users: roster.map((u) => ({
+        id: u.id,
+        name: u.name,
+        role: u.role,
+        expectedTagsPerDay: u.expectedTagsPerDay,
+      })),
     });
   }
   const users = await prisma.domainUser.findMany({
@@ -78,6 +85,16 @@ export async function POST(req: Request) {
     role,
   });
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: 400 });
+
+  // Expected tags/day, set when the person is added so forecasts have a
+  // sensible number before they've built up any approved history.
+  const expected = Number(body.expectedTagsPerDay);
+  if (Number.isFinite(expected) && expected > 0) {
+    await prisma.domainUser.update({
+      where: { id: r.id },
+      data: { expectedTagsPerDay: Math.round(expected * 100) / 100 },
+    });
+  }
 
   // Optional non-default capacity.
   const capacity = Number(body.dailyCapacity);

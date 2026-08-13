@@ -63,15 +63,24 @@ function serialize(p: {
   };
 }
 
-/** Only the project's owner (the Lead who created it) or an Admin may
- *  edit or delete it. */
-async function authorize(id: number, userId: string, isAdmin: boolean) {
+/**
+ * Any Lead or Admin may edit or delete a project.
+ *
+ * This used to be owner-only, which meant a Lead couldn't touch a project
+ * a colleague (or a departed Lead) had created — including older projects
+ * whose owner no longer works on them. Leads run the same book of work, so
+ * they share the same rights over it; Team Leads, SMEs and Actionees still
+ * can't.
+ */
+async function authorize(id: number, role: string) {
+  // Role first, then existence: checking the other way round lets someone
+  // without rights tell which project ids exist by the 404-vs-403 answer.
+  if (role !== "Admin" && role !== "Lead") return "forbidden" as const;
   const project = await prisma.domainProject.findUnique({
     where: { id },
     select: { ownerId: true },
   });
   if (!project) return "notfound" as const;
-  if (!isAdmin && project.ownerId !== userId) return "forbidden" as const;
   return "ok" as const;
 }
 
@@ -87,7 +96,7 @@ export async function PATCH(
   if (!Number.isFinite(id)) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
-  const auth = await authorize(id, user.id, user.role === "Admin");
+  const auth = await authorize(id, user.role);
   if (auth === "notfound") return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (auth === "forbidden") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
@@ -372,7 +381,7 @@ export async function DELETE(
   if (!Number.isFinite(id)) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
-  const auth = await authorize(id, user.id, user.role === "Admin");
+  const auth = await authorize(id, user.role);
   if (auth === "notfound") return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (auth === "forbidden") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 

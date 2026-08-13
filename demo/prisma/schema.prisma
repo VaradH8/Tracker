@@ -339,6 +339,11 @@ model DomainUser {
   passwordHash  String
   role          String   @default("Actionee") // Admin | Lead | TeamLead | Actionee
   dailyCapacity Int      @default(8) // hours/day used for availability math
+  /// Expected tags/day for this person, set by a Lead when they're added.
+  /// Used for forecasting until they have approved history of their own,
+  /// at which point the measured rate takes over. Null = use the house
+  /// default.
+  expectedTagsPerDay Float?
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -438,6 +443,11 @@ model DomainAllocation {
   /// Set when someone is let go of the project early — from this date they
   /// count as available even though endDate hasn't arrived.
   releasedAt  DateTime?
+  /// What this person is expected to deliver per day *on this project*.
+  /// The same person can be quick on one discipline and slow on another, so
+  /// this beats both their measured average and their profile-level rate
+  /// when forecasting this project. Null = fall back to those.
+  expectedTagsPerDay Float?
   createdById String
   createdBy   DomainUser    @relation("DomainAllocationCreator", fields: [createdById], references: [id])
   createdAt   DateTime      @default(now())

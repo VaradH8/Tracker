@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, Clock } from "lucide-react";
+import { DomainPage, PageHeader } from "@/components/DomainPage";
 
 type Assignment = {
   id: number;
@@ -71,15 +72,11 @@ export default function MyTagsPage() {
   useEffect(load, [load]);
 
   return (
-    <div>
-      <header className="mb-6">
-        <h1 className="font-heading text-2xl font-semibold">My tags</h1>
-        <p className="text-sm text-ink-500 mt-1">
-          What you&apos;re carrying on each project and division. Enter what you
-          finished at the end of the day — your Lead reviews it, and only then
-          does it count as delivered.
-        </p>
-      </header>
+    <DomainPage width="wide">
+      <PageHeader
+        title="My tags"
+        description="What you're carrying on each project and division. Enter what you finished at the end of the day — your Lead reviews it, and only then does it count as delivered."
+      />
 
       {assignments === null ? (
         <p className="text-sm text-ink-500">Loading…</p>
@@ -142,7 +139,7 @@ export default function MyTagsPage() {
           </div>
         )}
       </section>
-    </div>
+    </DomainPage>
   );
 }
 

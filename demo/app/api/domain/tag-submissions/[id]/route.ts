@@ -200,23 +200,75 @@ export async function PATCH(
     );
   }
 
-  const [updated] = await prisma.$transaction([
-    prisma.domainTagSubmission.update({
-      where: { id },
-      data: {
-        status: "Approved",
-        approvedCount,
-        reviewedById: user.id,
-        reviewedAt: new Date(),
-        reviewNote,
-      },
-    }),
-    prisma.domainTagAssignment.update({
-      where: { id: submission.assignmentId },
-      data: { deliveredCount: { increment: approvedCount } },
-    }),
-  ]);
+  /**
+   * The check above is advisory: it reads deliveredCount, and by the time we
+   * write, another approval on the same assignment may already have consumed
+   * that headroom. "Approve all" fires reviews in parallel, so this is the
+   * common case rather than a rare one — left unguarded it pushes delivered
+   * past assigned and silently inflates every rate derived from it.
+   *
+   * Both writes below are therefore conditional and atomic:
+   *   - the submission only moves out of Pending if it is still Pending, so
+   *     the same one can't be approved twice concurrently;
+   *   - the counter only advances if the headroom genuinely still exists.
+   * Either condition failing rolls the whole transaction back.
+   */
+  const CONFLICT = "HEADROOM_TAKEN";
+  const ALREADY = "ALREADY_REVIEWED";
+  try {
+    await prisma.$transaction(async (tx) => {
+      const claimed = await tx.domainTagSubmission.updateMany({
+        where: { id, status: "Pending" },
+        data: {
+          status: "Approved",
+          approvedCount,
+          reviewedById: user.id,
+          reviewedAt: new Date(),
+          reviewNote,
+        },
+      });
+      if (claimed.count === 0) throw new Error(ALREADY);
 
+      const moved = await tx.domainTagAssignment.updateMany({
+        where: {
+          id: submission.assignmentId,
+          // Compare-and-set: only if this many tags are still free.
+          deliveredCount: {
+            lte: submission.assignment.assignedCount - approvedCount,
+          },
+        },
+        data: { deliveredCount: { increment: approvedCount } },
+      });
+      if (moved.count === 0) throw new Error(CONFLICT);
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    if (msg === ALREADY) {
+      return NextResponse.json(
+        { error: "This submission was already reviewed." },
+        { status: 409 },
+      );
+    }
+    if (msg === CONFLICT) {
+      const fresh = await prisma.domainTagAssignment.findUnique({
+        where: { id: submission.assignmentId },
+        select: { assignedCount: true, deliveredCount: true },
+      });
+      const left = Math.max(
+        0,
+        (fresh?.assignedCount ?? 0) - (fresh?.deliveredCount ?? 0),
+      );
+      return NextResponse.json(
+        {
+          error: `Another approval got there first — only ${left} tag(s) remain on this assignment.`,
+        },
+        { status: 409 },
+      );
+    }
+    throw e;
+  }
+
+  const updated = await prisma.domainTagSubmission.findUnique({ where: { id } });
   const assignment = await prisma.domainTagAssignment.findUnique({
     where: { id: submission.assignmentId },
     select: { assignedCount: true, deliveredCount: true, projectId: true },
@@ -244,10 +296,10 @@ export async function PATCH(
 
   return NextResponse.json({
     submission: {
-      id: updated.id,
-      status: updated.status,
-      approvedCount: updated.approvedCount,
-      date: toISODate(updated.date),
+      id,
+      status: updated?.status ?? "Approved",
+      approvedCount: updated?.approvedCount ?? approvedCount,
+      date: toISODate(updated?.date ?? submission.date),
       deliveredCount: assignment?.deliveredCount ?? 0,
       assignedCount: assignment?.assignedCount ?? 0,
       projectId: assignment?.projectId ?? null,

@@ -65,6 +65,9 @@ export type ResourceForecast = {
   /** The rate actually used in projections (falls back to the default). */
   effectiveRate: number;
   usingDefaultRate: boolean;
+  /** measured = from approved work · expected = a Lead's estimate ·
+   *  default = the house fallback. */
+  rateSource: "measured" | "expected" | "default";
   projects: {
     projectId: number;
     projectName: string;
@@ -88,7 +91,7 @@ export async function resourceForecast(): Promise<ResourceForecast[]> {
     prisma.domainUser.findMany({
       where: { isActive: true, role: { in: WORKING_ROLES } },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, role: true },
+      select: { id: true, name: true, role: true, expectedTagsPerDay: true },
     }),
     ratesByUser(),
   ]);
@@ -116,7 +119,10 @@ export async function resourceForecast(): Promise<ResourceForecast[]> {
 
   return people.map((p) => {
     const mine = allocations.filter((a) => a.userId === p.id);
-    const rate = rates.get(p.id) ?? null;
+    const measured = rates.get(p.id) ?? null;
+    // Measured history wins; a Lead's expectation covers the gap until
+    // there is any; the house default is the last resort.
+    const rate = measured ?? p.expectedTagsPerDay ?? null;
     const free = availableFrom(
       mine.map((a) => ({ endDate: a.endDate, releasedAt: a.releasedAt })),
     );
@@ -127,6 +133,14 @@ export async function resourceForecast(): Promise<ResourceForecast[]> {
       rate,
       effectiveRate: effectiveRate(rate),
       usingDefaultRate: rate === null,
+      /** Where the number came from, so the UI never passes off an
+       *  assumption as a measurement. */
+      rateSource:
+        measured !== null
+          ? ("measured" as const)
+          : p.expectedTagsPerDay
+            ? ("expected" as const)
+            : ("default" as const),
       projects: mine.map((a) => {
         const tags = tagsBy.get(`${p.id}:${a.projectId}`);
         return {
@@ -174,6 +188,8 @@ export type ProjectForecast = {
   /** The date the projection counts from — today, unless the project is
    *  staffed from a later date. */
   startsFrom: string;
+  /** How many people actually hold tags on this project. */
+  peopleEngaged: number;
   forecast: ForecastResult;
 };
 
@@ -207,6 +223,13 @@ export async function projectForecasts(
   });
 
   const rates = await ratesByUser();
+  const expected = new Map(
+    (
+      await prisma.domainUser.findMany({
+        select: { id: true, expectedTagsPerDay: true },
+      })
+    ).map((u) => [u.id, u.expectedTagsPerDay]),
+  );
   const now = new Date();
 
   // Every booking in the system, so a person's rate can be shared across
@@ -257,6 +280,14 @@ export async function projectForecasts(
     const earliestStart = starts.length > 0 ? new Date(Math.min(...starts)) : null;
     const from = earliestStart && earliestStart > now ? earliestStart : now;
 
+    // A rate set on the booking is the Lead saying "on THIS project, expect
+    // N/day" — more specific than a cross-project average, so it wins.
+    const perProjectRate = new Map(
+      p.allocations
+        .filter((a) => a.expectedTagsPerDay != null)
+        .map((a) => [a.userId, a.expectedTagsPerDay as number]),
+    );
+
     // Who's on the job: the formal allocations, else whoever holds tags.
     const allocated = p.allocations.map((a) => a.user);
     const fromAssignments = Array.from(
@@ -284,7 +315,11 @@ export async function projectForecasts(
     };
 
     const resources = people.map((u) => {
-      const r = rates.get(u.id) ?? null;
+      const r =
+        perProjectRate.get(u.id) ??
+        rates.get(u.id) ??
+        expected.get(u.id) ??
+        null;
       const fullRate = effectiveRate(r);
       const concurrentProjects = concurrentFor(u.id);
       return {
@@ -326,6 +361,7 @@ export async function projectForecasts(
       /** When the projection starts counting from — today, unless the
        *  project is staffed from a later date. */
       startsFrom: toISODate(from),
+      peopleEngaged: new Set(p.tagAssignments.map((a) => a.assigneeId)).size,
       forecast: forecastDelivery({
         remainingTags,
         rates: resources.map((r) => r.rate),
@@ -380,4 +416,195 @@ export async function allocationConflicts(
         availableFrom: toISODate(free),
       };
     });
+}
+
+export type DeliveryEntry = {
+  submissionId: number;
+  assigneeId: string;
+  assigneeName: string;
+  /** What the Lead actually signed off, which may be under what was claimed. */
+  count: number;
+  claimed: number;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  note: string | null;
+};
+
+export type DeliveryDay = {
+  date: string;
+  total: number;
+  divisions: {
+    divisionId: number | null;
+    divisionName: string;
+    total: number;
+    entries: DeliveryEntry[];
+  }[];
+};
+
+export type DivisionRate = {
+  divisionId: number | null;
+  divisionName: string;
+  totalTags: number;
+  delivered: number;
+  remaining: number;
+  /** Distinct days this division has had work approved on. */
+  activeDays: number;
+  /** Delivered ÷ active days — the division's measured pace. */
+  perDay: number;
+};
+
+/**
+ * The delivery record behind a project's forecast: what was approved, on
+ * which day, in which division, by which actionee, and who signed it off.
+ *
+ * Only Approved submissions count. A claim awaiting review has not been
+ * delivered, so it neither appears here nor moves a rate — the same rule
+ * the rest of the forecast follows.
+ */
+export async function projectDeliveries(projectId: number): Promise<{
+  days: DeliveryDay[];
+  divisionRates: DivisionRate[];
+  peopleEngaged: { id: string; name: string; delivered: number }[];
+}> {
+  const [project, approved] = await Promise.all([
+    prisma.domainProject.findUnique({
+      where: { id: projectId },
+      include: {
+        divisions: { include: { division: { select: { id: true, name: true } } } },
+        tagAssignments: {
+          include: {
+            assignee: { select: { id: true, name: true } },
+            division: { select: { id: true, name: true } },
+          },
+        },
+      },
+    }),
+    prisma.domainTagSubmission.findMany({
+      where: { status: "Approved", assignment: { projectId } },
+      include: {
+        assignment: {
+          include: {
+            assignee: { select: { id: true, name: true } },
+            division: { select: { id: true, name: true } },
+          },
+        },
+        reviewedBy: { select: { name: true } },
+      },
+      orderBy: [{ date: "desc" }, { reviewedAt: "desc" }],
+    }),
+  ]);
+
+  if (!project) return { days: [], divisionRates: [], peopleEngaged: [] };
+
+  const countOf = (s: (typeof approved)[number]) =>
+    s.approvedCount ?? s.completedCount;
+
+  // --- day → division → entries -------------------------------------
+  const byDay = new Map<string, Map<string, DeliveryDay["divisions"][number]>>();
+  for (const s of approved) {
+    const n = countOf(s);
+    if (n <= 0) continue;
+    const date = toISODate(s.date);
+    const divId = s.assignment.division?.id ?? null;
+    const divName = s.assignment.division?.name ?? "No division";
+    const key = String(divId);
+
+    const dayMap = byDay.get(date) ?? new Map();
+    const bucket =
+      dayMap.get(key) ??
+      { divisionId: divId, divisionName: divName, total: 0, entries: [] };
+    bucket.total += n;
+    bucket.entries.push({
+      submissionId: s.id,
+      assigneeId: s.assignment.assignee.id,
+      assigneeName: s.assignment.assignee.name,
+      count: n,
+      claimed: s.completedCount,
+      approvedBy: s.reviewedBy?.name ?? null,
+      approvedAt: s.reviewedAt ? s.reviewedAt.toISOString() : null,
+      note: s.reviewNote,
+    });
+    dayMap.set(key, bucket);
+    byDay.set(date, dayMap);
+  }
+
+  const days: DeliveryDay[] = Array.from(byDay, ([date, divMap]) => {
+    const divisions = Array.from(divMap.values()).sort(
+      (a, b) => b.total - a.total,
+    );
+    return {
+      date,
+      total: divisions.reduce((s, d) => s + d.total, 0),
+      divisions,
+    };
+  }).sort((a, b) => (a.date < b.date ? 1 : -1));
+
+  // --- per-division pace ---------------------------------------------
+  const divDelivered = new Map<string, { tags: number; days: Set<string> }>();
+  for (const s of approved) {
+    const n = countOf(s);
+    if (n <= 0) continue;
+    const key = String(s.assignment.division?.id ?? null);
+    const e = divDelivered.get(key) ?? { tags: 0, days: new Set<string>() };
+    e.tags += n;
+    e.days.add(toISODate(s.date));
+    divDelivered.set(key, e);
+  }
+
+  // Every division the project declares, plus any the work actually used.
+  const declared = project.divisions.map((d) => ({
+    divisionId: d.division.id as number | null,
+    divisionName: d.division.name,
+    totalTags: d.totalTags,
+  }));
+  for (const a of project.tagAssignments) {
+    const id = a.division?.id ?? null;
+    if (!declared.some((d) => d.divisionId === id)) {
+      declared.push({
+        divisionId: id,
+        divisionName: a.division?.name ?? "No division",
+        totalTags: 0,
+      });
+    }
+  }
+
+  const divisionRates: DivisionRate[] = declared.map((d) => {
+    const key = String(d.divisionId);
+    const stat = divDelivered.get(key);
+    const delivered = stat?.tags ?? 0;
+    const activeDays = stat?.days.size ?? 0;
+    const assignedHere = project.tagAssignments
+      .filter((a) => (a.division?.id ?? null) === d.divisionId)
+      .reduce((s, a) => s + a.assignedCount, 0);
+    const scope = d.totalTags > 0 ? d.totalTags : assignedHere;
+    return {
+      divisionId: d.divisionId,
+      divisionName: d.divisionName,
+      totalTags: scope,
+      delivered,
+      remaining: Math.max(0, scope - delivered),
+      activeDays,
+      perDay: activeDays > 0 ? Math.round((delivered / activeDays) * 100) / 100 : 0,
+    };
+  });
+
+  // --- who is engaged --------------------------------------------------
+  const engaged = new Map<string, { id: string; name: string; delivered: number }>();
+  for (const a of project.tagAssignments) {
+    const e = engaged.get(a.assignee.id) ?? {
+      id: a.assignee.id,
+      name: a.assignee.name,
+      delivered: 0,
+    };
+    e.delivered += a.deliveredCount;
+    engaged.set(a.assignee.id, e);
+  }
+
+  return {
+    days,
+    divisionRates,
+    peopleEngaged: Array.from(engaged.values()).sort(
+      (a, b) => b.delivered - a.delivered,
+    ),
+  };
 }

@@ -2,108 +2,215 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutGrid, FolderKanban, ClipboardList, Users, Gauge, BarChart3, LogOut, KeyRound, TrendingUp, Tags, CheckSquare } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import {
+  LayoutGrid,
+  FolderKanban,
+  ClipboardList,
+  Users,
+  Gauge,
+  BarChart3,
+  LogOut,
+  KeyRound,
+  TrendingUp,
+  Tags,
+  CheckSquare,
+  Menu,
+  X,
+} from "lucide-react";
 import { useDomain } from "@/lib/domain-store";
 import { DOMAIN_ROLE_LABELS, type DomainRole } from "@/lib/domain";
-import type { ReactNode } from "react";
 
 type NavItem = {
   href: string;
   label: string;
   icon: typeof LayoutGrid;
   roles: DomainRole[];
+  /** Items are grouped so nine destinations still read as two short lists. */
+  group: "Work" | "Manage";
 };
 
 const WORKERS: DomainRole[] = ["TeamLead", "SME", "Actionee"];
 const EVERYONE: DomainRole[] = ["Admin", "Lead", ...WORKERS];
+const MANAGERS: DomainRole[] = ["Admin", "Lead"];
 
 const NAV: NavItem[] = [
-  { href: "/domain", label: "Dashboard", icon: LayoutGrid, roles: EVERYONE },
-  { href: "/domain/projects", label: "Projects", icon: FolderKanban, roles: EVERYONE },
-  { href: "/domain/my-tags", label: "My tags", icon: Tags, roles: WORKERS },
-  { href: "/domain/worklog", label: "Work log", icon: ClipboardList, roles: EVERYONE },
-  { href: "/domain/approvals", label: "Approvals", icon: CheckSquare, roles: ["Admin", "Lead"] },
-  { href: "/domain/forecast", label: "Forecast", icon: TrendingUp, roles: ["Admin", "Lead"] },
-  { href: "/domain/availability", label: "Availability", icon: Gauge, roles: ["Admin", "Lead"] },
-  { href: "/domain/kpis", label: "KPIs", icon: BarChart3, roles: ["Admin"] },
+  { href: "/engineering", label: "Dashboard", icon: LayoutGrid, roles: EVERYONE, group: "Work" },
+  { href: "/engineering/projects", label: "Projects", icon: FolderKanban, roles: EVERYONE, group: "Work" },
+  { href: "/engineering/my-tags", label: "My tags", icon: Tags, roles: WORKERS, group: "Work" },
+  { href: "/engineering/worklog", label: "Work log", icon: ClipboardList, roles: EVERYONE, group: "Work" },
+  { href: "/engineering/approvals", label: "Approvals", icon: CheckSquare, roles: MANAGERS, group: "Manage" },
+  { href: "/engineering/forecast", label: "Forecast", icon: TrendingUp, roles: MANAGERS, group: "Manage" },
+  { href: "/engineering/availability", label: "Resource availability", icon: Gauge, roles: MANAGERS, group: "Manage" },
+  { href: "/engineering/kpis", label: "KPIs", icon: BarChart3, roles: ["Admin"], group: "Manage" },
   // Leads add members to their own team; only an Admin can create Admins or Leads.
-  { href: "/domain/users", label: "Users", icon: Users, roles: ["Admin", "Lead"] },
+  { href: "/engineering/users", label: "Users", icon: Users, roles: MANAGERS, group: "Manage" },
 ];
 
+const GROUPS: NavItem["group"][] = ["Work", "Manage"];
+
+function isActive(pathname: string, href: string): boolean {
+  return href === "/engineering" ? pathname === "/engineering" : pathname.startsWith(href);
+}
+
+/**
+ * Left rail navigation.
+ *
+ * The nav used to run across the top, which became a horizontally
+ * scrolling strip once a Lead had nine destinations. A vertical rail gives
+ * every item a full label, room to group them, and hands the top of each
+ * page back to that page's own heading.
+ *
+ * Below `lg` the rail becomes a slide-over behind a menu button, so narrow
+ * screens keep their full width for content.
+ */
 export function DomainShell({ children }: { children: ReactNode }) {
   const { current, signOut } = useDomain();
   const pathname = usePathname();
   const router = useRouter();
+  const [open, setOpen] = useState(false);
+
+  // A tap that navigates should also dismiss the drawer.
+  useEffect(() => setOpen(false), [pathname]);
+
   if (!current) return null;
 
   const items = NAV.filter((n) => n.roles.includes(current.role));
 
+  const rail = (
+    <>
+      <Link
+        href="/engineering"
+        className="flex items-center gap-2 px-5 h-16 border-b border-ink-200 shrink-0"
+      >
+        <span className="w-8 h-8 rounded bg-brand-blue text-white grid place-items-center font-heading font-bold text-sm">
+          E
+        </span>
+        <span className="font-heading font-semibold text-ink-900">Engineering</span>
+      </Link>
+
+      <nav className="flex-1 overflow-y-auto py-4 px-3">
+        {GROUPS.map((group) => {
+          const groupItems = items.filter((n) => n.group === group);
+          if (groupItems.length === 0) return null;
+          return (
+            <div key={group} className="mb-5">
+              <div className="px-2 mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-400">
+                {group}
+              </div>
+              <ul className="space-y-0.5">
+                {groupItems.map((n) => {
+                  const active = isActive(pathname, n.href);
+                  const Icon = n.icon;
+                  return (
+                    <li key={n.href}>
+                      <Link
+                        href={n.href}
+                        aria-current={active ? "page" : undefined}
+                        className={`flex items-center gap-2.5 px-2.5 py-2 rounded text-sm font-medium transition ${
+                          active
+                            ? "bg-brand-blueBg text-brand-blue"
+                            : "text-ink-600 hover:bg-ink-100"
+                        }`}
+                      >
+                        <Icon size={16} className="shrink-0" />
+                        <span className="truncate">{n.label}</span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          );
+        })}
+      </nav>
+
+      <div className="border-t border-ink-200 p-3 shrink-0">
+        <Link
+          href="/engineering/account"
+          className="flex items-center gap-2.5 px-2.5 py-2 rounded hover:bg-ink-100"
+          title="Account & password"
+        >
+          <span className="w-8 h-8 rounded-pill bg-ink-100 text-ink-600 grid place-items-center text-xs font-semibold shrink-0">
+            {current.name.slice(0, 1).toUpperCase()}
+          </span>
+          <span className="min-w-0">
+            <span className="block text-sm font-medium text-ink-900 truncate">
+              {current.name}
+            </span>
+            <span className="block text-[11px] text-ink-500">
+              {DOMAIN_ROLE_LABELS[current.role]}
+            </span>
+          </span>
+        </Link>
+        <div className="flex items-center gap-1 mt-1">
+          <Link
+            href="/engineering/account"
+            className="flex-1 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs text-ink-600 hover:bg-ink-100"
+          >
+            <KeyRound size={13} /> Account
+          </Link>
+          <button
+            onClick={async () => {
+              await signOut();
+              router.replace("/login?engineering=1");
+            }}
+            className="flex-1 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs text-ink-600 hover:bg-ink-100"
+          >
+            <LogOut size={13} /> Sign out
+          </button>
+        </div>
+      </div>
+    </>
+  );
+
   return (
     <div className="min-h-screen bg-ink-50">
-      <header className="bg-white border-b border-ink-200 sticky top-0 z-20">
-        <div className="max-w-[1200px] mx-auto px-6 h-14 flex items-center gap-6">
-          <Link href="/domain" className="flex items-center gap-2 shrink-0">
-            <span className="w-7 h-7 rounded bg-brand-blue text-white grid place-items-center font-heading font-bold text-sm">
-              D
-            </span>
-            <span className="font-heading font-semibold">Domain</span>
-          </Link>
-          <nav className="flex items-center gap-1 flex-1 overflow-x-auto">
-            {items.map((n) => {
-              const active =
-                n.href === "/domain"
-                  ? pathname === "/domain"
-                  : pathname.startsWith(n.href);
-              const Icon = n.icon;
-              return (
-                <Link
-                  key={n.href}
-                  href={n.href}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium ${
-                    active
-                      ? "bg-brand-blueBg text-brand-blue"
-                      : "text-ink-600 hover:bg-ink-100"
-                  }`}
-                >
-                  <Icon size={15} /> {n.label}
-                </Link>
-              );
-            })}
-          </nav>
-          <div className="flex items-center gap-3 shrink-0">
-            <Link
-              href="/domain/account"
-              className="text-right leading-tight rounded px-1 hover:bg-ink-100"
-              title="Account & password"
-            >
-              <div className="text-sm font-medium text-ink-900">{current.name}</div>
-              <div className="text-[11px] text-ink-500">
-                {DOMAIN_ROLE_LABELS[current.role]}
-              </div>
-            </Link>
-            <Link
-              href="/domain/account"
-              className="p-2 rounded hover:bg-ink-100 text-ink-500"
-              title="Account & password"
-              aria-label="Account and password"
-            >
-              <KeyRound size={16} />
-            </Link>
-            <button
-              onClick={async () => {
-                await signOut();
-                router.replace("/login?domain=1");
-              }}
-              className="p-2 rounded hover:bg-ink-100 text-ink-500"
-              title="Sign out of Domain"
-              aria-label="Sign out"
-            >
-              <LogOut size={16} />
-            </button>
-          </div>
-        </div>
+      {/* Narrow screens: a slim bar carrying the menu button. */}
+      <header className="lg:hidden sticky top-0 z-30 bg-white border-b border-ink-200 h-14 flex items-center gap-3 px-4">
+        <button
+          onClick={() => setOpen(true)}
+          className="p-2 -ml-2 rounded hover:bg-ink-100 text-ink-600"
+          aria-label="Open navigation"
+        >
+          <Menu size={18} />
+        </button>
+        <Link href="/engineering" className="flex items-center gap-2">
+          <span className="w-7 h-7 rounded bg-brand-blue text-white grid place-items-center font-heading font-bold text-sm">
+            E
+          </span>
+          <span className="font-heading font-semibold">Engineering</span>
+        </Link>
       </header>
-      <main className="max-w-[1200px] mx-auto px-6 py-8">{children}</main>
+
+      {/* The rail, fixed on wide screens. */}
+      <aside className="hidden lg:flex fixed inset-y-0 left-0 w-60 bg-white border-r border-ink-200 flex-col z-20">
+        {rail}
+      </aside>
+
+      {/* Slide-over for narrow screens. */}
+      {open && (
+        <div className="lg:hidden fixed inset-0 z-40">
+          <div
+            className="absolute inset-0 bg-ink-900/40"
+            onClick={() => setOpen(false)}
+          />
+          <aside className="absolute inset-y-0 left-0 w-64 bg-white border-r border-ink-200 flex flex-col">
+            <button
+              onClick={() => setOpen(false)}
+              className="absolute top-4 right-3 p-1.5 rounded hover:bg-ink-100 text-ink-500 z-10"
+              aria-label="Close navigation"
+            >
+              <X size={16} />
+            </button>
+            {rail}
+          </aside>
+        </div>
+      )}
+
+      <main className="lg:pl-60">
+        <div className="max-w-[1280px] mx-auto px-6 py-8">{children}</div>
+      </main>
     </div>
   );
 }

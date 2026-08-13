@@ -20,6 +20,7 @@ function serialize(a: {
   startDate: Date;
   endDate: Date;
   releasedAt: Date | null;
+  expectedTagsPerDay: number | null;
 }) {
   return {
     id: a.id,
@@ -31,6 +32,7 @@ function serialize(a: {
     startDate: toISODate(a.startDate),
     endDate: toISODate(a.endDate),
     releasedAt: a.releasedAt ? toISODate(a.releasedAt) : null,
+    expectedTagsPerDay: a.expectedTagsPerDay,
   };
 }
 
@@ -134,12 +136,31 @@ export async function POST(req: Request) {
     );
   }
 
+  // What this person is expected to manage on this project specifically.
+  const rateRaw = Number(body.expectedTagsPerDay);
+  const expectedTagsPerDay =
+    Number.isFinite(rateRaw) && rateRaw > 0
+      ? Math.round(rateRaw * 100) / 100
+      : null;
+
   // One booking per person per project — re-allocating adjusts the window
   // rather than stacking duplicates.
   const allocation = await prisma.domainAllocation.upsert({
     where: { projectId_userId: { projectId, userId } },
-    create: { projectId, userId, startDate, endDate, createdById: user.id },
-    update: { startDate, endDate, releasedAt: null },
+    create: {
+      projectId,
+      userId,
+      startDate,
+      endDate,
+      expectedTagsPerDay,
+      createdById: user.id,
+    },
+    update: {
+      startDate,
+      endDate,
+      releasedAt: null,
+      ...(expectedTagsPerDay !== null ? { expectedTagsPerDay } : {}),
+    },
     include: INCLUDE,
   });
 

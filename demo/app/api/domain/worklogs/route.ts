@@ -5,6 +5,7 @@ import {
   withinLogWindow,
   istDayStart,
   logWindowLabel,
+  WORKING_ROLES,
   LOG_WINDOW_END_HOUR,
   LOG_WINDOW_START_HOUR,
 } from "@/lib/domain";
@@ -15,7 +16,7 @@ function serialize(l: {
   note: string;
   date: Date;
   createdAt: Date;
-  user: { id: string; name: string };
+  user: { id: string; name: string; role: string };
   project: { id: number; name: string } | null;
   task: { id: number; title: string } | null;
 }) {
@@ -26,6 +27,7 @@ function serialize(l: {
     date: l.date.toISOString().slice(0, 10),
     user: l.user.name,
     userId: l.user.id,
+    userRole: l.user.role,
     project: l.project?.name ?? null,
     projectId: l.project?.id ?? null,
     task: l.task?.title ?? null,
@@ -35,25 +37,66 @@ function serialize(l: {
 }
 
 const LOG_INCLUDE = {
-  user: { select: { id: true, name: true } },
+  user: { select: { id: true, name: true, role: true } },
   project: { select: { id: true, name: true } },
   task: { select: { id: true, title: true } },
 } as const;
 
-/** Own logs by default; Admin can see everyone's with ?all=true. */
+/**
+ * Own logs by default. `?all=true` switches to *other people's*:
+ *   Admin — everyone else, Leads included.
+ *   Lead  — the people who do the work (Team Leads, SMEs, Actionees). A
+ *           Lead doesn't get to read another Lead's log.
+ *   Anyone else — ignored; they still see only their own.
+ *
+ * The caller is always excluded here: their own entries live under "My
+ * log", and repeating them in the team view double-counts the hours and
+ * headcount totals.
+ *
+ * Narrow further with ?userId=, ?from= and ?to= (inclusive ISO dates).
+ */
 export async function GET(req: Request) {
   const userOrResp = await requireDomainUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
   const user = userOrResp;
-  const all = new URL(req.url).searchParams.get("all") === "true";
 
-  const where =
-    all && user.role === "Admin" ? {} : { userId: user.id };
+  const params = new URL(req.url).searchParams;
+  const all = params.get("all") === "true";
+  const userId = params.get("userId");
+  const from = params.get("from");
+  const to = params.get("to");
+
+  const canSeeTeam = user.role === "Admin" || user.role === "Lead";
+
+  let scope: Record<string, unknown>;
+  if (!all || !canSeeTeam) {
+    scope = { userId: user.id };
+  } else if (user.role === "Admin") {
+    // Everyone but themselves.
+    scope = { userId: { not: user.id } };
+  } else {
+    // A Lead isn't a working role, so this already excludes their own.
+    scope = { user: { role: { in: WORKING_ROLES } } };
+  }
+
+  // An explicit person narrows the scope; it can't widen it, so a Lead
+  // asking for another Lead by id still gets nothing.
+  if (userId) {
+    scope = { AND: [scope, { userId }] };
+  }
+
+  const dateRange: Record<string, Date> = {};
+  if (from) dateRange.gte = new Date(from + "T00:00:00.000Z");
+  if (to) dateRange.lte = new Date(to + "T00:00:00.000Z");
+
   const logs = await prisma.domainWorkLog.findMany({
-    where,
+    where: {
+      ...scope,
+      ...(Object.keys(dateRange).length > 0 ? { date: dateRange } : {}),
+    },
     include: LOG_INCLUDE,
-    orderBy: { createdAt: "desc" },
-    take: 200,
+    orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+    take: 500,
   });
   return NextResponse.json({ logs: logs.map(serialize) });
 }

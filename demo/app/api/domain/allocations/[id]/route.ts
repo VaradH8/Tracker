@@ -55,6 +55,22 @@ export async function PATCH(
     }
   }
 
+  // null clears the per-project rate and falls back to measured history.
+  if (body.expectedTagsPerDay !== undefined) {
+    if (body.expectedTagsPerDay === null || body.expectedTagsPerDay === "") {
+      data.expectedTagsPerDay = null;
+    } else {
+      const r = Number(body.expectedTagsPerDay);
+      if (!Number.isFinite(r) || r <= 0) {
+        return NextResponse.json(
+          { error: "Tags per day must be a positive number." },
+          { status: 400 },
+        );
+      }
+      data.expectedTagsPerDay = Math.round(r * 100) / 100;
+    }
+  }
+
   const start = (data.startDate as Date) ?? allocation.startDate;
   const end = (data.endDate as Date) ?? allocation.endDate;
   if (end < start) {
@@ -84,6 +100,7 @@ export async function PATCH(
       startDate: toISODate(updated.startDate),
       endDate: toISODate(updated.endDate),
       releasedAt: updated.releasedAt ? toISODate(updated.releasedAt) : null,
+      expectedTagsPerDay: updated.expectedTagsPerDay,
     },
   });
 }
