@@ -3,16 +3,14 @@ import { prisma } from "@/lib/db";
 import { requireDomainUser } from "@/lib/domain-auth";
 import {
   DOMAIN_TASK_STATUSES,
-  WORKING_ROLES,
+  backdateFloorISO,
+  backdateWindowLabel,
+  istParts,
   type DomainRole,
   type DomainTaskStatus,
 } from "@/lib/domain";
+import { TASK_INCLUDE as INCLUDE, serializeTask as serialize } from "@/lib/domain-task";
 
-const INCLUDE = {
-  project: { select: { id: true, name: true } },
-  assignee: { select: { id: true, name: true, role: true } },
-  createdBy: { select: { id: true, name: true } },
-} as const;
 
 const MANAGER_ROLES: DomainRole[] = ["Admin", "Lead", "TeamLead"];
 
@@ -62,6 +60,121 @@ export async function PATCH(
   }
 
   const body = await req.json().catch(() => ({}));
+  const action = typeof body.action === "string" ? body.action : null;
+
+  /**
+   * The lifecycle transitions, kept separate from field edits.
+   *
+   * submit  — the assignee, and only the assignee, says it's done, with a
+   *           note and the day they did it.
+   * approve
+   * reject  — whoever assigned it decides. Not "any manager": a task
+   *           handed out by a Team Lead is theirs to sign off, and letting
+   *           an unrelated Lead close it would lose the thread.
+   */
+  if (action === "submit") {
+    if (!isAssignee) {
+      return NextResponse.json(
+        { error: "Only the person the task is assigned to can submit it." },
+        { status: 403 },
+      );
+    }
+    if (task.status === "Submitted") {
+      return NextResponse.json(
+        { error: "This task is already waiting for review." },
+        { status: 409 },
+      );
+    }
+    if (task.status === "Approved") {
+      return NextResponse.json(
+        { error: "This task has already been approved." },
+        { status: 409 },
+      );
+    }
+    const note = String(body.note ?? "").trim();
+    if (!note) {
+      return NextResponse.json(
+        { error: "Add a note on what you did." },
+        { status: 400 },
+      );
+    }
+    const raw = String(body.date ?? "");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      return NextResponse.json({ error: "Pick the date you did the work." }, { status: 400 });
+    }
+    const todayISO = istParts().dateISO;
+    if (raw > todayISO) {
+      return NextResponse.json(
+        { error: "You can't submit a task for a future date." },
+        { status: 400 },
+      );
+    }
+    const floor = backdateFloorISO();
+    if (raw < floor) {
+      return NextResponse.json(
+        { error: `Dates go ${backdateWindowLabel()} — nothing earlier than ${floor}.` },
+        { status: 400 },
+      );
+    }
+    /**
+     * Work you gave yourself has nobody to approve it, so submitting
+     * records it as done rather than parking it in a queue that would
+     * never be looked at. reviewedById stays null — nobody reviewed it,
+     * and naming the author as their own approver would be a lie.
+     */
+    const selfCreated = task.createdById === user.id;
+
+    const submitted = await prisma.domainTask.update({
+      where: { id },
+      data: {
+        status: selfCreated ? "Approved" : "Submitted",
+        submittedOn: new Date(raw + "T00:00:00.000Z"),
+        submittedNote: note,
+        submittedAt: new Date(),
+        // A resubmission after a rejection starts a clean decision.
+        reviewedById: null,
+        reviewedAt: selfCreated ? new Date() : null,
+        reviewNote: null,
+      },
+      include: INCLUDE,
+    });
+    return NextResponse.json({
+      task: serialize(submitted),
+      selfCompleted: selfCreated,
+    });
+  }
+
+  if (action === "approve" || action === "reject") {
+    if (task.createdById !== user.id && user.role !== "Admin") {
+      return NextResponse.json(
+        { error: "Only the person who assigned this task can review it." },
+        { status: 403 },
+      );
+    }
+    if (task.status !== "Submitted") {
+      return NextResponse.json(
+        { error: "That task hasn't been submitted for review." },
+        { status: 409 },
+      );
+    }
+    const reviewed = await prisma.domainTask.update({
+      where: { id },
+      data: {
+        // A rejection goes back to the assignee to redo, rather than
+        // becoming a dead end.
+        status: action === "approve" ? "Approved" : "Rejected",
+        reviewedById: user.id,
+        reviewedAt: new Date(),
+        reviewNote:
+          typeof body.reviewNote === "string" && body.reviewNote.trim()
+            ? body.reviewNote.trim()
+            : null,
+      },
+      include: INCLUDE,
+    });
+    return NextResponse.json({ task: serialize(reviewed) });
+  }
+
   const data: Record<string, unknown> = {};
 
   if (DOMAIN_TASK_STATUSES.includes(body.status as DomainTaskStatus)) {
@@ -85,17 +198,22 @@ export async function PATCH(
       data.estimatedHours =
         Number.isFinite(n) && n > 0 ? Math.min(1000, Math.round(n * 100) / 100) : null;
     }
+    if (body.divisionId === null) {
+      data.divisionId = null;
+    } else if (body.divisionId !== undefined) {
+      const d = Number(body.divisionId);
+      data.divisionId = Number.isFinite(d) ? d : null;
+    }
     if (body.assigneeId === null) {
       data.assigneeId = null;
     } else if (typeof body.assigneeId === "string") {
       const assignee = await prisma.domainUser.findUnique({
         where: { id: body.assigneeId },
       });
-      if (
-        !assignee ||
-        !assignee.isActive ||
-        !WORKING_ROLES.includes(assignee.role as DomainRole)
-      ) {
+      // A task may be moved to anyone active, matching the freedom the
+      // original assignment has. Approval still returns to whoever
+      // assigned it, which is what keeps the trail intact.
+      if (!assignee || !assignee.isActive) {
         return NextResponse.json({ error: "Invalid assignee." }, { status: 400 });
       }
       data.assigneeId = assignee.id;
@@ -111,25 +229,5 @@ export async function PATCH(
     data,
     include: INCLUDE,
   });
-  return NextResponse.json({
-    task: {
-      id: updated.id,
-      title: updated.title,
-      description: updated.description,
-      status: updated.status,
-      startDate: updated.startDate
-        ? updated.startDate.toISOString().slice(0, 10)
-        : null,
-      targetDate: updated.targetDate
-        ? updated.targetDate.toISOString().slice(0, 10)
-        : null,
-      estimatedHours: updated.estimatedHours,
-      projectId: updated.project.id,
-      projectName: updated.project.name,
-      assignee: updated.assignee?.name ?? null,
-      assigneeId: updated.assignee?.id ?? null,
-      createdBy: updated.createdBy.name,
-      createdAt: updated.createdAt.toISOString(),
-    },
-  });
+  return NextResponse.json({ task: serialize(updated) });
 }

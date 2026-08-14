@@ -2,6 +2,7 @@
 
 import { CalendarClock, Users } from "lucide-react";
 import { DomainDeliveryLog } from "@/components/DomainDeliveryLog";
+import { fmtDate as fmt, fmtDate as fmtShort } from "@/lib/domain-format";
 
 /**
  * A project's estimate, laid out to be shown to somebody rather than
@@ -50,24 +51,7 @@ export type ProjectRow = {
   forecast: Forecast;
 };
 
-export function fmt(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso + "T00:00:00Z").toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-}
 
-function fmtShort(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso + "T00:00:00Z").toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    timeZone: "UTC",
-  });
-}
 
 export function statusTone(s: string) {
   if (s === "On Track") {
@@ -208,10 +192,8 @@ function KeyFigure({
 
 export function DomainForecastCard({
   p,
-  defaultTagsPerDay,
 }: {
   p: ProjectRow;
-  defaultTagsPerDay?: number;
 }) {
   const tone = statusTone(p.forecast.status);
   const pct = p.totalTags > 0 ? (p.deliveredTags / p.totalTags) * 100 : 0;
@@ -368,11 +350,16 @@ export function DomainForecastCard({
               resource starts.
             </p>
           )}
+          {/* Name the people instead of quoting the fallback figure: the
+              fix is to set their rate, not to know what was assumed. */}
           {p.resources.some((r) => r.usingDefaultRate) && (
             <p className="text-brand-yellowText">
-              Some resources are on the assumed{" "}
-              <strong>{defaultTagsPerDay ?? 8}/day</strong> — no approved history
-              yet, so this date is a guess until they deliver.
+              <strong>No rate set:</strong>{" "}
+              {p.resources
+                .filter((r) => r.usingDefaultRate)
+                .map((r) => r.name)
+                .join(", ")}{" "}
+              — set their tags/day on this project to firm this date up.
             </p>
           )}
           {p.resources.some((r) => r.concurrentProjects > 1) && (

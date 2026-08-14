@@ -169,12 +169,47 @@ export async function createDomainAccount(
   if (existing) {
     return { ok: false, error: "That email already has an account." };
   }
+  const clash = await nameClash(name);
+  if (clash) {
+    return {
+      ok: false,
+      error: `${clash.name} already has an account (${clash.email}). Use a name that tells them apart — full name, or add an initial.`,
+    };
+  }
   const passwordHash = await bcrypt.hash(input.password, 10);
   const user = await prisma.domainUser.create({
     data: { name, email, passwordHash, role: input.role, isActive: true },
   });
   if (opts.signInAfter) await createSession(user.id);
   return { ok: true, id: user.id };
+}
+
+/**
+ * Someone already answering to this display name, if any.
+ *
+ * Two accounts sharing a name makes every people-picker ambiguous: work
+ * gets assigned to one and read off the other. Emails are unique, names
+ * are not, so this is enforced deliberately rather than by a constraint.
+ *
+ * Compared case- and whitespace-insensitively in JS rather than with
+ * Prisma's `mode: "insensitive"`, which is Postgres-only and would break
+ * the SQLite path. The table is small enough that reading the names costs
+ * nothing.
+ */
+export async function nameClash(
+  name: string,
+  exceptId?: string,
+): Promise<{ id: string; name: string; email: string } | null> {
+  const wanted = name.trim().toLowerCase();
+  if (!wanted) return null;
+  const all = await prisma.domainUser.findMany({
+    select: { id: true, name: true, email: true },
+  });
+  return (
+    all.find(
+      (u) => u.id !== exceptId && u.name.trim().toLowerCase() === wanted,
+    ) ?? null
+  );
 }
 
 export async function countDomainUsers(): Promise<number> {
@@ -204,5 +239,16 @@ export async function changeDomainPassword(
   }
   const passwordHash = await bcrypt.hash(nextPassword, 10);
   await prisma.domainUser.update({ where: { id: user.id }, data: { passwordHash } });
+
+  /**
+   * Retire every session issued under the old password. People change a
+   * password precisely because it might be compromised, and sessions that
+   * outlive it would let whoever had it stay signed in for the rest of the
+   * 30-day window — the change would look effective while achieving
+   * nothing. The device doing the change gets a fresh session immediately,
+   * so it isn't signed out mid-action.
+   */
+  await prisma.domainSession.deleteMany({ where: { userId: user.id } });
+  await createSession(user.id);
   return { ok: true };
 }

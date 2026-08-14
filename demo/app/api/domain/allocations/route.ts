@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
-import { WORKING_ROLES, type DomainRole } from "@/lib/domain";
+import { TAG_HOLDER_ROLES, SUPERVISOR_ROLES, type DomainRole } from "@/lib/domain";
 import { allocationConflicts } from "@/lib/domain-forecast";
 import { toISODate } from "@/lib/forecast";
 
@@ -14,7 +14,7 @@ import { toISODate } from "@/lib/forecast";
 function serialize(a: {
   id: number;
   projectId: number;
-  project: { name: string };
+  project: { name: string; client: string | null; handoverDate: Date | null };
   userId: string;
   user: { name: string; role: string };
   startDate: Date;
@@ -26,6 +26,8 @@ function serialize(a: {
     id: a.id,
     projectId: a.projectId,
     projectName: a.project.name,
+    client: a.project.client,
+    handoverDate: a.project.handoverDate ? toISODate(a.project.handoverDate) : null,
     userId: a.userId,
     userName: a.user.name,
     userRole: a.user.role,
@@ -37,25 +39,40 @@ function serialize(a: {
 }
 
 const INCLUDE = {
-  project: { select: { name: true } },
+  project: { select: { name: true, client: true, handoverDate: true } },
   user: { select: { name: true, role: true } },
 } as const;
 
-/** Leads and Admins plan with this view. */
+/**
+ * Leads and Admins plan with this view.
+ *
+ * `?mine=true` is the one form open to everyone: a member needs to see the
+ * projects they've been booked onto, which is otherwise invisible to them
+ * until a Lead also assigns them tags. It is hard-scoped to the caller —
+ * the `userId` parameter is ignored rather than merged, so this can only
+ * ever narrow to self and never be used to read someone else's bookings.
+ */
 export async function GET(req: Request) {
   const userOrResp = await requireDomainUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
-  const forbidden = requireDomainRole(userOrResp, ["Admin", "Lead"]);
-  if (forbidden) return forbidden;
+  const user = userOrResp;
 
   const url = new URL(req.url);
   const projectId = url.searchParams.get("projectId");
   const userId = url.searchParams.get("userId");
+  const mine = url.searchParams.get("mine") === "true";
+
+  // Reading the plan is a supervisor privilege; changing it (POST below,
+  // and PATCH/DELETE in ./[id]) stays with Admins and Leads.
+  if (!mine) {
+    const forbidden = requireDomainRole(user, SUPERVISOR_ROLES);
+    if (forbidden) return forbidden;
+  }
 
   const allocations = await prisma.domainAllocation.findMany({
     where: {
       ...(projectId ? { projectId: Number(projectId) } : {}),
-      ...(userId ? { userId } : {}),
+      ...(mine ? { userId: user.id } : userId ? { userId } : {}),
     },
     include: INCLUDE,
     orderBy: { startDate: "asc" },
@@ -99,9 +116,11 @@ export async function POST(req: Request) {
   if (!resource || !resource.isActive) {
     return NextResponse.json({ error: "Resource not found." }, { status: 400 });
   }
-  if (!WORKING_ROLES.includes(resource.role as DomainRole)) {
+  // Anyone who can hold tags must be bookable, or their work has no
+  // window for the forecast to plan across.
+  if (!TAG_HOLDER_ROLES.includes(resource.role as DomainRole)) {
     return NextResponse.json(
-      { error: "Only Actionees, SMEs, and Team Leads can be allocated." },
+      { error: "Admins can't be booked onto a project — they don't carry delivery." },
       { status: 400 },
     );
   }

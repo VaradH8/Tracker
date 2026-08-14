@@ -16,7 +16,7 @@ import {
   toISODate,
   type ForecastResult,
 } from "./forecast";
-import { WORKING_ROLES } from "./domain";
+import { TAG_HOLDER_ROLES } from "./domain";
 
 /**
  * Tags/day for each person, derived from what Leads have actually approved
@@ -25,7 +25,21 @@ import { WORKING_ROLES } from "./domain";
  * submission. People with no approved history map to null — callers run
  * that through `effectiveRate` to get the house default.
  */
-export async function ratesByUser(): Promise<Map<string, number | null>> {
+export type MeasuredRate = {
+  rate: number | null;
+  /** Approved tags behind the figure, so the UI can show its basis. */
+  tags: number;
+  /** Distinct days worked — the divisor. */
+  days: number;
+};
+
+/**
+ * The same tally as `ratesByUser`, keeping the evidence alongside the
+ * number. The availability screen reports a measured average, and a
+ * measurement that can't say what it was measured from is just an
+ * assertion.
+ */
+export async function measuredRatesByUser(): Promise<Map<string, MeasuredRate>> {
   const since = new Date(Date.now() - RATE_HISTORY_DAYS * 24 * 60 * 60 * 1000);
   const approved = await prisma.domainTagSubmission.findMany({
     where: { status: "Approved", date: { gte: since } },
@@ -37,7 +51,6 @@ export async function ratesByUser(): Promise<Map<string, number | null>> {
     },
   });
 
-  // tags delivered, and the distinct days they were delivered on
   const tally = new Map<string, { tags: number; days: Set<string> }>();
   for (const s of approved) {
     const userId = s.assignment.assigneeId;
@@ -49,19 +62,48 @@ export async function ratesByUser(): Promise<Map<string, number | null>> {
     tally.set(userId, entry);
   }
 
-  const rates = new Map<string, number | null>();
+  const out = new Map<string, MeasuredRate>();
   for (const [userId, { tags, days }] of tally) {
-    rates.set(userId, personalRate(tags, days.size));
+    out.set(userId, {
+      rate: personalRate(tags, days.size),
+      tags,
+      days: days.size,
+    });
   }
-  return rates;
+  return out;
+}
+
+/**
+ * Just the rate, for callers that don't need the evidence behind it.
+ * Derived from `measuredRatesByUser` rather than repeating the query —
+ * two copies of this tally would eventually disagree, and a forecast that
+ * disagrees with the availability screen about someone's speed is worse
+ * than either being wrong on its own.
+ */
+export async function ratesByUser(): Promise<Map<string, number | null>> {
+  const measured = await measuredRatesByUser();
+  return new Map(Array.from(measured, ([id, m]) => [id, m.rate]));
 }
 
 export type ResourceForecast = {
   id: string;
   name: string;
+  /** Two people can share a display name; the email is what tells them
+   *  apart, so every screen listing people can disambiguate. */
+  email: string;
   role: string;
   /** Tags/day from approved history, or null when they have none yet. */
   rate: number | null;
+  /**
+   * Purely observed: approved tags per working day over the recent window,
+   * null until there is approved work to measure. Never falls back to an
+   * estimate or a house default — this is the number the availability
+   * screen reports, and it has to be real or absent.
+   */
+  measuredRate: number | null;
+  /** Approved tags and days behind `measuredRate`. Zero when unmeasured. */
+  approvedTags: number;
+  measuredDays: number;
   /** The rate actually used in projections (falls back to the default). */
   effectiveRate: number;
   usingDefaultRate: boolean;
@@ -77,7 +119,14 @@ export type ResourceForecast = {
     assignedTags: number;
     deliveredTags: number;
   }[];
-  /** ISO date they next free up; null means free right now. */
+  /** Tags assigned to them and not yet delivered, across every project. */
+  openTags: number;
+  /** Projects they hold open tags on without a booking window. */
+  openTagProjects: { projectId: number; projectName: string; openTags: number }[];
+  /**
+   * ISO date they next free up. Null means no booking is holding them —
+   * which is only the same as "free now" when `openTags` is 0 too.
+   */
   availableFrom: string | null;
   status: "Free" | "Allocated";
 };
@@ -89,11 +138,17 @@ export type ResourceForecast = {
 export async function resourceForecast(): Promise<ResourceForecast[]> {
   const [people, rates] = await Promise.all([
     prisma.domainUser.findMany({
-      where: { isActive: true, role: { in: WORKING_ROLES } },
+      where: { isActive: true, role: { in: TAG_HOLDER_ROLES } },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, role: true, expectedTagsPerDay: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        expectedTagsPerDay: true,
+      },
     }),
-    ratesByUser(),
+    measuredRatesByUser(),
   ]);
 
   const allocations = await prisma.domainAllocation.findMany({
@@ -117,9 +172,35 @@ export async function resourceForecast(): Promise<ResourceForecast[]> {
     ]),
   );
 
+  // groupBy can't join, and tags may point at a project the person has no
+  // allocation for, so names come from a separate lookup.
+  const projectNames = new Map(
+    (
+      await prisma.domainProject.findMany({ select: { id: true, name: true } })
+    ).map((p) => [p.id, p.name]),
+  );
+
   return people.map((p) => {
     const mine = allocations.filter((a) => a.userId === p.id);
-    const measured = rates.get(p.id) ?? null;
+    const evidence = rates.get(p.id);
+    const measured = evidence?.rate ?? null;
+
+    // Everything they still owe, whether or not it sits inside a booking.
+    const myTags = assignments.filter((a) => a.assigneeId === p.id);
+    const openOf = (a: (typeof assignments)[number]) =>
+      Math.max(0, (a._sum.assignedCount ?? 0) - (a._sum.deliveredCount ?? 0));
+    const openTags = myTags.reduce((s, a) => s + openOf(a), 0);
+
+    // Tags held on a project they were never formally booked onto. Without
+    // this the detail panel would call them busy and then list nothing.
+    const bookedOn = new Set(mine.map((a) => a.projectId));
+    const openOnly = myTags
+      .filter((a) => !bookedOn.has(a.projectId) && openOf(a) > 0)
+      .map((a) => ({
+        projectId: a.projectId,
+        projectName: projectNames.get(a.projectId) ?? "Unknown project",
+        openTags: openOf(a),
+      }));
     // Measured history wins; a Lead's expectation covers the gap until
     // there is any; the house default is the last resort.
     const rate = measured ?? p.expectedTagsPerDay ?? null;
@@ -129,8 +210,12 @@ export async function resourceForecast(): Promise<ResourceForecast[]> {
     return {
       id: p.id,
       name: p.name,
+      email: p.email,
       role: p.role,
       rate,
+      measuredRate: measured,
+      approvedTags: evidence?.tags ?? 0,
+      measuredDays: evidence?.days ?? 0,
       effectiveRate: effectiveRate(rate),
       usingDefaultRate: rate === null,
       /** Where the number came from, so the UI never passes off an
@@ -153,8 +238,17 @@ export async function resourceForecast(): Promise<ResourceForecast[]> {
           deliveredTags: tags?.delivered ?? 0,
         };
       }),
+      openTags,
+      openTagProjects: openOnly,
       availableFrom: free ? toISODate(free) : null,
-      status: mine.length === 0 ? "Free" : "Allocated",
+      /**
+       * Free means free: nothing booked AND no tags outstanding. Tags can
+       * be assigned without a booking window — assigning them is what
+       * makes someone busy in practice — so a status derived from
+       * allocations alone showed people as available while they were
+       * sitting on undelivered work.
+       */
+      status: mine.length === 0 && openTags === 0 ? "Free" : "Allocated",
     };
   });
 }

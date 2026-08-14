@@ -25,7 +25,6 @@ import { DomainPage, PageHeader } from "@/components/DomainPage";
  */
 export default function AvailabilityPage() {
   const [resources, setResources] = useState<ResourceRow[] | null>(null);
-  const [defaultRate, setDefaultRate] = useState<number | undefined>();
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
@@ -39,7 +38,6 @@ export default function AvailabilityPage() {
       })
       .then((b) => {
         setResources(b.resources ?? []);
-        setDefaultRate(b.meta?.defaultTagsPerDay);
         setError(null);
       })
       .catch((e: Error) => {
@@ -142,7 +140,7 @@ export default function AvailabilityPage() {
       {resources === null ? (
         <p className="text-sm text-ink-500">Loading…</p>
       ) : (
-        <DomainResourceTable resources={resources} defaultTagsPerDay={defaultRate} />
+        <DomainResourceTable resources={resources} />
       )}
     </DomainPage>
   );

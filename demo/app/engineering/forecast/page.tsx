@@ -8,12 +8,14 @@ import {
 } from "@/components/DomainResourcePicker";
 import {
   DomainForecastCard,
-  fmt,
   statusTone,
   type Forecast,
   type ProjectRow,
 } from "@/components/DomainForecastCard";
 import { DomainPage, PageHeader } from "@/components/DomainPage";
+import { fmtDate as fmt } from "@/lib/domain-format";
+import { dateClass } from "@/lib/domain-ui";
+import { TAG_HOLDER_ROLES, type DomainRole } from "@/lib/domain";
 
 type Meta = { defaultTagsPerDay: number; rateHistoryDays: number };
 
@@ -225,7 +227,7 @@ export default function ForecastPage() {
               <DomainForecastCard
                 key={p.id}
                 p={p}
-                defaultTagsPerDay={meta?.defaultTagsPerDay}
+               
               />
             ))}
           </div>
@@ -312,7 +314,7 @@ function Simulator({ onDone }: { onDone: () => void }) {
       .then((b) =>
         setPeople(
           (b.users ?? []).filter((u: { role: string; isActive?: boolean }) =>
-            ["Actionee", "SME", "TeamLead"].includes(u.role) && u.isActive !== false,
+            TAG_HOLDER_ROLES.includes(u.role as DomainRole) && u.isActive !== false,
           ),
         ),
       )
@@ -387,7 +389,7 @@ function Simulator({ onDone }: { onDone: () => void }) {
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="w-full border border-ink-200 rounded px-2 py-1.5"
+            className={dateClass("sm", "w-full")}
           />
         </label>
         <label className="text-sm">
@@ -396,7 +398,7 @@ function Simulator({ onDone }: { onDone: () => void }) {
             type="date"
             value={handoverDate}
             onChange={(e) => setHandoverDate(e.target.value)}
-            className="w-full border border-ink-200 rounded px-2 py-1.5"
+            className={dateClass("sm", "w-full")}
           />
         </label>
       </div>
@@ -475,7 +477,7 @@ function Simulator({ onDone }: { onDone: () => void }) {
                     r.overridden
                       ? ` (you set ${r.fullRate}${r.measuredRate ? `, measured ${r.measuredRate}` : ""})`
                       : r.usingDefaultRate
-                        ? " (default)"
+                        ? " (no rate set)"
                         : ""
                   }${
                     r.concurrentProjects > 1

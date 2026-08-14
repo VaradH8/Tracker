@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser } from "@/lib/domain-auth";
-import { istDayStart } from "@/lib/domain";
+import {
+  backdateFloorISO,
+  backdateWindowLabel,
+  istDayStart,
+  istParts,
+  needsReview,
+  type DomainRole,
+} from "@/lib/domain";
 import { toISODate } from "@/lib/forecast";
 
 /**
@@ -37,6 +44,7 @@ type Row = {
   assignment: {
     assignedCount: number;
     deliveredCount: number;
+    complexity: string;
     project: { id: number; name: string; client: string | null };
     division: { id: number; name: string } | null;
     assignee: { id: string; name: string };
@@ -63,6 +71,7 @@ function serialize(s: Row) {
     assigneeName: s.assignment.assignee.name,
     assignedCount: s.assignment.assignedCount,
     deliveredCount: s.assignment.deliveredCount,
+    complexity: s.assignment.complexity,
     submittedBy: s.submittedBy.name,
     reviewedBy: s.reviewedBy?.name ?? null,
     reviewedAt: s.reviewedAt ? s.reviewedAt.toISOString() : null,
@@ -137,7 +146,10 @@ export async function POST(req: Request) {
 
   const assignment = await prisma.domainTagAssignment.findUnique({
     where: { id: assignmentId },
-    include: { submissions: { where: { status: "Pending" } } },
+    include: {
+      submissions: { where: { status: "Pending" } },
+      assignee: { select: { role: true } },
+    },
   });
   if (!assignment) {
     return NextResponse.json({ error: "Assignment not found." }, { status: 404 });
@@ -169,9 +181,40 @@ export async function POST(req: Request) {
     );
   }
 
-  const date = body.date ? new Date(String(body.date)) : istDayStart();
-  if (Number.isNaN(date.getTime())) {
-    return NextResponse.json({ error: "Invalid date." }, { status: 400 });
+  /**
+   * Which day the work was done. Held to the same window as work logs and
+   * task submissions: never ahead of today, never earlier than the 1st of
+   * the current month.
+   *
+   * This is not merely tidiness. Delivery rates are measured over a
+   * trailing window, so a count dated years out falls outside it and is
+   * silently ignored by the forecast while still moving deliveredCount —
+   * the project reads as delivered at a rate nobody can account for. A
+   * backdated count also reopens a month that has already been reported.
+   */
+  let date = istDayStart();
+  if (body.date != null && body.date !== "") {
+    const chosen = String(body.date);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(chosen)) {
+      return NextResponse.json({ error: "Invalid date." }, { status: 400 });
+    }
+    const todayISO = istParts().dateISO;
+    if (chosen > todayISO) {
+      return NextResponse.json(
+        { error: "You can't submit tags for a future date." },
+        { status: 400 },
+      );
+    }
+    const floor = backdateFloorISO();
+    if (chosen < floor) {
+      return NextResponse.json(
+        {
+          error: `Tags can only be submitted ${backdateWindowLabel()} — nothing earlier than ${floor}.`,
+        },
+        { status: 400 },
+      );
+    }
+    date = new Date(chosen + "T00:00:00.000Z");
   }
 
   /**
@@ -181,6 +224,15 @@ export async function POST(req: Request) {
    * ceiling is still enforced at approval, but catching it here means the
    * actionee is told immediately rather than at review time.
    */
+  /**
+   * Whose work this is decides whether it waits for review. A Team Lead's
+   * own tags are recorded as delivered on the spot; an SME's or Actionee's
+   * sit Pending until someone signs them off. Keyed on the assignee, not
+   * the filer — a Lead entering a count on an Actionee's behalf must not
+   * turn it into an approved one.
+   */
+  const autoApprove = !needsReview(assignment.assignee.role as DomainRole);
+
   const RACED = "HEADROOM_MOVED";
   let submission;
   try {
@@ -194,7 +246,7 @@ export async function POST(req: Request) {
       if (completedCount > fresh.assignedCount - fresh.deliveredCount - queued) {
         throw new Error(RACED);
       }
-      return tx.domainTagSubmission.create({
+      const created = await tx.domainTagSubmission.create({
         data: {
           assignmentId,
           date,
@@ -204,9 +256,32 @@ export async function POST(req: Request) {
             typeof body.note === "string" && body.note.trim()
               ? body.note.trim()
               : null,
+          // reviewedById stays null: nobody reviewed it, and recording the
+          // author as their own approver would misread the history.
+          ...(autoApprove
+            ? {
+                status: "Approved",
+                approvedCount: completedCount,
+                reviewedAt: new Date(),
+              }
+            : {}),
         },
         include: INCLUDE,
       });
+
+      if (autoApprove) {
+        // Same compare-and-set the review path uses: delivered only moves
+        // if the headroom genuinely still exists.
+        const moved = await tx.domainTagAssignment.updateMany({
+          where: {
+            id: assignmentId,
+            deliveredCount: { lte: fresh.assignedCount - completedCount },
+          },
+          data: { deliveredCount: { increment: completedCount } },
+        });
+        if (moved.count === 0) throw new Error(RACED);
+      }
+      return created;
     });
   } catch (e) {
     if (e instanceof Error && e.message === RACED) {
@@ -221,5 +296,17 @@ export async function POST(req: Request) {
     throw e;
   }
 
-  return NextResponse.json({ submission: serialize(submission) }, { status: 201 });
+  // The included assignment was read before the counter moved, so an
+  // auto-approved row would report a stale deliveredCount.
+  const fresh = autoApprove
+    ? await prisma.domainTagSubmission.findUnique({
+        where: { id: submission.id },
+        include: INCLUDE,
+      })
+    : null;
+
+  return NextResponse.json(
+    { submission: serialize(fresh ?? submission), autoApproved: autoApprove },
+    { status: 201 },
+  );
 }

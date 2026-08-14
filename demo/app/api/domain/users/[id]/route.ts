@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
-import { DOMAIN_ROLES, type DomainRole } from "@/lib/domain";
+import { DOMAIN_ROLES, canManageUser, type DomainRole } from "@/lib/domain";
 
 /**
  * Delete a domain user.
@@ -41,7 +41,7 @@ export async function DELETE(
   if (!target) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   // A Lead manages their own team; only an Admin removes Admins or Leads.
-  if (actor.role !== "Admin" && (target.role === "Admin" || target.role === "Lead")) {
+  if (!canManageUser(actor.role, target.role as DomainRole)) {
     return NextResponse.json(
       { error: "Only an Admin can remove Admins or Leads." },
       { status: 403 },
@@ -93,25 +93,99 @@ export async function DELETE(
   return NextResponse.json({ ok: true, deleted: target.name });
 }
 
-/** Admin edits a domain user: role, capacity, or active flag. */
+/**
+ * Edit a domain user: role, expected tags/day, or active flag.
+ *
+ * Carries the same ceiling as creating (POST /users) and removing
+ * (DELETE above): only an Admin may touch an Admin or a Lead, and only an
+ * Admin may hand out those roles. Without it a Lead could simply PATCH
+ * themselves to Admin — the grant check on creation would be decorative,
+ * since the same privilege is one edit away.
+ */
 export async function PATCH(
   req: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   const userOrResp = await requireDomainUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
-  const forbidden = requireDomainRole(userOrResp, ["Admin", "Lead"]);
+  const actor = userOrResp;
+  const forbidden = requireDomainRole(actor, ["Admin", "Lead"]);
   if (forbidden) return forbidden;
 
   const { id } = await context.params;
+  const target = await prisma.domainUser.findUnique({
+    where: { id },
+    select: { id: true, name: true, role: true, isActive: true },
+  });
+  if (!target) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
   const body = await req.json().catch(() => ({}));
   const data: Record<string, unknown> = {};
 
-  if (typeof body.isActive === "boolean") data.isActive = body.isActive;
-  if (DOMAIN_ROLES.includes(body.role as DomainRole)) data.role = body.role;
-  if (Number.isFinite(Number(body.dailyCapacity))) {
-    data.dailyCapacity = Math.min(14, Math.max(1, Math.round(Number(body.dailyCapacity))));
+  const wantsRole = DOMAIN_ROLES.includes(body.role as DomainRole)
+    ? (body.role as DomainRole)
+    : null;
+  const wantsDeactivate = body.isActive === false;
+
+  // Both ends of the edit: who they are now, and what they'd become.
+  if (!canManageUser(actor.role, target.role as DomainRole)) {
+    return NextResponse.json(
+      { error: "Only an Admin can change Admins or Leads." },
+      { status: 403 },
+    );
   }
+  if (wantsRole && !canManageUser(actor.role, wantsRole)) {
+    return NextResponse.json(
+      { error: "Only an Admin can grant the Admin or Lead role." },
+      { status: 403 },
+    );
+  }
+
+  /**
+   * Nobody edits their own role or switches themselves off. Same reason
+   * DELETE refuses self-deletion: it is either an accident that locks you
+   * out, or an escalation dressed up as an edit.
+   */
+  if (target.id === actor.id) {
+    if (wantsRole && wantsRole !== target.role) {
+      return NextResponse.json(
+        { error: "You can't change your own role." },
+        { status: 403 },
+      );
+    }
+    if (wantsDeactivate) {
+      return NextResponse.json(
+        { error: "You can't deactivate your own account." },
+        { status: 400 },
+      );
+    }
+  }
+
+  /**
+   * The module must keep at least one active Admin. Demoting or
+   * deactivating the last one would leave nobody able to restore it —
+   * there is no back door, by design.
+   */
+  const losesAdmin =
+    target.role === "Admin" &&
+    ((wantsRole && wantsRole !== "Admin") || wantsDeactivate);
+  if (losesAdmin) {
+    const activeAdmins = await prisma.domainUser.count({
+      where: { role: "Admin", isActive: true },
+    });
+    if (activeAdmins <= 1) {
+      return NextResponse.json(
+        {
+          error:
+            "This is the only active Admin. Promote someone else to Admin first, or the module would be left with nobody who can manage it.",
+        },
+        { status: 400 },
+      );
+    }
+  }
+
+  if (typeof body.isActive === "boolean") data.isActive = body.isActive;
+  if (wantsRole) data.role = wantsRole;
   // null clears it and puts the person back on the house default.
   if (body.expectedTagsPerDay !== undefined) {
     if (body.expectedTagsPerDay === null || body.expectedTagsPerDay === "") {
@@ -139,7 +213,6 @@ export async function PATCH(
       name: updated.name,
       email: updated.email,
       role: updated.role as DomainRole,
-      dailyCapacity: updated.dailyCapacity,
       expectedTagsPerDay: updated.expectedTagsPerDay,
       isActive: updated.isActive,
       createdAt: updated.createdAt.toISOString(),

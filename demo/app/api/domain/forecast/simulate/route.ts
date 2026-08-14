@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
+import { SUPERVISOR_ROLES } from "@/lib/domain";
 import { allocationConflicts, ratesByUser } from "@/lib/domain-forecast";
 import { effectiveRate, forecastDelivery, splitRate, toISODate } from "@/lib/forecast";
 
@@ -15,7 +16,7 @@ import { effectiveRate, forecastDelivery, splitRate, toISODate } from "@/lib/for
 export async function POST(req: Request) {
   const userOrResp = await requireDomainUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
-  const forbidden = requireDomainRole(userOrResp, ["Admin", "Lead"]);
+  const forbidden = requireDomainRole(userOrResp, SUPERVISOR_ROLES);
   if (forbidden) return forbidden;
 
   const body = await req.json().catch(() => ({}));

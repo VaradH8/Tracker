@@ -8,7 +8,7 @@
  */
 
 /** A working week — the divisor behind every "days needed" number. */
-export const WORKING_DAYS_PER_WEEK = 5;
+const WORKING_DAYS_PER_WEEK = 5;
 
 /** Rate assumed for someone with no approved history yet. Deliberately
  *  conservative: a new joiner shouldn't make a project look fast. */
@@ -21,7 +21,7 @@ export const RATE_HISTORY_DAYS = 30;
 export type ScheduleStatus = "On Track" | "Behind Schedule" | "Unknown";
 
 /** Midnight UTC of the given date — the canonical day key. */
-export function dayStart(d: Date): Date {
+function dayStart(d: Date): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }
 

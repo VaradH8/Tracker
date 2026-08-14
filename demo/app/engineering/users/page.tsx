@@ -16,7 +16,6 @@ type DUser = {
   name: string;
   email: string;
   role: DomainRole;
-  dailyCapacity: number;
   expectedTagsPerDay: number | null;
   isActive: boolean;
 };
@@ -31,10 +30,18 @@ export default function DomainUsersPage() {
     email: "",
     password: "",
     role: "Actionee" as DomainRole,
-    dailyCapacity: "8",
     expectedTagsPerDay: "",
   });
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Whoever already answers to the name being typed. Checked against the
+   * list already on screen, so no extra request — the server enforces the
+   * same rule, this just says so before the form is filled in.
+   */
+  const typed = form.name.trim().toLowerCase();
+  const nameTaken =
+    typed === "" ? null : (users.find((u) => u.name.trim().toLowerCase() === typed) ?? null);
 
   async function load() {
     const res = await fetch("/api/domain/users", { cache: "no-store" });
@@ -51,7 +58,6 @@ export default function DomainUsersPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...form,
-        dailyCapacity: Number(form.dailyCapacity),
         expectedTagsPerDay: form.expectedTagsPerDay
           ? Number(form.expectedTagsPerDay)
           : undefined,
@@ -66,7 +72,6 @@ export default function DomainUsersPage() {
       email: "",
       password: "",
       role: "Actionee",
-      dailyCapacity: "8",
       expectedTagsPerDay: "",
     });
     setAdding(false);
@@ -98,8 +103,8 @@ export default function DomainUsersPage() {
         <div>
           <h1 className="font-heading text-2xl font-semibold">People</h1>
           <p className="text-sm text-ink-500 mt-1">
-            Add domain users and set their role, capacity, and the tags a day
-            you expect them to complete.
+            Add domain users and set their role and the tags a day you expect
+            them to complete.
           </p>
         </div>
         <button onClick={() => setAdding((v) => !v)} className="btn-primary">
@@ -109,12 +114,26 @@ export default function DomainUsersPage() {
 
       {adding && (
         <div className="card p-4 mb-6 grid sm:grid-cols-2 gap-2">
-          <input
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            placeholder="Full name"
-            className="px-3 py-2 rounded border border-ink-200 text-sm"
-          />
+          <div>
+            <input
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="Full name"
+              className={`w-full px-3 py-2 rounded border text-sm ${
+                nameTaken ? "border-brand-red" : "border-ink-200"
+              }`}
+            />
+            {/* Flagged while typing, not after submitting: the server
+                refuses the duplicate either way, but finding out at that
+                point means re-entering the whole form. */}
+            {nameTaken && (
+              <p className="text-xs text-brand-redText mt-1">
+                {nameTaken.name} already has an account ({nameTaken.email}).
+                Names have to be unique — otherwise the two are
+                indistinguishable when assigning work.
+              </p>
+            )}
+          </div>
           <input
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
@@ -140,15 +159,6 @@ export default function DomainUsersPage() {
                 </option>
               ))}
             </select>
-            <input
-              type="number"
-              min="1"
-              max="14"
-              value={form.dailyCapacity}
-              onChange={(e) => setForm({ ...form, dailyCapacity: e.target.value })}
-              placeholder="Capacity h/day"
-              className="px-3 py-2 rounded border border-ink-200 text-sm"
-            />
           </div>
           <div className="sm:col-span-2">
             <input
@@ -177,7 +187,12 @@ export default function DomainUsersPage() {
             </button>
             <button
               onClick={addUser}
-              disabled={!form.name.trim() || !form.email.trim() || !form.password}
+              disabled={
+                !form.name.trim() ||
+                !form.email.trim() ||
+                !form.password ||
+                nameTaken !== null
+              }
               className="btn-primary"
             >
               Add user
@@ -195,7 +210,6 @@ export default function DomainUsersPage() {
             <tr>
               <th className="text-left font-semibold px-4 py-2">Name</th>
               <th className="text-left font-semibold px-4 py-2">Role</th>
-              <th className="text-left font-semibold px-4 py-2">Capacity</th>
               <th className="text-left font-semibold px-4 py-2">Avg tags/day</th>
               <th className="text-left font-semibold px-4 py-2">Status</th>
               <th className="text-right font-semibold px-4 py-2"></th>
@@ -220,20 +234,6 @@ export default function DomainUsersPage() {
                       </option>
                     ))}
                   </select>
-                </td>
-                <td className="px-4 py-2">
-                  <input
-                    type="number"
-                    min="1"
-                    max="14"
-                    defaultValue={u.dailyCapacity}
-                    onBlur={(e) => {
-                      const v = Number(e.target.value);
-                      if (v !== u.dailyCapacity) patch(u.id, { dailyCapacity: v });
-                    }}
-                    className="w-16 text-xs rounded border border-ink-200 px-2 py-1"
-                  />
-                  <span className="text-xs text-ink-400 ml-1">h/day</span>
                 </td>
                 <td className="px-4 py-2">
                   <input

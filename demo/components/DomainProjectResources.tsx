@@ -2,12 +2,19 @@
 
 import { useState } from "react";
 import { AlertTriangle, Plus, Trash2, UserPlus } from "lucide-react";
-import { DOMAIN_ROLE_LABELS, type DomainRole } from "@/lib/domain";
+import {
+  DOMAIN_ROLE_LABELS,
+  TAG_HOLDER_ROLES,
+  type DomainRole,
+} from "@/lib/domain";
 import {
   ResourceSelect,
+  ResourceDetail,
   useAvailability,
   type Availability,
 } from "@/components/DomainResourcePicker";
+import { fmtDate as fmt } from "@/lib/domain-format";
+import { dateClass, inputClass } from "@/lib/domain-ui";
 
 /**
  * Who is booked on this project, for how long, and how fast each of them is
@@ -30,26 +37,24 @@ export type ProjectResource = {
   expectedTagsPerDay: number | null;
 };
 
-function fmt(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso + "T00:00:00Z").toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-}
 
-/** The rate this project will actually plan with, and where it came from. */
+/**
+ * The rate this project plans with, and where it came from. Returns null
+ * rather than a stand-in figure when neither a Lead nor the history has
+ * produced one — the row then says so instead of showing an invented
+ * number that reads as fact.
+ */
 function effectiveFor(
   r: ProjectResource,
   a: Availability | undefined,
-): { rate: number; source: string } {
+): { rate: number; source: string } | null {
   if (r.expectedTagsPerDay != null) {
     return { rate: r.expectedTagsPerDay, source: "set for this project" };
   }
-  if (a && !a.usingDefaultRate) return { rate: a.rate, source: "measured" };
-  return { rate: a?.rate ?? 8, source: "assumed" };
+  if (a?.measuredRate != null) {
+    return { rate: a.measuredRate, source: "measured" };
+  }
+  return null;
 }
 
 export function DomainProjectResources({
@@ -77,13 +82,18 @@ export function DomainProjectResources({
   const allocated = new Set(resources.map((r) => r.id));
   const addable = people.filter(
     (p) =>
-      ["Actionee", "SME", "TeamLead"].includes(p.role) && !allocated.has(p.id),
+      TAG_HOLDER_ROLES.includes(p.role as DomainRole) && !allocated.has(p.id),
   );
 
+  // People without a rate contribute nothing rather than a guessed figure,
+  // so the combined number only ever adds up rates someone stands behind.
   const combined = resources.reduce(
-    (sum, r) => sum + effectiveFor(r, availability.get(r.id)).rate,
+    (sum, r) => sum + (effectiveFor(r, availability.get(r.id))?.rate ?? 0),
     0,
   );
+  const unrated = resources.filter(
+    (r) => effectiveFor(r, availability.get(r.id)) === null,
+  ).length;
 
   async function remove(allocationId: number) {
     setError(null);
@@ -169,7 +179,7 @@ export function DomainProjectResources({
                     <EditAllocationRow
                       key={r.allocationId}
                       r={r}
-                      measured={a && !a.usingDefaultRate ? a.rate : null}
+                      measured={a?.measuredRate ?? null}
                       onCancel={() => setEditing(null)}
                       onSaved={() => {
                         setEditing(null);
@@ -196,27 +206,30 @@ export function DomainProjectResources({
                       )}
                     </td>
                     <td className="px-3 py-2 text-right">
-                      <span className="font-heading font-semibold text-ink-900">
-                        {eff.rate}
-                      </span>
+                      {eff ? (
+                        <span className="font-heading font-semibold text-ink-900">
+                          {eff.rate}
+                        </span>
+                      ) : (
+                        <span className="text-ink-400">—</span>
+                      )}
                     </td>
                     <td className="px-3 py-2">
                       <span
                         className={`text-xs ${
-                          r.expectedTagsPerDay != null
-                            ? "text-brand-blue font-medium"
-                            : eff.source === "measured"
-                              ? "text-ink-500"
-                              : "text-brand-yellowText"
+                          !eff
+                            ? "text-brand-yellowText"
+                            : r.expectedTagsPerDay != null
+                              ? "text-brand-blue font-medium"
+                              : "text-ink-500"
                         }`}
                       >
-                        {eff.source}
+                        {eff ? eff.source : "not set — edit to add one"}
                       </span>
                       {r.expectedTagsPerDay != null &&
-                        a &&
-                        !a.usingDefaultRate && (
+                        a?.measuredRate != null && (
                           <div className="text-[11px] text-ink-400">
-                            measures {a.rate}
+                            measures {a.measuredRate}
                           </div>
                         )}
                     </td>
@@ -310,27 +323,24 @@ function AllocateForm({
   return (
     <div className="p-4 rounded-card border border-ink-200 bg-ink-50 mb-4">
       <div className="flex flex-wrap items-end gap-3">
-        <label className="text-sm">
-          <span className="block text-ink-700 mb-1">Person</span>
-          <ResourceSelect
-            people={people}
-            value={userId}
-            onChange={(v) => {
-              setUserId(v);
-              setConflicts([]);
-              setError(null);
-            }}
-            availability={availability}
-            className="px-2 py-1.5 rounded border border-ink-200 text-sm min-w-[240px]"
-          />
-        </label>
+        <ResourceSelect
+          label="Person"
+          people={people}
+          value={userId}
+          onChange={(v) => {
+            setUserId(v);
+            setConflicts([]);
+            setError(null);
+          }}
+          availability={availability}
+        />
         <label className="text-sm">
           <span className="block text-ink-700 mb-1">From</span>
           <input
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="px-2 py-1.5 rounded border border-ink-200"
+            className={dateClass("md")}
           />
         </label>
         <label className="text-sm">
@@ -340,25 +350,30 @@ function AllocateForm({
             value={endDate}
             min={startDate || undefined}
             onChange={(e) => setEndDate(e.target.value)}
-            className="px-2 py-1.5 rounded border border-ink-200"
+            className={dateClass("md")}
           />
         </label>
         <label className="text-sm">
-          <span className="block text-ink-700 mb-1">Tags/day here</span>
+          <span className="block text-ink-700 mb-1">
+            Avg tags/day <span className="text-brand-redText">*</span>
+          </span>
           <input
             type="number"
             min={1}
             step="0.5"
             value={rate}
             onChange={(e) => setRate(e.target.value)}
-            placeholder={picked ? String(picked.rate) : "auto"}
-            title="Leave blank to use their measured average"
-            className="w-28 px-2 py-1.5 rounded border border-ink-200"
+            placeholder={picked?.measuredRate ? String(picked.measuredRate) : ""}
+            title="What you expect this person to average on this project"
+            className={inputClass("md", "w-28")}
           />
         </label>
         <button
           onClick={() => submit(false)}
-          disabled={busy || !userId}
+          // The rate is what every projection on this project is built
+          // from, so it is set deliberately when the person is added
+          // rather than inferred and quietly wrong.
+          disabled={busy || !userId || !rate}
           className="btn-primary disabled:opacity-50"
         >
           {busy ? "Allocating…" : "Allocate"}
@@ -368,12 +383,17 @@ function AllocateForm({
         </button>
       </div>
 
+      {/* The same read on a person the other pickers give, rather than a
+          one-line summary unique to this panel. */}
       {picked && (
-        <p className="text-xs text-ink-500 mt-2">
-          {picked.name} averages <strong>{picked.rate}/day</strong>
-          {picked.usingDefaultRate && " (assumed — no approved history yet)"}.
-          Leave the box blank to use that.
-        </p>
+        <>
+          <ResourceDetail a={picked} />
+          <p className="text-xs text-ink-500 mt-1">
+            {picked.measuredRate === null
+              ? "No approved history to go on — set what you expect them to average here."
+              : `They average ${picked.measuredRate}/day on approved work. Set what you expect on this project.`}
+          </p>
+        </>
       )}
 
       {conflicts.length > 0 && (
@@ -463,7 +483,7 @@ function EditAllocationRow({
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="px-1.5 py-1 rounded border border-ink-200 text-xs"
+            className={dateClass("sm")}
           />
           <span className="text-ink-400">→</span>
           <input
@@ -471,7 +491,7 @@ function EditAllocationRow({
             value={endDate}
             min={startDate}
             onChange={(e) => setEndDate(e.target.value)}
-            className="px-1.5 py-1 rounded border border-ink-200 text-xs"
+            className={dateClass("sm")}
           />
         </div>
         {r.releasedAt && (

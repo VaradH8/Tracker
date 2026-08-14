@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
+import { SUPERVISOR_ROLES } from "@/lib/domain";
 import { toISODate } from "@/lib/forecast";
 import { sendEmail } from "@/lib/mailer";
 
@@ -70,8 +71,9 @@ async function notifyActionee(opts: {
  * rates, projected delivery dates) is derived from those numbers, so the
  * forecast updates itself the moment a Lead approves.
  *
- * Approvers are any Lead or Admin. Team Leads and SMEs can hold tags
- * themselves, so letting them approve would let work sign itself off.
+ * Approvers are Admins, Leads and Team Leads. A Team Lead can hold tags of
+ * their own, so they may review anyone's work except their own — see the
+ * self-review guard below. SMEs and Actionees never review.
  */
 export async function PATCH(
   req: Request,
@@ -80,7 +82,7 @@ export async function PATCH(
   const userOrResp = await requireDomainUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
   const user = userOrResp;
-  const forbidden = requireDomainRole(user, ["Admin", "Lead"]);
+  const forbidden = requireDomainRole(user, SUPERVISOR_ROLES);
   if (forbidden) return forbidden;
 
   const { id: idStr } = await context.params;
@@ -105,7 +107,7 @@ export async function PATCH(
         include: {
           project: { select: { name: true } },
           division: { select: { name: true } },
-          assignee: { select: { name: true, email: true } },
+          assignee: { select: { id: true, name: true, email: true } },
         },
       },
     },
@@ -113,6 +115,25 @@ export async function PATCH(
   if (!submission) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+  /**
+   * Nobody signs off their own delivery. Admins and Leads can never hold
+   * tags — only WORKING_ROLES can be assigned them — so in practice this
+   * only ever stops a Team Lead approving the work they did themselves,
+   * which is the whole reason review is a separate step.
+   *
+   * Keyed on the assignee rather than the submitter: a Lead may file a
+   * count on someone's behalf, and it is still that someone's work.
+   */
+  if (submission.assignment.assignee.id === user.id) {
+    return NextResponse.json(
+      {
+        error:
+          "You can't review your own submission — another Team Lead, a Lead or an Admin has to.",
+      },
+      { status: 403 },
+    );
+  }
+
   if (submission.status !== "Pending") {
     return NextResponse.json(
       { error: `This submission was already ${submission.status.toLowerCase()}.` },

@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
-import { WORKING_ROLES, assignmentCapIssue, type DomainRole } from "@/lib/domain";
+import {
+  assignableRoles,
+  assignmentCapIssue,
+  normaliseComplexity,
+  type DomainRole,
+} from "@/lib/domain";
 import { toISODate } from "@/lib/forecast";
 
 /**
@@ -44,6 +49,10 @@ export async function PATCH(
   const body = await req.json().catch(() => ({}));
   const data: Record<string, unknown> = {};
 
+  if (body.complexity !== undefined) {
+    data.complexity = normaliseComplexity(body.complexity);
+  }
+
   // Moving the work to someone else.
   if (body.assigneeId !== undefined) {
     const assignee = await prisma.domainUser.findUnique({
@@ -52,10 +61,15 @@ export async function PATCH(
     if (!assignee || !assignee.isActive) {
       return NextResponse.json({ error: "Assignee not found." }, { status: 400 });
     }
-    if (!WORKING_ROLES.includes(assignee.role as DomainRole)) {
+    // Same hierarchy as the original assignment — moving work must not be
+    // a way around who you're allowed to hand it to.
+    const allowed = assignableRoles(userOrResp.role);
+    if (!allowed.includes(assignee.role as DomainRole)) {
       return NextResponse.json(
-        { error: "Tags can only be assigned to Actionees, SMEs, or Team Leads." },
-        { status: 400 },
+        {
+          error: `You can assign tags to ${allowed.join(", ")} — not to a ${assignee.role}.`,
+        },
+        { status: 403 },
       );
     }
     data.assigneeId = assignee.id;
@@ -175,6 +189,7 @@ export async function PATCH(
       assigneeName: updated.assignee.name,
       assignedCount: updated.assignedCount,
       deliveredCount: updated.deliveredCount,
+      complexity: updated.complexity,
       remainingCount: Math.max(0, updated.assignedCount - updated.deliveredCount),
       startDate: updated.startDate ? toISODate(updated.startDate) : null,
       targetDate: updated.targetDate ? toISODate(updated.targetDate) : null,

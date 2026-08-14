@@ -4,10 +4,12 @@ import { useMemo, useState } from "react";
 import { Search, Trophy } from "lucide-react";
 import {
   DOMAIN_ROLE_LABELS,
-  WORKING_ROLES,
+  TAG_HOLDER_ROLES,
   type DomainRole,
 } from "@/lib/domain";
 import { availableFrom as freeAfter, toISODate } from "@/lib/forecast";
+import { duplicateNames } from "@/components/DomainResourcePicker";
+import { fmtDate as fmt } from "@/lib/domain-format";
 
 /**
  * Resource availability, organised the way a project manager reads it:
@@ -23,10 +25,17 @@ import { availableFrom as freeAfter, toISODate } from "@/lib/forecast";
 export type ResourceRow = {
   id: string;
   name: string;
+  /** Disambiguates rows when two people share a display name. */
+  email?: string;
   role: DomainRole;
   rate: number | null;
-  effectiveRate: number;
-  usingDefaultRate: boolean;
+  /** Observed throughput. Null until there is approved work to divide. */
+  measuredRate: number | null;
+  approvedTags?: number;
+  measuredDays?: number;
+  /** Undelivered tags across every project, booked or not. */
+  openTags?: number;
+  openTagProjects?: { projectId: number; projectName: string; openTags: number }[];
   rateSource?: "measured" | "expected" | "default";
   availableFrom: string | null;
   status: "Free" | "Allocated";
@@ -41,14 +50,6 @@ export type ResourceRow = {
   }[];
 };
 
-function fmt(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso + "T00:00:00Z").toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    timeZone: "UTC",
-  });
-}
 
 /**
  * The day the last person in a set comes free — i.e. when the whole group
@@ -82,16 +83,16 @@ function bookingFreeFrom(endDate: string, releasedAt: string | null): string {
   return d ? toISODate(d) : endDate;
 }
 
-/** Fastest first, then alphabetical — the order a PM scans for. */
-export function byRateDesc(a: ResourceRow, b: ResourceRow): number {
-  if (b.effectiveRate !== a.effectiveRate) return b.effectiveRate - a.effectiveRate;
+/**
+ * Fastest measured first, then alphabetical. People with nothing measured
+ * sort to the bottom rather than being ranked on a number they never
+ * earned.
+ */
+function byRateDesc(a: ResourceRow, b: ResourceRow): number {
+  const ar = a.measuredRate ?? -1;
+  const br = b.measuredRate ?? -1;
+  if (br !== ar) return br - ar;
   return a.name.localeCompare(b.name);
-}
-
-function rateSourceLabel(r: ResourceRow, defaultTagsPerDay?: number): string {
-  if (r.rateSource === "measured") return "measured";
-  if (r.rateSource === "expected") return "Lead's estimate";
-  return `assumed${defaultTagsPerDay ? ` (${defaultTagsPerDay})` : ""}`;
 }
 
 /** Thin progress bar for one booking's tag delivery. */
@@ -112,13 +113,7 @@ function Progress({ delivered, assigned }: { delivered: number; assigned: number
   );
 }
 
-export function DomainResourceTable({
-  resources,
-  defaultTagsPerDay,
-}: {
-  resources: ResourceRow[];
-  defaultTagsPerDay?: number;
-}) {
+export function DomainResourceTable({ resources }: { resources: ResourceRow[] }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "free" | "allocated">("all");
   const [role, setRole] = useState<"all" | DomainRole>("all");
@@ -143,7 +138,7 @@ export function DomainResourceTable({
   // One block per role, each sorted fastest-first.
   const sections = useMemo(
     () =>
-      WORKING_ROLES.map((r) => ({
+      TAG_HOLDER_ROLES.map((r) => ({
         role: r,
         people: shown.filter((p) => p.role === r).sort(byRateDesc),
       })).filter((s) => s.people.length > 0),
@@ -193,7 +188,7 @@ export function DomainResourceTable({
 
         <div className="flex items-center gap-1 sm:ml-auto">
           <span className="text-xs text-ink-400 mr-1">Role</span>
-          {(["all", ...WORKING_ROLES] as const).map((key) => {
+          {(["all", ...TAG_HOLDER_ROLES] as const).map((key) => {
             const n =
               key === "all"
                 ? resources.length
@@ -225,7 +220,6 @@ export function DomainResourceTable({
               key={s.role}
               role={s.role}
               people={s.people}
-              defaultTagsPerDay={defaultTagsPerDay}
             />
           ))}
         </div>
@@ -238,20 +232,20 @@ export function DomainResourceTable({
 function RoleSection({
   role,
   people,
-  defaultTagsPerDay,
 }: {
   role: DomainRole;
   people: ResourceRow[];
-  defaultTagsPerDay?: number;
 }) {
   const free = people.filter((p) => p.status === "Free").length;
+  const dupes = duplicateNames(people);
   const openTotal = people.reduce(
     (s, p) =>
       s +
-      p.projects.reduce(
-        (t, x) => t + Math.max(0, x.assignedTags - x.deliveredTags),
-        0,
-      ),
+      (p.openTags ??
+        p.projects.reduce(
+          (t, x) => t + Math.max(0, x.assignedTags - x.deliveredTags),
+          0,
+        )),
     0,
   );
   // Only crown someone whose rate is real, not an assumption.
@@ -287,7 +281,12 @@ function RoleSection({
             <tr>
               <th className="text-right font-semibold px-3 py-2 w-10">#</th>
               <th className="text-left font-semibold px-4 py-2">Person</th>
-              <th className="text-right font-semibold px-4 py-2">Avg tags/day</th>
+              <th
+                className="text-right font-semibold px-4 py-2"
+                title="Approved tags divided by the days worked, over the last 30 days"
+              >
+                Avg tags/day
+              </th>
               <th className="text-left font-semibold px-4 py-2">Status</th>
               <th className="text-left font-semibold px-4 py-2">Project</th>
               <th className="text-left font-semibold px-4 py-2">Booked</th>
@@ -299,10 +298,15 @@ function RoleSection({
           <tbody>
             {people.map((r, idx) => {
               const rows = Math.max(1, r.projects.length);
-              const openTags = r.projects.reduce(
-                (s, p) => s + Math.max(0, p.assignedTags - p.deliveredTags),
-                0,
-              );
+              // Everything outstanding, including tags on projects with no
+              // booking — summing the bookings alone reported 0 for exactly
+              // the people this column most needs to flag.
+              const openTags =
+                r.openTags ??
+                r.projects.reduce(
+                  (s, p) => s + Math.max(0, p.assignedTags - p.deliveredTags),
+                  0,
+                );
               const isFastest = fastest?.id === r.id;
 
               const lead = (
@@ -319,6 +323,13 @@ function RoleSection({
                   >
                     <div className="font-medium text-ink-900 flex items-center gap-1.5 flex-wrap">
                       {r.name}
+                      {/* Two accounts can carry the same display name; the
+                          email is what separates the rows. */}
+                      {dupes.has(r.name) && r.email && (
+                        <span className="text-[11px] font-normal text-ink-500">
+                          {r.email}
+                        </span>
+                      )}
                       {isFastest && (
                         <span
                           title="Fastest measured rate in this group"
@@ -333,12 +344,29 @@ function RoleSection({
                     rowSpan={rows}
                     className="px-4 py-2 align-top text-right border-t border-ink-100"
                   >
-                    <div className="font-heading font-semibold text-ink-900">
-                      {r.effectiveRate}
-                    </div>
-                    <div className="text-xs text-ink-400">
-                      {rateSourceLabel(r, defaultTagsPerDay)}
-                    </div>
+                    {/* Measured throughput only. Someone with no approved
+                        work shows a dash — this column is a record of what
+                        happened, not a projection. */}
+                    {r.measuredRate === null ? (
+                      <>
+                        <div className="font-heading font-semibold text-ink-400">
+                          —
+                        </div>
+                        <div className="text-xs text-ink-400">
+                          no approved work yet
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="font-heading font-semibold text-ink-900">
+                          {r.measuredRate}
+                        </div>
+                        <div className="text-xs text-ink-400">
+                          from {r.approvedTags ?? 0} approved tag
+                          {r.approvedTags === 1 ? "" : "s"}
+                        </div>
+                      </>
+                    )}
                   </td>
                   <td
                     rowSpan={rows}
@@ -380,8 +408,14 @@ function RoleSection({
                     rowSpan={rows}
                     className="px-4 py-2 align-top border-t border-ink-100"
                   >
+                    {/* No booking end date does not mean available: tags
+                        can be outstanding with no window around them. */}
                     {r.availableFrom ? (
                       <span className="text-ink-700">{fmt(r.availableFrom)}</span>
+                    ) : (r.openTags ?? 0) > 0 ? (
+                      <span className="text-brand-yellowText">
+                        When tags are cleared
+                      </span>
                     ) : (
                       <span className="text-brand-greenText font-medium">Now</span>
                     )}
@@ -390,14 +424,26 @@ function RoleSection({
               );
 
               if (r.projects.length === 0) {
+                const stray = r.openTagProjects ?? [];
                 return (
                   <tr key={r.id}>
                     {lead}
                     <td
                       colSpan={3}
-                      className="px-4 py-2 align-top border-t border-ink-100 text-xs text-ink-400 italic"
+                      className="px-4 py-2 align-top border-t border-ink-100 text-xs"
                     >
-                      Nothing booked
+                      {stray.length === 0 ? (
+                        <span className="text-ink-400 italic">Nothing booked</span>
+                      ) : (
+                        // Holding tags without a booking — the case that used
+                        // to read as "Free, nothing booked".
+                        <span className="text-brand-yellowText">
+                          {stray
+                            .map((p) => `${p.projectName} · ${p.openTags} tags open`)
+                            .join(" · ")}{" "}
+                          <span className="text-ink-400">(no booking window)</span>
+                        </span>
+                      )}
                     </td>
                     {tail}
                   </tr>

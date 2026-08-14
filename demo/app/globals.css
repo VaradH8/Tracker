@@ -46,4 +46,45 @@ h4 {
   .card {
     @apply bg-white rounded-card border border-ink-200 shadow-card;
   }
+
+  /**
+   * Native date inputs, made to sit in a form beside ordinary text fields.
+   *
+   * Left alone, `input[type=date]` renders its own "dd/mm/yyyy" text in the
+   * browser's default font and size, ignoring the surrounding type scale —
+   * next to app-styled inputs it reads as a foreign control. These rules
+   * pull the internal fields back onto the app's font, dim the placeholder
+   * segments so an empty date looks empty rather than pre-filled, and give
+   * the calendar button a sane hit area.
+   *
+   * Engineering-only class; nothing in the tracker uses it.
+   */
+  .eng-date {
+    @apply font-sans text-ink-900;
+    /* Firefox and Safari ignore the -webkit rules below and simply inherit
+       the font, which is the same result by a different route. */
+  }
+  .eng-date::-webkit-datetime-edit {
+    @apply text-ink-900;
+  }
+  .eng-date:invalid::-webkit-datetime-edit,
+  .eng-date[value=""]::-webkit-datetime-edit {
+    @apply text-ink-400;
+  }
+  .eng-date::-webkit-datetime-edit-fields-wrapper {
+    padding: 0;
+  }
+  .eng-date::-webkit-calendar-picker-indicator {
+    @apply opacity-50 cursor-pointer rounded;
+    padding: 2px;
+    transition: opacity 120ms ease;
+  }
+  .eng-date::-webkit-calendar-picker-indicator:hover {
+    @apply opacity-100 bg-ink-100;
+  }
+  /* Safari gives date inputs an intrinsic width that ignores the box, which
+     makes them overflow narrow columns. */
+  .eng-date::-webkit-date-and-time-value {
+    text-align: left;
+  }
 }

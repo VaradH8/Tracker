@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { fmtWeekday as fmt } from "@/lib/domain-format";
 
 /**
  * The delivery record behind a project's forecast: which tags were signed
@@ -45,14 +46,6 @@ type DivisionRate = {
   perDay: number;
 };
 
-function fmt(iso: string): string {
-  return new Date(iso + "T00:00:00Z").toLocaleDateString(undefined, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    timeZone: "UTC",
-  });
-}
 
 export function DomainDeliveryLog({ projectId }: { projectId: number }) {
   const [open, setOpen] = useState(false);

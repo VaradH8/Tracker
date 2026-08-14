@@ -2,13 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DOMAIN_ROLE_LABELS, type DomainRole } from "@/lib/domain";
+import { fmtWeekday as fmt } from "@/lib/domain-format";
+import { dateClass } from "@/lib/domain-ui";
 
 /**
  * The team's work log, for the people entitled to read it.
  *
- * Admins see everyone including Leads; a Lead sees the people doing the
- * work plus themselves. That scoping is enforced server-side — this view
- * only asks, and the filters here can narrow the result but never widen it.
+ * Visibility follows the reporting line: an Admin reads everyone, a Lead
+ * reads Team Leads and below, a Team Lead reads SMEs and Actionees. Nobody
+ * reads the people above them, and nobody sees their own entries here.
+ *
+ * That scoping is enforced server-side — this view only asks. The person
+ * filter is built from the same scoped response, so it can only ever offer
+ * people the viewer is already allowed to read.
  */
 
 type TeamLog = {
@@ -23,14 +29,6 @@ type TeamLog = {
   task: string | null;
 };
 
-function fmt(iso: string): string {
-  return new Date(iso + "T00:00:00Z").toLocaleDateString(undefined, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    timeZone: "UTC",
-  });
-}
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const daysAgoISO = (n: number) => {
@@ -125,7 +123,7 @@ export function DomainTeamLogs() {
               value={from}
               max={to || undefined}
               onChange={(e) => setFrom(e.target.value)}
-              className="px-2 py-1.5 rounded border border-ink-200"
+              className={dateClass("md")}
             />
           </label>
           <label className="text-sm">
@@ -135,7 +133,7 @@ export function DomainTeamLogs() {
               value={to}
               min={from || undefined}
               onChange={(e) => setTo(e.target.value)}
-              className="px-2 py-1.5 rounded border border-ink-200"
+              className={dateClass("md")}
             />
           </label>
 

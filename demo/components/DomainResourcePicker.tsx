@@ -4,9 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import {
   DOMAIN_ROLE_LABELS,
-  WORKING_ROLES,
+  TAG_HOLDER_ROLES,
   type DomainRole,
 } from "@/lib/domain";
+import { fmtDate as fmtDay } from "@/lib/domain-format";
+import { selectClass, type FieldSize } from "@/lib/domain-ui";
 
 /**
  * Shared "who's free?" affordance for every place a Lead picks a person —
@@ -19,11 +21,20 @@ import {
 export type Availability = {
   id: string;
   name: string;
+  email: string;
   role: DomainRole;
   status: "Free" | "Allocated";
   availableFrom: string | null;
-  rate: number;
-  usingDefaultRate: boolean;
+  /** Planning rate: measured if there is history, else a Lead's estimate.
+   *  Null when neither exists — no house default is ever substituted. */
+  rate: number | null;
+  /** Observed only: approved tags per working day. Null until measurable. */
+  measuredRate: number | null;
+  rateSource: "measured" | "expected" | "default";
+  /** Undelivered tags across every project — enough on its own to be busy. */
+  openTags: number;
+  /** Projects they hold open tags on but were never booked onto. */
+  openTagProjects: { projectId: number; projectName: string; openTags: number }[];
   projects: {
     projectId: number;
     projectName: string;
@@ -35,14 +46,33 @@ export type Availability = {
   }[];
 };
 
-export function fmtDay(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso + "T00:00:00Z").toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    timeZone: "UTC",
-  });
+/**
+ * Names that more than one person in this list answers to.
+ *
+ * Display names are not unique — two accounts can both read "New Person" —
+ * and when they collide the lists become impossible to act on: you assign
+ * work to one row and read the status off the other. Callers use this to
+ * qualify only the ambiguous names, leaving unique ones clean.
+ */
+export function duplicateNames(people: { name: string }[]): Set<string> {
+  const seen = new Set<string>();
+  const dupes = new Set<string>();
+  for (const p of people) {
+    if (seen.has(p.name)) dupes.add(p.name);
+    else seen.add(p.name);
+  }
+  return dupes;
 }
+
+/** The name, qualified by email only when the name alone is ambiguous. */
+function personLabel(
+  name: string,
+  dupes: Set<string>,
+  email?: string,
+): string {
+  return dupes.has(name) && email ? `${name} (${email})` : name;
+}
+
 
 /**
  * Loads availability once per mounted picker. Restricted to the roles that
@@ -83,26 +113,41 @@ export function useAvailability(enabled = true): {
   };
 }
 
-/** Rate phrased for humans: measured from approved work, or an assumption. */
-export function rateText(a: Availability): string {
-  return `${a.rate}/day${a.usingDefaultRate ? " (assumed)" : ""}`;
+/**
+ * A person's measured throughput, or null when there is nothing to
+ * measure. Never invents a figure: an unproven rate is shown as absent,
+ * not as a plausible-looking number.
+ */
+function rateText(a: Availability): string | null {
+  return a.measuredRate === null ? null : `${a.measuredRate}/day`;
 }
 
 /**
  * One line of plain text for a `<select>` option, which can't take markup.
  * Free people say so in three words; busy people get what they're on and
  * when they come free.
+ *
+ * No rate here by design. Picking someone is a question of whether they
+ * are free, and a throughput figure in a dropdown invited comparison
+ * against a number that, for anyone new, was never real. Measured rates
+ * live in Resource availability, where they can be shown with the history
+ * behind them.
  */
-export function availabilityLabel(name: string, a?: Availability): string {
+function availabilityLabel(name: string, a?: Availability): string {
   if (!a) return name;
-  if (a.status === "Free" || a.projects.length === 0) {
-    return `${name} — Free · ${rateText(a)}`;
+  if (a.status === "Free") {
+    return `${name} — Free`;
+  }
+  // Tags without a booking: busy, but with no end date to quote.
+  if (a.projects.length === 0) {
+    return `${name} — Busy · ${a.openTags} tag${a.openTags === 1 ? "" : "s"} open`;
   }
   const where =
     a.projects.length === 1
       ? a.projects[0].projectName
       : `${a.projects.length} projects`;
-  return `${name} — Busy on ${where}, free ${fmtDay(a.availableFrom)} · ${rateText(a)}`;
+  const open = a.openTags > 0 ? ` · ${a.openTags} tags open` : "";
+  return `${name} — Busy on ${where}, free ${fmtDay(a.availableFrom)}${open}`;
 }
 
 /**
@@ -113,15 +158,18 @@ export function availabilityLabel(name: string, a?: Availability): string {
 export function ResourceDetail({ a }: { a?: Availability }) {
   if (!a) return null;
 
-  if (a.status === "Free" || a.projects.length === 0) {
+  const measured = rateText(a);
+
+  if (a.status === "Free") {
     return (
       <div className="mt-2 p-2.5 rounded bg-brand-greenBg text-xs">
         <div className="flex items-center gap-1.5 font-medium text-brand-greenText">
           <CheckCircle2 size={12} /> {a.name} is free — nothing booked
         </div>
         <div className="text-ink-700 mt-0.5">
-          Averages {rateText(a)}
-          {a.usingDefaultRate && " — no approved history yet"}
+          {measured
+            ? `Averages ${measured} on approved work`
+            : "No approved work yet — set their tags/day for this project below."}
         </div>
       </div>
     );
@@ -140,10 +188,23 @@ export function ResourceDetail({ a }: { a?: Availability }) {
             {p.openTags > 0 && ` · ${p.openTags} tags still open`}
           </li>
         ))}
+        {/* Tags handed over without a booking still make them busy. */}
+        {a.openTagProjects.map((p) => (
+          <li key={`t-${p.projectId}`}>
+            <span className="font-medium">{p.projectName}</span> ·{" "}
+            {p.openTags} tags open · no booking window
+          </li>
+        ))}
       </ul>
       <div className="text-ink-700 mt-1">
-        Frees up <span className="font-medium">{fmtDay(a.availableFrom)}</span> ·
-        averages {rateText(a)}
+        {a.availableFrom ? (
+          <>
+            Frees up <span className="font-medium">{fmtDay(a.availableFrom)}</span>
+          </>
+        ) : (
+          <>Free once the outstanding tags are delivered</>
+        )}
+        {measured && <> · averages {measured} on approved work</>}
       </div>
     </div>
   );
@@ -173,7 +234,7 @@ function Toggle({ on }: { on: boolean }) {
 /** Compact status chip for list rows. */
 function StatusChip({ a }: { a?: Availability }) {
   if (!a) return null;
-  const free = a.status === "Free" || a.projects.length === 0;
+  const free = a.status === "Free";
   return (
     <span
       className={`px-1.5 py-0.5 rounded-pill text-[11px] font-medium shrink-0 ${
@@ -214,7 +275,10 @@ export function ResourceChecklist({
   const [query, setQuery] = useState("");
 
   /** The rate we'd plan with — used to order people fastest-first. */
-  const rateOf = (id: string) => availability.get(id)?.rate ?? 0;
+  // Ranked on measured throughput only; unmeasured people sort last
+  // rather than being ranked on a number nobody earned.
+  const rateOf = (id: string) => availability.get(id)?.measuredRate ?? -1;
+  const dupes = duplicateNames(people);
 
   // Roles stay separable rather than one mixed list — picking "who are my
   // Actionees" is a different question from "who is free".
@@ -227,7 +291,7 @@ export function ResourceChecklist({
       if (role !== "all" && p.role !== role) return false;
       return !q || p.name.toLowerCase().includes(q);
     });
-    return WORKING_ROLES.map((r) => ({
+    return TAG_HOLDER_ROLES.map((r) => ({
       role: r,
       people: matching
         .filter((p) => p.role === r)
@@ -283,7 +347,7 @@ export function ResourceChecklist({
       </div>
 
       <div className="flex items-center gap-1 mb-1.5 flex-wrap">
-        {(["all", ...WORKING_ROLES] as const).map((key) => {
+        {(["all", ...TAG_HOLDER_ROLES] as const).map((key) => {
           const n =
             key === "all"
               ? people.length
@@ -331,7 +395,7 @@ export function ResourceChecklist({
           {g.people.map((p, idx) => {
             const a = availability.get(p.id);
             const on = picked.includes(p.id);
-            const free = !a || a.status === "Free" || a.projects.length === 0;
+            const free = !a || a.status === "Free";
             return (
               // The whole row is the switch: one control, one hit target,
               // and no nested interactive elements to trip over.
@@ -352,30 +416,31 @@ export function ResourceChecklist({
                     <span
                       className={`text-sm truncate ${on ? "text-ink-900 font-medium" : "text-ink-900"}`}
                     >
-                      {p.name}
+                      {personLabel(p.name, dupes, a?.email)}
                     </span>
                     <StatusChip a={a} />
-                    {/* Fastest in this role group, when the rate is real. */}
-                    {idx === 0 && a && !a.usingDefaultRate && (
+                    {/* Fastest in this role group — only ever ranked on
+                        measured work, so it is absent until there is any. */}
+                    {idx === 0 && a?.measuredRate !== null && a !== undefined && (
                       <span className="text-[10px] font-medium text-brand-greenText bg-brand-greenBg px-1.5 py-0.5 rounded-pill shrink-0">
                         fastest
                       </span>
                     )}
-                    {a && (
+                    {a?.measuredRate !== null && a !== undefined && (
                       <span className="ml-auto shrink-0 text-xs font-semibold text-ink-900">
-                        {a.rate}/day
+                        {a.measuredRate}/day
                       </span>
                     )}
                     {suffix && <span className="shrink-0">{suffix(p.id)}</span>}
                   </span>
                   <span className="block text-xs text-ink-500 mt-0.5">
-                    {a && free && `Free now · ${rateText(a)}`}
+                    {a && free && "Free now"}
                     {a && !free && (
                       <>
                         {a.projects.length === 1
                           ? a.projects[0].projectName
                           : `${a.projects.length} projects`}{" "}
-                        until {fmtDay(a.availableFrom)} · {rateText(a)}
+                        until {fmtDay(a.availableFrom)}
                       </>
                     )}
                     {!a && (DOMAIN_ROLE_LABELS[p.role as DomainRole] ?? p.role)}
@@ -401,24 +466,59 @@ export function ResourceChecklist({
  * inside each group. `<optgroup>` is the only structure a native select
  * supports, so Team Leads, SMEs and Actionees stay visually apart in the
  * same way the checklist separates them.
+ *
+ * The control owns its own appearance. Call sites used to pass their own
+ * padding and width, which left the same picker three different sizes
+ * across the Projects screens; they now choose a `size` and, if the field
+ * needs a caption, pass `label` so the label markup is identical too.
+ * `className` is for layout only — width, margins — never for restyling
+ * the control.
  */
+/** Person labels are long, so the picker itself carries a floor width. */
+const SELECT_MIN = { sm: "min-w-[220px]", md: "min-w-[240px]" } as const;
+
+/**
+ * Re-exported so the existing importers of `selectClass` keep working; the
+ * styling itself lives in lib/domain-ui alongside the input and date
+ * variants, because controls that share a row have to share a height.
+ */
+export { selectClass };
+
 export function ResourceSelect({
   people,
   value,
   onChange,
   availability,
-  placeholder = "Pick…",
-  className = "px-2 py-1.5 rounded border border-ink-200 text-sm",
+  placeholder = "Pick a person…",
+  size = "md",
+  label,
+  minWidth = true,
+  className = "",
+  disabled = false,
 }: {
   people: { id: string; name: string; role: string }[];
   value: string;
   onChange: (id: string) => void;
   availability: Map<string, Availability>;
   placeholder?: string;
+  size?: FieldSize;
+  /** Caption above the control. Renders the same wrapper everywhere. */
+  label?: string;
+  /**
+   * Drop the floor width where the control has to fit a narrow column.
+   * A prop rather than a `min-w-0` override in `className`, because two
+   * competing Tailwind min-width classes are resolved by stylesheet order
+   * and not by which one was passed last.
+   */
+  minWidth?: boolean;
   className?: string;
+  disabled?: boolean;
 }) {
-  const rateOf = (id: string) => availability.get(id)?.rate ?? 0;
-  const groups = WORKING_ROLES.map((role) => ({
+  // Ranked on measured throughput only; unmeasured people sort last
+  // rather than being ranked on a number nobody earned.
+  const rateOf = (id: string) => availability.get(id)?.measuredRate ?? -1;
+  const dupes = duplicateNames(people);
+  const groups = TAG_HOLDER_ROLES.map((role) => ({
     role,
     people: people
       .filter((p) => p.role === role)
@@ -428,11 +528,16 @@ export function ResourceSelect({
       }),
   })).filter((g) => g.people.length > 0);
 
-  return (
+  const select = (
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className={className}
+      disabled={disabled}
+      title="Grouped by role. Shows who is free and when the busy ones come back."
+      className={selectClass(
+        size,
+        `${minWidth ? SELECT_MIN[size] : ""} ${className}`,
+      )}
     >
       <option value="">{placeholder}</option>
       {groups.map((g) => (
@@ -443,25 +548,32 @@ export function ResourceSelect({
             // name: you get the full "busy until…, N/day" read while
             // choosing, and a clean name once it's decided. The detail
             // panel underneath still carries the specifics.
+            const a = availability.get(p.id);
+            const shown = personLabel(p.name, dupes, a?.email);
             if (p.id === value) {
               return (
                 <option key={p.id} value={p.id}>
-                  {p.name}
+                  {shown}
                 </option>
               );
             }
-            const a = availability.get(p.id);
-            const star = i === 0 && a && !a.usingDefaultRate ? "★ " : "";
             return (
               <option key={p.id} value={p.id}>
-                {star}
-                {availabilityLabel(p.name, a)}
+                {availabilityLabel(shown, a)}
               </option>
             );
           })}
         </optgroup>
       ))}
     </select>
+  );
+
+  if (!label) return select;
+  return (
+    <label className="text-sm block">
+      <span className="block text-ink-700 font-medium mb-1">{label}</span>
+      {select}
+    </label>
   );
 }
 
@@ -545,10 +657,10 @@ export function RateField({
           <span className="text-ink-400">saving…</span>
         ) : saved ? (
           <span className="text-brand-greenText">saved</span>
-        ) : a && !a.usingDefaultRate ? (
+        ) : a && a.measuredRate !== null ? (
           <span className="text-ink-400">measured</span>
         ) : (
-          <span className="text-ink-400">assumed — set it</span>
+          <span className="text-ink-400">set by a Lead</span>
         )}
       </span>
     </label>

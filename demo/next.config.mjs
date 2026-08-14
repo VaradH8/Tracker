@@ -14,10 +14,37 @@ const nextConfig = {
         destination: "/engineering/:path*",
         permanent: true,
       },
+      // Work log became Task log when tasks gained a submit-and-approve
+      // flow. Anyone holding the old link lands on the new page.
+      {
+        source: "/engineering/worklog",
+        destination: "/engineering/task-log",
+        permanent: true,
+      },
     ];
   },
   async headers() {
     return [
+      {
+        /**
+         * Every Engineering API response is per-person and current by
+         * definition: what one role may read another may not, and a
+         * delivered count from a minute ago is simply wrong. Nothing
+         * between the server and the browser may hold on to it.
+         *
+         * The client already asks with `cache: "no-store"`, but that is
+         * the caller's promise, not the server's instruction — it does
+         * nothing about a proxy in between, which could otherwise serve
+         * one signed-in person's data to the next.
+         */
+        source: "/api/domain/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-store, no-cache, must-revalidate, max-age=0",
+          },
+        ],
+      },
       {
         source: "/:path*",
         headers: [

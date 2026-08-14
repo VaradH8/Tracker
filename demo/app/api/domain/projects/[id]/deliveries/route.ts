@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
+import { SUPERVISOR_ROLES } from "@/lib/domain";
 import { projectDeliveries } from "@/lib/domain-forecast";
 
 /**
@@ -20,7 +21,7 @@ export async function GET(
   // Matches the Forecast page this backs. It exposes every person's
   // output on the project, which is a manager's view — Team Leads assign
   // work but don't get the cross-team performance picture.
-  const forbidden = requireDomainRole(userOrResp, ["Admin", "Lead"]);
+  const forbidden = requireDomainRole(userOrResp, SUPERVISOR_ROLES);
   if (forbidden) return forbidden;
 
   const { id: idStr } = await context.params;

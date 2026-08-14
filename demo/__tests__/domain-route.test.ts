@@ -8,6 +8,11 @@ vi.mock("@/lib/db", () => ({
     domainProject: { findMany: vi.fn() },
     domainTask: { findMany: vi.fn() },
     domainWorkLog: { findMany: vi.fn() },
+    // KPIs derive from tags and approvals now, via projectForecasts()
+    // and resourceForecast().
+    domainAllocation: { findMany: vi.fn() },
+    domainTagAssignment: { findMany: vi.fn(), groupBy: vi.fn() },
+    domainTagSubmission: { findMany: vi.fn(), groupBy: vi.fn() },
   },
 }));
 
@@ -26,7 +31,6 @@ vi.mock("@/lib/domain-auth", () => ({
 
 import { requireDomainUser } from "@/lib/domain-auth";
 import { prisma } from "@/lib/db";
-import { POST as bulkTasksPOST } from "@/app/api/domain/tasks/bulk/route";
 import { GET as kpisGET } from "@/app/api/domain/kpis/route";
 import { POST as usersPOST } from "@/app/api/domain/projects/route";
 import { DELETE as taskDELETE } from "@/app/api/domain/tasks/[id]/route";
@@ -67,12 +71,28 @@ describe("domain route role gates", () => {
     expect((await kpisGET()).status).toBe(403);
   });
 
-  it("kpis: 200 for an Admin", async () => {
+  it("kpis: 200 for an Admin, and empty data yields empty KPIs", async () => {
     vi.mocked(requireDomainUser).mockResolvedValue(actor("Admin"));
     vi.mocked(prisma.domainUser.findMany).mockResolvedValue([]);
     vi.mocked(prisma.domainTask.findMany).mockResolvedValue([]);
     vi.mocked(prisma.domainWorkLog.findMany).mockResolvedValue([]);
-    expect((await kpisGET()).status).toBe(200);
+    vi.mocked(prisma.domainProject.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.domainAllocation.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.domainTagAssignment.groupBy).mockResolvedValue([] as never);
+    vi.mocked(prisma.domainTagSubmission.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.domainTagSubmission.groupBy).mockResolvedValue([] as never);
+
+    const res = await kpisGET();
+    expect(res.status).toBe(200);
+
+    // A fresh install must not report percentages derived from nothing —
+    // 0/0 is "no data", not 0%.
+    const body = await res.json();
+    expect(body.totals.delivered30).toBe(0);
+    expect(body.totals.approvalRate).toBeNull();
+    expect(body.totals.medianReviewHours).toBeNull();
+    expect(body.people).toEqual([]);
+    expect(body.weeks).toHaveLength(6);
   });
 
   it("project create: 403 for an Actionee", async () => {
@@ -105,25 +125,4 @@ describe("domain route role gates", () => {
     expect((await userDELETE(delReq(), params("u-x"))).status).toBe(403);
   });
 
-  it("bulk task create: 403 for an Actionee (managers only)", async () => {
-    vi.mocked(requireDomainUser).mockResolvedValue(actor("Actionee"));
-    const req = new Request("http://test/api/domain/tasks/bulk", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId: 1, titlePrefix: "Support", count: 20 }),
-    });
-    expect((await bulkTasksPOST(req)).status).toBe(403);
-  });
-
-  it("bulk task create: 401 when no session", async () => {
-    vi.mocked(requireDomainUser).mockResolvedValue(
-      NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
-    );
-    const req = new Request("http://test/api/domain/tasks/bulk", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId: 1, titlePrefix: "Support", count: 20 }),
-    });
-    expect((await bulkTasksPOST(req)).status).toBe(401);
-  });
 });

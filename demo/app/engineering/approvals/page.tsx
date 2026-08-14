@@ -11,6 +11,11 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { DomainPage, PageHeader } from "@/components/DomainPage";
+import { useDomain } from "@/lib/domain-store";
+import {
+  fmtDate as fmt,
+  submissionStatusCls as statusCls,
+} from "@/lib/domain-format";
 
 type Submission = {
   id: number;
@@ -24,6 +29,8 @@ type Submission = {
   projectName: string;
   client: string | null;
   divisionName: string | null;
+  complexity?: string;
+  assigneeId: string;
   assigneeName: string;
   assignedCount: number;
   deliveredCount: number;
@@ -32,13 +39,6 @@ type Submission = {
   reviewedAt: string | null;
 };
 
-function fmt(iso: string): string {
-  return new Date(iso + "T00:00:00Z").toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    timeZone: "UTC",
-  });
-}
 
 function fmtStamp(iso: string | null): string {
   if (!iso) return "—";
@@ -50,11 +50,6 @@ function fmtStamp(iso: string | null): string {
   });
 }
 
-function statusCls(s: string): string {
-  if (s === "Approved") return "bg-brand-greenBg text-brand-greenText";
-  if (s === "Rejected") return "bg-brand-redBg text-brand-redText";
-  return "bg-brand-yellowBg text-brand-yellowText";
-}
 
 /**
  * The Lead's review desk, in two halves.
@@ -70,6 +65,8 @@ export default function ApprovalsPage() {
   const [pending, setPending] = useState<Submission[] | null>(null);
   const [history, setHistory] = useState<Submission[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** Kept apart from `error` so a broken history doesn't blank the queue. */
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [projectFilter, setProjectFilter] = useState<number | "all">("all");
   /** History drills in one project at a time. */
   const [openProject, setOpenProject] = useState<number | null>(null);
@@ -78,17 +75,36 @@ export default function ApprovalsPage() {
     Promise.all([
       fetch("/api/domain/tag-submissions?status=Pending", { cache: "no-store" }).then(
         async (r) => {
-          if (r.status === 403) throw new Error("Approvals are for Leads and Admins.");
+          if (r.status === 403)
+            throw new Error("Approvals are for Team Leads, Leads and Admins.");
           return r.json();
         },
       ),
-      fetch("/api/domain/tag-submissions?reviewed=true", { cache: "no-store" }).then(
-        (r) => (r.ok ? r.json() : { submissions: [] }),
-      ),
+      // A failed history load used to fall back to an empty list, which the
+      // UI then reported as "Nothing has been reviewed yet" — a broken
+      // request and an empty desk looked identical. Carry the reason
+      // instead, and keep it off the pending half of the page.
+      fetch("/api/domain/tag-submissions?reviewed=true", { cache: "no-store" })
+        .then(async (r) =>
+          r.ok
+            ? await r.json()
+            : {
+                submissions: null,
+                error:
+                  r.status === 403
+                    ? "You don't have access to the approval history."
+                    : `The approval history didn't load (HTTP ${r.status}).`,
+              },
+        )
+        .catch(() => ({
+          submissions: null,
+          error: "The approval history didn't load — check your connection.",
+        })),
     ])
       .then(([p, h]) => {
         setPending(p.submissions ?? []);
         setHistory(h.submissions ?? []);
+        setHistoryError(h.error ?? null);
         setError(null);
       })
       .catch((e: Error) => {
@@ -252,6 +268,16 @@ export default function ApprovalsPage() {
 
       {rows === null ? (
         <p className="text-sm text-ink-500">Loading…</p>
+      ) : tab === "history" && historyError ? (
+        <div className="rounded border border-amber-300 bg-amber-50 px-4 py-3">
+          <p className="text-sm font-medium text-amber-900">{historyError}</p>
+          <button
+            onClick={load}
+            className="mt-2 text-sm font-medium text-amber-900 underline"
+          >
+            Try again
+          </button>
+        </div>
       ) : filtered.length === 0 ? (
         <p className="text-sm text-ink-400 italic">
           {tab === "pending"
@@ -739,7 +765,15 @@ function HistoryDetail({
                     </span>
                   </td>
                   <td className="px-3 py-2 text-ink-700 whitespace-nowrap">
-                    <div>{s.reviewedBy ?? "—"}</div>
+                    {/* No reviewer on an approved row means it never needed
+                        one — a Team Lead's own tags count on submission. */}
+                    <div>
+                      {s.reviewedBy ?? (
+                        <span className="text-ink-400 italic">
+                          {s.status === "Approved" ? "Auto-approved" : "—"}
+                        </span>
+                      )}
+                    </div>
                     <div className="text-xs text-ink-400">
                       {fmtStamp(s.reviewedAt)}
                     </div>
@@ -776,17 +810,25 @@ function ApproveAll({
   items: Submission[];
   onDone: () => void;
 }) {
+  const { current } = useDomain();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const total = items.reduce((n, x) => n + x.completedCount, 0);
+  /**
+   * A reviewer's own submissions never enter the bulk set — the server
+   * refuses them, so including them would make "approve all" report
+   * failures every time a Team Lead has claimed tags of their own.
+   */
+  const approvable = items.filter((s) => s.assigneeId !== current?.id);
+  const skipped = items.length - approvable.length;
+  const total = approvable.reduce((n, x) => n + x.completedCount, 0);
 
   async function run() {
     setBusy(true);
     setError(null);
     const results = await Promise.all(
-      items.map((s) =>
+      approvable.map((s) =>
         fetch(`/api/domain/tag-submissions/${s.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -798,10 +840,13 @@ function ApproveAll({
     setConfirming(false);
     const failed = results.filter((ok) => !ok).length;
     if (failed > 0) {
-      setError(`${failed} of ${items.length} could not be approved.`);
+      setError(`${failed} of ${approvable.length} could not be approved.`);
     }
     onDone();
   }
+
+  // Nothing here this person is allowed to sign off.
+  if (approvable.length === 0) return null;
 
   if (!confirming) {
     return (
@@ -820,7 +865,13 @@ function ApproveAll({
   return (
     <div className="flex items-center gap-2 flex-wrap">
       <span className="text-sm text-ink-700">
-        Approve all {items.length} at {total} tags?
+        Approve all {approvable.length} at {total} tags?
+        {skipped > 0 && (
+          <span className="text-ink-500">
+            {" "}
+            (your own {skipped} left out)
+          </span>
+        )}
       </span>
       <button
         onClick={run}
@@ -837,6 +888,13 @@ function ApproveAll({
 }
 
 function ReviewCard({ s, onReviewed }: { s: Submission; onReviewed: () => void }) {
+  const { current } = useDomain();
+  /**
+   * A Team Lead carries tags as well as reviewing them. The server refuses
+   * a self-review outright; showing the controls anyway would just hand
+   * them a 403, so the card explains instead.
+   */
+  const isOwnWork = current?.id === s.assigneeId;
   const [approved, setApproved] = useState(String(s.completedCount));
   const [reviewNote, setReviewNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -870,7 +928,7 @@ function ReviewCard({ s, onReviewed }: { s: Submission; onReviewed: () => void }
   return (
     <article className="card p-4">
       <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
+        <div className="min-w-0">
           <h3 className="font-heading font-semibold text-ink-900">
             {s.assigneeName}
             <span className="font-sans font-normal text-sm text-ink-500">
@@ -878,15 +936,70 @@ function ReviewCard({ s, onReviewed }: { s: Submission; onReviewed: () => void }
               claims {s.completedCount} tags
             </span>
           </h3>
+          {/* What the claim is against. The project was previously only in
+              the drill-down header, which left the card itself unable to
+              answer "against what?" — the first thing a reviewer asks. */}
+          <p className="text-sm text-ink-700 mt-1">
+            <span className="font-medium">{s.projectName}</span>
+            {s.client && <span className="text-ink-500"> · {s.client}</span>}
+            <span className="text-ink-500">
+              {" · "}
+              {s.divisionName ? `${s.divisionName} division` : "no division"}
+            </span>
+            {/* Worth knowing before judging a count: a small number on a
+                complex batch may be a fine day's work. */}
+            {s.complexity === "Complex" && (
+              <span className="ml-1.5 px-1.5 py-0.5 rounded-pill text-[11px] font-medium bg-brand-yellowBg text-brand-yellowText">
+                Complex
+              </span>
+            )}
+          </p>
           <p className="text-xs text-ink-500 mt-0.5">
-            {s.divisionName ? `${s.divisionName} · ` : ""}
-            {fmt(s.date)} · {s.deliveredCount}/{s.assignedCount} delivered so far
+            Work date {fmt(s.date)}
             {s.submittedBy !== s.assigneeName && ` · filed by ${s.submittedBy}`}
           </p>
-          {s.note && <p className="text-sm text-ink-700 mt-1">&ldquo;{s.note}&rdquo;</p>}
+          {s.note && <p className="text-sm text-ink-700 mt-2">&ldquo;{s.note}&rdquo;</p>}
         </div>
+
+        {/* Their position on this assignment, so the claim can be judged
+            against what they were actually given. "Left after this" tracks
+            the approve box live, so trimming a count shows its effect. */}
+        <dl className="shrink-0 flex gap-4 text-xs">
+          <div className="text-right">
+            <dt className="text-ink-500 uppercase tracking-wide">Assigned</dt>
+            <dd className="font-heading text-lg font-semibold text-ink-900">
+              {s.assignedCount}
+            </dd>
+          </div>
+          <div className="text-right">
+            <dt className="text-ink-500 uppercase tracking-wide">Delivered</dt>
+            <dd className="font-heading text-lg font-semibold text-brand-greenText">
+              {s.deliveredCount}
+            </dd>
+          </div>
+          <div className="text-right">
+            <dt className="text-ink-500 uppercase tracking-wide">
+              Left after this
+            </dt>
+            <dd className="font-heading text-lg font-semibold text-ink-900">
+              {Math.max(
+                0,
+                s.assignedCount -
+                  s.deliveredCount -
+                  (Number.isFinite(Number(approved)) ? Number(approved) : 0),
+              )}
+            </dd>
+          </div>
+        </dl>
       </div>
 
+      {isOwnWork ? (
+        <p className="mt-3 text-sm text-ink-600 bg-ink-50 border border-ink-200 rounded px-3 py-2">
+          This is your own submission — another Team Lead, a Lead or an Admin
+          has to review it.
+        </p>
+      ) : (
+      <>
       <div className="flex items-end gap-2 mt-3 flex-wrap">
         <label className="text-sm">
           <span className="block text-ink-700 mb-1">Approve count</span>
@@ -941,6 +1054,8 @@ function ReviewCard({ s, onReviewed }: { s: Submission; onReviewed: () => void }
           </span>
         )}
       </div>
+      </>
+      )}
 
       {error && <p className="text-sm text-brand-redText mt-2">{error}</p>}
     </article>

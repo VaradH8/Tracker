@@ -25,22 +25,105 @@ export const DOMAIN_ROLE_LABELS: Record<DomainRole, string> = {
  *  appear in the resource-availability view. */
 export const WORKING_ROLES: DomainRole[] = ["TeamLead", "SME", "Actionee"];
 
-/** Ceiling on a single bulk-create request, so one typo in the quantity
- *  box can't spawn thousands of tasks. */
-export const MAX_BULK_TASKS = 200;
+/**
+ * Everyone who can hold tags: the working roles plus Leads, since an Admin
+ * may hand tags to a Lead.
+ *
+ * This is deliberately wider than WORKING_ROLES. Whoever can hold tags has
+ * to be bookable onto a project and has to appear in Resource
+ * availability — otherwise their outstanding work is invisible to
+ * planning, which is precisely how someone ends up showing as Free while
+ * carrying a hundred tags. Admins are excluded: they run the module, they
+ * don't carry delivery.
+ */
+export const TAG_HOLDER_ROLES: DomainRole[] = [
+  "Lead",
+  "TeamLead",
+  "SME",
+  "Actionee",
+];
 
-/** Spread `count` items across `assignees` by round-robin, so 20 items
- *  over 4 people is 5 each and 22 is 6,6,5,5 — the earlier names in the
- *  list absorb the remainder. Returns one assignee per item, or all nulls
- *  when nobody was picked (the tasks land unassigned). */
-export function distributeEvenly<T>(count: number, assignees: T[]): (T | null)[] {
-  if (assignees.length === 0) return Array<T | null>(count).fill(null);
-  return Array.from({ length: count }, (_, i) => assignees[i % assignees.length]);
+/**
+ * Roles that supervise delivery: they review submissions and see the whole
+ * picture — forecast, allocations, deliveries, the team's work log.
+ *
+ * A Team Lead belongs here but is deliberately NOT trusted with structural
+ * or destructive changes. Creating and deleting projects, people, divisions
+ * and allocations stays with `["Admin", "Lead"]`, which is spelled out at
+ * each of those endpoints rather than hidden behind a constant.
+ *
+ * Note the overlap with WORKING_ROLES: a Team Lead both supervises and
+ * carries tags. That is why approval carries a self-review guard — see
+ * app/api/domain/tag-submissions/[id].
+ */
+export const SUPERVISOR_ROLES: DomainRole[] = ["Admin", "Lead", "TeamLead"];
+
+/**
+ * Whether tags claimed by someone in this role have to be signed off by
+ * someone else before they count as delivered.
+ *
+ * Review exists to check work, not to create paperwork: a Team Lead is
+ * trusted to record their own delivery, so their submissions are approved
+ * on the spot. SMEs and Actionees are reviewed by a Team Lead, Lead or
+ * Admin.
+ */
+export function needsReview(role: DomainRole): boolean {
+  return role === "SME" || role === "Actionee";
 }
 
-/** Titles for a bulk batch: "Support" x 20 becomes "Support 1" … "Support 20". */
-export function bulkTaskTitles(prefix: string, count: number): string[] {
-  return Array.from({ length: count }, (_, i) => `${prefix} ${i + 1}`);
+/**
+ * Whose work log a given role may read, besides their own.
+ *
+ * Visibility follows the reporting line rather than seniority in general:
+ * you can read the log of people whose work you oversee, and not of the
+ * people who oversee you.
+ *
+ *   Admin     — everyone
+ *   Lead      — Team Leads, SMEs, Actionees (not Admins or other Leads)
+ *   Team Lead — SMEs and Actionees only (not Leads, Admins, or peers)
+ *   SME       — nobody
+ *   Actionee  — nobody
+ *
+ * A viewer never appears in their own team view; that is applied at the
+ * query, not here, so this list stays a plain statement of the rule.
+ */
+export function worklogVisibleRoles(role: DomainRole): DomainRole[] {
+  if (role === "Admin") return [...DOMAIN_ROLES];
+  if (role === "Lead") return ["TeamLead", "SME", "Actionee"];
+  if (role === "TeamLead") return ["SME", "Actionee"];
+  return [];
+}
+
+
+
+
+/**
+ * Whose account a given role may administer — create, edit, promote,
+ * deactivate or remove.
+ *
+ *   Admin — everyone, including other Admins
+ *   Lead  — Team Leads, SMEs and Actionees (their own team)
+ *   others — nobody
+ *
+ * This governs BOTH ends of an edit: the role the target currently holds,
+ * and the role being handed to them. Checking only the first would let a
+ * Lead promote an Actionee to Admin; checking only the second would let
+ * them deactivate one.
+ *
+ * It lives here rather than inline at each endpoint because it was
+ * previously written out three times — at create, at delete, and not at
+ * all on the edit path, which is exactly how a Lead came to be able to
+ * PATCH themselves to Admin.
+ */
+export function manageableRoles(role: DomainRole): DomainRole[] {
+  if (role === "Admin") return [...DOMAIN_ROLES];
+  if (role === "Lead") return ["TeamLead", "SME", "Actionee"];
+  return [];
+}
+
+/** Whether `actor` may act on an account holding `target`. */
+export function canManageUser(actor: DomainRole, target: DomainRole): boolean {
+  return manageableRoles(actor).includes(target);
 }
 
 /** Parse an estimated-hours value: a positive number, capped at a sane
@@ -91,12 +174,85 @@ export function assignmentCapIssue(
   return null;
 }
 
-export type DomainTaskStatus = "To Do" | "In Progress" | "Done";
+/**
+ * A task's life: assigned by someone senior, submitted by the person doing
+ * it with a note and the day they did it, then approved or sent back by
+ * whoever assigned it.
+ *
+ * "To Do" and "In Progress" are the old free-floating statuses. Nothing
+ * writes them any more, but rows created before this flow existed still
+ * carry them, so `normaliseTaskStatus` folds them into Assigned rather
+ * than leaving them to render as an unknown state.
+ */
+export type DomainTaskStatus =
+  | "Assigned"
+  | "Submitted"
+  | "Approved"
+  | "Rejected";
+
 export const DOMAIN_TASK_STATUSES: DomainTaskStatus[] = [
-  "To Do",
-  "In Progress",
-  "Done",
+  "Assigned",
+  "Submitted",
+  "Approved",
+  "Rejected",
 ];
+
+export function normaliseTaskStatus(raw: string): DomainTaskStatus {
+  return (DOMAIN_TASK_STATUSES as string[]).includes(raw)
+    ? (raw as DomainTaskStatus)
+    : "Assigned";
+}
+
+/** A task is finished only once the person who assigned it agrees. */
+export function taskIsOpen(status: string): boolean {
+  const s = normaliseTaskStatus(status);
+  return s === "Assigned" || s === "Rejected";
+}
+
+/**
+ * Who each role may assign a task to — everyone below them, and nobody at
+ * or above their own level.
+ *
+ *   Admin     — Leads, Team Leads, SMEs, Actionees
+ *   Lead      — Team Leads, SMEs, Actionees
+ *   Team Lead — SMEs and Actionees
+ *   SME       — nobody
+ *   Actionee  — nobody
+ *
+ * The same shape as `worklogVisibleRoles` on purpose: you can hand work to
+ * the people whose work you can read, and to nobody else. Keeping the two
+ * aligned means there is no one you can task but never see the result of.
+ */
+export function assignableRoles(role: DomainRole): DomainRole[] {
+  if (role === "Admin") return ["Lead", "TeamLead", "SME", "Actionee"];
+  if (role === "Lead") return ["TeamLead", "SME", "Actionee"];
+  if (role === "TeamLead") return ["SME", "Actionee"];
+  return [];
+}
+
+/**
+ * How hard a batch of tags is.
+ *
+ * Recorded at assignment so delivery can be read with some idea of what
+ * it cost. Deliberately does NOT weight the forecast: rates are measured
+ * from what people actually approve, and quietly multiplying those by a
+ * complexity factor would double-count the difficulty already baked into
+ * the measurement.
+ */
+export const TAG_COMPLEXITIES = ["Simple", "Complex"] as const;
+export type TagComplexity = (typeof TAG_COMPLEXITIES)[number];
+
+/** Anything unrecognised — including nothing at all — reads as Simple. */
+export function normaliseComplexity(raw: unknown): TagComplexity {
+  return (TAG_COMPLEXITIES as readonly string[]).includes(String(raw))
+    ? (String(raw) as TagComplexity)
+    : "Simple";
+}
+
+/** Whether this role can hand out tasks at all. */
+export function canAssignTasks(role: DomainRole): boolean {
+  return assignableRoles(role).length > 0;
+}
 
 /** Work can only be logged between 08:00 and 22:00 IST. */
 export const LOG_WINDOW_START_HOUR = 8;
@@ -132,4 +288,28 @@ export function istDayStart(now: Date = new Date()): Date {
 
 export function logWindowLabel(): string {
   return "8:00 AM – 10:00 PM IST";
+}
+
+/**
+ * How far back an entry may be dated: to the 1st of the current month.
+ *
+ * Work logs were previously pinned to the day they were filed, so hours
+ * could not be invented after the fact. A date picker relaxes that, and
+ * the month boundary is what keeps it honest — you can catch up on days
+ * you missed within the month you are in, but you cannot reach back into
+ * a month that has already been closed off and reported on.
+ *
+ * The floor moves with the month, so on the 1st it is today and by the
+ * 31st it is thirty days back. Entries keep their `createdAt`, so a log
+ * written after the day it covers stays visible as such.
+ */
+export function backdateFloorISO(now: Date = new Date()): string {
+  // "YYYY-MM-DD" -> "YYYY-MM-01"; string slicing avoids a Date round-trip
+  // that would have to be corrected for the IST offset again.
+  return istParts(now).dateISO.slice(0, 8) + "01";
+}
+
+/** Human phrasing for the limit, used in both the API error and the UI. */
+export function backdateWindowLabel(): string {
+  return "back to the 1st of this month";
 }

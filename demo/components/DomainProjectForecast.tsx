@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Plus, Trash2, Pencil, X } from "lucide-react";
-import { DOMAIN_ROLE_LABELS } from "@/lib/domain";
+import {
+  DOMAIN_ROLE_LABELS,
+  TAG_COMPLEXITIES,
+  TAG_HOLDER_ROLES,
+  type TagComplexity,
+} from "@/lib/domain";
 import {
   RateField,
   ResourceChecklist,
@@ -11,6 +16,8 @@ import {
   useAvailability,
   type Availability,
 } from "@/components/DomainResourcePicker";
+import { fmtDate as fmt } from "@/lib/domain-format";
+import { dateClass, inputClass, selectClass } from "@/lib/domain-ui";
 
 /**
  * The forecast-facing pieces of the Domain projects page: creating and
@@ -33,7 +40,9 @@ export type ForecastProject = {
 };
 
 /** Roles that can hold tags and be booked onto a project. */
-const WORKING = ["Actionee", "SME", "TeamLead"];
+/** Everyone who can hold tags — Leads included, since an Admin may
+ *  assign to one. Admins never carry delivery. */
+const WORKING: string[] = TAG_HOLDER_ROLES;
 
 function verdictCls(status: string): string {
   if (status === "On Track") return "bg-brand-greenBg text-brand-greenText";
@@ -41,15 +50,6 @@ function verdictCls(status: string): string {
   return "bg-ink-100 text-ink-500";
 }
 
-function fmt(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  return new Date(iso + "T00:00:00Z").toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-}
 
 type DivisionDraft = { divisionId?: number; name: string; totalTags: string };
 
@@ -319,7 +319,7 @@ export function CreateProjectForm({
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="w-full px-2 py-1.5 rounded border border-ink-200"
+            className={dateClass("sm", "w-full")}
           />
         </label>
         <label className="text-sm">
@@ -328,7 +328,7 @@ export function CreateProjectForm({
             type="date"
             value={handoverDate}
             onChange={(e) => setHandoverDate(e.target.value)}
-            className="w-full px-2 py-1.5 rounded border border-ink-200"
+            className={dateClass("sm", "w-full")}
           />
         </label>
       </div>
@@ -475,7 +475,7 @@ export function EditProjectForm({
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="w-full px-2 py-1.5 rounded border border-ink-200"
+            className={dateClass("sm", "w-full")}
           />
         </label>
         <label className="text-sm">
@@ -484,7 +484,7 @@ export function EditProjectForm({
             type="date"
             value={handoverDate}
             onChange={(e) => setHandoverDate(e.target.value)}
-            className="w-full px-2 py-1.5 rounded border border-ink-200"
+            className={dateClass("sm", "w-full")}
           />
         </label>
       </div>
@@ -521,6 +521,7 @@ type AssignmentRow = {
   assignedCount: number;
   deliveredCount: number;
   pendingCount: number;
+  complexity?: string;
   startDate: string | null;
   targetDate: string | null;
 };
@@ -715,9 +716,15 @@ export function TagAssignmentPanel({
                     <div className="text-xs text-ink-500 mt-0.5">
                       {a ? (
                         <>
-                          {DOMAIN_ROLE_LABELS[a.role]} ·{" "}
-                          <strong className="text-ink-700">{a.rate}/day</strong>
-                          {a.usingDefaultRate && " (assumed)"}
+                          {DOMAIN_ROLE_LABELS[a.role]}
+                          {a.measuredRate !== null && (
+                            <>
+                              {" · "}
+                              <strong className="text-ink-700">
+                                {a.measuredRate}/day
+                              </strong>
+                            </>
+                          )}
                           {a.status !== "Free" &&
                             ` · frees up ${fmt(a.availableFrom)}`}
                         </>
@@ -810,6 +817,14 @@ export function TagAssignmentPanel({
                             <span className="text-ink-900 font-medium">
                               {r.divisionName ?? "No division"}
                             </span>
+                            {/* Only worth saying when it isn't the default —
+                                labelling every ordinary batch "Simple" is
+                                noise. */}
+                            {r.complexity === "Complex" && (
+                              <span className="ml-1.5 px-1.5 py-0.5 rounded-pill text-[11px] font-medium bg-brand-yellowBg text-brand-yellowText">
+                                Complex
+                              </span>
+                            )}
                             {(r.startDate || r.targetDate) && (
                               <span className="text-ink-500">
                                 {" "}
@@ -881,6 +896,9 @@ function AssignForm({
   const [assigneeId, setAssigneeId] = useState(lockedAssignee?.id ?? "");
   const [divisionId, setDivisionId] = useState("");
   const [count, setCount] = useState("");
+  /** Simple unless a Lead says otherwise — an unanswered dropdown and an
+   *  explicit "Simple" mean the same thing. */
+  const [complexity, setComplexity] = useState<TagComplexity>("Simple");
   const [startDate, setStartDate] = useState("");
   const [targetDate, setTargetDate] = useState("");
   const [busy, setBusy] = useState(false);
@@ -897,6 +915,7 @@ function AssignForm({
         assigneeId,
         divisionId: divisionId || undefined,
         assignedCount: Number(count),
+        complexity,
         startDate: startDate || null,
         targetDate: targetDate || null,
       }),
@@ -921,16 +940,13 @@ function AssignForm({
             </span>
           </div>
         ) : (
-          <label className="text-sm">
-            <span className="block text-ink-700 mb-1">Person</span>
-            <ResourceSelect
-              people={workers}
-              value={assigneeId}
-              onChange={setAssigneeId}
-              availability={availability}
-              className="px-2 py-1.5 rounded border border-ink-200 text-sm min-w-[240px]"
-            />
-          </label>
+          <ResourceSelect
+            label="Person"
+            people={workers}
+            value={assigneeId}
+            onChange={setAssigneeId}
+            availability={availability}
+          />
         )}
 
         {assigneeId && (
@@ -942,14 +958,14 @@ function AssignForm({
         )}
 
         {divisions.length > 0 && (
-          <label className="text-sm">
-            <span className="block text-ink-700 mb-1">Division</span>
+          <label className="text-sm block">
+            <span className="block text-ink-700 font-medium mb-1">Division</span>
             <select
               value={divisionId}
               onChange={(e) => setDivisionId(e.target.value)}
-              className="px-2 py-1.5 rounded border border-ink-200 text-sm"
+              className={selectClass("md")}
             >
-              <option value="">Pick…</option>
+              <option value="">Pick a division…</option>
               {divisions.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.name}
@@ -966,8 +982,22 @@ function AssignForm({
             value={count}
             onChange={(e) => setCount(e.target.value)}
             placeholder="100"
-            className="w-24 px-2 py-1.5 rounded border border-ink-200"
+            className={inputClass("sm", "w-24")}
           />
+        </label>
+        <label className="text-sm">
+          <span className="block text-ink-700 mb-1">Complexity</span>
+          <select
+            value={complexity}
+            onChange={(e) => setComplexity(e.target.value as TagComplexity)}
+            className={selectClass("sm")}
+          >
+            {TAG_COMPLEXITIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="text-sm">
           <span className="block text-ink-700 mb-1">Start</span>
@@ -975,7 +1005,7 @@ function AssignForm({
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="px-2 py-1.5 rounded border border-ink-200"
+            className={dateClass("sm")}
           />
         </label>
         <label className="text-sm">
@@ -984,7 +1014,7 @@ function AssignForm({
             type="date"
             value={targetDate}
             onChange={(e) => setTargetDate(e.target.value)}
-            className="px-2 py-1.5 rounded border border-ink-200"
+            className={dateClass("sm")}
           />
         </label>
         <button
@@ -1071,23 +1101,20 @@ function EditAssignmentRow({
   return (
     <li className="p-2.5 rounded bg-ink-50 border border-ink-200">
       <div className="flex flex-wrap items-end gap-2">
-        <label className="text-xs">
-          <span className="block text-ink-700 mb-1">Person</span>
-          <ResourceSelect
-            people={workers}
-            value={assigneeId}
-            onChange={setAssigneeId}
-            availability={availability}
-            className="px-2 py-1 rounded border border-ink-200 text-sm min-w-[200px]"
-          />
-        </label>
+        <ResourceSelect
+          label="Person"
+          people={workers}
+          value={assigneeId}
+          onChange={setAssigneeId}
+          availability={availability}
+        />
         {divisions.length > 0 && (
-          <label className="text-xs">
-            <span className="block text-ink-700 mb-1">Division</span>
+          <label className="text-sm block">
+            <span className="block text-ink-700 font-medium mb-1">Division</span>
             <select
               value={divisionId}
               onChange={(e) => setDivisionId(e.target.value)}
-              className="px-2 py-1 rounded border border-ink-200 text-sm"
+              className={selectClass("md")}
             >
               {divisions.map((d) => (
                 <option key={d.id} value={d.id}>
@@ -1113,7 +1140,7 @@ function EditAssignmentRow({
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="px-2 py-1 rounded border border-ink-200 text-sm"
+            className={dateClass("sm")}
           />
         </label>
         <label className="text-xs">
@@ -1122,7 +1149,7 @@ function EditAssignmentRow({
             type="date"
             value={targetDate}
             onChange={(e) => setTargetDate(e.target.value)}
-            className="px-2 py-1 rounded border border-ink-200 text-sm"
+            className={dateClass("sm")}
           />
         </label>
         <button onClick={save} disabled={busy} className="btn-primary text-sm disabled:opacity-50">

@@ -338,7 +338,11 @@ model DomainUser {
   name          String
   passwordHash  String
   role          String   @default("Actionee") // Admin | Lead | TeamLead | Actionee
-  dailyCapacity Int      @default(8) // hours/day used for availability math
+  /// Unused. The module plans in tags/day, not hours, so nothing reads or
+  /// writes this. Kept only because dropping a column is destructive
+  /// (CLAUDE.md rule 9) — remove it in a deliberate migration once you are
+  /// sure no environment still needs the values.
+  dailyCapacity Int      @default(8)
   /// Expected tags/day for this person, set by a Lead when they're added.
   /// Used for forecasting until they have approved history of their own,
   /// at which point the measured rate takes over. Null = use the house
@@ -352,6 +356,7 @@ model DomainUser {
   projectsOwned DomainProject[] @relation("DomainProjectOwner")
   tasksAssigned DomainTask[]    @relation("DomainTaskAssignee")
   tasksCreated  DomainTask[]    @relation("DomainTaskCreator")
+  tasksReviewed DomainTask[]    @relation("DomainTaskReviewer")
   workLogs      DomainWorkLog[]
 
   allocations         DomainAllocation[]    @relation("DomainAllocationUser")
@@ -412,6 +417,7 @@ model DomainDivision {
 
   projects       DomainProjectDivision[]
   tagAssignments DomainTagAssignment[]
+  tasks          DomainTask[]
 }
 
 /// Join between a project and a division it uses, carrying that division's
@@ -469,6 +475,11 @@ model DomainTagAssignment {
   assignee       DomainUser      @relation("DomainTagAssignee", fields: [assigneeId], references: [id], onDelete: Cascade)
   assignedCount  Int
   deliveredCount Int             @default(0)
+  /// How hard this batch is: "Simple" or "Complex". Defaults to Simple so
+  /// an unanswered dropdown, and every row that predates the field, mean
+  /// the same thing. Recorded for reporting — it does not currently
+  /// weight the forecast.
+  complexity     String          @default("Simple")
   /// When this batch of tags should be worked and finished by. Separate
   /// from the project's own dates — one person's slice of a project often
   /// runs to a tighter date than the handover.
@@ -514,12 +525,19 @@ model DomainTagSubmission {
 }
 
 model DomainTask {
-  id          Int           @id @default(autoincrement())
-  projectId   Int
-  project     DomainProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id Int @id @default(autoincrement())
+
+  /// Null for an ad-hoc task — work that belongs to nobody's project.
+  /// Everything else hangs off a project, and optionally one of its
+  /// divisions.
+  projectId  Int?
+  project    DomainProject?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  divisionId Int?
+  division   DomainDivision? @relation(fields: [divisionId], references: [id], onDelete: SetNull)
+
   title       String
   description String?
-  status         String        @default("To Do") // To Do | In Progress | Done
+  status         String        @default("Assigned")
   assigneeId     String?
   assignee       DomainUser?   @relation("DomainTaskAssignee", fields: [assigneeId], references: [id])
   createdById    String
@@ -529,6 +547,20 @@ model DomainTask {
   estimatedHours Float? // hours the actionee should take to complete it
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
+
+  /// Filled in when the assignee submits the task for review: the day they
+  /// did the work, their note, and when they pressed submit. Kept apart
+  /// from `updatedAt` so a later edit doesn't disturb the submission record.
+  submittedOn   DateTime?
+  submittedNote String?
+  submittedAt   DateTime?
+
+  /// The decision by whoever assigned it. reviewedById stays null on a
+  /// task nobody has decided yet.
+  reviewedById String?
+  reviewedBy   DomainUser? @relation("DomainTaskReviewer", fields: [reviewedById], references: [id])
+  reviewedAt   DateTime?
+  reviewNote   String?
 
   workLogs DomainWorkLog[]
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
-import { WORKING_ROLES, divisionTagsIssue, type DomainRole } from "@/lib/domain";
+import { TAG_HOLDER_ROLES, divisionTagsIssue, type DomainRole } from "@/lib/domain";
 import { allocationConflicts, projectForecasts } from "@/lib/domain-forecast";
 import { toISODate } from "@/lib/forecast";
 
@@ -209,7 +209,7 @@ export async function POST(req: Request) {
       select: { id: true, name: true, role: true },
     });
     for (const p of people) {
-      if (!WORKING_ROLES.includes(p.role as DomainRole)) {
+      if (!TAG_HOLDER_ROLES.includes(p.role as DomainRole)) {
         return NextResponse.json(
           { error: `${p.name} can't be allocated — only Actionees, SMEs, and Team Leads can.` },
           { status: 400 },

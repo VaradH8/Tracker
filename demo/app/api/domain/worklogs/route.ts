@@ -4,8 +4,11 @@ import { requireDomainUser } from "@/lib/domain-auth";
 import {
   withinLogWindow,
   istDayStart,
+  istParts,
   logWindowLabel,
-  WORKING_ROLES,
+  worklogVisibleRoles,
+  backdateFloorISO,
+  backdateWindowLabel,
   LOG_WINDOW_END_HOUR,
   LOG_WINDOW_START_HOUR,
 } from "@/lib/domain";
@@ -66,17 +69,22 @@ export async function GET(req: Request) {
   const from = params.get("from");
   const to = params.get("to");
 
-  const canSeeTeam = user.role === "Admin" || user.role === "Lead";
+  // Who this viewer is allowed to read at all — see worklogVisibleRoles.
+  const visible = worklogVisibleRoles(user.role);
 
   let scope: Record<string, unknown>;
-  if (!all || !canSeeTeam) {
+  if (!all || visible.length === 0) {
     scope = { userId: user.id };
-  } else if (user.role === "Admin") {
-    // Everyone but themselves.
-    scope = { userId: { not: user.id } };
   } else {
-    // A Lead isn't a working role, so this already excludes their own.
-    scope = { user: { role: { in: WORKING_ROLES } } };
+    // The roles they oversee, minus themselves. The self-exclusion matters
+    // for anyone whose own role is inside their visible set — an Admin
+    // sees every role, and a Team Lead would otherwise need it too if
+    // peers were ever added — so it is applied unconditionally rather
+    // than left to depend on the role list.
+    scope = {
+      user: { role: { in: visible } },
+      userId: { not: user.id },
+    };
   }
 
   // An explicit person narrows the scope; it can't widen it, so a Lead
@@ -102,10 +110,15 @@ export async function GET(req: Request) {
 }
 
 /**
- * Log work for *today*. Hard rule: entries are only accepted while the
- * server clock is inside the 08:00–22:00 IST window. This stops people
- * back-filling fake hours after the fact — there's no "log for another
- * day" path at all.
+ * Log work. Entries are only accepted while the server clock is inside the
+ * 08:00–22:00 IST window, which keeps logging a daily habit rather than a
+ * month-end exercise.
+ *
+ * A date may be given, but only within the last MAX_BACKDATE_DAYS and
+ * never in the future. The original rule allowed no date at all; a bounded
+ * window lets someone who was on site or off sick catch up, while still
+ * making retrospective bulk entry impossible. `createdAt` is untouched, so
+ * a log written after the day it covers stays visible as such.
  */
 export async function POST(req: Request) {
   const userOrResp = await requireDomainUser();
@@ -138,6 +151,33 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Add a short note on what you did." }, { status: 400 });
   }
 
+  // Which day the work happened. Defaults to today; anything else has to
+  // fall inside the back-dating window, and never ahead of today.
+  let date = istDayStart();
+  if (body.date != null && body.date !== "") {
+    const chosen = String(body.date);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(chosen)) {
+      return NextResponse.json({ error: "Pick a valid date." }, { status: 400 });
+    }
+    const todayISO = istParts().dateISO;
+    if (chosen > todayISO) {
+      return NextResponse.json(
+        { error: "You can't log work for a future date." },
+        { status: 400 },
+      );
+    }
+    const floor = backdateFloorISO();
+    if (chosen < floor) {
+      return NextResponse.json(
+        {
+          error: `Work can only be logged ${backdateWindowLabel()} — nothing earlier than ${floor}. Ask a Lead if an entry from a previous month is genuinely missing.`,
+        },
+        { status: 400 },
+      );
+    }
+    date = new Date(chosen + "T00:00:00.000Z");
+  }
+
   // Which project was this work for? Optional, but the main thing people
   // pick. A linked task's project takes precedence if both are given.
   let projectId: number | null = null;
@@ -167,7 +207,7 @@ export async function POST(req: Request) {
       userId: user.id,
       projectId,
       taskId,
-      date: istDayStart(),
+      date,
       hours: Math.round(hours * 100) / 100,
       note,
     },

@@ -23,11 +23,20 @@ export async function GET() {
     resources: resources.map((r) => ({
       id: r.id,
       name: r.name,
+      email: r.email,
       role: r.role,
       status: r.status,
+      openTags: r.openTags,
+      openTagProjects: r.openTagProjects,
       availableFrom: r.availableFrom,
-      rate: r.effectiveRate,
-      usingDefaultRate: r.usingDefaultRate,
+      // The planning rate, null when nobody has set or earned one. The
+      // house default is deliberately not sent: a made-up number shown
+      // next to real ones reads as fact.
+      rate: r.rate,
+      measuredRate: r.measuredRate,
+      approvedTags: r.approvedTags,
+      measuredDays: r.measuredDays,
+      rateSource: r.rateSource,
       // What they're on now, and how much of it is still outstanding.
       projects: r.projects.map((p) => ({
         projectId: p.projectId,

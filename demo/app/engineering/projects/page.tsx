@@ -5,7 +5,6 @@ import {
   Plus,
   Pencil,
   Trash2,
-  Layers,
   ChevronLeft,
   ChevronRight,
   Users,
@@ -13,25 +12,18 @@ import {
 import { useDomain } from "@/lib/domain-store";
 import {
   DOMAIN_ROLE_LABELS,
-  MAX_BULK_TASKS,
-  distributeEvenly,
+  canAssignTasks,
   type DomainRole,
 } from "@/lib/domain";
-import { DomainTaskList, type DomainTask } from "@/components/DomainTaskList";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import {
   CreateProjectForm,
   EditProjectForm,
   TagAssignmentPanel,
 } from "@/components/DomainProjectForecast";
-import {
-  ResourceChecklist,
-  ResourceDetail,
-  ResourceSelect,
-  useAvailability,
-} from "@/components/DomainResourcePicker";
 import { DomainProjectResources } from "@/components/DomainProjectResources";
 import { DomainPage, PageHeader } from "@/components/DomainPage";
+import { fmtDate as fmtDay } from "@/lib/domain-format";
 
 type Project = {
   id: number;
@@ -87,10 +79,10 @@ export default function DomainProjectsPage() {
 
   const canCreateProject =
     current?.role === "Admin" || current?.role === "Lead";
-  const canAssign =
-    current?.role === "Admin" ||
-    current?.role === "Lead" ||
-    current?.role === "TeamLead";
+  // Who may hand out tasks, and to whom, both come from one hierarchy —
+  // see assignableRoles. An Admin can task a Lead; a Team Lead can task
+  // SMEs and Actionees; nobody can task a peer or themselves.
+  const canAssign = current ? canAssignTasks(current.role) : false;
 
   const loadProjects = useCallback(async () => {
     const res = await fetch("/api/domain/projects", { cache: "no-store" });
@@ -116,7 +108,7 @@ export default function DomainProjectsPage() {
 
   useEffect(() => {
     void loadProjects();
-    fetch("/api/domain/users")
+    fetch("/api/domain/users", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : { users: [] }))
       .then((b) => setPeople(b.users ?? []))
       .catch(() => null);
@@ -198,12 +190,6 @@ export default function DomainProjectsPage() {
             void loadAssignments();
             void loadProjects();
           }}
-        />
-        <ProjectTasks
-          projectId={selectedProject.id}
-          people={people}
-          canAssign={canAssign}
-          onTaskChange={loadProjects}
         />
       </DomainPage>
     );
@@ -349,13 +335,6 @@ function ProjectCard({ p, onOpen }: { p: Project; onOpen: () => void }) {
   );
 }
 
-function fmtDay(iso: string): string {
-  return new Date(iso + "T00:00:00Z").toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    timeZone: "UTC",
-  });
-}
 
 function ProjectHeader({
   project,
@@ -493,351 +472,4 @@ function HeroStat({
     </div>
   );
 }
-
-/** Create a run of like-for-like tasks ("20 supports") and let the server
- *  spread them evenly over the people picked here — 20 across 4 is 5 each. */
-function BulkAddTasks({
-  projectId,
-  assignable,
-  onCancel,
-  onCreated,
-}: {
-  projectId: number;
-  assignable: Person[];
-  onCancel: () => void;
-  onCreated: () => void;
-}) {
-  const [prefix, setPrefix] = useState("");
-  const [count, setCount] = useState("");
-  const [picked, setPicked] = useState<string[]>([]);
-  const [estHours, setEstHours] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [targetDate, setTargetDate] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const { byId: availability } = useAvailability();
-
-  const n = Number(count);
-  const validCount = Number.isInteger(n) && n >= 1 && n <= MAX_BULK_TASKS;
-
-  // Same round-robin the server runs, so the preview can't disagree with
-  // what actually gets created.
-  const spread = validCount ? distributeEvenly(n, picked) : [];
-  const previewFor = (id: string) => spread.filter((a) => a === id).length;
-
-  function toggle(id: string) {
-    setPicked((ids) =>
-      ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id],
-    );
-  }
-
-  async function submit() {
-    setError(null);
-    setBusy(true);
-    const res = await fetch("/api/domain/tasks/bulk", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        projectId,
-        titlePrefix: prefix,
-        count: n,
-        assigneeIds: picked,
-        estimatedHours: estHours || undefined,
-        startDate: startDate || undefined,
-        targetDate: targetDate || undefined,
-      }),
-    });
-    setBusy(false);
-    if (!res.ok) {
-      setError((await res.json()).error ?? "Couldn't create the tasks.");
-      return;
-    }
-    onCreated();
-  }
-
-  return (
-    <div className="card p-4">
-      <div className="grid grid-cols-[1fr_110px] gap-2 mb-2">
-        <input
-          autoFocus
-          value={prefix}
-          onChange={(e) => setPrefix(e.target.value)}
-          placeholder="Batch name, e.g. Support or Cable"
-          className="px-3 py-2 rounded border border-ink-200 text-sm"
-        />
-        <input
-          type="number"
-          min="1"
-          max={MAX_BULK_TASKS}
-          value={count}
-          onChange={(e) => setCount(e.target.value)}
-          placeholder="How many"
-          className="px-3 py-2 rounded border border-ink-200 text-sm"
-        />
-      </div>
-      {prefix.trim() && validCount && (
-        <p className="text-xs text-ink-500 mb-3">
-          Creates {n} tasks: {prefix.trim()} 1 … {prefix.trim()} {n}
-        </p>
-      )}
-
-      <label className="block text-[11px] text-ink-500 mb-1">
-        Split evenly across
-      </label>
-      {assignable.length === 0 ? (
-        <p className="text-xs text-ink-400 italic mb-2">
-          No one is available to take these on yet.
-        </p>
-      ) : (
-        <div className="mb-3">
-          <ResourceChecklist
-            people={assignable}
-            picked={picked}
-            availability={availability}
-            onToggle={(id) => toggle(id)}
-            maxHeight="max-h-52"
-            suffix={(id) =>
-              picked.includes(id) && validCount ? (
-                <span className="text-xs font-medium text-brand-blue">
-                  {previewFor(id)} tasks
-                </span>
-              ) : null
-            }
-          />
-        </div>
-      )}
-      {picked.length === 0 && (
-        <p className="text-xs text-ink-400 italic mb-3">
-          Pick nobody and the tasks are created unassigned.
-        </p>
-      )}
-
-      <div className="grid grid-cols-3 gap-2 mb-2">
-        <div>
-          <label className="block text-[11px] text-ink-500 mb-1">
-            Hours per task
-          </label>
-          <input
-            type="number"
-            step="0.5"
-            min="0"
-            value={estHours}
-            onChange={(e) => setEstHours(e.target.value)}
-            placeholder="Optional"
-            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-[11px] text-ink-500 mb-1">Start date</label>
-          <input
-            type="date"
-            value={startDate}
-            max={targetDate || undefined}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-[11px] text-ink-500 mb-1">Deadline</label>
-          <input
-            type="date"
-            value={targetDate}
-            min={startDate || undefined}
-            onChange={(e) => setTargetDate(e.target.value)}
-            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
-          />
-        </div>
-      </div>
-
-      {error && <p className="text-xs text-brand-redText mb-2">{error}</p>}
-      <div className="flex justify-end gap-2">
-        <button onClick={onCancel} className="btn-ghost">
-          Cancel
-        </button>
-        <button
-          onClick={submit}
-          disabled={!prefix.trim() || !validCount || busy}
-          className="btn-primary"
-        >
-          {busy ? "Creating…" : `Create ${validCount ? n : ""} tasks`}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function ProjectTasks({
-  projectId,
-  people,
-  canAssign,
-  onTaskChange,
-}: {
-  projectId: number;
-  people: Person[];
-  canAssign: boolean;
-  onTaskChange: () => void;
-}) {
-  const [tasks, setTasks] = useState<DomainTask[]>([]);
-  const { byId: availability } = useAvailability(canAssign);
-  const [adding, setAdding] = useState(false);
-  const [bulking, setBulking] = useState(false);
-  const [title, setTitle] = useState("");
-  const [assigneeId, setAssigneeId] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [targetDate, setTargetDate] = useState("");
-  const [estHours, setEstHours] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  const assignable = people.filter((p) =>
-    ["Actionee", "TeamLead", "SME"].includes(p.role),
-  );
-
-  const load = useCallback(async () => {
-    const res = await fetch(`/api/domain/tasks?projectId=${projectId}`, {
-      cache: "no-store",
-    });
-    if (res.ok) setTasks((await res.json()).tasks ?? []);
-  }, [projectId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  async function addTask() {
-    setError(null);
-    const res = await fetch("/api/domain/tasks", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        projectId,
-        title,
-        assigneeId: assigneeId || undefined,
-        startDate: startDate || undefined,
-        targetDate: targetDate || undefined,
-        estimatedHours: estHours || undefined,
-      }),
-    });
-    if (!res.ok) {
-      setError((await res.json()).error ?? "Couldn't add task.");
-      return;
-    }
-    setTitle("");
-    setAssigneeId("");
-    setStartDate("");
-    setTargetDate("");
-    setEstHours("");
-    setAdding(false);
-    void load();
-    onTaskChange();
-  }
-
-  return (
-    <div>
-      {canAssign && (
-        <div className="mb-4">
-          {adding ? (
-            <div className="card p-4">
-              <input
-                autoFocus
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Task title"
-                className="w-full px-3 py-2 mb-2 rounded border border-ink-200 text-sm"
-              />
-              <div className="grid grid-cols-2 gap-2 mb-2">
-                <ResourceSelect
-                  people={assignable}
-                  value={assigneeId}
-                  onChange={setAssigneeId}
-                  availability={availability}
-                  placeholder="Assign to…"
-                  className="px-3 py-2 rounded border border-ink-200 text-sm"
-                />
-                <input
-                  type="number"
-                  step="0.5"
-                  min="0"
-                  value={estHours}
-                  onChange={(e) => setEstHours(e.target.value)}
-                  placeholder="Hours to complete"
-                  className="px-3 py-2 rounded border border-ink-200 text-sm"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-2 mb-2">
-                <div>
-                  <label className="block text-[11px] text-ink-500 mb-1">
-                    Start date
-                  </label>
-                  <input
-                    type="date"
-                    value={startDate}
-                    max={targetDate || undefined}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] text-ink-500 mb-1">
-                    Deadline
-                  </label>
-                  <input
-                    type="date"
-                    value={targetDate}
-                    min={startDate || undefined}
-                    onChange={(e) => setTargetDate(e.target.value)}
-                    className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
-                  />
-                </div>
-              </div>
-              <ResourceDetail a={availability.get(assigneeId)} />
-              {error && <p className="text-xs text-brand-redText mb-2">{error}</p>}
-              <div className="flex justify-end gap-2">
-                <button onClick={() => setAdding(false)} className="btn-ghost">
-                  Cancel
-                </button>
-                <button
-                  onClick={addTask}
-                  disabled={!title.trim()}
-                  className="btn-primary"
-                >
-                  Add task
-                </button>
-              </div>
-            </div>
-          ) : bulking ? (
-            <BulkAddTasks
-              projectId={projectId}
-              assignable={assignable}
-              onCancel={() => setBulking(false)}
-              onCreated={() => {
-                setBulking(false);
-                void load();
-                onTaskChange();
-              }}
-            />
-          ) : (
-            <div className="flex gap-2">
-              <button onClick={() => setAdding(true)} className="btn-primary">
-                <Plus size={16} className="mr-1.5" /> Add task
-              </button>
-              <button onClick={() => setBulking(true)} className="btn-ghost">
-                <Layers size={16} className="mr-1.5" /> Bulk add &amp; split
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-      <DomainTaskList
-        tasks={tasks}
-        canManage={canAssign}
-        people={people}
-        hideProject
-        onChanged={() => {
-          void load();
-          onTaskChange();
-        }}
-      />
-    </div>
-  );
-}
+

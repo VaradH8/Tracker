@@ -3,12 +3,17 @@
 import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, Clock } from "lucide-react";
 import { DomainPage, PageHeader } from "@/components/DomainPage";
+import {
+  fmtDate as fmt,
+  submissionStatusCls as statusCls,
+} from "@/lib/domain-format";
 
 type Assignment = {
   id: number;
   projectName: string;
   client: string | null;
   divisionName: string | null;
+  complexity?: string;
   handoverDate: string | null;
   startDate: string | null;
   targetDate: string | null;
@@ -29,20 +34,7 @@ type Submission = {
   reviewNote: string | null;
 };
 
-function fmt(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso + "T00:00:00Z").toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    timeZone: "UTC",
-  });
-}
 
-function statusCls(s: string): string {
-  if (s === "Approved") return "bg-brand-greenBg text-brand-greenText";
-  if (s === "Rejected") return "bg-brand-redBg text-brand-redText";
-  return "bg-brand-yellowBg text-brand-yellowText";
-}
 
 /**
  * The actionee's own view: what they're carrying per project and division,
@@ -151,6 +143,8 @@ function AssignmentCard({ a, onSubmitted }: { a: Assignment; onSubmitted: () => 
   /** The count just submitted, echoed back so the actionee can see exactly
    *  what went to their Lead rather than an empty box. */
   const [justSubmitted, setJustSubmitted] = useState<number | null>(null);
+  /** Team Lead tags count on submission; everyone else's wait for review. */
+  const [autoApproved, setAutoApproved] = useState(false);
 
   // What's left to claim once delivered and already-pending tags are taken off.
   const claimable = Math.max(0, a.assignedCount - a.deliveredCount - a.pendingCount);
@@ -174,6 +168,7 @@ function AssignmentCard({ a, onSubmitted }: { a: Assignment; onSubmitted: () => 
       return;
     }
     setJustSubmitted(body.submission?.completedCount ?? Number(count));
+    setAutoApproved(body.autoApproved === true);
     setCount("");
     setNote("");
     onSubmitted();
@@ -189,6 +184,7 @@ function AssignmentCard({ a, onSubmitted }: { a: Assignment; onSubmitted: () => 
           <p className="text-xs text-ink-500 mt-0.5">
             {a.client ? `${a.client} · ` : ""}
             {a.divisionName ? `${a.divisionName} division · ` : ""}
+            {a.complexity === "Complex" ? "Complex · " : ""}
             Handover {fmt(a.handoverDate)}
           </p>
           {(a.startDate || a.targetDate) && (
@@ -262,7 +258,9 @@ function AssignmentCard({ a, onSubmitted }: { a: Assignment; onSubmitted: () => 
         <p className="text-sm text-brand-greenText mt-2 inline-flex items-center gap-1.5">
           <CheckCircle2 size={14} />
           You submitted <strong>{justSubmitted} tag{justSubmitted === 1 ? "" : "s"}</strong> —
-          sent to your Lead for approval.
+          {autoApproved
+            ? " counted as delivered straight away."
+            : " sent to your Lead for approval."}
         </p>
       )}
       {error && <p className="text-sm text-brand-redText mt-2">{error}</p>}

@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
-import { WORKING_ROLES, assignmentCapIssue, type DomainRole } from "@/lib/domain";
+import {
+  assignableRoles,
+  assignmentCapIssue,
+  normaliseComplexity,
+  type DomainRole,
+} from "@/lib/domain";
 import { toISODate } from "@/lib/forecast";
 
 /**
@@ -28,6 +33,7 @@ type Row = {
   id: number;
   assignedCount: number;
   deliveredCount: number;
+  complexity: string;
   startDate: Date | null;
   targetDate: Date | null;
   createdAt: Date;
@@ -58,6 +64,7 @@ function serialize(a: Row, pendingTags = 0) {
     assigneeName: a.assignee.name,
     assignedCount: a.assignedCount,
     deliveredCount: a.deliveredCount,
+    complexity: a.complexity,
     remainingCount: remaining,
     pendingCount: pendingTags,
     startDate: a.startDate ? toISODate(a.startDate) : null,
@@ -151,9 +158,21 @@ export async function POST(req: Request) {
   if (!assignee || !assignee.isActive) {
     return NextResponse.json({ error: "Assignee not found." }, { status: 400 });
   }
-  if (!WORKING_ROLES.includes(assignee.role as DomainRole)) {
+  // Tags follow the same hierarchy as tasks: you hand work down, never
+  // sideways to a peer and never upwards. An Admin may therefore assign
+  // to a Lead; a Team Lead may not assign to another Team Lead.
+  const allowedAssignees = assignableRoles(user.role);
+  if (!allowedAssignees.includes(assignee.role as DomainRole)) {
     return NextResponse.json(
-      { error: "Tags can only be assigned to Actionees, SMEs, or Team Leads." },
+      {
+        error: `You can assign tags to ${allowedAssignees.join(", ")} — not to a ${assignee.role}.`,
+      },
+      { status: 403 },
+    );
+  }
+  if (assignee.id === user.id) {
+    return NextResponse.json(
+      { error: "You can't assign tags to yourself." },
       { status: 400 },
     );
   }
@@ -179,6 +198,9 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
+
+  // Unset, unrecognised, or simply not answered all mean Simple.
+  const complexity = normaliseComplexity(body.complexity);
 
   const startDate = body.startDate ? new Date(String(body.startDate)) : null;
   const targetDate = body.targetDate ? new Date(String(body.targetDate)) : null;
@@ -228,6 +250,9 @@ export async function POST(req: Request) {
           // Dates given on a top-up refresh the batch; omitted, they stand.
           ...(startDate ? { startDate } : {}),
           ...(targetDate ? { targetDate } : {}),
+          // Same for complexity: state it to change it, omit it to keep
+          // what the batch already says.
+          ...(body.complexity ? { complexity } : {}),
         },
         include: INCLUDE,
       })
@@ -237,6 +262,7 @@ export async function POST(req: Request) {
           divisionId,
           assigneeId,
           assignedCount,
+          complexity,
           startDate,
           targetDate,
           createdById: user.id,

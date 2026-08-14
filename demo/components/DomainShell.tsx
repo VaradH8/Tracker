@@ -32,16 +32,19 @@ type NavItem = {
 
 const WORKERS: DomainRole[] = ["TeamLead", "SME", "Actionee"];
 const EVERYONE: DomainRole[] = ["Admin", "Lead", ...WORKERS];
+/** Structural screens: adding and removing people. */
 const MANAGERS: DomainRole[] = ["Admin", "Lead"];
+/** Delivery oversight — a Team Lead reviews and plans here too. */
+const SUPERVISORS: DomainRole[] = [...MANAGERS, "TeamLead"];
 
 const NAV: NavItem[] = [
   { href: "/engineering", label: "Dashboard", icon: LayoutGrid, roles: EVERYONE, group: "Work" },
   { href: "/engineering/projects", label: "Projects", icon: FolderKanban, roles: EVERYONE, group: "Work" },
   { href: "/engineering/my-tags", label: "My tags", icon: Tags, roles: WORKERS, group: "Work" },
-  { href: "/engineering/worklog", label: "Work log", icon: ClipboardList, roles: EVERYONE, group: "Work" },
-  { href: "/engineering/approvals", label: "Approvals", icon: CheckSquare, roles: MANAGERS, group: "Manage" },
-  { href: "/engineering/forecast", label: "Forecast", icon: TrendingUp, roles: MANAGERS, group: "Manage" },
-  { href: "/engineering/availability", label: "Resource availability", icon: Gauge, roles: MANAGERS, group: "Manage" },
+  { href: "/engineering/task-log", label: "Task log", icon: ClipboardList, roles: EVERYONE, group: "Work" },
+  { href: "/engineering/approvals", label: "Approvals", icon: CheckSquare, roles: SUPERVISORS, group: "Manage" },
+  { href: "/engineering/forecast", label: "Forecast", icon: TrendingUp, roles: SUPERVISORS, group: "Manage" },
+  { href: "/engineering/availability", label: "Resource availability", icon: Gauge, roles: SUPERVISORS, group: "Manage" },
   { href: "/engineering/kpis", label: "KPIs", icon: BarChart3, roles: ["Admin"], group: "Manage" },
   // Leads add members to their own team; only an Admin can create Admins or Leads.
   { href: "/engineering/users", label: "Users", icon: Users, roles: MANAGERS, group: "Manage" },

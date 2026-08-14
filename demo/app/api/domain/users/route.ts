@@ -5,14 +5,13 @@ import {
   requireDomainRole,
   createDomainAccount,
 } from "@/lib/domain-auth";
-import { DOMAIN_ROLES, type DomainRole } from "@/lib/domain";
+import { DOMAIN_ROLES, canManageUser, type DomainRole } from "@/lib/domain";
 
 function serialize(u: {
   id: string;
   name: string;
   email: string;
   role: string;
-  dailyCapacity: number;
   expectedTagsPerDay: number | null;
   isActive: boolean;
   createdAt: Date;
@@ -22,7 +21,6 @@ function serialize(u: {
     name: u.name,
     email: u.email,
     role: u.role as DomainRole,
-    dailyCapacity: u.dailyCapacity,
     expectedTagsPerDay: u.expectedTagsPerDay,
     isActive: u.isActive,
     createdAt: u.createdAt.toISOString(),
@@ -72,7 +70,7 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const roleInput = String(body.role ?? "Actionee") as DomainRole;
   const role = DOMAIN_ROLES.includes(roleInput) ? roleInput : "Actionee";
-  if (actor.role !== "Admin" && (role === "Admin" || role === "Lead")) {
+  if (!canManageUser(actor.role, role)) {
     return NextResponse.json(
       { error: "Only an Admin can add Admins or Leads." },
       { status: 403 },
@@ -96,14 +94,6 @@ export async function POST(req: Request) {
     });
   }
 
-  // Optional non-default capacity.
-  const capacity = Number(body.dailyCapacity);
-  if (Number.isFinite(capacity) && capacity > 0 && capacity !== 8) {
-    await prisma.domainUser.update({
-      where: { id: r.id },
-      data: { dailyCapacity: Math.min(14, Math.max(1, Math.round(capacity))) },
-    });
-  }
   const created = await prisma.domainUser.findUnique({ where: { id: r.id } });
   return NextResponse.json({ user: created ? serialize(created) : null });
 }
