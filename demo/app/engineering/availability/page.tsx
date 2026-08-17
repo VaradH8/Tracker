@@ -9,6 +9,7 @@ import {
   type ResourceRow,
 } from "@/components/DomainResourceTable";
 import { DomainPage, PageHeader } from "@/components/DomainPage";
+import { fmtDate } from "@/lib/domain-format";
 
 /**
  * Resource availability — who is free, who is booked, until when, and how
@@ -54,15 +55,8 @@ export default function AvailabilityPage() {
   const everyoneFree = allFreeFrom(resources ?? []);
   const soonestFree = nextFreeFrom(resources ?? []);
 
-  const fmtDay = (iso: string | null) =>
-    iso
-      ? new Date(iso + "T00:00:00Z").toLocaleDateString(undefined, {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-          timeZone: "UTC",
-        })
-      : null;
+  // The shared formatter, so this screen reads the same as every other.
+  const fmtDay = (iso: string | null) => (iso ? fmtDate(iso) : null);
   const soonestPerson = (resources ?? []).find(
     (r) => r.availableFrom === soonestFree,
   );

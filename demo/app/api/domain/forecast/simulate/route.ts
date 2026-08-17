@@ -2,13 +2,15 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
 import { SUPERVISOR_ROLES } from "@/lib/domain";
-import { allocationConflicts, ratesByUser } from "@/lib/domain-forecast";
-import { effectiveRate, forecastDelivery, splitRate, toISODate } from "@/lib/forecast";
+import { allocationConflicts } from "@/lib/domain-forecast";
+import { forecastDelivery, splitRate, toISODate } from "@/lib/forecast";
 
 /**
  * What-if forecasting. A Lead enters a tag count, the people they'd put on
- * it and a handover date; we answer with an estimated delivery date and
- * whether that date holds — using each person's real approved rate.
+ * it, the rate to plan each of them at, and a handover date; we answer
+ * with an estimated delivery date and whether that date holds.
+ *
+ * The rates are supplied, never inferred — see the block below.
  *
  * Writes nothing. It also reports any allocation clashes for the proposed
  * window, so a plan that only works by double-booking someone says so.
@@ -59,8 +61,6 @@ export async function POST(req: Request) {
     );
   }
 
-  const rates = await ratesByUser();
-
   // Existing bookings that overlap the proposed window: the simulated
   // project would be one more call on the same person, so their rate is
   // shared rather than assumed whole. Without a handover date there's no
@@ -75,37 +75,49 @@ export async function POST(req: Request) {
     : [];
   const clashesById = new Map(existing.map((e) => [e.id, e.clashes]));
 
-  // Per-person tags/day the Lead typed in, as { userId: rate }. An override
-  // beats the person's measured history — it's how you ask "what if Mukesh
-  // could do 40 a day?" A blank or invalid entry falls back to the
-  // measured rate.
+  /**
+   * The rate to plan each person at, typed into the form.
+   *
+   * This is the ONLY source. The simulator deliberately does not fall back
+   * to a measured rate, a booking rate, or a house default: a what-if is
+   * an assumption you are making on purpose, and quietly substituting
+   * history for the number you meant to supply is how a simulation ends up
+   * answering a question nobody asked. If a rate is missing, we say so
+   * rather than invent one.
+   */
   const overrides: Record<string, unknown> =
     body.rateOverrides && typeof body.rateOverrides === "object"
       ? (body.rateOverrides as Record<string, unknown>)
       : {};
 
-  const resources = people.map((p) => {
-    const own = rates.get(p.id) ?? null;
-    const rawOverride = Number(overrides[p.id]);
-    const override =
-      Number.isFinite(rawOverride) && rawOverride > 0
-        ? Math.round(rawOverride * 100) / 100
-        : null;
-    const fullRate = override ?? effectiveRate(own);
-    // +1 for this hypothetical project itself.
-    const concurrentProjects = (clashesById.get(p.id)?.length ?? 0) + 1;
+  const rated = people.map((p) => {
+    const raw = Number(overrides[p.id]);
     return {
-      id: p.id,
-      name: p.name,
-      role: p.role,
+      person: p,
+      rate: Number.isFinite(raw) && raw > 0 ? Math.round(raw * 100) / 100 : null,
+    };
+  });
+  const missing = rated.filter((r) => r.rate === null);
+  if (missing.length > 0) {
+    return NextResponse.json(
+      {
+        error: `Set a tags/day rate for ${missing.map((m) => m.person.name).join(", ")} — the simulation plans at the rate you give it, not at one it guesses.`,
+      },
+      { status: 400 },
+    );
+  }
+
+  const resources = rated.map(({ person, rate }) => {
+    // +1 for this hypothetical project itself.
+    const concurrentProjects = (clashesById.get(person.id)?.length ?? 0) + 1;
+    const fullRate = rate as number;
+    return {
+      id: person.id,
+      name: person.name,
+      role: person.role,
       rate: splitRate(fullRate, concurrentProjects),
       fullRate,
       concurrentProjects,
-      /** The rate their approved history actually supports, so a Lead can
-       *  see how far an override departs from reality. */
-      measuredRate: own,
-      overridden: override !== null,
-      usingDefaultRate: own === null && override === null,
     };
   });
 

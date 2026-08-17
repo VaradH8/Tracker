@@ -182,27 +182,15 @@ export async function GET() {
       })),
     );
 
-  const unrated = projects.flatMap((p) =>
-    p.resources
-      .filter((r) => r.usingDefaultRate)
-      .map((r) => ({
-        userId: r.id,
-        name: r.name,
-        projectId: p.id,
-        projectName: p.name,
-      })),
-  );
-
   /* ---- trend ---------------------------------------------------------- */
   const weeks = weekStarts.map((start) => {
     const end = new Date(start.getTime() + 7 * DAY_MS);
     const rows = submissions.filter((s) => s.date >= start && s.date < end);
     return {
-      label: start.toLocaleDateString("en-GB", {
-        day: "numeric",
-        month: "short",
-        timeZone: "UTC",
-      }),
+      // The raw week-start date. Formatting belongs to the client, which
+      // renders every other date through the shared formatter; building a
+      // label here is how this chart ended up with its own date style.
+      label: toISODate(start),
       startDate: toISODate(start),
       claimed: rows.reduce((a, s) => a + s.completedCount, 0),
       delivered: rows
@@ -243,6 +231,6 @@ export async function GET() {
     reviewers,
     atRisk,
     weeks,
-    quality: { unbooked, unrated },
+    quality: { unbooked },
   });
 }

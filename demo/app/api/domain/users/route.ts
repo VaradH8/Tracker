@@ -5,7 +5,12 @@ import {
   requireDomainRole,
   createDomainAccount,
 } from "@/lib/domain-auth";
-import { DOMAIN_ROLES, canManageUser, type DomainRole } from "@/lib/domain";
+import {
+  DOMAIN_ROLES,
+  SUPERVISOR_ROLES,
+  canManageUser,
+  type DomainRole,
+} from "@/lib/domain";
 
 function serialize(u: {
   id: string;
@@ -27,15 +32,16 @@ function serialize(u: {
   };
 }
 
-/** Admins and Leads see the full roster — Leads manage their own team's
- *  members. Everyone else gets the lightweight list of active people
- *  (id, name, role) needed to assign tasks. */
+/** Admins, Leads and Team Leads see the full roster — each manages some
+ *  part of it, and an editable row needs the email and active flag that
+ *  the lightweight shape omits. Everyone else gets the lightweight list of
+ *  active people (id, name, role) needed to assign tasks. */
 export async function GET() {
   const userOrResp = await requireDomainUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
   const user = userOrResp;
 
-  if (user.role !== "Admin" && user.role !== "Lead") {
+  if (!SUPERVISOR_ROLES.includes(user.role)) {
     const roster = await prisma.domainUser.findMany({
       where: { isActive: true },
       orderBy: { name: "asc" },

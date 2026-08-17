@@ -1,38 +1,55 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Settings2, Trash2, X } from "lucide-react";
 import {
   DOMAIN_ROLES,
   DOMAIN_ROLE_LABELS,
+  manageableRoles,
   type DomainRole,
 } from "@/lib/domain";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { useDomain } from "@/lib/domain-store";
 import { DomainPage, PageHeader } from "@/components/DomainPage";
+import { inputClass, selectClass } from "@/lib/domain-ui";
 
 type DUser = {
   id: string;
   name: string;
   email: string;
   role: DomainRole;
-  expectedTagsPerDay: number | null;
   isActive: boolean;
 };
 
 export default function DomainUsersPage() {
   const { current } = useDomain();
   const [users, setUsers] = useState<DUser[]>([]);
-  const [rowError, setRowError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [managing, setManaging] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: "",
     email: "",
     password: "",
     role: "Actionee" as DomainRole,
-    expectedTagsPerDay: "",
   });
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  /**
+   * What this viewer may do here. A Team Lead manages the people they
+   * supervise but neither adds nor removes accounts, so the controls they
+   * cannot use are not shown at all — the API refuses them either way, and
+   * a button that always errors is worse than no button.
+   */
+  const role = current?.role;
+  const canAddOrRemove = role === "Admin" || role === "Lead";
+  /**
+   * Derived from the same rule the API enforces rather than restated here.
+   * A second copy of this ladder is precisely how a Team Lead once ended
+   * up unable to reach a view the server was happy to serve them.
+   */
+  const manageable: DomainRole[] = role ? manageableRoles(role) : [];
+  const canManage = (u: DUser) => u.id !== current?.id && manageable.includes(u.role);
 
   /**
    * Whoever already answers to the name being typed. Checked against the
@@ -56,45 +73,15 @@ export default function DomainUsersPage() {
     const res = await fetch("/api/domain/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ...form,
-        expectedTagsPerDay: form.expectedTagsPerDay
-          ? Number(form.expectedTagsPerDay)
-          : undefined,
-      }),
+      body: JSON.stringify(form),
     });
     if (!res.ok) {
       setError((await res.json()).error ?? "Couldn't add user.");
       return;
     }
-    setForm({
-      name: "",
-      email: "",
-      password: "",
-      role: "Actionee",
-      expectedTagsPerDay: "",
-    });
+    setForm({ name: "", email: "", password: "", role: "Actionee" });
     setAdding(false);
     void load();
-  }
-
-  async function patch(id: string, data: Record<string, unknown>) {
-    const res = await fetch(`/api/domain/users/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    if (res.ok) void load();
-  }
-
-  async function deleteUser(id: string) {
-    setRowError(null);
-    const res = await fetch(`/api/domain/users/${id}`, { method: "DELETE" });
-    if (res.ok) {
-      void load();
-    } else {
-      setRowError((await res.json().catch(() => ({}))).error ?? "Couldn't delete.");
-    }
   }
 
   return (
@@ -103,13 +90,16 @@ export default function DomainUsersPage() {
         <div>
           <h1 className="font-heading text-2xl font-semibold">People</h1>
           <p className="text-sm text-ink-500 mt-1">
-            Add domain users and set their role and the tags a day you expect
-            them to complete.
+            {canAddOrRemove
+              ? "Add people to the module, and manage the ones you look after."
+              : "Manage the people you supervise."}
           </p>
         </div>
-        <button onClick={() => setAdding((v) => !v)} className="btn-primary">
-          <Plus size={16} className="mr-1.5" /> Add user
-        </button>
+        {canAddOrRemove && (
+          <button onClick={() => setAdding((v) => !v)} className="btn-primary">
+            <Plus size={16} className="mr-1.5" /> Add user
+          </button>
+        )}
       </div>
 
       {adding && (
@@ -147,37 +137,17 @@ export default function DomainUsersPage() {
             placeholder="Temp password (10+ chars, letter + digit)"
             className="px-3 py-2 rounded border border-ink-200 text-sm"
           />
-          <div className="grid grid-cols-2 gap-2">
-            <select
-              value={form.role}
-              onChange={(e) => setForm({ ...form, role: e.target.value as DomainRole })}
-              className="px-3 py-2 rounded border border-ink-200 text-sm"
-            >
-              {DOMAIN_ROLES.map((r) => (
-                <option key={r} value={r}>
-                  {DOMAIN_ROLE_LABELS[r]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="sm:col-span-2">
-            <input
-              type="number"
-              min="1"
-              step="0.5"
-              value={form.expectedTagsPerDay}
-              onChange={(e) =>
-                setForm({ ...form, expectedTagsPerDay: e.target.value })
-              }
-              placeholder="Average tags per day (e.g. 40)"
-              className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
-            />
-            <p className="text-xs text-ink-400 mt-1">
-              Used for forecasting until they build up approved history, at
-              which point their measured rate takes over. Leave blank to use
-              the house default.
-            </p>
-          </div>
+          <select
+            value={form.role}
+            onChange={(e) => setForm({ ...form, role: e.target.value as DomainRole })}
+            className="px-3 py-2 rounded border border-ink-200 text-sm"
+          >
+            {DOMAIN_ROLES.map((r) => (
+              <option key={r} value={r}>
+                {DOMAIN_ROLE_LABELS[r]}
+              </option>
+            ))}
+          </select>
           {error && (
             <p className="text-xs text-brand-redText sm:col-span-2">{error}</p>
           )}
@@ -201,87 +171,316 @@ export default function DomainUsersPage() {
         </div>
       )}
 
-      {rowError && (
-        <p className="text-xs text-brand-redText mb-2">{rowError}</p>
+      {notice && (
+        <p className="text-xs text-brand-greenText mb-2">{notice}</p>
       )}
+
       <div className="card overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-ink-50 text-ink-500 text-xs uppercase tracking-wide">
             <tr>
               <th className="text-left font-semibold px-4 py-2">Name</th>
               <th className="text-left font-semibold px-4 py-2">Role</th>
-              <th className="text-left font-semibold px-4 py-2">Avg tags/day</th>
               <th className="text-left font-semibold px-4 py-2">Status</th>
               <th className="text-right font-semibold px-4 py-2"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-ink-100">
             {users.map((u) => (
-              <tr key={u.id} className={u.isActive ? "" : "opacity-50"}>
-                <td className="px-4 py-2">
-                  <div className="font-medium text-ink-900">{u.name}</div>
-                  <div className="text-xs text-ink-500">{u.email}</div>
-                </td>
-                <td className="px-4 py-2">
-                  <select
-                    value={u.role}
-                    onChange={(e) => patch(u.id, { role: e.target.value })}
-                    className="text-xs rounded border border-ink-200 px-2 py-1 bg-white"
-                  >
-                    {DOMAIN_ROLES.map((r) => (
-                      <option key={r} value={r}>
-                        {DOMAIN_ROLE_LABELS[r]}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td className="px-4 py-2">
-                  <input
-                    type="number"
-                    min="1"
-                    step="0.5"
-                    defaultValue={u.expectedTagsPerDay ?? ""}
-                    placeholder="default"
-                    onBlur={(e) => {
-                      const raw = e.target.value.trim();
-                      const v = raw === "" ? null : Number(raw);
-                      if (v !== u.expectedTagsPerDay) {
-                        patch(u.id, { expectedTagsPerDay: v });
-                      }
-                    }}
-                    className="w-20 text-xs rounded border border-ink-200 px-2 py-1"
-                  />
-                  <span className="text-xs text-ink-400 ml-1">tags/day</span>
-                </td>
-                <td className="px-4 py-2">
-                  <button
-                    onClick={() => patch(u.id, { isActive: !u.isActive })}
-                    className={`text-xs px-2 py-1 rounded-pill font-medium ${
-                      u.isActive
-                        ? "bg-brand-greenBg text-brand-greenText"
-                        : "bg-ink-100 text-ink-500"
-                    }`}
-                  >
-                    {u.isActive ? "Active" : "Inactive"}
-                  </button>
-                </td>
-                <td className="px-4 py-2 text-right">
-                  {u.id !== current?.id && (
-                    <ConfirmButton
-                      onConfirm={() => deleteUser(u.id)}
-                      title="Delete user"
-                      confirmLabel="Delete?"
-                      className="p-1 rounded text-ink-400 hover:text-brand-redText hover:bg-brand-redBg"
-                    >
-                      <Trash2 size={14} />
-                    </ConfirmButton>
-                  )}
-                </td>
-              </tr>
+              <ManageRow
+                key={u.id}
+                u={u}
+                open={managing === u.id}
+                onToggle={() => setManaging((m) => (m === u.id ? null : u.id))}
+                canManage={canManage(u)}
+                canDelete={canAddOrRemove && canManage(u)}
+                grantableRoles={manageable}
+                onChanged={(msg) => {
+                  setNotice(msg ?? null);
+                  void load();
+                }}
+                onDeleted={(msg) => {
+                  setManaging(null);
+                  setNotice(msg);
+                  void load();
+                }}
+              />
             ))}
           </tbody>
         </table>
       </div>
     </DomainPage>
+  );
+}
+
+/**
+ * One person, with everything you can do to them behind a single Manage
+ * button.
+ *
+ * The controls used to sit loose in the row — a role dropdown, a status
+ * pill, a key icon, a bin icon — which made a destructive action a
+ * mis-click away from a routine one, and left no room to say what each
+ * did. Collapsed into one panel, each action is labelled and the
+ * irreversible one is last and behind a confirm.
+ */
+function ManageRow({
+  u,
+  open,
+  onToggle,
+  canManage,
+  canDelete,
+  grantableRoles,
+  onChanged,
+  onDeleted,
+}: {
+  u: DUser;
+  open: boolean;
+  onToggle: () => void;
+  canManage: boolean;
+  canDelete: boolean;
+  grantableRoles: DomainRole[];
+  onChanged: (message?: string) => void;
+  onDeleted: (message: string) => void;
+}) {
+  const [name, setName] = useState(u.name);
+  const [email, setEmail] = useState(u.email);
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  // Re-seed when the row's data changes underneath an open panel.
+  useEffect(() => {
+    setName(u.name);
+    setEmail(u.email);
+  }, [u.name, u.email]);
+
+  async function patch(body: Record<string, unknown>, what: string, done: string) {
+    setError(null);
+    setBusy(what);
+    const res = await fetch(`/api/domain/users/${u.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    setBusy(null);
+    if (!res.ok) {
+      setError((await res.json().catch(() => ({}))).error ?? "Couldn't save that.");
+      return;
+    }
+    onChanged(done);
+  }
+
+  async function setNewPassword() {
+    setError(null);
+    setBusy("password");
+    const res = await fetch(`/api/domain/users/${u.id}/password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+    const body = await res.json().catch(() => ({}));
+    setBusy(null);
+    if (!res.ok) {
+      setError(body.error ?? "Couldn't set that password.");
+      return;
+    }
+    setPassword("");
+    onChanged(
+      `Password set for ${u.name}.` +
+        (body.signedOut > 0
+          ? ` They were signed out on ${body.signedOut} device${body.signedOut === 1 ? "" : "s"}.`
+          : ""),
+    );
+  }
+
+  async function remove() {
+    setError(null);
+    setBusy("delete");
+    const res = await fetch(`/api/domain/users/${u.id}`, { method: "DELETE" });
+    setBusy(null);
+    if (!res.ok) {
+      setError((await res.json().catch(() => ({}))).error ?? "Couldn't delete.");
+      return;
+    }
+    onDeleted(`${u.name} was removed.`);
+  }
+
+  return (
+    <>
+      <tr className={u.isActive ? "" : "opacity-50"}>
+        <td className="px-4 py-2">
+          <div className="font-medium text-ink-900">{u.name}</div>
+          <div className="text-xs text-ink-500">{u.email}</div>
+        </td>
+        <td className="px-4 py-2 text-ink-700">{DOMAIN_ROLE_LABELS[u.role]}</td>
+        <td className="px-4 py-2">
+          <span
+            className={`text-xs px-2 py-1 rounded-pill font-medium ${
+              u.isActive
+                ? "bg-brand-greenBg text-brand-greenText"
+                : "bg-ink-100 text-ink-500"
+            }`}
+          >
+            {u.isActive ? "Active" : "Inactive"}
+          </span>
+        </td>
+        <td className="px-4 py-2 text-right">
+          {canManage ? (
+            <button
+              onClick={onToggle}
+              aria-expanded={open}
+              className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded border ${
+                open
+                  ? "bg-brand-blueBg text-brand-blue border-brand-blue"
+                  : "text-ink-600 border-ink-200 hover:bg-ink-50"
+              }`}
+            >
+              {open ? <X size={13} /> : <Settings2 size={13} />}
+              {open ? "Close" : "Manage"}
+            </button>
+          ) : (
+            <span className="text-xs text-ink-300">—</span>
+          )}
+        </td>
+      </tr>
+
+      {open && canManage && (
+        <tr>
+          <td colSpan={4} className="px-4 py-4 bg-ink-50">
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Field label="Name">
+                <div className="flex gap-2">
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className={inputClass("sm", "flex-1")}
+                  />
+                  <button
+                    onClick={() => patch({ name: name.trim() }, "name", `Renamed to ${name.trim()}.`)}
+                    disabled={busy !== null || !name.trim() || name === u.name}
+                    className="btn-ghost text-xs disabled:opacity-40"
+                  >
+                    {busy === "name" ? "…" : "Save"}
+                  </button>
+                </div>
+              </Field>
+
+              <Field label="Sign-in email">
+                <div className="flex gap-2">
+                  <input
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className={inputClass("sm", "flex-1")}
+                  />
+                  <button
+                    onClick={() => patch({ email: email.trim() }, "email", "Email updated.")}
+                    disabled={busy !== null || !email.trim() || email === u.email}
+                    className="btn-ghost text-xs disabled:opacity-40"
+                  >
+                    {busy === "email" ? "…" : "Save"}
+                  </button>
+                </div>
+              </Field>
+
+              <Field label="Role">
+                <select
+                  value={u.role}
+                  onChange={(e) => patch({ role: e.target.value }, "role", "Role updated.")}
+                  disabled={busy !== null}
+                  className={selectClass("sm", "w-full")}
+                >
+                  {/* Only the roles this viewer may actually hand out. */}
+                  {grantableRoles.map((r) => (
+                    <option key={r} value={r}>
+                      {DOMAIN_ROLE_LABELS[r]}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label="Status">
+                <button
+                  onClick={() =>
+                    patch(
+                      { isActive: !u.isActive },
+                      "status",
+                      u.isActive ? `${u.name} deactivated.` : `${u.name} reactivated.`,
+                    )
+                  }
+                  disabled={busy !== null}
+                  className="btn-ghost text-xs"
+                >
+                  {u.isActive ? "Deactivate" : "Reactivate"}
+                </button>
+                <p className="text-[11px] text-ink-400 mt-1">
+                  Deactivating removes them from every picker and signs them out.
+                </p>
+              </Field>
+
+              <Field label="Set a new password">
+                <div className="flex gap-2">
+                  <input
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && password) void setNewPassword();
+                    }}
+                    placeholder="New password"
+                    className={inputClass("sm", "flex-1")}
+                  />
+                  <button
+                    onClick={setNewPassword}
+                    disabled={busy !== null || !password}
+                    className="btn-ghost text-xs disabled:opacity-40"
+                  >
+                    {busy === "password" ? "…" : "Set"}
+                  </button>
+                </div>
+                <p className="text-[11px] text-ink-400 mt-1">
+                  Signs them out everywhere. Read it back to them — it is not
+                  shown again.
+                </p>
+              </Field>
+
+              {canDelete && (
+                <Field label="Remove from the module">
+                  <ConfirmButton
+                    onConfirm={remove}
+                    title={`Delete ${u.name}`}
+                    confirmLabel="Delete for good?"
+                    className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded border border-brand-red text-brand-redText hover:bg-brand-redBg"
+                  >
+                    <Trash2 size={13} /> Delete
+                  </ConfirmButton>
+                  <p className="text-[11px] text-ink-400 mt-1">
+                    Refused if they own projects or have assigned work —
+                    deactivate instead, which keeps the history.
+                  </p>
+                </Field>
+              )}
+            </div>
+
+            {error && (
+              <p className="text-xs text-brand-redText mt-3">{error}</p>
+            )}
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <span className="block text-xs font-medium text-ink-700 mb-1">{label}</span>
+      {children}
+    </div>
   );
 }

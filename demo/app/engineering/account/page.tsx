@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { KeyRound } from "lucide-react";
+import { useEffect, useState } from "react";
+import { KeyRound, UserCog } from "lucide-react";
 import { useDomain } from "@/lib/domain-store";
-import { DOMAIN_ROLE_LABELS } from "@/lib/domain";
+import { DOMAIN_ROLE_LABELS, SUPERVISOR_ROLES } from "@/lib/domain";
 import { DomainPage, PageHeader } from "@/components/DomainPage";
+import { inputClass } from "@/lib/domain-ui";
 
 export default function DomainAccountPage() {
   const { current } = useDomain();
@@ -14,6 +15,46 @@ export default function DomainAccountPage() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  /**
+   * Editing your own name and email is a supervisor's privilege — see
+   * PATCH /api/domain/me for why. Everyone keeps their own password.
+   */
+  const canEditDetails = current ? SUPERVISOR_ROLES.includes(current.role) : false;
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [detailSaved, setDetailSaved] = useState(false);
+  const [detailBusy, setDetailBusy] = useState(false);
+
+  // Seed the fields once the signed-in user has hydrated.
+  useEffect(() => {
+    if (!current) return;
+    setName(current.name);
+    setEmail(current.email);
+  }, [current]);
+
+  async function saveDetails() {
+    setDetailError(null);
+    setDetailSaved(false);
+    setDetailBusy(true);
+    const res = await fetch("/api/domain/me", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email }),
+    });
+    setDetailBusy(false);
+    if (!res.ok) {
+      setDetailError(
+        (await res.json().catch(() => ({}))).error ?? "Couldn't save that.",
+      );
+      return;
+    }
+    setDetailSaved(true);
+    // The name in the nav comes from the session store, so re-read it
+    // rather than leaving the old one on screen until the next reload.
+    window.location.reload();
+  }
 
   async function submit() {
     setError(null);
@@ -44,16 +85,77 @@ export default function DomainAccountPage() {
       <PageHeader title="Account" description="Manage your sign-in details." />
 
       {current && (
-        <div className="card p-4 mb-6 text-sm">
-          <div className="flex justify-between py-1">
-            <span className="text-ink-500">Name</span>
-            <span className="font-medium text-ink-900">{current.name}</span>
-          </div>
-          <div className="flex justify-between py-1">
-            <span className="text-ink-500">Email</span>
-            <span className="font-medium text-ink-900">{current.email}</span>
-          </div>
-          <div className="flex justify-between py-1">
+        <div className="card p-4 mb-6">
+          <h2 className="font-heading font-semibold mb-1 flex items-center gap-2">
+            <UserCog size={16} /> Your details
+          </h2>
+          {canEditDetails ? (
+            <>
+              <p className="text-xs text-ink-500 mb-3">
+                Your name is how you appear on every picker, approval and
+                delivery record.
+              </p>
+              <div className="grid sm:grid-cols-2 gap-2">
+                <label className="text-xs">
+                  <span className="block text-ink-700 font-medium mb-1">Name</span>
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className={inputClass("md", "w-full")}
+                  />
+                </label>
+                <label className="text-xs">
+                  <span className="block text-ink-700 font-medium mb-1">
+                    Sign-in email
+                  </span>
+                  <input
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className={inputClass("md", "w-full")}
+                  />
+                </label>
+              </div>
+              {detailError && (
+                <p className="text-xs text-brand-redText mt-2">{detailError}</p>
+              )}
+              {detailSaved && (
+                <p className="text-xs text-brand-greenText mt-2">Details updated.</p>
+              )}
+              <div className="flex justify-end mt-3">
+                <button
+                  onClick={saveDetails}
+                  disabled={
+                    detailBusy ||
+                    !name.trim() ||
+                    !email.trim() ||
+                    (name === current.name && email === current.email)
+                  }
+                  className="btn-primary disabled:opacity-50"
+                >
+                  {detailBusy ? "Saving…" : "Save details"}
+                </button>
+              </div>
+            </>
+          ) : (
+            /* SMEs and Actionees read their details but don't edit them —
+               a supervisor changes those, so the record everyone else
+               works from stays stable. */
+            <div className="text-sm mt-2">
+              <div className="flex justify-between py-1">
+                <span className="text-ink-500">Name</span>
+                <span className="font-medium text-ink-900">{current.name}</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span className="text-ink-500">Email</span>
+                <span className="font-medium text-ink-900">{current.email}</span>
+              </div>
+              <p className="text-xs text-ink-400 mt-2">
+                Ask an Admin, Lead or Team Lead to change your name or email.
+                You can change your own password below.
+              </p>
+            </div>
+          )}
+          <div className="flex justify-between py-1 text-sm border-t border-ink-100 mt-3 pt-3">
             <span className="text-ink-500">Role</span>
             <span className="font-medium text-ink-900">
               {DOMAIN_ROLE_LABELS[current.role]}

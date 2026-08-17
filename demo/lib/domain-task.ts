@@ -14,7 +14,20 @@ export const TASK_INCLUDE = {
   assignee: { select: { id: true, name: true, role: true } },
   createdBy: { select: { id: true, name: true } },
   reviewedBy: { select: { id: true, name: true } },
+  events: {
+    include: { actor: { select: { id: true, name: true, role: true } } },
+    orderBy: { at: "asc" },
+  },
 } as const;
+
+export type TaskEventRow = {
+  id: number;
+  kind: string;
+  note: string | null;
+  detail: string | null;
+  at: Date;
+  actor: { id: string; name: string; role: string };
+};
 
 /**
  * Work someone picked up themselves rather than being given.
@@ -23,7 +36,7 @@ export const TASK_INCLUDE = {
  * had no one to hand it over, so there is no one to sign it off either.
  * Keeping it a derivation means the two facts can never disagree.
  */
-export function isSelfCreated(t: {
+function isSelfCreated(t: {
   createdBy: { id: string };
   assignee: { id: string } | null;
 }): boolean {
@@ -49,12 +62,35 @@ export type TaskRow = {
   assignee: { id: string; name: string; role: string } | null;
   createdBy: { id: string; name: string };
   reviewedBy: { id: string; name: string } | null;
+  events?: TaskEventRow[];
 };
 
 const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 
-export function serializeTask(t: TaskRow) {
+/**
+ * `withHistory` decides whether the full trail travels with the task.
+ *
+ * It is off by default because the trail names who rejected whose work and
+ * why. The people who supervise delivery need that; the person being
+ * supervised does not need to read every remark made about their work in
+ * a list they can page through. Callers opt in — see the tasks routes,
+ * which pass it only for Admins, Leads and Team Leads.
+ */
+export function serializeTask(t: TaskRow, withHistory = false) {
   return {
+    ...(withHistory && t.events
+      ? {
+          history: t.events.map((e) => ({
+            id: e.id,
+            kind: e.kind,
+            note: e.note,
+            detail: e.detail,
+            at: e.at.toISOString(),
+            actor: e.actor.name,
+            actorRole: e.actor.role,
+          })),
+        }
+      : {}),
     id: t.id,
     title: t.title,
     description: t.description,

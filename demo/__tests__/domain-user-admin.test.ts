@@ -43,8 +43,26 @@ describe("account administration rights", () => {
     expect(canManageUser("Lead", "Lead")).toBe(false);
   });
 
-  it("Team Leads, SMEs and Actionees administer nobody at all", () => {
-    for (const actor of ["TeamLead", "SME", "Actionee"] as const) {
+  it("a Team Lead administers the people they supervise", () => {
+    // Widened deliberately: a Team Lead edits SMEs and Actionees. They
+    // still cannot CREATE or DELETE an account — that is enforced at the
+    // routes, which admit only Admin and Lead to POST and DELETE.
+    expect(manageableRoles("TeamLead").slice().sort()).toEqual([
+      "Actionee",
+      "SME",
+    ]);
+    expect(canManageUser("TeamLead", "SME")).toBe(true);
+    expect(canManageUser("TeamLead", "Actionee")).toBe(true);
+  });
+
+  it("a Team Lead cannot touch a Lead, an Admin, or another Team Lead", () => {
+    for (const target of ["Admin", "Lead", "TeamLead"] as const) {
+      expect(canManageUser("TeamLead", target)).toBe(false);
+    }
+  });
+
+  it("SMEs and Actionees administer nobody at all", () => {
+    for (const actor of ["SME", "Actionee"] as const) {
       expect(manageableRoles(actor)).toEqual([]);
       for (const target of DOMAIN_ROLES) {
         expect(canManageUser(actor, target)).toBe(false);

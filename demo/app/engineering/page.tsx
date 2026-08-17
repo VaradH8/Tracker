@@ -536,9 +536,6 @@ function ProjectGroupCard({ g }: { g: ProjectGroup }) {
             ) : (
               <>Tags assigned to you on this project</>
             )}
-            {g.allocation?.expectedTagsPerDay ? (
-              <> · {g.allocation.expectedTagsPerDay}/day expected</>
-            ) : null}
           </p>
         </div>
         {g.assigned > 0 && (

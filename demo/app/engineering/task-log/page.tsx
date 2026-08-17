@@ -1,39 +1,30 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Clock, AlertTriangle, Trash2 } from "lucide-react";
 import {
-  withinLogWindow,
-  logWindowLabel,
-  istParts,
-  backdateFloorISO,
-  backdateWindowLabel,
   worklogVisibleRoles,
   canAssignTasks,
   taskIsOpen,
 } from "@/lib/domain";
-import { ConfirmButton } from "@/components/ConfirmButton";
 import { DomainTaskList, type DomainTask } from "@/components/DomainTaskList";
 import { DomainPage, PageHeader } from "@/components/DomainPage";
 import { DomainTeamLogs } from "@/components/DomainTeamLogs";
 import { DomainTeamTasks } from "@/components/DomainTeamTasks";
 import { DomainAssignTask } from "@/components/DomainAssignTask";
 import { useDomain } from "@/lib/domain-store";
-import { inputClass, dateClass } from "@/lib/domain-ui";
+import { loadJson } from "@/lib/domain-fetch";
 
-type WorkLog = {
-  id: number;
-  hours: number;
-  note: string;
-  date: string;
-  project: string | null;
-  task: string | null;
-  createdAt: string;
-};
+/**
+ * Task log — what you owe, what you are owed, and what the team is doing.
+ *
+ * The "My hours" tab that used to live here is gone. The module plans and
+ * reports in tags, not hours, so an hours form on the busiest screen was
+ * asking people to keep a second set of books nothing read.
+ */
 
-type Project = { id: number; name: string };
+type Tab = "tasks" | "review" | "teamTasks" | "team";
 
-export default function WorkLogPage() {
+export default function TaskLogPage() {
   const { current } = useDomain();
   /**
    * Derived from the same rule the API enforces, so the tab appears
@@ -44,100 +35,42 @@ export default function WorkLogPage() {
   const canSeeTeam = current
     ? worklogVisibleRoles(current.role).length > 0
     : false;
-  const [tab, setTab] = useState<
-    "tasks" | "review" | "teamTasks" | "mine" | "team"
-  >("tasks");
-  const [open, setOpen] = useState<boolean | null>(null);
+  const canAssign = current ? canAssignTasks(current.role) : false;
+
+  const [tab, setTab] = useState<Tab>("tasks");
   const [myTasks, setMyTasks] = useState<DomainTask[]>([]);
   const [toReview, setToReview] = useState<DomainTask[]>([]);
-  const canAssign = current ? canAssignTasks(current.role) : false;
+  const [loadError, setLoadError] = useState<string | null>(null);
   const openTaskCount = myTasks.filter((t) => taskIsOpen(t.status)).length;
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [logs, setLogs] = useState<WorkLog[]>([]);
-  const [projectId, setProjectId] = useState("");
-  const [taskId, setTaskId] = useState("");
-  const [hours, setHours] = useState("");
-  const [note, setNote] = useState("");
-  /** The IST day this entry is for. Defaults to today; the picker is
-   *  bounded so an entry can never be filed ahead of time or dug out of
-   *  the distant past. */
-  const todayISO = istParts().dateISO;
-  const floorISO = backdateFloorISO();
-  const [date, setDate] = useState(todayISO);
-  const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState<string | null>(null);
-
-  // Re-evaluate the window each minute so the form locks/unlocks live.
-  useEffect(() => {
-    setOpen(withinLogWindow());
-    const id = setInterval(() => setOpen(withinLogWindow()), 60_000);
-    return () => clearInterval(id);
-  }, []);
 
   const loadTasks = useCallback(() => {
-    fetch("/api/domain/tasks?mine=true", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : { tasks: [] }))
-      .then((b) => setMyTasks(b.tasks ?? []))
-      .catch(() => null);
-    // Only the person who handed a task out reviews it, so this is the
-    // caller's own queue rather than everything awaiting review.
-    fetch("/api/domain/tasks?review=true", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : { tasks: [] }))
-      .then((b) => setToReview(b.tasks ?? []))
-      .catch(() => null);
+    setLoadError(null);
+    // Only the person who handed a task out reviews it, so the second
+    // call is the caller's own queue rather than everything awaiting
+    // review. A failure in either is shown rather than rendered as an
+    // empty list — "no tasks" and "the server refused" must not look the
+    // same on the screen people check for their work.
+    Promise.all([
+      loadJson<{ tasks: DomainTask[] }>("/api/domain/tasks?mine=true"),
+      loadJson<{ tasks: DomainTask[] }>("/api/domain/tasks?review=true"),
+    ])
+      .then(([mine, review]) => {
+        setMyTasks(mine.tasks ?? []);
+        setToReview(review.tasks ?? []);
+      })
+      .catch((e: Error) => setLoadError(e.message));
   }, []);
 
-  async function loadLogs() {
-    const res = await fetch("/api/domain/worklogs", { cache: "no-store" });
-    if (res.ok) setLogs((await res.json()).logs ?? []);
-  }
-
-  async function deleteLog(id: number) {
-    const res = await fetch(`/api/domain/worklogs/${id}`, { method: "DELETE" });
-    if (res.ok) void loadLogs();
-  }
-
-  useEffect(() => {
-    void loadLogs();
-    fetch("/api/domain/tasks?mine=true", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : { tasks: [] }))
-      .then((b) => setMyTasks(b.tasks ?? []))
-      .catch(() => null);
-    fetch("/api/domain/projects", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : { projects: [] }))
-      .then((b) => setProjects(b.projects ?? []))
-      .catch(() => null);
-  }, []);
-
-  async function submit() {
-    setError(null);
-    setOk(null);
-    const res = await fetch("/api/domain/worklogs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        projectId: projectId || undefined,
-        taskId: taskId || undefined,
-        date,
-        hours: Number(hours),
-        note,
-      }),
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setError(body.error ?? "Couldn't save your log.");
-      // Server is the source of truth on the window — reflect a lockout.
-      if (res.status === 403) setOpen(false);
-      return;
-    }
-    setHours("");
-    setNote("");
-    setDate(todayISO);
-    setTaskId("");
-    setProjectId("");
-    setOk("Logged.");
-    void loadLogs();
-  }
+  /**
+   * Load on mount as well as after every change.
+   *
+   * Previously the mount effect fetched only "my tasks" and left the
+   * review queue empty until something happened to trigger a reload — so
+   * a supervisor opening this page saw "To approve" with no count and an
+   * empty panel while work genuinely sat waiting on them. One loader,
+   * called in both places, is what stops the two drifting apart.
+   */
+  useEffect(loadTasks, [loadTasks]);
 
   return (
     <DomainPage width={tab === "team" || tab === "teamTasks" ? "wide" : "narrow"}>
@@ -150,11 +83,18 @@ export default function WorkLogPage() {
               ? "Tasks you handed out that are waiting on your decision."
               : tab === "teamTasks"
                 ? "Every task across the team — who assigned it, to whom, and where it stands."
-              : tab === "team"
-                ? "What the team has logged. Filter by person and date range."
-                : `Record hours against a project. Entries are accepted between ${logWindowLabel()}, and can be dated ${backdateWindowLabel()}.`
+                : "What the team has logged. Filter by person and date range."
         }
       />
+
+      {loadError && (
+        <div className="card p-3 mb-4 border-l-4 border-brand-red flex items-center justify-between gap-3">
+          <p className="text-sm text-brand-redText">{loadError}</p>
+          <button onClick={loadTasks} className="btn-ghost text-xs">
+            Try again
+          </button>
+        </div>
+      )}
 
       <div className="flex items-center gap-1 mb-5 flex-wrap">
         <TabButton active={tab === "tasks"} onClick={() => setTab("tasks")}>
@@ -173,9 +113,6 @@ export default function WorkLogPage() {
             Team tasks
           </TabButton>
         )}
-        <TabButton active={tab === "mine"} onClick={() => setTab("mine")}>
-          My hours
-        </TabButton>
         {canSeeTeam && (
           <TabButton active={tab === "team"} onClick={() => setTab("team")}>
             Team logs
@@ -183,7 +120,10 @@ export default function WorkLogPage() {
         )}
       </div>
 
-      {tab === "tasks" && (
+      {/* Nothing loaded, so nothing is claimed. Rendering the list's
+          "No tasks yet" under an error banner tells the reader two
+          contradictory things at once. */}
+      {tab === "tasks" && !loadError && (
         <>
           {canAssign && (
             <DomainAssignTask viewerId={current?.id} onCreated={loadTasks} />
@@ -198,7 +138,7 @@ export default function WorkLogPage() {
         </>
       )}
 
-      {tab === "review" && (
+      {tab === "review" && !loadError && (
         <DomainTaskList
           tasks={toReview}
           canManage={false}
@@ -213,150 +153,6 @@ export default function WorkLogPage() {
       )}
 
       {tab === "team" && <DomainTeamLogs />}
-
-      {tab === "mine" && (
-        <>
-
-      {open === false && (
-        <div className="card p-4 mb-6 border-brand-yellowBorder bg-brand-yellowBg flex items-start gap-2">
-          <AlertTriangle size={16} className="text-brand-yellow mt-0.5" />
-          <p className="text-sm text-ink-700">
-            It&apos;s outside the logging window ({logWindowLabel()}). You can
-            log again once it reopens — including for days you missed,{" "}
-            {backdateWindowLabel()}.
-          </p>
-        </div>
-      )}
-
-      <div className="card p-5 mb-8">
-        <label className="block text-xs font-medium text-ink-700 mb-1.5">
-          Project
-        </label>
-        <select
-          value={projectId}
-          onChange={(e) => setProjectId(e.target.value)}
-          disabled={!open}
-          className={inputClass("md", "w-full mb-3")}
-        >
-          <option value="">Which project did you work on?</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-        <div className="grid sm:grid-cols-3 gap-3 mb-3">
-          <div>
-            <label className="block text-xs font-medium text-ink-700 mb-1.5">
-              Date
-            </label>
-            <input
-              type="date"
-              value={date}
-              min={floorISO}
-              max={todayISO}
-              onChange={(e) => setDate(e.target.value)}
-              disabled={!open}
-              className={dateClass("md", "w-full")}
-            />
-            {/* Only mention the limit once it matters — saying "you may
-                back-date" on every entry invites it. */}
-            {date !== todayISO && (
-              <p className="text-[11px] text-brand-yellowText mt-1">
-                Logging for an earlier day — allowed {backdateWindowLabel()}.
-              </p>
-            )}
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-ink-700 mb-1.5">
-              Task <span className="text-ink-400 font-normal">(optional)</span>
-            </label>
-            <select
-              value={taskId}
-              onChange={(e) => setTaskId(e.target.value)}
-              disabled={!open}
-              className={inputClass("md", "w-full")}
-            >
-              <option value="">General / no task</option>
-              {myTasks.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.title}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-ink-700 mb-1.5">
-              Hours
-            </label>
-            <input
-              type="number"
-              step="0.25"
-              min="0"
-              max="14"
-              value={hours}
-              onChange={(e) => setHours(e.target.value)}
-              disabled={!open}
-              placeholder="e.g. 2.5"
-              className={inputClass("md", "w-full")}
-            />
-          </div>
-        </div>
-        <label className="block text-xs font-medium text-ink-700 mb-1.5">
-          What did you do?
-        </label>
-        <textarea
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          disabled={!open}
-          rows={2}
-          placeholder="Short note on the work done"
-          className="w-full px-3 py-2 rounded border border-ink-200 text-sm disabled:bg-ink-50 mb-3"
-        />
-        {error && <p className="text-xs text-brand-redText mb-2">{error}</p>}
-        {ok && <p className="text-xs text-brand-greenText mb-2">{ok}</p>}
-        <div className="flex justify-end">
-          <button
-            onClick={submit}
-            disabled={!open || !hours || !note.trim()}
-            className="btn-primary disabled:opacity-50"
-          >
-            <Clock size={16} className="mr-1.5" /> Log work
-          </button>
-        </div>
-      </div>
-
-      <h2 className="font-heading text-lg font-semibold mb-3">Your recent logs</h2>
-      {logs.length === 0 ? (
-        <p className="text-sm text-ink-400 italic">Nothing logged yet.</p>
-      ) : (
-        <ul className="space-y-2">
-          {logs.map((l) => (
-            <li key={l.id} className="card p-3 flex items-start gap-3">
-              <span className="text-sm font-heading font-semibold text-brand-blue w-16 shrink-0">
-                {l.hours}h
-              </span>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm text-ink-900">{l.note}</div>
-                <div className="text-xs text-ink-500 mt-0.5">
-                  {l.date}
-                  {l.project ? ` · ${l.project}` : ""}
-                  {l.task ? ` · ${l.task}` : ""}
-                </div>
-              </div>
-              <ConfirmButton
-                onConfirm={() => deleteLog(l.id)}
-                title="Delete this entry"
-                className="p-1 rounded text-ink-400 hover:text-brand-redText hover:bg-brand-redBg shrink-0"
-              >
-                <Trash2 size={14} />
-              </ConfirmButton>
-            </li>
-          ))}
-        </ul>
-      )}
-        </>
-      )}
     </DomainPage>
   );
 }

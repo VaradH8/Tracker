@@ -216,6 +216,67 @@ export async function countDomainUsers(): Promise<number> {
   return prisma.domainUser.count();
 }
 
+/**
+ * A supervisor sets someone else's password.
+ *
+ * Distinct from `changeDomainPassword`, which is the self-service path and
+ * demands the current password. Here the actor is not the account holder
+ * and cannot know it — the authority comes from who they are, checked by
+ * the caller against `canManageUser`.
+ *
+ * Every existing session for that person is retired. A password set by
+ * someone else is usually set because the old one is unknown, forgotten or
+ * suspect; leaving live sessions running would mean whoever held the old
+ * one keeps their access for the rest of the 30-day window, and the reset
+ * would look effective while achieving nothing. The person is signed out
+ * everywhere and has to use the new password.
+ *
+ * The actor's own sessions are untouched — they are a different account.
+ */
+export async function setDomainPassword(
+  targetId: string,
+  nextPassword: string,
+): Promise<{ ok: true; signedOut: number } | { ok: false; error: string }> {
+  const target = await prisma.domainUser.findUnique({ where: { id: targetId } });
+  if (!target) return { ok: false, error: "Account not found." };
+
+  const pwIssue = passwordIssue(nextPassword);
+  if (pwIssue) return { ok: false, error: pwIssue };
+
+  const passwordHash = await bcrypt.hash(nextPassword, 10);
+  await prisma.domainUser.update({
+    where: { id: target.id },
+    data: { passwordHash },
+  });
+  const { count } = await prisma.domainSession.deleteMany({
+    where: { userId: target.id },
+  });
+  return { ok: true, signedOut: count };
+}
+
+/**
+ * Change the email an account signs in with.
+ *
+ * The email IS the credential here — it is what `domainSignIn` looks up —
+ * so this is a credential change, not a profile edit, and it is held to
+ * the same uniqueness rule as creating an account.
+ */
+export async function setDomainEmail(
+  targetId: string,
+  nextEmail: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const email = nextEmail.trim().toLowerCase();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { ok: false, error: "Enter a valid email address." };
+  }
+  const clash = await prisma.domainUser.findUnique({ where: { email } });
+  if (clash && clash.id !== targetId) {
+    return { ok: false, error: "That email already has an account." };
+  }
+  await prisma.domainUser.update({ where: { id: targetId }, data: { email } });
+  return { ok: true };
+}
+
 /** A signed-in domain user changes their own password. Verifies the
  *  current password, enforces the shared strength rules, and rejects a
  *  no-op change. */

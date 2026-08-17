@@ -261,6 +261,7 @@ export function ResourceChecklist({
   emptyLabel = "No allocatable people yet.",
   maxHeight = "max-h-64",
   suffix,
+  showRate = true,
 }: {
   people: { id: string; name: string; role: string }[];
   picked: string[];
@@ -270,6 +271,16 @@ export function ResourceChecklist({
   maxHeight?: string;
   /** Extra per-row content, e.g. the share of a batch this person would get. */
   suffix?: (id: string) => React.ReactNode;
+  /**
+   * Whether to show existing tags/day figures — each person's measured
+   * rate, the "fastest" badge, and the combined total of the selection.
+   *
+   * Tags-per-day belongs to the Projects section, where a rate is set
+   * against the project it applies to. This picker is also used outside
+   * it, and there the running total is switched off rather than the
+   * component being forked.
+   */
+  showRate?: boolean;
 }) {
   const [role, setRole] = useState<"all" | DomainRole>("all");
   const [query, setQuery] = useState("");
@@ -323,7 +334,7 @@ export function ResourceChecklist({
           ) : (
             <>
               <strong className="text-ink-900">{picked.length}</strong> selected
-              {selectedRate > 0 && (
+              {showRate && selectedRate > 0 && (
                 <>
                   {" "}
                   · <strong className="text-ink-900">
@@ -420,13 +431,15 @@ export function ResourceChecklist({
                     </span>
                     <StatusChip a={a} />
                     {/* Fastest in this role group — only ever ranked on
-                        measured work, so it is absent until there is any. */}
-                    {idx === 0 && a?.measuredRate !== null && a !== undefined && (
+                        measured work, so it is absent until there is any.
+                        Hidden with the rate itself: a "fastest" badge next
+                        to no number is a ranking nobody can check. */}
+                    {showRate && idx === 0 && a?.measuredRate !== null && a !== undefined && (
                       <span className="text-[10px] font-medium text-brand-greenText bg-brand-greenBg px-1.5 py-0.5 rounded-pill shrink-0">
                         fastest
                       </span>
                     )}
-                    {a?.measuredRate !== null && a !== undefined && (
+                    {showRate && a?.measuredRate !== null && a !== undefined && (
                       <span className="ml-auto shrink-0 text-xs font-semibold text-ink-900">
                         {a.measuredRate}/day
                       </span>

@@ -98,17 +98,24 @@ export function worklogVisibleRoles(role: DomainRole): DomainRole[] {
 
 
 /**
- * Whose account a given role may administer — create, edit, promote,
- * deactivate or remove.
+ * Whose account a given role may administer — edit, promote, deactivate,
+ * and (where the endpoint allows it at all) create or remove.
  *
- *   Admin — everyone, including other Admins
- *   Lead  — Team Leads, SMEs and Actionees (their own team)
- *   others — nobody
+ *   Admin     — everyone, including other Admins
+ *   Lead      — Team Leads, SMEs and Actionees
+ *   Team Lead — SMEs and Actionees, the people they supervise
+ *   others    — nobody
  *
  * This governs BOTH ends of an edit: the role the target currently holds,
  * and the role being handed to them. Checking only the first would let a
  * Lead promote an Actionee to Admin; checking only the second would let
  * them deactivate one.
+ *
+ * Note this answers "whose account", not "which endpoint". A Team Lead may
+ * edit an Actionee but may not create or delete one — that separation is
+ * enforced at the routes, which admit only Admin and Lead to POST /users
+ * and DELETE /users/[id]. Structural and destructive changes stay with
+ * those two, exactly as before.
  *
  * It lives here rather than inline at each endpoint because it was
  * previously written out three times — at create, at delete, and not at
@@ -118,6 +125,7 @@ export function worklogVisibleRoles(role: DomainRole): DomainRole[] {
 export function manageableRoles(role: DomainRole): DomainRole[] {
   if (role === "Admin") return [...DOMAIN_ROLES];
   if (role === "Lead") return ["TeamLead", "SME", "Actionee"];
+  if (role === "TeamLead") return ["SME", "Actionee"];
   return [];
 }
 

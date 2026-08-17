@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, Trophy } from "lucide-react";
+import { Search } from "lucide-react";
 import {
   DOMAIN_ROLE_LABELS,
   TAG_HOLDER_ROLES,
@@ -248,8 +248,6 @@ function RoleSection({
         )),
     0,
   );
-  // Only crown someone whose rate is real, not an assumption.
-  const fastest = people.find((p) => p.rateSource === "measured");
   const groupAllFree = allFreeFrom(people);
 
   return (
@@ -281,12 +279,10 @@ function RoleSection({
             <tr>
               <th className="text-right font-semibold px-3 py-2 w-10">#</th>
               <th className="text-left font-semibold px-4 py-2">Person</th>
-              <th
-                className="text-right font-semibold px-4 py-2"
-                title="Approved tags divided by the days worked, over the last 30 days"
-              >
-                Avg tags/day
-              </th>
+              {/* Average tags/day deliberately does not appear here. It is
+                  set and read in the Projects section, against the project
+                  it applies to; repeating a cross-project average on this
+                  screen invited it to be read as a target. */}
               <th className="text-left font-semibold px-4 py-2">Status</th>
               <th className="text-left font-semibold px-4 py-2">Project</th>
               <th className="text-left font-semibold px-4 py-2">Booked</th>
@@ -307,7 +303,6 @@ function RoleSection({
                   (s, p) => s + Math.max(0, p.assignedTags - p.deliveredTags),
                   0,
                 );
-              const isFastest = fastest?.id === r.id;
 
               const lead = (
                 <>
@@ -330,43 +325,11 @@ function RoleSection({
                           {r.email}
                         </span>
                       )}
-                      {isFastest && (
-                        <span
-                          title="Fastest measured rate in this group"
-                          className="inline-flex items-center gap-0.5 text-[10px] font-medium text-brand-greenText bg-brand-greenBg px-1.5 py-0.5 rounded-pill"
-                        >
-                          <Trophy size={9} /> fastest
-                        </span>
-                      )}
+                      {/* The "fastest" badge went with the rate column. It
+                          ranked people by a number this screen no longer
+                          shows, which is worse than not ranking them —
+                          a label nobody can check. */}
                     </div>
-                  </td>
-                  <td
-                    rowSpan={rows}
-                    className="px-4 py-2 align-top text-right border-t border-ink-100"
-                  >
-                    {/* Measured throughput only. Someone with no approved
-                        work shows a dash — this column is a record of what
-                        happened, not a projection. */}
-                    {r.measuredRate === null ? (
-                      <>
-                        <div className="font-heading font-semibold text-ink-400">
-                          —
-                        </div>
-                        <div className="text-xs text-ink-400">
-                          no approved work yet
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="font-heading font-semibold text-ink-900">
-                          {r.measuredRate}
-                        </div>
-                        <div className="text-xs text-ink-400">
-                          from {r.approvedTags ?? 0} approved tag
-                          {r.approvedTags === 1 ? "" : "s"}
-                        </div>
-                      </>
-                    )}
                   </td>
                   <td
                     rowSpan={rows}

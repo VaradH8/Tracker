@@ -381,14 +381,14 @@ function ProjectHeader({
             {project.startDate && (
               <>
                 {" · "}Start{" "}
-                <span className="text-ink-700">{project.startDate}</span>
+                <span className="text-ink-700">{fmtDay(project.startDate)}</span>
               </>
             )}
             {project.handoverDate && (
               <>
                 {" · "}Handover{" "}
                 <span className="text-ink-700 font-medium">
-                  {project.handoverDate}
+                  {fmtDay(project.handoverDate)}
                 </span>
               </>
             )}

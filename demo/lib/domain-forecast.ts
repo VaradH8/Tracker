@@ -39,7 +39,7 @@ export type MeasuredRate = {
  * measurement that can't say what it was measured from is just an
  * assertion.
  */
-export async function measuredRatesByUser(): Promise<Map<string, MeasuredRate>> {
+async function measuredRatesByUser(): Promise<Map<string, MeasuredRate>> {
   const since = new Date(Date.now() - RATE_HISTORY_DAYS * 24 * 60 * 60 * 1000);
   const approved = await prisma.domainTagSubmission.findMany({
     where: { status: "Approved", date: { gte: since } },
@@ -80,7 +80,7 @@ export async function measuredRatesByUser(): Promise<Map<string, MeasuredRate>> 
  * disagrees with the availability screen about someone's speed is worse
  * than either being wrong on its own.
  */
-export async function ratesByUser(): Promise<Map<string, number | null>> {
+async function ratesByUser(): Promise<Map<string, number | null>> {
   const measured = await measuredRatesByUser();
   return new Map(Array.from(measured, ([id, m]) => [id, m.rate]));
 }

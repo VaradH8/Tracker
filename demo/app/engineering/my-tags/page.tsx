@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, Clock } from "lucide-react";
 import { DomainPage, PageHeader } from "@/components/DomainPage";
+import { loadJson } from "@/lib/domain-fetch";
 import {
   fmtDate as fmt,
   submissionStatusCls as statusCls,
@@ -44,21 +45,22 @@ type Submission = {
 export default function MyTagsPage() {
   const [assignments, setAssignments] = useState<Assignment[] | null>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = useCallback(() => {
+    setLoadError(null);
     Promise.all([
-      fetch("/api/domain/tag-assignments?mine=true", { cache: "no-store" }).then((r) =>
-        r.ok ? r.json() : { assignments: [] },
-      ),
-      fetch("/api/domain/tag-submissions?mine=true", { cache: "no-store" }).then((r) =>
-        r.ok ? r.json() : { submissions: [] },
-      ),
+      loadJson<{ assignments: Assignment[] }>("/api/domain/tag-assignments?mine=true"),
+      loadJson<{ submissions: Submission[] }>("/api/domain/tag-submissions?mine=true"),
     ])
       .then(([a, s]) => {
         setAssignments(a.assignments ?? []);
         setSubmissions(s.submissions ?? []);
       })
-      .catch(() => setAssignments([]));
+      // A refusal is reported rather than rendered as "you hold no tags",
+      // which is the same sentence the screen shows when that is genuinely
+      // true — and the reader has no way to tell the two apart.
+      .catch((e: Error) => setLoadError(e.message));
   }, []);
 
   useEffect(load, [load]);
@@ -70,7 +72,14 @@ export default function MyTagsPage() {
         description="What you're carrying on each project and division. Enter what you finished at the end of the day — your Lead reviews it, and only then does it count as delivered."
       />
 
-      {assignments === null ? (
+      {loadError ? (
+        <div className="card p-3 border-l-4 border-brand-red flex items-center justify-between gap-3">
+          <p className="text-sm text-brand-redText">{loadError}</p>
+          <button onClick={load} className="btn-ghost text-xs">
+            Try again
+          </button>
+        </div>
+      ) : assignments === null ? (
         <p className="text-sm text-ink-500">Loading…</p>
       ) : assignments.length === 0 ? (
         <p className="text-sm text-ink-400 italic">

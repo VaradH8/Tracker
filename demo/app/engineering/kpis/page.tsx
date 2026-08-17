@@ -39,7 +39,6 @@ type Person = {
   rejected: number;
   pending: number;
   openTags: number;
-  measuredRate: number | null;
   status: "Free" | "Allocated";
 };
 
@@ -92,12 +91,6 @@ type Kpis = {
       projectId: number;
       projectName: string;
       openTags: number;
-    }[];
-    unrated: {
-      userId: string;
-      name: string;
-      projectId: number;
-      projectName: string;
     }[];
   };
 };
@@ -152,7 +145,7 @@ export default function KpisPage() {
   }
 
   const t = data.totals;
-  const qualityIssues = data.quality.unbooked.length + data.quality.unrated.length;
+  const qualityIssues = data.quality.unbooked.length;
 
   return (
     <DomainPage width="wide">
@@ -237,7 +230,6 @@ export default function KpisPage() {
                   <th className="text-right font-semibold pb-2 px-3">Claimed</th>
                   <th className="text-right font-semibold pb-2 px-3">Approval</th>
                   <th className="text-right font-semibold pb-2 px-3">Trimmed</th>
-                  <th className="text-right font-semibold pb-2 px-3">Avg/day</th>
                   <th className="text-right font-semibold pb-2 px-3">Open</th>
                 </tr>
               </thead>
@@ -291,15 +283,6 @@ export default function KpisPage() {
                           <span className="text-brand-redText">
                             {" "}
                             · {p.rejected} rej
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-2 px-3 text-right tabular-nums">
-                        {p.measuredRate === null ? (
-                          <span className="text-ink-400">—</span>
-                        ) : (
-                          <span className="text-ink-900 font-medium">
-                            {p.measuredRate}
                           </span>
                         )}
                       </td>
@@ -449,14 +432,10 @@ export default function KpisPage() {
                 extra: `${u.openTags} open`,
               }))}
             />
-            <QualityList
-              title="Booked with no tags/day set"
-              note="Nobody has set a rate and there is no approved history, so their throughput is a guess."
-              rows={data.quality.unrated.map((u) => ({
-                key: `${u.userId}-${u.projectId}`,
-                text: `${u.name} · ${u.projectName}`,
-              }))}
-            />
+            {/* "Booked with no tags/day set" was removed with the rest of
+                the average-tags reporting. Rates are set and read in the
+                Projects section now, so a KPI nagging about them here sent
+                people to a screen that no longer holds the control. */}
           </div>
         )}
       </Section>
@@ -549,13 +528,17 @@ function TrendChart({
   const max = Math.max(1, ...weeks.map((w) => Math.max(w.claimed, w.delivered)));
   return (
     <div>
-      <div className="flex items-end gap-3 h-40">
+      {/* items-stretch, not items-end: the columns have to fill the row's
+          height, otherwise the bar wrapper below grows into nothing and
+          every percentage-height bar resolves to zero — which is exactly
+          how this chart came to render its numbers with no bars. */}
+      <div className="flex items-stretch gap-3 h-40">
         {weeks.map((w) => (
-          <div key={w.label} className="flex-1 flex flex-col items-center gap-1">
+          <div key={w.label} className="flex-1 flex flex-col items-center gap-1 min-h-0">
             <span className="text-xs font-medium text-ink-700 tabular-nums">
               {w.delivered}
             </span>
-            <div className="w-full flex-1 flex items-end">
+            <div className="w-full flex-1 flex items-end min-h-0">
               <div
                 className="w-full bg-ink-100 rounded-t relative"
                 style={{ height: `${(w.claimed / max) * 100}%` }}
@@ -571,7 +554,7 @@ function TrendChart({
               </div>
             </div>
             <span className="text-[11px] text-ink-500 whitespace-nowrap">
-              {w.label}
+              {fmtDate(w.label)}
             </span>
           </div>
         ))}

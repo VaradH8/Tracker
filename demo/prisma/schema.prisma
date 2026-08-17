@@ -357,6 +357,7 @@ model DomainUser {
   tasksAssigned DomainTask[]    @relation("DomainTaskAssignee")
   tasksCreated  DomainTask[]    @relation("DomainTaskCreator")
   tasksReviewed DomainTask[]    @relation("DomainTaskReviewer")
+  taskEvents    DomainTaskEvent[] @relation("DomainTaskEventActor")
   workLogs      DomainWorkLog[]
 
   allocations         DomainAllocation[]    @relation("DomainAllocationUser")
@@ -563,9 +564,46 @@ model DomainTask {
   reviewNote   String?
 
   workLogs DomainWorkLog[]
+  events   DomainTaskEvent[]
 
   @@index([projectId])
   @@index([assigneeId])
+}
+
+/// One entry in a task's history: who did what to it, when, and what they
+/// said at the time.
+///
+/// Kept as its own table rather than read back off DomainTask, because the
+/// task only ever holds the LATEST state — a resubmission clears the
+/// previous decision so the next one starts clean. That is right for
+/// "where does this stand", and useless for "what happened". A task
+/// rejected twice and finally approved reads, on the task row alone, as
+/// though it were approved first time.
+///
+/// Append-only: nothing here is ever updated or deleted, so the record of
+/// a decision survives the decision being superseded.
+model DomainTaskEvent {
+  id     Int        @id @default(autoincrement())
+  taskId Int
+  task   DomainTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  /// Who did it. Kept even if they later leave — the history should not
+  /// rewrite itself, so the account is restricted from deletion by this
+  /// reference rather than nulled.
+  actorId String
+  actor   DomainUser @relation("DomainTaskEventActor", fields: [actorId], references: [id])
+
+  /// Assigned | Reassigned | Submitted | Approved | Rejected
+  kind String
+  /// What was said at the time: the brief, the submission note, or the
+  /// reviewer's reason. Null where the action carried no words.
+  note String?
+  /// Free context, e.g. who a task was moved to.
+  detail String?
+
+  at DateTime @default(now())
+
+  @@index([taskId])
 }
 
 model DomainWorkLog {

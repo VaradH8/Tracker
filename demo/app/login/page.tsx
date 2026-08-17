@@ -7,6 +7,7 @@ import { LogIn, Eye, EyeOff } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { useAccounts } from "@/lib/account-store";
 import { landingFor } from "@/lib/role";
+import { BRAND_NAVY, InventiveLogo } from "@/components/DomainBrand";
 
 type Tab = "tracker" | "domain";
 
@@ -204,6 +205,21 @@ function DomainLogin() {
 
   return (
     <>
+      {/* Brand header for the Engineering panel.
+          Full-bleed to the card edges so it reads as a header rather than
+          an image sitting inside the form, and dark because the logo's
+          wordmark is white — the same treatment it gets on the company
+          site. Scoped to this panel: the Tracker tab is untouched. */}
+      <div
+        className="-mx-6 -mt-5 mb-6 px-6 py-6 flex flex-col items-center gap-2"
+        style={{ background: BRAND_NAVY }}
+      >
+        <InventiveLogo height={46} />
+        <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-white/55">
+          Engineering
+        </span>
+      </div>
+
       <h1 className="font-heading text-xl font-semibold mb-1">
         {needsBootstrap ? "Set up the Engineering admin" : "Engineering sign in"}
       </h1>

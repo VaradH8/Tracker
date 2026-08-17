@@ -7,32 +7,40 @@ import {
 } from "@/lib/domain-format";
 
 /**
- * One formatter now backs every date in the module. It replaced thirteen
- * local copies that disagreed about whether to print the year — a
- * disagreement that made a project running two years late read as landing
- * early on the KPI screen.
+ * One formatter backs every date in the module. It replaced thirteen local
+ * copies that disagreed about whether to print the year — a disagreement
+ * that made a project running two years late read as landing early on the
+ * KPI screen.
+ *
+ * The house format is DD/MM/YY, always complete, with 24-hour time where a
+ * time is shown. Field order is written out by hand rather than left to
+ * the locale: toLocaleDateString renders 22/08/26 for one viewer and
+ * 8/22/26 for another, which makes "08/09/26" genuinely ambiguous.
  */
 describe("date formatting", () => {
   const thisYear = new Date().getUTCFullYear();
 
-  it("omits the year for dates in the current year", () => {
-    const out = fmtDate(`${thisYear}-08-14`);
-    expect(out).not.toContain(String(thisYear));
-    expect(out).toMatch(/14/);
+  it("renders DD/MM/YY with zero padding", () => {
+    expect(fmtDate("2026-08-22")).toBe("22/08/26");
+    expect(fmtDate("2026-01-05")).toBe("05/01/26");
+    expect(fmtDate("2028-12-31")).toBe("31/12/28");
   });
 
-  it("prints the year for any other year — the whole point", () => {
-    expect(fmtDate(`${thisYear + 2}-09-15`)).toContain(String(thisYear + 2));
-    expect(fmtDate(`${thisYear - 1}-01-05`)).toContain(String(thisYear - 1));
+  it("always shows the year, including inside the current year", () => {
+    const yy = String(thisYear % 100).padStart(2, "0");
+    expect(fmtDate(`${thisYear}-08-14`)).toBe(`14/08/${yy}`);
   });
 
   it("a handover and a projection two years apart are never ambiguous", () => {
     // The exact case that shipped broken: 30 Nov this year vs 15 Sep two
     // years out. Without the year these read as if the later one is first.
-    const handover = fmtDate(`${thisYear}-11-30`);
-    const projected = fmtDate(`${thisYear + 2}-09-15`);
-    expect(projected).toContain(String(thisYear + 2));
-    expect(handover).not.toEqual(projected);
+    expect(fmtDate("2026-11-30")).toBe("30/11/26");
+    expect(fmtDate("2028-09-15")).toBe("15/09/28");
+  });
+
+  it("puts the day first, so 08/09 is never read as September the 8th", () => {
+    expect(fmtDate("2026-09-08")).toBe("08/09/26");
+    expect(fmtDate("2026-08-09")).toBe("09/08/26");
   });
 
   it("renders a dash for missing or unparseable input rather than 'Invalid Date'", () => {
@@ -46,11 +54,27 @@ describe("date formatting", () => {
   it("treats day keys as UTC, so a date never slips to the previous day", () => {
     // Stored as UTC midnight; a local-time parse would render the 1st as
     // the 31st for anyone behind UTC.
-    expect(fmtDate(`${thisYear}-03-01`)).toMatch(/\b1\b/);
+    expect(fmtDate("2026-03-01")).toBe("01/03/26");
   });
 
-  it("the weekday variant leads with the day name", () => {
-    expect(fmtWeekday(`${thisYear}-08-14`)).toMatch(/^[A-Za-z]{3}/);
+  it("the weekday variant leads with the day name, then the same date", () => {
+    expect(fmtWeekday("2026-08-22")).toMatch(/^[A-Za-z]{3} 22\/08\/26$/);
+  });
+
+  it("timestamps use a 24-hour clock", () => {
+    // Built from local parts so the assertion holds in any timezone; what
+    // matters is the shape and that afternoon reads as 13-23, not 1-11 PM.
+    const evening = new Date(2026, 7, 22, 20, 5);
+    expect(fmtStamp(evening.toISOString())).toBe("22/08/26 20:05");
+    const morning = new Date(2026, 7, 22, 8, 30);
+    expect(fmtStamp(morning.toISOString())).toBe("22/08/26 08:30");
+    // Never an AM/PM marker.
+    expect(fmtStamp(evening.toISOString())).not.toMatch(/[AP]M/i);
+  });
+
+  it("midnight renders as 00:00, not 24:00 or 12:00", () => {
+    const midnight = new Date(2026, 7, 22, 0, 0);
+    expect(fmtStamp(midnight.toISOString())).toBe("22/08/26 00:00");
   });
 });
 

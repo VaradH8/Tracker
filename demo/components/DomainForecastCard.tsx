@@ -359,7 +359,7 @@ export function DomainForecastCard({
                 .filter((r) => r.usingDefaultRate)
                 .map((r) => r.name)
                 .join(", ")}{" "}
-              — set their tags/day on this project to firm this date up.
+              — set their rate on the project to firm this date up.
             </p>
           )}
           {p.resources.some((r) => r.concurrentProjects > 1) && (

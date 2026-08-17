@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
 import {
+  SUPERVISOR_ROLES,
   canAssignTasks,
   parseEstimatedHours,
   taskIsOpen,
@@ -60,7 +61,8 @@ export async function GET(req: Request) {
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
     take: 500,
   });
-  const rows = tasks.map(serialize);
+  // Supervisors get the trail; everyone else gets the task alone.
+  const rows = tasks.map((t) => serialize(t, SUPERVISOR_ROLES.includes(user.role)));
   // ?open=true keeps the dashboard to what still needs doing, without
   // making the caller know which statuses count as finished.
   return NextResponse.json({
@@ -84,9 +86,6 @@ export async function POST(req: Request) {
   const userOrResp = await requireDomainUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
   const user = userOrResp;
-  if (!canAssignTasks(user.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
 
   const body = await req.json().catch(() => ({}));
   const title = String(body.title ?? "").trim();
@@ -160,13 +159,34 @@ export async function POST(req: Request) {
     assigneeId = assignee.id;
   }
 
+  /**
+   * Handing work to someone else needs the authority to do it; recording
+   * work you picked up yourself does not.
+   *
+   * The gate used to sit at the top of this route and refuse Actionees and
+   * SMEs outright, which also refused them their own self-created tasks —
+   * the one thing everybody is supposed to be able to log. Checked here
+   * instead, once we know who the task is actually for.
+   */
+  if (assigneeId !== user.id && !canAssignTasks(user.role)) {
+    return NextResponse.json(
+      {
+        error:
+          "You can record work you've picked up yourself, but not assign it to someone else.",
+      },
+      { status: 403 },
+    );
+  }
+
+  const description =
+    typeof body.description === "string" && body.description.trim()
+      ? body.description.trim()
+      : null;
+
   const created = await prisma.domainTask.create({
     data: {
       title,
-      description:
-        typeof body.description === "string" && body.description.trim()
-          ? body.description.trim()
-          : null,
+      description,
       projectId,
       divisionId,
       assigneeId,
@@ -175,8 +195,17 @@ export async function POST(req: Request) {
       startDate: body.startDate ? new Date(String(body.startDate)) : null,
       targetDate: body.targetDate ? new Date(String(body.targetDate)) : null,
       estimatedHours: parseEstimatedHours(body.estimatedHours),
+      // The first entry in the history: the brief, recorded as it was
+      // given. Everything after this is appended, never edited.
+      events: {
+        create: {
+          actorId: user.id,
+          kind: "Assigned",
+          note: description,
+        },
+      },
     },
     include: INCLUDE,
   });
-  return NextResponse.json({ task: serialize(created) }, { status: 201 });
+  return NextResponse.json({ task: serialize(created, true) }, { status: 201 });
 }

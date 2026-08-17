@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Send, Trash2, X } from "lucide-react";
+import { Check, ChevronRight, History, Send, Trash2, X } from "lucide-react";
 import {
   backdateFloorISO,
   istParts,
   normaliseTaskStatus,
   type DomainRole,
 } from "@/lib/domain";
-import { fmtDate } from "@/lib/domain-format";
+import { fmtDate, fmtStamp } from "@/lib/domain-format";
 import { dateClass, inputClass } from "@/lib/domain-ui";
 import { ConfirmButton } from "./ConfirmButton";
 
@@ -46,6 +46,18 @@ export type DomainTask = {
   reviewedBy?: string | null;
   reviewedAt?: string | null;
   reviewNote?: string | null;
+  /** Present only for Admins, Leads and Team Leads — see serializeTask. */
+  history?: TaskEvent[];
+};
+
+export type TaskEvent = {
+  id: number;
+  kind: string;
+  note: string | null;
+  detail: string | null;
+  at: string;
+  actor: string;
+  actorRole: string;
 };
 
 export type Person = { id: string; name: string; role: string };
@@ -56,6 +68,23 @@ function statusCls(status: string): string {
   if (s === "Submitted") return "bg-brand-yellowBg text-brand-yellowText";
   if (s === "Rejected") return "bg-brand-redBg text-brand-redText";
   return "bg-ink-100 text-ink-600";
+}
+
+/** The history reads as a sentence, so the verbs are past tense and
+ *  "Rejected" keeps the same softer wording used on the status chip. */
+function eventLabel(kind: string): string {
+  if (kind === "Rejected") return "Sent back";
+  if (kind === "Reassigned") return "Reassigned";
+  if (kind === "Submitted") return "Submitted";
+  if (kind === "Approved") return "Approved";
+  return kind;
+}
+
+function eventDot(kind: string): string {
+  if (kind === "Approved") return "bg-brand-green";
+  if (kind === "Rejected") return "bg-brand-red";
+  if (kind === "Submitted") return "bg-brand-yellow";
+  return "bg-ink-300";
 }
 
 /** "Rejected" is a hard word for "have another go" — say the softer thing. */
@@ -147,6 +176,7 @@ function TaskRow({
   const status = normaliseTaskStatus(t.status);
   const todayISO = istParts().dateISO;
   const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [note, setNote] = useState("");
   const [date, setDate] = useState(todayISO);
   const [reviewNote, setReviewNote] = useState("");
@@ -181,9 +211,23 @@ function TaskRow({
     <li className="card p-3">
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex-1 min-w-[160px]">
-          <div className="text-sm font-medium text-ink-900 break-words">
-            {t.title}
-          </div>
+          {/* The title opens the task. Everything about it that isn't
+              needed at a glance — the full thread and, for supervisors,
+              its history — lives behind this rather than making every row
+              tall enough to hold the worst case. */}
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+            className="text-sm font-medium text-ink-900 break-words text-left hover:text-brand-blue inline-flex items-start gap-1.5 group"
+          >
+            <ChevronRight
+              size={14}
+              className={`mt-0.5 shrink-0 text-ink-400 transition-transform group-hover:text-brand-blue ${
+                expanded ? "rotate-90" : ""
+              }`}
+            />
+            <span>{t.title}</span>
+          </button>
           <div className="text-xs text-ink-500 mt-0.5">
             {!hideProject && (
               <span>
@@ -246,6 +290,22 @@ function TaskRow({
         )}
       </div>
 
+      {/* The instructions that came with the task. This is the whole point
+          of handing work over, and it was being stored but never shown —
+          the assignee saw the title and nothing else. Not repeated on work
+          someone gave themselves, where there is nobody to brief them. */}
+      {t.description && !t.selfCreated && (
+        <div className="mt-2 text-xs bg-brand-blueBg/40 border border-ink-200 rounded px-3 py-2">
+          <span className="text-ink-500">From {t.createdBy}:</span>{" "}
+          <span className="text-ink-900 whitespace-pre-wrap">{t.description}</span>
+        </div>
+      )}
+      {t.description && t.selfCreated && (
+        <div className="mt-2 text-xs bg-ink-50 border border-ink-200 rounded px-3 py-2">
+          <span className="text-ink-900 whitespace-pre-wrap">{t.description}</span>
+        </div>
+      )}
+
       {/* What the assignee said, once they've said it. Shown to everyone —
           the assigner needs it to decide, and the assignee needs to see
           what they sent. */}
@@ -266,6 +326,84 @@ function TaskRow({
           {status === "Approved" ? "Approved" : "Sent back"} by {t.reviewedBy}
           {t.reviewNote && <span className="text-ink-600"> — “{t.reviewNote}”</span>}
         </p>
+      )}
+
+      {expanded && (
+        <div className="mt-3 border-t border-ink-100 pt-3">
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs mb-3">
+            <dt className="text-ink-500">Assigned by</dt>
+            <dd className="text-ink-900">
+              {t.createdBy} · {fmtStamp(t.createdAt)}
+            </dd>
+            {!hideProject && (
+              <>
+                <dt className="text-ink-500">Project</dt>
+                <dd className="text-ink-900">
+                  {t.projectName ?? "Ad hoc — no project"}
+                  {t.divisionName ? ` · ${t.divisionName}` : ""}
+                </dd>
+              </>
+            )}
+            {t.targetDate && (
+              <>
+                <dt className="text-ink-500">Due</dt>
+                <dd className="text-ink-900">{fmtDate(t.targetDate)}</dd>
+              </>
+            )}
+            {t.submittedOn && (
+              <>
+                <dt className="text-ink-500">Work done on</dt>
+                <dd className="text-ink-900">{fmtDate(t.submittedOn)}</dd>
+              </>
+            )}
+          </dl>
+
+          {/*
+            The history. Only supervisors receive it (the API decides), so
+            an absent list here means "not for you", not "nothing
+            happened" — hence no empty state pretending the task has no
+            past. Tasks created before this existed have no events either,
+            and fall back to the state shown above.
+          */}
+          {t.history && t.history.length > 0 && (
+            <>
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-400 mb-2">
+                <History size={12} /> History
+              </div>
+              <ol className="space-y-2 border-l border-ink-200 pl-3">
+                {t.history.map((e) => (
+                  <li key={e.id} className="text-xs relative">
+                    <span
+                      className={`absolute -left-[17px] top-1 w-2 h-2 rounded-full ${eventDot(e.kind)}`}
+                      aria-hidden
+                    />
+                    <span className="text-ink-900 font-medium">
+                      {eventLabel(e.kind)}
+                    </span>
+                    <span className="text-ink-500">
+                      {" "}
+                      by {e.actor}
+                      {/* A submission's detail is the work date and gets
+                          formatted like every other date; anything else is
+                          already a phrase ("to Priya"). */}
+                      {e.detail
+                        ? e.kind === "Submitted"
+                          ? ` for ${fmtDate(e.detail)}`
+                          : ` ${e.detail}`
+                        : ""}{" "}
+                      · {fmtStamp(e.at)}
+                    </span>
+                    {e.note && (
+                      <div className="text-ink-700 mt-0.5 whitespace-pre-wrap">
+                        “{e.note}”
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </>
+          )}
+        </div>
       )}
 
       {open && canSubmit && (

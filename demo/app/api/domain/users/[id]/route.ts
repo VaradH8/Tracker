@@ -1,7 +1,17 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
-import { DOMAIN_ROLES, canManageUser, type DomainRole } from "@/lib/domain";
+import {
+  requireDomainUser,
+  requireDomainRole,
+  nameClash,
+  setDomainEmail,
+} from "@/lib/domain-auth";
+import {
+  DOMAIN_ROLES,
+  canManageUser,
+  manageableRoles,
+  type DomainRole,
+} from "@/lib/domain";
 
 /**
  * Delete a domain user.
@@ -109,7 +119,9 @@ export async function PATCH(
   const userOrResp = await requireDomainUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
   const actor = userOrResp;
-  const forbidden = requireDomainRole(actor, ["Admin", "Lead"]);
+  // Team Leads may edit the people they supervise. Creating and deleting
+  // accounts stays with Admin and Lead — see POST /users and DELETE above.
+  const forbidden = requireDomainRole(actor, ["Admin", "Lead", "TeamLead"]);
   if (forbidden) return forbidden;
 
   const { id } = await context.params;
@@ -128,15 +140,18 @@ export async function PATCH(
   const wantsDeactivate = body.isActive === false;
 
   // Both ends of the edit: who they are now, and what they'd become.
+  const allowed = manageableRoles(actor.role);
   if (!canManageUser(actor.role, target.role as DomainRole)) {
     return NextResponse.json(
-      { error: "Only an Admin can change Admins or Leads." },
+      {
+        error: `You can manage ${allowed.join(", ") || "nobody"} — not a ${target.role}.`,
+      },
       { status: 403 },
     );
   }
   if (wantsRole && !canManageUser(actor.role, wantsRole)) {
     return NextResponse.json(
-      { error: "Only an Admin can grant the Admin or Lead role." },
+      { error: `You can't give someone the ${wantsRole} role.` },
       { status: 403 },
     );
   }
@@ -186,6 +201,42 @@ export async function PATCH(
 
   if (typeof body.isActive === "boolean") data.isActive = body.isActive;
   if (wantsRole) data.role = wantsRole;
+
+  /**
+   * Renaming. Held to the same uniqueness rule as creating an account:
+   * two people answering to one name makes every picker ambiguous, and
+   * renaming into a clash would create exactly the state creation refuses.
+   */
+  if (typeof body.name === "string") {
+    const name = body.name.trim();
+    if (!name) {
+      return NextResponse.json({ error: "Name can't be empty." }, { status: 400 });
+    }
+    if (name !== target.name) {
+      const clash = await nameClash(name, target.id);
+      if (clash) {
+        return NextResponse.json(
+          {
+            error: `${clash.name} already has an account (${clash.email}). Use a name that tells them apart.`,
+          },
+          { status: 400 },
+        );
+      }
+      data.name = name;
+    }
+  }
+
+  /**
+   * The sign-in email. A credential change rather than a profile edit —
+   * it is what domainSignIn looks the account up by — so it goes through
+   * the same validation and uniqueness check as creation.
+   */
+  let emailChanged = false;
+  if (typeof body.email === "string" && body.email.trim()) {
+    const r = await setDomainEmail(target.id, body.email);
+    if (!r.ok) return NextResponse.json({ error: r.error }, { status: 400 });
+    emailChanged = true;
+  }
   // null clears it and puts the person back on the house default.
   if (body.expectedTagsPerDay !== undefined) {
     if (body.expectedTagsPerDay === null || body.expectedTagsPerDay === "") {
@@ -202,11 +253,17 @@ export async function PATCH(
     }
   }
 
-  if (Object.keys(data).length === 0) {
+  // The email is written by setDomainEmail above rather than through
+  // `data`, so an email-only edit leaves `data` empty while still being a
+  // real change. Only a request that changed nothing at all is refused.
+  if (Object.keys(data).length === 0 && !emailChanged) {
     return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
   }
 
-  const updated = await prisma.domainUser.update({ where: { id }, data });
+  const updated =
+    Object.keys(data).length === 0
+      ? await prisma.domainUser.findUniqueOrThrow({ where: { id } })
+      : await prisma.domainUser.update({ where: { id }, data });
   return NextResponse.json({
     user: {
       id: updated.id,

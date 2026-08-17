@@ -131,15 +131,26 @@ export async function PATCH(
         submittedOn: new Date(raw + "T00:00:00.000Z"),
         submittedNote: note,
         submittedAt: new Date(),
-        // A resubmission after a rejection starts a clean decision.
+        // A resubmission after a rejection starts a clean decision. The
+        // decision it replaces is not lost — it is already in the history.
         reviewedById: null,
         reviewedAt: selfCreated ? new Date() : null,
         reviewNote: null,
+        events: {
+          create: {
+            actorId: user.id,
+            kind: "Submitted",
+            note,
+            // The work date, stored raw. Rendering is the client's job —
+            // the API has no business deciding how a date looks.
+            detail: raw,
+          },
+        },
       },
       include: INCLUDE,
     });
     return NextResponse.json({
-      task: serialize(submitted),
+      task: serialize(submitted, MANAGER_ROLES.includes(user.role)),
       selfCompleted: selfCreated,
     });
   }
@@ -157,6 +168,10 @@ export async function PATCH(
         { status: 409 },
       );
     }
+    const reviewNote =
+      typeof body.reviewNote === "string" && body.reviewNote.trim()
+        ? body.reviewNote.trim()
+        : null;
     const reviewed = await prisma.domainTask.update({
       where: { id },
       data: {
@@ -165,17 +180,24 @@ export async function PATCH(
         status: action === "approve" ? "Approved" : "Rejected",
         reviewedById: user.id,
         reviewedAt: new Date(),
-        reviewNote:
-          typeof body.reviewNote === "string" && body.reviewNote.trim()
-            ? body.reviewNote.trim()
-            : null,
+        reviewNote,
+        events: {
+          create: {
+            actorId: user.id,
+            kind: action === "approve" ? "Approved" : "Rejected",
+            note: reviewNote,
+          },
+        },
       },
       include: INCLUDE,
     });
-    return NextResponse.json({ task: serialize(reviewed) });
+    return NextResponse.json({
+      task: serialize(reviewed, MANAGER_ROLES.includes(user.role)),
+    });
   }
 
   const data: Record<string, unknown> = {};
+  let reassignedTo: string | null = null;
 
   if (DOMAIN_TASK_STATUSES.includes(body.status as DomainTaskStatus)) {
     data.status = body.status;
@@ -217,6 +239,11 @@ export async function PATCH(
         return NextResponse.json({ error: "Invalid assignee." }, { status: 400 });
       }
       data.assigneeId = assignee.id;
+      // Moving work to someone else is a real event in the task's life —
+      // "why is this on my plate" is answered here and nowhere else.
+      if (assignee.id !== task.assigneeId) {
+        reassignedTo = assignee.name;
+      }
     }
   }
 
@@ -226,8 +253,23 @@ export async function PATCH(
 
   const updated = await prisma.domainTask.update({
     where: { id },
-    data,
+    data: {
+      ...data,
+      ...(reassignedTo
+        ? {
+            events: {
+              create: {
+                actorId: user.id,
+                kind: "Reassigned",
+                detail: `to ${reassignedTo}`,
+              },
+            },
+          }
+        : {}),
+    },
     include: INCLUDE,
   });
-  return NextResponse.json({ task: serialize(updated) });
+  return NextResponse.json({
+    task: serialize(updated, MANAGER_ROLES.includes(user.role)),
+  });
 }

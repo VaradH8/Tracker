@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { DOMAIN_ROLE_LABELS, type DomainRole } from "@/lib/domain";
-import { dateClass, inputClass, selectClass } from "@/lib/domain-ui";
+import { dateClass, inputClass, selectClass, textareaClass } from "@/lib/domain-ui";
 
 /**
  * Handing out work, from the Task log.
@@ -38,6 +38,7 @@ export function DomainAssignTask({
   const [projects, setProjects] = useState<Project[]>([]);
 
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
   const [projectId, setProjectId] = useState("");
   const [divisionId, setDivisionId] = useState("");
@@ -68,6 +69,7 @@ export function DomainAssignTask({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         title,
+        description: description.trim() || undefined,
         assigneeId: assigneeId || undefined,
         // Omitted entirely for an ad-hoc task.
         projectId: projectId || undefined,
@@ -82,6 +84,7 @@ export function DomainAssignTask({
       return;
     }
     setTitle("");
+    setDescription("");
     setAssigneeId("");
     setProjectId("");
     setDivisionId("");
@@ -110,6 +113,22 @@ export function DomainAssignTask({
         placeholder="What needs doing?"
         className={inputClass("md", "w-full mb-3")}
       />
+
+      {/* The instructions that come with the work. A title alone says what
+          to do but never how, or what to watch out for — without this the
+          person receiving the task could see it and nothing else. */}
+      <label className="text-xs block mb-3">
+        <span className="block text-ink-700 font-medium mb-1">
+          Notes for the assignee <span className="text-ink-400">(optional)</span>
+        </span>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={3}
+          placeholder="Anything they need to know — context, instructions, what to check."
+          className={textareaClass("w-full")}
+        />
+      </label>
 
       <div className="grid sm:grid-cols-2 gap-3 mb-3">
         <label className="text-xs">

@@ -38,6 +38,17 @@ export function selectClass(size: FieldSize = "md", extra = ""): string {
 }
 
 /**
+ * Multi-line text. The only control here that must NOT take a fixed
+ * height — it grows with what is typed — so it uses vertical padding
+ * instead of a SIZES entry rather than trying to override one. Adding
+ * `h-auto` on top of `h-10` would depend on the order Tailwind happens to
+ * emit its height utilities, which is not something to rely on.
+ */
+export function textareaClass(extra = ""): string {
+  return `${BASE} px-3 py-2 leading-relaxed resize-y ${extra}`;
+}
+
+/**
  * Date inputs. Same box as everything else, plus `.eng-date` (see
  * globals.css) which drags the browser's built-in "dd/mm/yyyy" text onto
  * the app's font and greys it while empty — without that it renders in the

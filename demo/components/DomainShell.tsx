@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useDomain } from "@/lib/domain-store";
 import { DOMAIN_ROLE_LABELS, type DomainRole } from "@/lib/domain";
+import { BRAND_NAVY, DomainBrandPanel } from "@/components/DomainBrand";
 
 type NavItem = {
   href: string;
@@ -46,8 +47,11 @@ const NAV: NavItem[] = [
   { href: "/engineering/forecast", label: "Forecast", icon: TrendingUp, roles: SUPERVISORS, group: "Manage" },
   { href: "/engineering/availability", label: "Resource availability", icon: Gauge, roles: SUPERVISORS, group: "Manage" },
   { href: "/engineering/kpis", label: "KPIs", icon: BarChart3, roles: ["Admin"], group: "Manage" },
-  // Leads add members to their own team; only an Admin can create Admins or Leads.
-  { href: "/engineering/users", label: "Users", icon: Users, roles: MANAGERS, group: "Manage" },
+  // Everyone who supervises manages people here, but not equally: Admins
+  // and Leads add and remove accounts, while a Team Lead only edits the
+  // SMEs and Actionees they oversee. The page adapts; the nav just lets
+  // them reach it.
+  { href: "/engineering/users", label: "People", icon: Users, roles: SUPERVISORS, group: "Manage" },
 ];
 
 const GROUPS: NavItem["group"][] = ["Work", "Manage"];
@@ -82,14 +86,15 @@ export function DomainShell({ children }: { children: ReactNode }) {
 
   const rail = (
     <>
+      {/* The brand panel. Dark by necessity as much as by design — the
+          logo's wordmark is white, so it needs the ground it was drawn
+          for. See components/DomainBrand. */}
       <Link
         href="/engineering"
-        className="flex items-center gap-2 px-5 h-16 border-b border-ink-200 shrink-0"
+        className="shrink-0 border-b border-ink-200"
+        aria-label="Engineering home"
       >
-        <span className="w-8 h-8 rounded bg-brand-blue text-white grid place-items-center font-heading font-bold text-sm">
-          E
-        </span>
-        <span className="font-heading font-semibold text-ink-900">Engineering</span>
+        <DomainBrandPanel className="px-5 h-16" height={30} />
       </Link>
 
       <nav className="flex-1 overflow-y-auto py-4 px-3">
@@ -170,19 +175,19 @@ export function DomainShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-ink-50">
       {/* Narrow screens: a slim bar carrying the menu button. */}
-      <header className="lg:hidden sticky top-0 z-30 bg-white border-b border-ink-200 h-14 flex items-center gap-3 px-4">
+      <header
+        className="lg:hidden sticky top-0 z-30 border-b border-ink-200 h-14 flex items-center gap-3 px-4"
+        style={{ background: BRAND_NAVY }}
+      >
         <button
           onClick={() => setOpen(true)}
-          className="p-2 -ml-2 rounded hover:bg-ink-100 text-ink-600"
+          className="p-2 -ml-2 rounded hover:bg-white/10 text-white/80"
           aria-label="Open navigation"
         >
           <Menu size={18} />
         </button>
-        <Link href="/engineering" className="flex items-center gap-2">
-          <span className="w-7 h-7 rounded bg-brand-blue text-white grid place-items-center font-heading font-bold text-sm">
-            E
-          </span>
-          <span className="font-heading font-semibold">Engineering</span>
+        <Link href="/engineering" aria-label="Engineering home">
+          <DomainBrandPanel height={24} subdued />
         </Link>
       </header>
 
@@ -199,9 +204,11 @@ export function DomainShell({ children }: { children: ReactNode }) {
             onClick={() => setOpen(false)}
           />
           <aside className="absolute inset-y-0 left-0 w-64 bg-white border-r border-ink-200 flex flex-col">
+            {/* Sits on the dark brand panel, so it is styled light —
+                ink-500 on navy was very nearly invisible. */}
             <button
               onClick={() => setOpen(false)}
-              className="absolute top-4 right-3 p-1.5 rounded hover:bg-ink-100 text-ink-500 z-10"
+              className="absolute top-5 right-3 p-1.5 rounded hover:bg-white/10 text-white/70 hover:text-white z-10"
               aria-label="Close navigation"
             >
               <X size={16} />

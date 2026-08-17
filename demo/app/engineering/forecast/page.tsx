@@ -13,6 +13,7 @@ import {
   type ProjectRow,
 } from "@/components/DomainForecastCard";
 import { DomainPage, PageHeader } from "@/components/DomainPage";
+import { DomainDeliveryByDate } from "@/components/DomainDeliveryByDate";
 import { fmtDate as fmt } from "@/lib/domain-format";
 import { dateClass } from "@/lib/domain-ui";
 import { TAG_HOLDER_ROLES, type DomainRole } from "@/lib/domain";
@@ -173,6 +174,8 @@ export default function ForecastPage() {
         </section>
       )}
 
+      <DomainDeliveryByDate />
+
       <Simulator onDone={load} />
 
       <section className="mb-8">
@@ -280,9 +283,6 @@ type SimResult = {
     rate: number;
     fullRate: number;
     concurrentProjects: number;
-    measuredRate: number | null;
-    overridden: boolean;
-    usingDefaultRate: boolean;
   }[];
   conflicts: {
     resourceName: string;
@@ -299,13 +299,16 @@ function Simulator({ onDone }: { onDone: () => void }) {
   const [totalTags, setTotalTags] = useState("");
   const [startDate, setStartDate] = useState("");
   const [handoverDate, setHandoverDate] = useState("");
-  /** Per-person tags/day the Lead wants to assume, keyed by user id.
-   *  Blank means "use their measured rate". */
+  /** Per-person tags/day to plan at. Required — the simulation uses these
+   *  and nothing else. */
   const [rateOverrides, setRateOverrides] = useState<Record<string, string>>({});
   const [result, setResult] = useState<SimResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const { byId: availability } = useAvailability(open);
+  /** Every picked person needs a rate before this can run — the API
+   *  refuses otherwise, so the button says so first. */
+  const allRated = picked.every((id) => Number(rateOverrides[id]) > 0);
 
   useEffect(() => {
     if (!open || people.length > 0) return;
@@ -405,18 +408,25 @@ function Simulator({ onDone }: { onDone: () => void }) {
 
       <div className="text-sm mt-3">
         <span className="block text-ink-700 mb-1">
-          Resources — tick who&apos;s on it, and override their tags/day if you
-          want to test a different pace
+          Resources — tick who&apos;s on it, then set the tags/day to plan each
+          of them at
         </span>
         <ResourceChecklist
           people={people}
           picked={picked}
           availability={availability}
+          showRate={false}
           onToggle={(id, next) =>
             setPicked((prev) => (next ? [...prev, id] : prev.filter((x) => x !== id)))
           }
           emptyLabel="No resources available."
         />
+        {/*
+          Rates are typed, never pre-filled from what someone has averaged
+          before. A simulation is an assumption you are making on purpose;
+          seeding it with history quietly turns "what if we plan at 40"
+          into "what happened last month".
+        */}
         {picked.length > 0 && (
           <div className="mt-2 border border-ink-200 rounded divide-y divide-ink-100">
             {picked.map((id) => {
@@ -430,17 +440,18 @@ function Simulator({ onDone }: { onDone: () => void }) {
                   <input
                     type="number"
                     min={1}
+                    step="0.5"
                     value={rateOverrides[id] ?? ""}
                     onChange={(e) =>
                       setRateOverrides((prev) => ({ ...prev, [id]: e.target.value }))
                     }
-                    placeholder={
-                      availability.get(id)
-                        ? String(availability.get(id)!.rate)
-                        : "tags/day"
-                    }
-                    title="Leave blank to use their measured rate"
-                    className="w-28 border border-ink-200 rounded px-2 py-1 text-sm"
+                    placeholder="tags/day"
+                    aria-label={`Tags per day for ${person.name}`}
+                    className={`w-28 border rounded px-2 py-1 text-sm ${
+                      Number(rateOverrides[id]) > 0
+                        ? "border-ink-200"
+                        : "border-brand-yellowBorder bg-brand-yellowBg"
+                    }`}
                   />
                   <span className="text-xs text-ink-400 w-14">tags/day</span>
                 </div>
@@ -450,7 +461,16 @@ function Simulator({ onDone }: { onDone: () => void }) {
         )}
       </div>
 
-      <button onClick={run} disabled={busy} className="btn-primary mt-3">
+      <button
+        onClick={run}
+        disabled={busy || picked.length === 0 || !allRated}
+        className="btn-primary mt-3 disabled:opacity-50"
+        title={
+          picked.length > 0 && !allRated
+            ? "Set a tags/day rate for everyone you've picked"
+            : undefined
+        }
+      >
         {busy ? "Calculating…" : "Run simulation"}
       </button>
 
@@ -474,11 +494,9 @@ function Simulator({ onDone }: { onDone: () => void }) {
               .map(
                 (r) =>
                   `${r.name} ${r.rate}/day${
-                    r.overridden
-                      ? ` (you set ${r.fullRate}${r.measuredRate ? `, measured ${r.measuredRate}` : ""})`
-                      : r.usingDefaultRate
-                        ? " (no rate set)"
-                        : ""
+                    // Every rate here was typed in, so the only thing worth
+                    // saying is when it had to be shared across projects.
+                    r.rate !== r.fullRate ? ` (you set ${r.fullRate})` : ""
                   }${
                     r.concurrentProjects > 1
                       ? ` — shared across ${r.concurrentProjects} projects`

@@ -14,6 +14,7 @@ import { DomainPage, PageHeader } from "@/components/DomainPage";
 import { useDomain } from "@/lib/domain-store";
 import {
   fmtDate as fmt,
+  fmtStamp,
   submissionStatusCls as statusCls,
 } from "@/lib/domain-format";
 
@@ -38,17 +39,6 @@ type Submission = {
   reviewedBy: string | null;
   reviewedAt: string | null;
 };
-
-
-function fmtStamp(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleString(undefined, {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 
 /**

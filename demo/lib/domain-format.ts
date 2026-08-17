@@ -31,56 +31,69 @@ function parse(iso: string): Date {
   return new Date(iso + "T00:00:00Z");
 }
 
-function needsYear(d: Date): boolean {
-  return d.getUTCFullYear() !== new Date().getUTCFullYear();
+const p2 = (n: number) => String(n).padStart(2, "0");
+
+/**
+ * The house date format: DD/MM/YY.
+ *
+ * Written out by hand rather than through toLocaleDateString, because the
+ * locale decides the field order — the same date renders 22/08/26 for one
+ * viewer and 8/22/26 for another, and "08/09/26" is then genuinely
+ * ambiguous between August and September. A fixed order is the whole
+ * point of asking for a complete format.
+ *
+ * The year is always present. It used to be dropped inside the current
+ * year, which is what let a project running two years late render as
+ * "Handover 30 Nov · Projected 15 Sep" and read as early.
+ */
+function dmy(d: Date, utc: boolean): string {
+  const day = utc ? d.getUTCDate() : d.getDate();
+  const month = (utc ? d.getUTCMonth() : d.getMonth()) + 1;
+  const year = (utc ? d.getUTCFullYear() : d.getFullYear()) % 100;
+  return `${p2(day)}/${p2(month)}/${p2(year)}`;
+}
+
+/** 24-hour clock, so 08:30 and 20:30 can never be confused. */
+function hm(d: Date): string {
+  return `${p2(d.getHours())}:${p2(d.getMinutes())}`;
 }
 
 /**
- * "14 Aug", or "14 Aug 2028" when the date falls outside the current year.
- * The default for anything a person reads as a deadline or a milestone.
+ * "22/08/26" — the default for anything read as a deadline or a
+ * milestone. Day keys are UTC midnight, so they are read back in UTC;
+ * reading them locally would shift the date by a day for anyone west of
+ * Greenwich.
  */
 export function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = parse(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    ...(needsYear(d) ? { year: "numeric" as const } : {}),
-    timeZone: "UTC",
-  });
+  return dmy(d, true);
 }
 
 /**
- * "Thu 14 Aug" — for day-by-day logs, where the weekday is what people
- * actually navigate by. Same year rule.
+ * "Sat 22/08/26" — for day-by-day logs, where the weekday is what people
+ * actually navigate by.
  */
 export function fmtWeekday(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = parse(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString(undefined, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    ...(needsYear(d) ? { year: "numeric" as const } : {}),
-    timeZone: "UTC",
-  });
+  const wd = d.toLocaleDateString(undefined, { weekday: "short", timeZone: "UTC" });
+  return `${wd} ${dmy(d, true)}`;
 }
 
 /**
- * A full timestamp — "14 Aug, 16:32". Used where the time of day carries
+ * A full timestamp — "22/08/26 16:32". Used where the time of day carries
  * meaning, such as when a submission was reviewed.
+ *
+ * Unlike a day key this is a real instant, so it is rendered in the
+ * viewer's own timezone. Every caller is a client component, so that is
+ * the reader's wall clock rather than the server's.
  */
 export function fmtStamp(isoDateTime: string | null | undefined): string {
   if (!isoDateTime) return "—";
   const d = new Date(isoDateTime);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString(undefined, {
-    day: "numeric",
-    month: "short",
-    ...(needsYear(d) ? { year: "numeric" as const } : {}),
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return `${dmy(d, false)} ${hm(d)}`;
 }
