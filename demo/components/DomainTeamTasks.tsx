@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { RefreshCw } from "lucide-react";
 import { DOMAIN_ROLE_LABELS, normaliseTaskStatus, type DomainRole } from "@/lib/domain";
 import { fmtDate } from "@/lib/domain-format";
 import { dateClass, selectClass } from "@/lib/domain-ui";
+import { DomainRefreshButton } from "@/components/DomainRefreshButton";
 import { DomainTaskList, type DomainTask } from "@/components/DomainTaskList";
 
 /**
@@ -47,7 +47,8 @@ export function DomainTeamTasks({
     if (project !== "all") qs.set("projectId", project);
     if (from) qs.set("from", from);
     if (to) qs.set("to", to);
-    fetch(`/api/domain/tasks?${qs.toString()}`, { cache: "no-store" })
+    // Returned so the shared Refresh button can await it.
+    return fetch(`/api/domain/tasks?${qs.toString()}`, { cache: "no-store" })
       .then(async (r) => {
         if (r.status === 403) throw new Error("Team tasks are for Leads and Admins.");
         if (!r.ok) throw new Error(`Couldn't load tasks (HTTP ${r.status}).`);
@@ -63,7 +64,9 @@ export function DomainTeamTasks({
       });
   }, [person, project, from, to]);
 
-  useEffect(load, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   // The option lists come from an unfiltered read, so narrowing by one
   // filter doesn't empty the list you picked it from.
@@ -170,12 +173,9 @@ export function DomainTeamTasks({
             Clear
           </button>
         )}
-        <button
-          onClick={load}
-          className="btn-ghost text-sm inline-flex items-center gap-1.5 ml-auto"
-        >
-          <RefreshCw size={13} /> Refresh
-        </button>
+        <span className="ml-auto">
+          <DomainRefreshButton onRefresh={load} />
+        </span>
       </div>
 
       {error && (

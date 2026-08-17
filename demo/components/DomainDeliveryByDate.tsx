@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CalendarDays, RefreshCw } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 import { fmtDate, fmtWeekday } from "@/lib/domain-format";
 import { selectClass } from "@/lib/domain-ui";
+import { DomainRefreshButton } from "@/components/DomainRefreshButton";
 
 /**
  * Delivery by date — what was submitted on each day, and how much of it
@@ -62,11 +63,12 @@ export function DomainDeliveryByDate() {
   const load = useCallback(() => {
     setBusy(true);
     const q = new URLSearchParams({ groupBy, days: String(days) });
+    // Returned so the shared Refresh button can await it.
     // "none" isn't a division id — it means the tags carry no division, so
     // it can't be sent as one.
     if (division && division !== "none") q.set("divisionId", division);
     if (projectId) q.set("projectId", projectId);
-    fetch(`/api/domain/forecast/delivery?${q}`, { cache: "no-store" })
+    return fetch(`/api/domain/forecast/delivery?${q}`, { cache: "no-store" })
       .then(async (r) => {
         if (r.status === 403) throw new Error("Delivery is for Leads and Admins.");
         if (!r.ok) throw new Error(`Couldn't load delivery (HTTP ${r.status}).`);
@@ -80,7 +82,9 @@ export function DomainDeliveryByDate() {
       .finally(() => setBusy(false));
   }, [groupBy, days, division, projectId]);
 
-  useEffect(load, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   /**
    * Rows with nothing in them are dropped from the table but counted in
@@ -109,13 +113,7 @@ export function DomainDeliveryByDate() {
             every division, and how many were signed off.
           </p>
         </div>
-        <button
-          onClick={load}
-          disabled={busy}
-          className="btn-ghost inline-flex items-center gap-1.5 text-sm"
-        >
-          <RefreshCw size={14} className={busy ? "animate-spin" : ""} /> Refresh
-        </button>
+        <DomainRefreshButton onRefresh={load} />
       </div>
 
       <div className="flex items-center gap-2 flex-wrap mb-4">

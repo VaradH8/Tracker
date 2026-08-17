@@ -83,6 +83,12 @@ export function fmtWeekday(iso: string | null | undefined): string {
   return `${wd} ${dmy(d, true)}`;
 }
 
+/** Just the clock — "16:32". For "updated a moment ago" affordances,
+ *  where the date is today by definition and only the time carries. */
+export function fmtTime(d: Date = new Date()): string {
+  return hm(d);
+}
+
 /**
  * A full timestamp — "22/08/26 16:32". Used where the time of day carries
  * meaning, such as when a submission was reviewed.

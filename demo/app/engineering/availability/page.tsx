@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
 import {
   DomainResourceTable,
   allFreeFrom,
@@ -9,6 +8,7 @@ import {
   type ResourceRow,
 } from "@/components/DomainResourceTable";
 import { DomainPage, PageHeader } from "@/components/DomainPage";
+import { DomainRefreshButton } from "@/components/DomainRefreshButton";
 import { fmtDate } from "@/lib/domain-format";
 
 /**
@@ -28,8 +28,9 @@ export default function AvailabilityPage() {
   const [resources, setResources] = useState<ResourceRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Returns the promise so the Refresh button can show it in flight.
   const load = useCallback(() => {
-    fetch("/api/domain/forecast", { cache: "no-store" })
+    return fetch("/api/domain/forecast", { cache: "no-store" })
       .then(async (r) => {
         if (r.status === 403) {
           throw new Error("Resource availability is for Leads and Admins.");
@@ -47,7 +48,9 @@ export default function AvailabilityPage() {
       });
   }, []);
 
-  useEffect(load, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const free = (resources ?? []).filter((r) => r.status === "Free").length;
   const booked = (resources ?? []).length - free;
@@ -66,14 +69,7 @@ export default function AvailabilityPage() {
       <PageHeader
         title="Resource availability"
         description="Who is free to take work and who is committed — with what they're on, how far it has got, and the day they come free. Filter by role to plan one group at a time."
-        actions={
-          <button
-            onClick={load}
-            className="btn-ghost inline-flex items-center gap-1.5"
-          >
-            <RefreshCw size={14} /> Refresh
-          </button>
-        }
+        actions={<DomainRefreshButton onRefresh={load} />}
       />
 
       {error && (

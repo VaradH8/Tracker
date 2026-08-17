@@ -5,11 +5,11 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
-  RefreshCw,
   TrendingUp,
   Users,
 } from "lucide-react";
 import { DomainPage, PageHeader } from "@/components/DomainPage";
+import { DomainRefreshButton } from "@/components/DomainRefreshButton";
 import { DOMAIN_ROLE_LABELS, type DomainRole } from "@/lib/domain";
 import { fmtDate } from "@/lib/domain-format";
 
@@ -109,8 +109,9 @@ export default function KpisPage() {
   const [data, setData] = useState<Kpis | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Returns the promise so the Refresh button can show it in flight.
   const load = useCallback(() => {
-    fetch("/api/domain/kpis", { cache: "no-store" })
+    return fetch("/api/domain/kpis", { cache: "no-store" })
       .then(async (r) => {
         if (r.status === 403) throw new Error("KPIs are for Admins.");
         if (!r.ok) throw new Error(`KPIs didn't load (HTTP ${r.status}).`);
@@ -123,7 +124,9 @@ export default function KpisPage() {
       .catch((e: Error) => setError(e.message));
   }, []);
 
-  useEffect(load, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   if (error) {
     return (
@@ -152,11 +155,7 @@ export default function KpisPage() {
       <PageHeader
         title="Delivery KPIs"
         description={`Everything here is counted from tags a Lead has approved, over the last ${data.windowDays} days. Approve a submission and these numbers move with it.`}
-        actions={
-          <button onClick={load} className="btn-ghost inline-flex items-center gap-1.5">
-            <RefreshCw size={14} /> Refresh
-          </button>
-        }
+        actions={<DomainRefreshButton onRefresh={load} />}
       />
 
       {/* ---- 1. will it land? ------------------------------------------ */}

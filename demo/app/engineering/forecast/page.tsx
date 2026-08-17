@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, CalendarClock, RefreshCw } from "lucide-react";
+import { AlertTriangle, CalendarClock } from "lucide-react";
 import {
   ResourceChecklist,
   useAvailability,
@@ -14,6 +14,7 @@ import {
 } from "@/components/DomainForecastCard";
 import { DomainPage, PageHeader } from "@/components/DomainPage";
 import { DomainDeliveryByDate } from "@/components/DomainDeliveryByDate";
+import { DomainRefreshButton } from "@/components/DomainRefreshButton";
 import { fmtDate as fmt } from "@/lib/domain-format";
 import { dateClass } from "@/lib/domain-ui";
 import { TAG_HOLDER_ROLES, type DomainRole } from "@/lib/domain";
@@ -29,8 +30,9 @@ export default function ForecastPage() {
   const [filter, setFilter] = useState<"all" | "risk" | "ontrack">("all");
   const [sort, setSort] = useState<SortKey>("risk");
 
+  // Returns the promise so the Refresh button can show it in flight.
   const load = useCallback(() => {
-    fetch("/api/domain/forecast", { cache: "no-store" })
+    return fetch("/api/domain/forecast", { cache: "no-store" })
       .then(async (r) => {
         if (r.status === 403) throw new Error("Forecast is for Leads and Admins.");
         if (!r.ok) throw new Error("Couldn't load the forecast.");
@@ -44,7 +46,9 @@ export default function ForecastPage() {
       .catch((e: Error) => setError(e.message));
   }, []);
 
-  useEffect(load, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const behind = projects.filter((p) => p.forecast.status === "Behind Schedule");
   const onTrack = projects.filter((p) => p.forecast.status === "On Track");
@@ -83,14 +87,7 @@ export default function ForecastPage() {
         description={`Every estimate here is computed from tag counts a Lead has approved${
           meta ? ` in the last ${meta.rateHistoryDays} days` : ""
         } — not from manual status updates. Approve a submission and these dates move with it.`}
-        actions={
-          <button
-            onClick={load}
-            className="btn-ghost inline-flex items-center gap-1.5"
-          >
-            <RefreshCw size={14} /> Refresh
-          </button>
-        }
+        actions={<DomainRefreshButton onRefresh={load} />}
       />
 
       {error && (
