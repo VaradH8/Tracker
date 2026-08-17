@@ -46,15 +46,12 @@ const LOG_INCLUDE = {
 } as const;
 
 /**
- * Own logs by default. `?all=true` switches to *other people's*:
- *   Admin — everyone else, Leads included.
+ * Own logs by default. `?all=true` widens it to the people this viewer
+ * oversees, plus themselves:
+ *   Admin — everyone, Leads included.
  *   Lead  — the people who do the work (Team Leads, SMEs, Actionees). A
  *           Lead doesn't get to read another Lead's log.
  *   Anyone else — ignored; they still see only their own.
- *
- * The caller is always excluded here: their own entries live under "My
- * log", and repeating them in the team view double-counts the hours and
- * headcount totals.
  *
  * Narrow further with ?userId=, ?from= and ?to= (inclusive ISO dates).
  */
@@ -76,14 +73,17 @@ export async function GET(req: Request) {
   if (!all || visible.length === 0) {
     scope = { userId: user.id };
   } else {
-    // The roles they oversee, minus themselves. The self-exclusion matters
-    // for anyone whose own role is inside their visible set — an Admin
-    // sees every role, and a Team Lead would otherwise need it too if
-    // peers were ever added — so it is applied unconditionally rather
-    // than left to depend on the role list.
+    /**
+     * The roles they oversee, plus themselves.
+     *
+     * Their own entries used to be excluded here, because they had a home
+     * of their own under "My log". That tab is gone, so excluding them
+     * would leave a person's own hours visible nowhere at all — and with
+     * editing restricted to the author, the one row you are allowed to
+     * correct would be the one row you could never see.
+     */
     scope = {
-      user: { role: { in: visible } },
-      userId: { not: user.id },
+      OR: [{ user: { role: { in: visible } } }, { userId: user.id }],
     };
   }
 

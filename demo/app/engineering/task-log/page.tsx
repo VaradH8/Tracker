@@ -11,6 +11,12 @@ import { DomainPage, PageHeader } from "@/components/DomainPage";
 import { DomainTeamLogs } from "@/components/DomainTeamLogs";
 import { DomainTeamTasks } from "@/components/DomainTeamTasks";
 import { DomainAssignTask } from "@/components/DomainAssignTask";
+import { DomainTaskFilters } from "@/components/DomainTaskFilters";
+import {
+  EMPTY_TASK_FILTERS,
+  applyTaskFilters,
+  type TaskFilters,
+} from "@/lib/domain-task-filter";
 import { useDomain } from "@/lib/domain-store";
 import { loadJson } from "@/lib/domain-fetch";
 
@@ -41,7 +47,12 @@ export default function TaskLogPage() {
   const [myTasks, setMyTasks] = useState<DomainTask[]>([]);
   const [toReview, setToReview] = useState<DomainTask[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<TaskFilters>(EMPTY_TASK_FILTERS);
+  /** The tab badge counts everything still open, not what survives the
+   *  filters — a count that moved when you filtered would stop meaning
+   *  "how much do I owe". */
   const openTaskCount = myTasks.filter((t) => taskIsOpen(t.status)).length;
+  const shownTasks = applyTaskFilters(myTasks, filters);
 
   const loadTasks = useCallback(() => {
     setLoadError(null);
@@ -83,7 +94,7 @@ export default function TaskLogPage() {
               ? "Tasks you handed out that are waiting on your decision."
               : tab === "teamTasks"
                 ? "Every task across the team — who assigned it, to whom, and where it stands."
-                : "What the team has logged. Filter by person and date range."
+                : "What the team has logged. Filter by person and date range. You can only change your own entries."
         }
       />
 
@@ -128,8 +139,14 @@ export default function TaskLogPage() {
           {canAssign && (
             <DomainAssignTask viewerId={current?.id} onCreated={loadTasks} />
           )}
-          <DomainTaskList
+          <DomainTaskFilters
             tasks={myTasks}
+            filters={filters}
+            onChange={setFilters}
+            matched={shownTasks.length}
+          />
+          <DomainTaskList
+            tasks={shownTasks}
             canManage={false}
             viewerId={current?.id}
             viewerRole={current?.role}
