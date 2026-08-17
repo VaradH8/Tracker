@@ -79,6 +79,10 @@ export default function DomainProjectsPage() {
 
   const canCreateProject =
     current?.role === "Admin" || current?.role === "Lead";
+  /** The API narrows the list for these two — see GET /api/domain/projects.
+   *  Mirrored here only so an empty list says the right thing. */
+  const onlyOwnProjects =
+    current?.role === "SME" || current?.role === "Actionee";
   // Who may hand out tasks, and to whom, both come from one hierarchy —
   // see assignableRoles. An Admin can task a Lead; a Team Lead can task
   // SMEs and Actionees; nobody can task a peer or themselves.
@@ -246,9 +250,22 @@ export default function DomainProjectsPage() {
 
       {projects.length === 0 ? (
         <div className="card p-10 text-center">
+          {/* An SME or Actionee only ever sees the projects they are on, so
+              an empty list means "none of yours", not "none at all".
+              Saying the latter would have them reporting the module as
+              broken. */}
           <p className="text-sm text-ink-500">
-            No projects yet.
-            {canCreateProject && " Create the first one to start tracking tags."}
+            {onlyOwnProjects ? (
+              <>
+                You&apos;re not on any projects yet. One will appear here as
+                soon as you&apos;re given tags or a task on it.
+              </>
+            ) : (
+              <>
+                No projects yet.
+                {canCreateProject && " Create the first one to start tracking tags."}
+              </>
+            )}
           </p>
         </div>
       ) : shown.length === 0 ? (
@@ -472,4 +489,4 @@ function HeroStat({
     </div>
   );
 }
-
+

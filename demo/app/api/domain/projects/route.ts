@@ -85,12 +85,42 @@ function serialize(p: ProjectRow) {
   };
 }
 
-/** Everyone signed into the domain can see the project list — they need
- *  it to work tasks. */
+/**
+ * The project list.
+ *
+ * Supervisors see the whole portfolio — planning is their job. SMEs and
+ * Actionees see only the projects they are actually on, by any of the
+ * three ways someone gets put on one:
+ *
+ *   - they hold tags on it
+ *   - they are booked on it
+ *   - they have a task on it
+ *
+ * All three count because they are independent in practice: tags get
+ * assigned without a booking, and a task can land on a project someone
+ * was never formally allocated to. Scoping on bookings alone would hide
+ * projects people are demonstrably working on.
+ *
+ * This is a narrowing of what the screen shows, not a security boundary
+ * for the project's contents — an unlisted project is not secret, it is
+ * simply not theirs to wade through.
+ */
 export async function GET() {
   const userOrResp = await requireDomainUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
+  const user = userOrResp;
+
+  const ownOnly = user.role === "SME" || user.role === "Actionee";
   const projects = await prisma.domainProject.findMany({
+    where: ownOnly
+      ? {
+          OR: [
+            { tagAssignments: { some: { assigneeId: user.id } } },
+            { allocations: { some: { userId: user.id } } },
+            { tasks: { some: { assigneeId: user.id } } },
+          ],
+        }
+      : undefined,
     include: INCLUDE,
     orderBy: { createdAt: "desc" },
   });
