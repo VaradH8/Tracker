@@ -42,6 +42,11 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/next.config.* ./
+# Static assets served straight off the URL root — the Engineering logo
+# lives here. `next start` reads them from ./public at runtime rather than
+# bundling them into .next, so leaving this out builds a perfectly healthy
+# image that 404s every image on the site.
+COPY --from=build /app/public ./public
 # Maintenance scripts (run with `docker compose exec app npx tsx scripts/...`):
 # the historical CSV import and the domain user seed both live here.
 COPY --from=build /app/scripts ./scripts
