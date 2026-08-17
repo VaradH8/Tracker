@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, CalendarClock } from "lucide-react";
 import {
   ResourceChecklist,
@@ -50,6 +50,23 @@ export default function ForecastPage() {
     void load();
   }, [load]);
 
+  /**
+   * The one Refresh on this page covers everything on it.
+   *
+   * Delivery by date keeps its own loader (its filters re-fetch), so the
+   * page borrows it rather than issuing a second request. A ref, not
+   * state: re-registering must not re-render the page, or the card would
+   * remount on every filter change.
+   */
+  const deliveryReload = useRef<(() => Promise<unknown>) | null>(null);
+  const registerDelivery = useCallback((fn: () => Promise<unknown>) => {
+    deliveryReload.current = fn;
+  }, []);
+  const refreshAll = useCallback(
+    () => Promise.all([load(), deliveryReload.current?.() ?? Promise.resolve()]),
+    [load],
+  );
+
   const behind = projects.filter((p) => p.forecast.status === "Behind Schedule");
   const onTrack = projects.filter((p) => p.forecast.status === "On Track");
   const totalTags = projects.reduce((s, p) => s + p.totalTags, 0);
@@ -87,7 +104,7 @@ export default function ForecastPage() {
         description={`Every estimate here is computed from tag counts a Lead has approved${
           meta ? ` in the last ${meta.rateHistoryDays} days` : ""
         } — not from manual status updates. Approve a submission and these dates move with it.`}
-        actions={<DomainRefreshButton onRefresh={load} />}
+        actions={<DomainRefreshButton onRefresh={refreshAll} />}
       />
 
       {error && (
@@ -171,7 +188,7 @@ export default function ForecastPage() {
         </section>
       )}
 
-      <DomainDeliveryByDate />
+      <DomainDeliveryByDate onReady={registerDelivery} />
 
       <Simulator onDone={load} />
 

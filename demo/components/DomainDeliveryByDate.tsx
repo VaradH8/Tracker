@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import { CalendarDays } from "lucide-react";
 import { fmtDate, fmtWeekday } from "@/lib/domain-format";
 import { selectClass } from "@/lib/domain-ui";
-import { DomainRefreshButton } from "@/components/DomainRefreshButton";
 
 /**
  * Delivery by date — what was submitted on each day, and how much of it
@@ -50,7 +49,19 @@ const RANGES = [
   { days: 90, label: "Last 90 days" },
 ];
 
-export function DomainDeliveryByDate() {
+export function DomainDeliveryByDate({
+  onReady,
+}: {
+  /**
+   * Hands this card's loader up to the page.
+   *
+   * The card has no Refresh button of its own — the page has one, and two
+   * on a single screen leaves the reader guessing which covers what. It
+   * still owns its own reload (the filters re-fetch), so the page borrows
+   * that function rather than duplicating the request.
+   */
+  onReady?: (reload: () => Promise<unknown>) => void;
+} = {}) {
   const [groupBy, setGroupBy] = useState<"day" | "week">("day");
   const [days, setDays] = useState(30);
   /** "" = every division, "none" = tags assigned straight to a project. */
@@ -86,6 +97,13 @@ export function DomainDeliveryByDate() {
     void load();
   }, [load]);
 
+  // Re-register whenever the loader changes identity, which it does every
+  // time a filter moves — otherwise the page would refresh the card using
+  // yesterday's filters.
+  useEffect(() => {
+    onReady?.(load);
+  }, [load, onReady]);
+
   /**
    * Rows with nothing in them are dropped from the table but counted in
    * the summary. An empty Sunday is not information worth a row each week,
@@ -113,7 +131,6 @@ export function DomainDeliveryByDate() {
             every division, and how many were signed off.
           </p>
         </div>
-        <DomainRefreshButton onRefresh={load} />
       </div>
 
       <div className="flex items-center gap-2 flex-wrap mb-4">
