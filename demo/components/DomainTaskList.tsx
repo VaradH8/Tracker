@@ -113,6 +113,7 @@ export function DomainTaskList({
 }) {
   // Reassignment is as open as the original assignment.
   const assignable = people.filter((p) => p.id !== viewerId);
+  const [removeError, setRemoveError] = useState<string | null>(null);
 
   async function patch(id: number, body: Record<string, unknown>) {
     const res = await fetch(`/api/domain/tasks/${id}`, {
@@ -125,8 +126,17 @@ export function DomainTaskList({
   }
 
   async function remove(id: number) {
+    setRemoveError(null);
     const res = await fetch(`/api/domain/tasks/${id}`, { method: "DELETE" });
-    if (res.ok) onChanged();
+    if (res.ok) {
+      onChanged();
+      return;
+    }
+    // A refused delete used to do nothing at all, which reads as the
+    // button being broken rather than the action being declined.
+    setRemoveError(
+      (await res.json().catch(() => ({}))).error ?? "Couldn't delete that task.",
+    );
   }
 
   if (tasks.length === 0) {
@@ -136,7 +146,11 @@ export function DomainTaskList({
   }
 
   return (
-    <ul className="space-y-2">
+    <>
+      {removeError && (
+        <p className="text-sm text-brand-redText mb-2">{removeError}</p>
+      )}
+      <ul className="space-y-2">
       {tasks.map((t) => (
         <TaskRow
           key={t.id}
@@ -150,7 +164,8 @@ export function DomainTaskList({
           onRemove={remove}
         />
       ))}
-    </ul>
+      </ul>
+    </>
   );
 }
 
@@ -279,10 +294,14 @@ function TaskRow({
             ))}
           </select>
         )}
-        {canManage && (
+        {/* Whoever handed the task out can withdraw it, wherever they
+            happen to be looking at it — the Projects board passes
+            canManage for the wider "clear up after someone" case, but a
+            creator does not depend on it. */}
+        {(canManage || isAssigner) && (
           <ConfirmButton
             onConfirm={() => onRemove(t.id)}
-            title="Delete task"
+            title={isAssigner && !canManage ? "Delete this task you created" : "Delete task"}
             className="p-1 rounded text-ink-400 hover:text-brand-redText hover:bg-brand-redBg"
           >
             <Trash2 size={14} />

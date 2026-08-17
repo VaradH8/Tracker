@@ -6,7 +6,7 @@ vi.mock("@/lib/db", () => ({
   prisma: {
     domainUser: { findMany: vi.fn(), count: vi.fn() },
     domainProject: { findMany: vi.fn() },
-    domainTask: { findMany: vi.fn() },
+    domainTask: { findMany: vi.fn(), findUnique: vi.fn(), delete: vi.fn() },
     domainWorkLog: { findMany: vi.fn() },
     // KPIs derive from tags and approvals now, via projectForecasts()
     // and resourceForecast().
@@ -48,6 +48,8 @@ function actor(role: DomainRole) {
 describe("domain route role gates", () => {
   beforeEach(() => {
     vi.mocked(requireDomainUser).mockReset();
+    vi.mocked(prisma.domainTask.findUnique).mockReset();
+    vi.mocked(prisma.domainTask.delete).mockReset();
   });
 
 
@@ -115,9 +117,42 @@ describe("domain route role gates", () => {
     expect((await usersPOST(req)).status).toBe(403);
   });
 
-  it("task delete: 403 for an Actionee (managers only)", async () => {
+  /**
+   * Deleting a task belongs to whoever handed it out, whatever their role,
+   * plus managers clearing up after someone. These two cases are the whole
+   * rule: same actor, different creator, opposite answers.
+   */
+  it("task delete: 403 for an Actionee deleting someone else's task", async () => {
     vi.mocked(requireDomainUser).mockResolvedValue(actor("Actionee"));
+    vi.mocked(prisma.domainTask.findUnique).mockResolvedValue({
+      id: 1,
+      createdById: "u-Admin",
+      assigneeId: "u-Actionee",
+    } as never);
     expect((await taskDELETE(delReq(), params("1"))).status).toBe(403);
+    expect(prisma.domainTask.delete).not.toHaveBeenCalled();
+  });
+
+  it("task delete: an Actionee CAN delete a task they created themselves", async () => {
+    vi.mocked(requireDomainUser).mockResolvedValue(actor("Actionee"));
+    vi.mocked(prisma.domainTask.findUnique).mockResolvedValue({
+      id: 1,
+      createdById: "u-Actionee",
+      assigneeId: "u-Actionee",
+    } as never);
+    vi.mocked(prisma.domainTask.delete).mockResolvedValue({ id: 1 } as never);
+    expect((await taskDELETE(delReq(), params("1"))).status).toBe(200);
+  });
+
+  it("task delete: a manager may delete a task they did not create", async () => {
+    vi.mocked(requireDomainUser).mockResolvedValue(actor("TeamLead"));
+    vi.mocked(prisma.domainTask.findUnique).mockResolvedValue({
+      id: 1,
+      createdById: "u-SME",
+      assigneeId: "u-SME",
+    } as never);
+    vi.mocked(prisma.domainTask.delete).mockResolvedValue({ id: 1 } as never);
+    expect((await taskDELETE(delReq(), params("1"))).status).toBe(200);
   });
 
   it("user delete: 403 for a Team Lead (admin only)", async () => {

@@ -14,23 +14,53 @@ import { TASK_INCLUDE as INCLUDE, serializeTask as serialize } from "@/lib/domai
 
 const MANAGER_ROLES: DomainRole[] = ["Admin", "Lead", "TeamLead"];
 
-/** Delete a task. Managers only (Admin/Lead/TeamLead). Any work logs that
- *  referenced it keep their hours — the task link just goes null. */
+/**
+ * Delete a task.
+ *
+ * Whoever handed it out can withdraw it, whatever their role — a task you
+ * created in error is yours to take back, and an Actionee who picked up
+ * their own work should not need a manager to undo it. Managers may also
+ * delete tasks they did not create, since somebody has to be able to
+ * clear up after someone who has left.
+ *
+ * Work logs that referenced the task keep their hours; the link just goes
+ * null. The task's history goes with it — see the note below.
+ */
 export async function DELETE(
   _req: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   const userOrResp = await requireDomainUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
-  if (!MANAGER_ROLES.includes(userOrResp.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const user = userOrResp;
+
   const { id: idStr } = await context.params;
   const id = Number(idStr);
   if (!Number.isFinite(id)) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
-  await prisma.domainTask.delete({ where: { id } }).catch(() => null);
+
+  const task = await prisma.domainTask.findUnique({
+    where: { id },
+    select: { id: true, createdById: true, assigneeId: true },
+  });
+  if (!task) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const isCreator = task.createdById === user.id;
+  if (!isCreator && !MANAGER_ROLES.includes(user.role)) {
+    return NextResponse.json(
+      { error: "Only the person who created this task, or a manager, can delete it." },
+      { status: 403 },
+    );
+  }
+
+  /**
+   * Deleting takes the task's history with it (DomainTaskEvent cascades).
+   * That is right for withdrawing work that was never done, and it is why
+   * the button is behind a confirm: an approved task's trail is the record
+   * that it happened.
+   */
+  await prisma.domainTask.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }
 
