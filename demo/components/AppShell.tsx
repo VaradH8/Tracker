@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Logo } from "./Logo";
+import { BRAND_NAVY, BrandPanel } from "./InventiveBrand";
 import { NotificationsPanel } from "./NotificationsPanel";
 import { CommandPalette } from "./CommandPalette";
 import { useRole, type Role, ROLE_LABELS, landingFor } from "@/lib/role";
@@ -204,8 +205,11 @@ function Sidebar({ items }: { items: NavItem[] }) {
   const pathname = usePathname();
   return (
     <aside className="hidden md:flex w-60 shrink-0 bg-white border-r border-ink-200 flex-col">
-      <div className="h-14 flex items-center px-5 border-b border-ink-200">
-        <Logo />
+      {/* The same brand panel as the Engineering rail, so the two modules
+          read as one product. Navy by necessity too: the wordmark is
+          white. See components/InventiveBrand. */}
+      <div className="border-b border-ink-200">
+        <BrandPanel label="Tracker" className="px-5 h-14 w-full" height={26} />
       </div>
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
         {items.map((item) => {
@@ -257,12 +261,16 @@ function MobileNav({
   return (
     <div className="md:hidden fixed inset-0 z-[70] flex">
       <aside className="w-64 max-w-[82vw] bg-white border-r border-ink-200 flex flex-col h-full animate-in slide-in-from-left">
-        <div className="h-14 flex items-center justify-between px-5 border-b border-ink-200">
-          <Logo size="sm" />
+        <div
+          className="h-14 flex items-center justify-between px-5 border-b border-ink-200"
+          style={{ background: BRAND_NAVY }}
+        >
+          <BrandPanel label="Tracker" height={22} subdued />
+          {/* Light on the dark bar — ink-500 on navy is barely visible. */}
           <button
             onClick={onClose}
             aria-label="Close navigation"
-            className="p-1.5 -mr-1.5 rounded text-ink-500 hover:text-ink-900 hover:bg-ink-100"
+            className="p-1.5 -mr-1.5 rounded text-white/70 hover:text-white hover:bg-white/10"
           >
             <X size={18} />
           </button>
@@ -352,7 +360,7 @@ function TopBar({
         >
           <Menu size={20} />
         </button>
-        <Logo size="sm" />
+        <BrandPanel label="Tracker" height={22} subdued className="rounded px-2.5 py-1.5" />
       </div>
 
       <button

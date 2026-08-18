@@ -22,11 +22,18 @@ Postgres, but there is no local Postgres — use the SQLite fallback.
    `dev.db` lands in `prisma/dev.db` (gitignored). Seed users all have
    password `tracker2026`; `varad@example.com` is the Admin.
 
-## Auth gotcha
+## Signing in
 
-The sign-in query uses `mode: "insensitive"` (Postgres-only), so **the
-login form 500s on SQLite**. Bypass it by minting a session row and
-setting the `tracker_session` cookie to its id:
+The login form works on SQLite. Seeded users all have password
+`tracker2026`; `varad@example.com` is the Admin.
+
+Name matching is done in JS (see `lib/auth.ts`) precisely because
+Prisma's `mode: "insensitive"` is Postgres-only and used to make the
+whole sign-in throw here. If you ever reintroduce that argument on a
+query this path touches, local login breaks again.
+
+For Playwright it is still faster to skip the form and mint a session
+row directly, setting the `tracker_session` cookie to its id:
 
 ```js
 // node, from demo/, DATABASE_URL="file:./dev.db"
@@ -37,7 +44,7 @@ const s = await p.session.create({ data: { userId: u.id, expiresAt: new Date(Dat
 console.log(s.id); // -> cookie value
 ```
 
-Playwright: `ctx.addCookies([{ name: "tracker_session", value: sid, url: "http://localhost:3111" }])`,
+`ctx.addCookies([{ name: "tracker_session", value: sid, url: "http://localhost:3111" }])`,
 then navigate anywhere; the client hydrates itself from `/api/me`.
 
 ## Driving
@@ -46,7 +53,7 @@ then navigate anywhere; the client hydrates itself from `/api/me`.
   with `channel: "chrome"` (system Chrome).
 - Admin lands on `/dashboard`; Lead/Coordinator/Developer on `/my-day`.
 - Login form field is `input[placeholder*="manasi@example.com"]`
-  (type=text, not email) — only usable on Postgres.
+  (type=text, not email).
 - Project board: `/projects/<id>`; "New task" button opens a modal
   (title input placeholder `What needs to be done?`, submit button
   `Create task`; second `input[type="date"]` is the target date).

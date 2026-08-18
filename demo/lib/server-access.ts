@@ -185,16 +185,18 @@ export async function canCreateProjectTasks(
 /** Look up a User by first name (case-insensitive). Internal tool: we
  *  assume first names are unique enough; returns the first match. */
 export async function userByFirstName(firstName: string) {
-  const q = firstName.trim();
+  const q = firstName.trim().toLowerCase();
   if (!q) return null;
-  return prisma.user.findFirst({
-    where: {
-      OR: [
-        { name: { startsWith: q + " ", mode: "insensitive" } },
-        { name: { equals: q, mode: "insensitive" } },
-      ],
-    },
-  });
+  // Matched in JS rather than with Prisma's `mode: "insensitive"`, which
+  // is Postgres-only and throws against the SQLite dev database — the same
+  // reason lib/auth.ts and lib/domain-auth.ts compare names this way.
+  const everyone = await prisma.user.findMany();
+  return (
+    everyone.find((u) => {
+      const name = u.name.trim().toLowerCase();
+      return name === q || name.startsWith(q + " ");
+    }) ?? null
+  );
 }
 
 /** Write a Notification + the matching EmailLog row in one shot, and

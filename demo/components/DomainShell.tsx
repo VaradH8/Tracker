@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { useDomain } from "@/lib/domain-store";
 import { DOMAIN_ROLE_LABELS, type DomainRole } from "@/lib/domain";
-import { BRAND_NAVY, DomainBrandPanel } from "@/components/DomainBrand";
+import { BRAND_NAVY, BrandPanel } from "@/components/InventiveBrand";
 
 type NavItem = {
   href: string;
@@ -88,13 +88,13 @@ export function DomainShell({ children }: { children: ReactNode }) {
     <>
       {/* The brand panel. Dark by necessity as much as by design — the
           logo's wordmark is white, so it needs the ground it was drawn
-          for. See components/DomainBrand. */}
+          for. See components/InventiveBrand. */}
       <Link
         href="/engineering"
         className="shrink-0 border-b border-ink-200"
         aria-label="Engineering home"
       >
-        <DomainBrandPanel className="px-5 h-16" height={30} />
+        <BrandPanel label="Engineering" className="px-5 h-16" height={30} />
       </Link>
 
       <nav className="flex-1 overflow-y-auto py-4 px-3">
@@ -187,7 +187,7 @@ export function DomainShell({ children }: { children: ReactNode }) {
           <Menu size={18} />
         </button>
         <Link href="/engineering" aria-label="Engineering home">
-          <DomainBrandPanel height={24} subdued />
+          <BrandPanel label="Engineering" height={24} subdued />
         </Link>
       </header>
 

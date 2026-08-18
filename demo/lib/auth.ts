@@ -139,16 +139,33 @@ export async function signIn(
     }
   }
 
-  // Match by email exact, OR by first-name prefix, OR by full name.
-  const user = await prisma.user.findFirst({
-    where: {
-      OR: [
-        { email: q },
-        { name: { startsWith: q + " ", mode: "insensitive" } },
-        { name: { equals: q, mode: "insensitive" } },
-      ],
-    },
-  });
+  /**
+   * Match by email exact, OR by full name, OR by first-name prefix.
+   *
+   * The name comparison happens in JS rather than through Prisma's
+   * `mode: "insensitive"`, which is Postgres-only: against the SQLite dev
+   * database that argument makes the entire sign-in throw, so nobody can
+   * log in locally at all. lib/domain-auth.ts matches names the same way,
+   * for the same reason.
+   *
+   * The email lookup stays in SQL — it is unique and indexed, so the
+   * common case never reads the table. Only an identifier that is not a
+   * known email falls through to the scan, and the user table is small
+   * enough for that to cost nothing.
+   */
+  let user = await prisma.user.findUnique({ where: { email: q } });
+  if (!user) {
+    const everyone = await prisma.user.findMany();
+    user =
+      everyone.find((u) => {
+        const name = u.name.trim().toLowerCase();
+        return (
+          u.email.trim().toLowerCase() === q ||
+          name === q ||
+          name.startsWith(q + " ")
+        );
+      }) ?? null;
+  }
   // Single generic error for "no such user", "wrong password", and
   // "deactivated" — leaks no information about which accounts exist.
   const GENERIC = "Wrong account or password.";

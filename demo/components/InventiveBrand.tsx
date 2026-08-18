@@ -1,5 +1,5 @@
 /**
- * The Inventive logo, as used across the Engineering module.
+ * The Inventive logo, shared by both modules.
  *
  * The supplied artwork (inventivebizsol.com/images/logo-01.png) has a
  * WHITE wordmark on transparency — it is drawn for the dark navy header on
@@ -13,7 +13,8 @@
  * brand panel rather than an image dropped on the wrong background.
  *
  * If a dark-text version of the artwork ever arrives, this is the one
- * place that needs to change.
+ * place that needs to change — Tracker and Engineering both render
+ * through here.
  */
 
 /** The brand's own navy, lifted from the site's header styles. */
@@ -41,18 +42,21 @@ export function InventiveLogo({
 }
 
 /**
- * Logo plus the module name, on the dark panel — the top of the nav rail
- * and the sign-in card.
+ * Logo plus the module name, on the dark panel — the top of a nav rail or
+ * a sign-in card.
  *
- * "Engineering" stays alongside it: the logo says whose product this is,
+ * The name stays alongside the mark: the logo says whose product this is,
  * the caption says which part of it you are in, and dropping the second
- * would leave the two modules indistinguishable at a glance.
+ * would leave Tracker and Engineering indistinguishable at a glance.
  */
-export function DomainBrandPanel({
+export function BrandPanel({
+  label,
   height = 34,
   className = "",
   subdued = false,
 }: {
+  /** Which part of the product this is — "Engineering", "Task Manager". */
+  label: string;
   height?: number;
   className?: string;
   /** Renders the caption smaller, for the narrow top bar. */
@@ -79,7 +83,7 @@ export function DomainBrandPanel({
           subdued ? "text-[12px]" : "text-[13px]"
         }`}
       >
-        Engineering
+        {label}
       </span>
     </span>
   );
