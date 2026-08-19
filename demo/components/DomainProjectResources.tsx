@@ -15,6 +15,7 @@ import {
 } from "@/components/DomainResourcePicker";
 import { fmtDate as fmt } from "@/lib/domain-format";
 import { dateClass, inputClass } from "@/lib/domain-ui";
+import { DateInput } from "@/components/DateInput";
 
 /**
  * Who is booked on this project, for how long, and how fast each of them is
@@ -336,22 +337,11 @@ function AllocateForm({
         />
         <label className="text-sm">
           <span className="block text-ink-700 mb-1">From</span>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className={dateClass("md")}
-          />
+          <DateInput value={startDate} onChange={(iso: string) => setStartDate(iso)} className={dateClass("md")} />
         </label>
         <label className="text-sm">
           <span className="block text-ink-700 mb-1">To</span>
-          <input
-            type="date"
-            value={endDate}
-            min={startDate || undefined}
-            onChange={(e) => setEndDate(e.target.value)}
-            className={dateClass("md")}
-          />
+          <DateInput value={endDate} min={startDate || undefined} onChange={(iso: string) => setEndDate(iso)} className={dateClass("md")} />
         </label>
         <label className="text-sm">
           <span className="block text-ink-700 mb-1">
@@ -479,20 +469,9 @@ function EditAllocationRow({
       </td>
       <td className="px-3 py-2">
         <div className="flex items-center gap-1.5">
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className={dateClass("sm")}
-          />
+          <DateInput value={startDate} onChange={(iso: string) => setStartDate(iso)} className={dateClass("sm")} />
           <span className="text-ink-400">→</span>
-          <input
-            type="date"
-            value={endDate}
-            min={startDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className={dateClass("sm")}
-          />
+          <DateInput value={endDate} min={startDate} onChange={(iso: string) => setEndDate(iso)} className={dateClass("sm")} />
         </div>
         {r.releasedAt && (
           <button

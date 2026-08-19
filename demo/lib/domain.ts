@@ -100,6 +100,27 @@ export function needsReview(role: DomainRole): boolean {
 }
 
 /**
+ * Whether one submission has to be signed off by somebody else.
+ *
+ * Role alone is not enough once Leads and Team Leads can hand themselves
+ * tags. Their own submissions are normally recorded on the spot, which is
+ * fine while the target was set by someone above them — but a batch they
+ * assigned to themselves would otherwise be scoped, claimed and approved
+ * by one person, with nothing in the chain anybody else touched. Since
+ * approval is the only thing that moves the delivered figure, that would
+ * let the number rest entirely on one person's account of their own work.
+ *
+ * So self-assigned tags always wait for review, whatever the role.
+ */
+export function submissionNeedsReview(opts: {
+  assigneeRole: DomainRole;
+  /** True when the person who created the assignment is its assignee. */
+  selfAssigned: boolean;
+}): boolean {
+  return opts.selfAssigned || needsReview(opts.assigneeRole);
+}
+
+/**
  * Whose work log a given role may read, besides their own.
  *
  * Visibility follows the reporting line rather than seniority in general:
@@ -264,8 +285,12 @@ export function taskIsOpen(status: string): boolean {
  */
 export function assignableRoles(role: DomainRole): DomainRole[] {
   if (role === "Admin") return ["Lead", "TeamLead", "SME", "Actionee"];
-  if (role === "Lead") return ["TeamLead", "SME", "Actionee"];
-  if (role === "TeamLead") return ["SME", "Actionee"];
+  // Leads and Team Leads carry delivery themselves, so tags go sideways
+  // and to oneself as well as down: a Lead may hold tags on a project
+  // they run, and taking a batch should not require asking an Admin.
+  // Still never upward — a Team Lead cannot hand tags to a Lead.
+  if (role === "Lead") return ["Lead", "TeamLead", "SME", "Actionee"];
+  if (role === "TeamLead") return ["TeamLead", "SME", "Actionee"];
   return [];
 }
 

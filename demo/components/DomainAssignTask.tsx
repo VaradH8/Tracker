@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { DOMAIN_ROLE_LABELS, type DomainRole } from "@/lib/domain";
 import { dateClass, inputClass, selectClass, textareaClass } from "@/lib/domain-ui";
+import { DateInput } from "@/components/DateInput";
 
 /**
  * Handing out work, from the Task log.
@@ -199,12 +200,7 @@ export function DomainAssignTask({
           <span className="block text-ink-700 font-medium mb-1">
             Due <span className="text-ink-400 font-normal">(optional)</span>
           </span>
-          <input
-            type="date"
-            value={targetDate}
-            onChange={(e) => setTargetDate(e.target.value)}
-            className={dateClass("md", "w-full")}
-          />
+          <DateInput value={targetDate} onChange={(iso: string) => setTargetDate(iso)} className={dateClass("md", "w-full")} />
         </label>
       </div>
 

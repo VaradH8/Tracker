@@ -10,6 +10,7 @@ import {
   MAX_HALF_DAY_HOURS,
   type LeaveKind,
 } from "@/lib/domain-leave";
+import { DateInput } from "@/components/DateInput";
 
 /**
  * Attendance and time off.
@@ -242,12 +243,7 @@ export function DomainLeaveBoard({
 
           <label className="text-xs">
             <span className="block text-ink-700 mb-1">Date</span>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className={dateClass("sm")}
-            />
+            <DateInput value={date} onChange={(iso: string) => setDate(iso)} className={dateClass("sm")} />
           </label>
 
           <label className="text-xs">

@@ -9,6 +9,7 @@ import {
 } from "@/lib/domain-task-filter";
 import { dateClass, selectClass } from "@/lib/domain-ui";
 import type { DomainTask } from "@/components/DomainTaskList";
+import { DateInput } from "@/components/DateInput";
 
 /**
  * Filtering your own task list.
@@ -121,24 +122,12 @@ export function DomainTaskFilters({
 
         <label className="text-xs">
           <span className="block text-ink-700 font-medium mb-1">Assigned from</span>
-          <input
-            type="date"
-            value={filters.from}
-            max={filters.to || undefined}
-            onChange={(e) => set({ from: e.target.value })}
-            className={dateClass("sm")}
-          />
+          <DateInput value={filters.from} max={filters.to || undefined} onChange={(iso: string) => set({ from: iso })} className={dateClass("sm")} />
         </label>
 
         <label className="text-xs">
           <span className="block text-ink-700 font-medium mb-1">To</span>
-          <input
-            type="date"
-            value={filters.to}
-            min={filters.from || undefined}
-            onChange={(e) => set({ to: e.target.value })}
-            className={dateClass("sm")}
-          />
+          <DateInput value={filters.to} min={filters.from || undefined} onChange={(iso: string) => set({ to: iso })} className={dateClass("sm")} />
         </label>
 
         {active && (

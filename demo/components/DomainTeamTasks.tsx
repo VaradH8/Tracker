@@ -6,6 +6,7 @@ import { fmtDate } from "@/lib/domain-format";
 import { dateClass, selectClass } from "@/lib/domain-ui";
 import { DomainRefreshButton } from "@/components/DomainRefreshButton";
 import { DomainTaskList, type DomainTask } from "@/components/DomainTaskList";
+import { DateInput } from "@/components/DateInput";
 
 /**
  * Every task across the team, for the people entitled to read them.
@@ -141,23 +142,11 @@ export function DomainTeamTasks({
         </label>
         <label className="text-xs">
           <span className="block text-ink-700 font-medium mb-1">Assigned from</span>
-          <input
-            type="date"
-            value={from}
-            max={to || undefined}
-            onChange={(e) => setFrom(e.target.value)}
-            className={dateClass("md")}
-          />
+          <DateInput value={from} max={to || undefined} onChange={(iso: string) => setFrom(iso)} className={dateClass("md")} />
         </label>
         <label className="text-xs">
           <span className="block text-ink-700 font-medium mb-1">to</span>
-          <input
-            type="date"
-            value={to}
-            min={from || undefined}
-            onChange={(e) => setTo(e.target.value)}
-            className={dateClass("md")}
-          />
+          <DateInput value={to} min={from || undefined} onChange={(iso: string) => setTo(iso)} className={dateClass("md")} />
         </label>
         {filtered && (
           <button

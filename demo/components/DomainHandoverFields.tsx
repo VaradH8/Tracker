@@ -5,6 +5,7 @@ import { CalendarClock, Loader2 } from "lucide-react";
 import { WORK_WEEKS, type WorkWeek } from "@/lib/domain-workdays";
 import { fmtDate } from "@/lib/domain-format";
 import { dateClass, selectClass } from "@/lib/domain-ui";
+import { DateInput } from "@/components/DateInput";
 
 /**
  * Start date, working week, and total working days — with the handover
@@ -128,12 +129,7 @@ export function DomainHandoverFields({
       <div className="grid grid-cols-2 gap-3">
         <label className="text-xs">
           <span className="block text-ink-700 mb-1">Start date</span>
-          <input
-            type="date"
-            value={value.startDate}
-            onChange={(e) => set({ startDate: e.target.value })}
-            className={dateClass("sm")}
-          />
+          <DateInput value={value.startDate} onChange={(iso: string) => set({ startDate: iso })} className={dateClass("sm")} />
         </label>
 
         <label className="text-xs">
@@ -231,13 +227,7 @@ export function DomainHandoverFields({
       ) : (
         <label className="text-xs">
           <span className="block text-ink-700 mb-1">Handover date</span>
-          <input
-            type="date"
-            value={value.handoverDate}
-            min={value.startDate || undefined}
-            onChange={(e) => set({ handoverDate: e.target.value })}
-            className={dateClass("sm")}
-          />
+          <DateInput value={value.handoverDate} min={value.startDate || undefined} onChange={(iso: string) => set({ handoverDate: iso })} className={dateClass("sm")} />
         </label>
       )}
     </div>

@@ -6,7 +6,7 @@ import {
   backdateWindowLabel,
   istDayStart,
   istParts,
-  needsReview,
+  submissionNeedsReview,
   type DomainRole,
 } from "@/lib/domain";
 import { toISODate } from "@/lib/forecast";
@@ -231,7 +231,12 @@ export async function POST(req: Request) {
    * the filer — a Lead entering a count on an Actionee's behalf must not
    * turn it into an approved one.
    */
-  const autoApprove = !needsReview(assignment.assignee.role as DomainRole);
+  const autoApprove = !submissionNeedsReview({
+    assigneeRole: assignment.assignee.role as DomainRole,
+    // Tags somebody handed themselves: scoped and claimed by the same
+    // person, so the sign-off has to come from someone else.
+    selfAssigned: assignment.createdById === assignment.assigneeId,
+  });
 
   const RACED = "HEADROOM_MOVED";
   let submission;

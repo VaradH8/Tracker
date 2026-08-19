@@ -158,9 +158,9 @@ export async function POST(req: Request) {
   if (!assignee || !assignee.isActive) {
     return NextResponse.json({ error: "Assignee not found." }, { status: 400 });
   }
-  // Tags follow the same hierarchy as tasks: you hand work down, never
-  // sideways to a peer and never upwards. An Admin may therefore assign
-  // to a Lead; a Team Lead may not assign to another Team Lead.
+  // Tags go down the hierarchy, and — for Leads and Team Leads, who carry
+  // delivery themselves — sideways and to oneself too. Never upward: a
+  // Team Lead still cannot hand tags to a Lead. See assignableRoles.
   const allowedAssignees = assignableRoles(user.role);
   if (!allowedAssignees.includes(assignee.role as DomainRole)) {
     return NextResponse.json(
@@ -170,13 +170,6 @@ export async function POST(req: Request) {
       { status: 403 },
     );
   }
-  if (assignee.id === user.id) {
-    return NextResponse.json(
-      { error: "You can't assign tags to yourself." },
-      { status: 400 },
-    );
-  }
-
   // A division is optional, but when given it has to be one this project
   // actually uses — otherwise the per-division rollups stop adding up.
   let divisionId: number | null = null;

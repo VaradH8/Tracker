@@ -29,18 +29,22 @@ describe("who can assign a tag to whom", () => {
     ]);
   });
 
-  it("a Lead reaches Team Leads and below, but not an Admin or another Lead", () => {
+  it("a Lead reaches other Leads and below, but never an Admin", () => {
     const r = assignableRoles("Lead");
-    expect(r).toEqual(["TeamLead", "SME", "Actionee"]);
+    expect(r.slice().sort()).toEqual(["Actionee", "Lead", "SME", "TeamLead"]);
+    // Sideways and to oneself is deliberate: a Lead carries delivery on
+    // the projects they run, so taking a batch of tags should not need an
+    // Admin. Upward is still refused.
+    expect(r).toContain("Lead");
     expect(r).not.toContain("Admin");
-    expect(r).not.toContain("Lead");
   });
 
-  it("a Team Lead reaches SMEs and Actionees only", () => {
+  it("a Team Lead reaches other Team Leads and below, but no higher", () => {
     const r = assignableRoles("TeamLead");
-    expect(r.slice().sort()).toEqual(["Actionee", "SME"]);
-    // Not sideways to a peer, which would leave the reviewer ambiguous.
-    expect(r).not.toContain("TeamLead");
+    expect(r.slice().sort()).toEqual(["Actionee", "SME", "TeamLead"]);
+    expect(r).toContain("TeamLead");
+    expect(r).not.toContain("Lead");
+    expect(r).not.toContain("Admin");
   });
 
   it("SMEs and Actionees cannot hand out work at all", () => {
@@ -56,15 +60,31 @@ describe("who can assign a tag to whom", () => {
     expect(assignableRoles("TeamLead")).not.toContain("Admin");
   });
 
-  it("assignability and work-log visibility stay in step", () => {
-    // You should never be able to task someone whose result you can't
-    // then read. Every assignable role must also be readable.
+  it("work handed DOWN is always readable by whoever handed it out", () => {
+    // The property that matters: you cannot push work onto somebody you
+    // supervise and then be unable to see what they did with it.
+    //
+    // Peers and oneself are deliberately outside this. A Lead may now
+    // take tags themselves or give them to another Lead, and neither
+    // grants them that person's hours log — reading a peer's timesheet is
+    // a different permission from sharing delivery with them, and
+    // widening one should not quietly widen the other. The delivery
+    // itself stays visible either way: tag submissions are not
+    // self-scoped for Leads and above.
     for (const role of ["Admin", "Lead", "TeamLead"] as const) {
       const visible = worklogVisibleRoles(role);
-      for (const target of assignableRoles(role)) {
+      const below = assignableRoles(role).filter((r) => r !== role);
+      for (const target of below) {
         expect(visible).toContain(target);
       }
     }
+  });
+
+  it("assigning to a peer does not hand over their work log", () => {
+    expect(assignableRoles("Lead")).toContain("Lead");
+    expect(worklogVisibleRoles("Lead")).not.toContain("Lead");
+    expect(assignableRoles("TeamLead")).toContain("TeamLead");
+    expect(worklogVisibleRoles("TeamLead")).not.toContain("TeamLead");
   });
 });
 

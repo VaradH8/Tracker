@@ -49,6 +49,7 @@ import { Modal } from "@/components/Modal";
 import { PeoplePicker } from "@/components/PeoplePicker";
 import { ImportTasksModal } from "@/components/ImportTasksModal";
 import { toCsv, downloadCsv } from "@/lib/csv";
+import { DateInput } from "@/components/DateInput";
 
 const COLUMNS: { id: Status; title: string; accent: string }[] = [
   { id: "To Do", title: "To Do", accent: "bg-ink-400" },
@@ -612,12 +613,7 @@ export default function ProjectDetailPage({
                   placeholder="Search activity…"
                   className="px-3 py-1.5 rounded border border-ink-200 text-sm w-44"
                 />
-                <input
-                  type="date"
-                  value={histDate}
-                  onChange={(e) => setHistDate(e.target.value)}
-                  className="px-2 py-1.5 rounded border border-ink-200 text-sm"
-                />
+                <DateInput value={histDate} onChange={(iso: string) => setHistDate(iso)} className="px-2 py-1.5 rounded border border-ink-200 text-sm" />
                 {(histQuery || histDate) && (
                   <button
                     onClick={() => {
@@ -944,23 +940,13 @@ function EditProjectModal({
           <label className="block text-xs font-medium text-ink-700 mb-1.5">
             Start date
           </label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
-          />
+          <DateInput value={startDate} onChange={(iso: string) => setStartDate(iso)} className="w-full px-3 py-2 rounded border border-ink-200 text-sm" />
         </div>
         <div>
           <label className="block text-xs font-medium text-ink-700 mb-1.5">
             Target date
           </label>
-          <input
-            type="date"
-            value={targetDate}
-            onChange={(e) => setTargetDate(e.target.value)}
-            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
-          />
+          <DateInput value={targetDate} onChange={(iso: string) => setTargetDate(iso)} className="w-full px-3 py-2 rounded border border-ink-200 text-sm" />
         </div>
       </div>
 
@@ -1167,26 +1153,14 @@ function CreateTaskModal({
             Start date{" "}
             <span className="text-ink-400 font-normal">(optional)</span>
           </label>
-          <input
-            type="date"
-            value={startDate}
-            max={targetDate || undefined}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
-          />
+          <DateInput value={startDate} max={targetDate || undefined} onChange={(iso: string) => setStartDate(iso)} className="w-full px-3 py-2 rounded border border-ink-200 text-sm" />
         </div>
         <div>
           <label className="block text-xs font-medium text-ink-700 mb-1.5">
             Target date{" "}
             <span className="text-ink-400 font-normal">(optional)</span>
           </label>
-          <input
-            type="date"
-            value={targetDate}
-            min={startDate || undefined}
-            onChange={(e) => setTargetDate(e.target.value)}
-            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
-          />
+          <DateInput value={targetDate} min={startDate || undefined} onChange={(iso: string) => setTargetDate(iso)} className="w-full px-3 py-2 rounded border border-ink-200 text-sm" />
         </div>
       </div>
 

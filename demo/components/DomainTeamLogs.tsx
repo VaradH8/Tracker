@@ -7,6 +7,7 @@ import { fmtWeekday as fmt } from "@/lib/domain-format";
 import { dateClass, inputClass } from "@/lib/domain-ui";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { useDomain } from "@/lib/domain-store";
+import { DateInput } from "@/components/DateInput";
 
 /**
  * The team's work log, for the people entitled to read it.
@@ -154,23 +155,11 @@ export function DomainTeamLogs() {
           </label>
           <label className="text-sm">
             <span className="block text-ink-700 mb-1">From</span>
-            <input
-              type="date"
-              value={from}
-              max={to || undefined}
-              onChange={(e) => setFrom(e.target.value)}
-              className={dateClass("md")}
-            />
+            <DateInput value={from} max={to || undefined} onChange={(iso: string) => setFrom(iso)} className={dateClass("md")} />
           </label>
           <label className="text-sm">
             <span className="block text-ink-700 mb-1">To</span>
-            <input
-              type="date"
-              value={to}
-              min={from || undefined}
-              onChange={(e) => setTo(e.target.value)}
-              className={dateClass("md")}
-            />
+            <DateInput value={to} min={from || undefined} onChange={(iso: string) => setTo(iso)} className={dateClass("md")} />
           </label>
 
           <div className="flex items-center gap-1">
@@ -348,12 +337,7 @@ function LogRow({
     return (
       <tr className="bg-brand-blueBg/40">
         <td className="px-4 py-2">
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className={dateClass("sm", "w-36")}
-          />
+          <DateInput value={date} onChange={(iso: string) => setDate(iso)} className={dateClass("sm", "w-36")} />
         </td>
         <td className="px-4 py-2 text-ink-900">{l.user}</td>
         <td className="px-4 py-2 text-ink-500">{l.project ?? "—"}</td>

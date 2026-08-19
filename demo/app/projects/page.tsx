@@ -40,6 +40,7 @@ import { useToast } from "@/components/Toast";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { Modal } from "@/components/Modal";
 import { PeoplePicker } from "@/components/PeoplePicker";
+import { DateInput } from "@/components/DateInput";
 
 export default function ProjectsPage() {
   const [role, , hydrated] = useRole();
@@ -649,12 +650,7 @@ function NewDealModal({
           <label className="block text-xs font-medium text-ink-700 mb-1.5">
             Expected start
           </label>
-          <input
-            type="date"
-            value={start}
-            onChange={(e) => setStart(e.target.value)}
-            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
-          />
+          <DateInput value={start} onChange={(iso: string) => setStart(iso)} className="w-full px-3 py-2 rounded border border-ink-200 text-sm" />
         </div>
       </div>
 
@@ -813,25 +809,13 @@ function CreateProjectModal({
           <label className="block text-xs font-medium text-ink-700 mb-1.5">
             Start date
           </label>
-          <input
-            type="date"
-            value={start}
-            max={target || undefined}
-            onChange={(e) => setStart(e.target.value)}
-            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
-          />
+          <DateInput value={start} max={target || undefined} onChange={(iso: string) => setStart(iso)} className="w-full px-3 py-2 rounded border border-ink-200 text-sm" />
         </div>
         <div>
           <label className="block text-xs font-medium text-ink-700 mb-1.5">
             Target date
           </label>
-          <input
-            type="date"
-            value={target}
-            min={start || undefined}
-            onChange={(e) => setTarget(e.target.value)}
-            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
-          />
+          <DateInput value={target} min={start || undefined} onChange={(iso: string) => setTarget(iso)} className="w-full px-3 py-2 rounded border border-ink-200 text-sm" />
         </div>
         <div>
           <label className="block text-xs font-medium text-ink-700 mb-1.5">

@@ -9,6 +9,7 @@ import { useMyFirstName, useAccounts } from "@/lib/account-store";
 import { useToast } from "@/components/Toast";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { Modal } from "@/components/Modal";
+import { DateInput } from "@/components/DateInput";
 
 /** Pick a pill colour for any leave type (types are configurable now). */
 function leaveTypeColor(type: string): string {
@@ -652,23 +653,13 @@ function RequestLeaveModal({
           <label className="block text-xs font-medium text-ink-700 mb-1.5">
             From
           </label>
-          <input
-            type="date"
-            value={start}
-            onChange={(e) => setStart(e.target.value)}
-            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
-          />
+          <DateInput value={start} onChange={(iso: string) => setStart(iso)} className="w-full px-3 py-2 rounded border border-ink-200 text-sm" />
         </div>
         <div>
           <label className="block text-xs font-medium text-ink-700 mb-1.5">
             To
           </label>
-          <input
-            type="date"
-            value={end}
-            onChange={(e) => setEnd(e.target.value)}
-            className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
-          />
+          <DateInput value={end} onChange={(iso: string) => setEnd(iso)} className="w-full px-3 py-2 rounded border border-ink-200 text-sm" />
         </div>
       </div>
 

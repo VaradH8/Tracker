@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { CalendarOff, Plus, Trash2 } from "lucide-react";
 import { fmtDate } from "@/lib/domain-format";
 import { dateClass } from "@/lib/domain-ui";
+import { DateInput } from "@/components/DateInput";
 
 /**
  * The public holiday list every handover date is calculated against.
@@ -119,12 +120,7 @@ export function DomainHolidays({ onChanged }: { onChanged?: () => void } = {}) {
         <form onSubmit={add} className="flex items-end gap-2 flex-wrap mb-4">
           <label className="text-xs">
             <span className="block text-ink-700 mb-1">Date</span>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className={dateClass("sm")}
-            />
+            <DateInput value={date} onChange={(iso: string) => setDate(iso)} className={dateClass("sm")} />
           </label>
           <label className="text-xs flex-1 min-w-[180px]">
             <span className="block text-ink-700 mb-1">Name</span>

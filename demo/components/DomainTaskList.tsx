@@ -11,6 +11,7 @@ import {
 import { fmtDate, fmtStamp } from "@/lib/domain-format";
 import { dateClass, inputClass } from "@/lib/domain-ui";
 import { ConfirmButton } from "./ConfirmButton";
+import { DateInput } from "@/components/DateInput";
 
 /**
  * A task, from all three sides of it.
@@ -432,14 +433,7 @@ function TaskRow({
               <span className="block text-ink-700 mb-1 font-medium">
                 Date you did it
               </span>
-              <input
-                type="date"
-                value={date}
-                min={backdateFloorISO()}
-                max={todayISO}
-                onChange={(e) => setDate(e.target.value)}
-                className={dateClass("sm", "w-full")}
-              />
+              <DateInput value={date} min={backdateFloorISO()} max={todayISO} onChange={(iso: string) => setDate(iso)} className={dateClass("sm", "w-full")} />
             </label>
             <label className="text-xs">
               <span className="block text-ink-700 mb-1 font-medium">Notes</span>

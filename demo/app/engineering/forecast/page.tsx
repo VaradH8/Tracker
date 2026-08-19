@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, CalendarClock } from "lucide-react";
+import { AlertTriangle, CalendarClock, Search } from "lucide-react";
 import {
   ResourceChecklist,
   useAvailability,
@@ -34,6 +34,7 @@ export default function ForecastPage() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "risk" | "ontrack">("all");
   const [sort, setSort] = useState<SortKey>("risk");
+  const [query, setQuery] = useState("");
   /**
    * Use a rate set on a booking exactly as set, rather than dividing it
    * between the projects that person is on at the same time.
@@ -78,12 +79,21 @@ export default function ForecastPage() {
   projects.forEach((p) => p.resources.forEach((r) => people.add(r.id)));
   const pct = totalTags > 0 ? (delivered / totalTags) * 100 : 0;
 
+  const q = query.trim().toLowerCase();
   const shown = projects
     .filter((p) => {
       if (filter === "risk") return p.forecast.status === "Behind Schedule";
       if (filter === "ontrack") return p.forecast.status === "On Track";
       return true;
     })
+    // Name or client: the two things somebody actually knows when they
+    // come here looking for one project out of thirty.
+    .filter(
+      (p) =>
+        !q ||
+        p.name.toLowerCase().includes(q) ||
+        (p.client ?? "").toLowerCase().includes(q),
+    )
     .slice()
     .sort((a, b) => {
       if (sort === "name") return a.name.localeCompare(b.name);
@@ -187,6 +197,18 @@ export default function ForecastPage() {
         <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
           <h2 className="font-heading text-xl font-semibold">Project delivery</h2>
           <div className="flex items-center gap-3 flex-wrap">
+            <label className="relative">
+              <Search
+                size={14}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400"
+              />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Find a project"
+                className="pl-8 pr-2.5 py-1 rounded border border-ink-200 text-xs w-44 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+              />
+            </label>
             <RateModeToggle on={perProjectRates} onChange={setPerProjectRates} />
             <div className="flex items-center gap-1">
               {(
@@ -228,7 +250,9 @@ export default function ForecastPage() {
           <p className="text-sm text-ink-400 italic">
             {projects.length === 0
               ? "No projects yet."
-              : "No projects match that filter."}
+              : q
+                ? `Nothing matches "${query.trim()}".`
+                : "No projects match that filter."}
           </p>
         ) : (
           // Two up from lg. Each card is now short enough that a pair fits

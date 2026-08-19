@@ -9,7 +9,6 @@ import {
   type TagComplexity,
 } from "@/lib/domain";
 import {
-  RateField,
   ResourceChecklist,
   ResourceDetail,
   ResourceSelect,
@@ -26,6 +25,7 @@ import {
   handoverFromProject,
   type HandoverValue,
 } from "@/components/DomainHandoverFields";
+import { DateInput } from "@/components/DateInput";
 
 /**
  * The forecast-facing pieces of the Domain projects page: creating and
@@ -745,7 +745,6 @@ export function TagAssignmentPanel({
             divisions={divisions}
             workers={workers}
             availability={availability}
-            onRateSaved={reloadAvailability}
             onDone={() => {
               setAssigningTo(null);
               onChanged();
@@ -862,7 +861,6 @@ export function TagAssignmentPanel({
                       workers={workers}
                       availability={availability}
                       lockedAssignee={{ id: sec.id, name: sec.name }}
-                      onRateSaved={reloadAvailability}
                       onDone={() => {
                         setAssigningTo(null);
                         onChanged();
@@ -965,7 +963,6 @@ function AssignForm({
   lockedAssignee,
   onDone,
   onCancel,
-  onRateSaved,
 }: {
   projectId: number;
   divisions: { id: number; name: string }[];
@@ -974,7 +971,6 @@ function AssignForm({
   lockedAssignee?: { id: string; name: string };
   onDone: () => void;
   onCancel: () => void;
-  onRateSaved: () => void;
 }) {
   const [assigneeId, setAssigneeId] = useState(lockedAssignee?.id ?? "");
   const [divisionId, setDivisionId] = useState("");
@@ -1032,13 +1028,10 @@ function AssignForm({
           />
         )}
 
-        {assigneeId && (
-          <RateField
-            userId={assigneeId}
-            availability={availability}
-            onSaved={onRateSaved}
-          />
-        )}
+        {/* No rate field here. A person's tags/day belongs to their
+            booking on the project — it is set when the resource is added —
+            and offering it again while handing out tags invited two
+            places to disagree about the same number. */}
 
         {divisions.length > 0 && (
           <label className="text-sm block">
@@ -1084,21 +1077,11 @@ function AssignForm({
         </label>
         <label className="text-sm">
           <span className="block text-ink-700 mb-1">Start</span>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className={dateClass("sm")}
-          />
+          <DateInput value={startDate} onChange={(iso: string) => setStartDate(iso)} className={dateClass("sm")} />
         </label>
         <label className="text-sm">
           <span className="block text-ink-700 mb-1">Target</span>
-          <input
-            type="date"
-            value={targetDate}
-            onChange={(e) => setTargetDate(e.target.value)}
-            className={dateClass("sm")}
-          />
+          <DateInput value={targetDate} onChange={(iso: string) => setTargetDate(iso)} className={dateClass("sm")} />
         </label>
         <button
           onClick={submit}
@@ -1219,21 +1202,11 @@ function EditAssignmentRow({
         </label>
         <label className="text-xs">
           <span className="block text-ink-700 mb-1">Start</span>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className={dateClass("sm")}
-          />
+          <DateInput value={startDate} onChange={(iso: string) => setStartDate(iso)} className={dateClass("sm")} />
         </label>
         <label className="text-xs">
           <span className="block text-ink-700 mb-1">Target</span>
-          <input
-            type="date"
-            value={targetDate}
-            onChange={(e) => setTargetDate(e.target.value)}
-            className={dateClass("sm")}
-          />
+          <DateInput value={targetDate} onChange={(iso: string) => setTargetDate(iso)} className={dateClass("sm")} />
         </label>
         <button onClick={save} disabled={busy} className="btn-primary text-sm disabled:opacity-50">
           Save
