@@ -23,6 +23,13 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /** Guards against an open-ended range being asked for by hand. */
 const MAX_DAYS = 366;
 
+/** A `yyyy-mm-dd` query param as midnight UTC, or null if unusable. */
+function parseDay(v: string | null): Date | null {
+  if (!v || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+  const d = new Date(`${v}T00:00:00.000Z`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 /** Monday of the week a date falls in, as a UTC day key. */
 function weekStart(d: Date): Date {
   const day = new Date(
@@ -41,15 +48,38 @@ export async function GET(req: Request) {
   const q = new URL(req.url).searchParams;
   const groupBy = q.get("groupBy") === "week" ? "week" : "day";
 
-  const days = Math.min(
-    MAX_DAYS,
-    Math.max(1, Number(q.get("days")) || 30),
-  );
+  /**
+   * The window: either an explicit from/to, or the last N days.
+   *
+   * An explicit range wins when both ends parse. A month-end review is
+   * asked about a month, not about "the last 30 days", and rolling
+   * windows can't answer "what did we ship in September" at all.
+   *
+   * Reversed dates are swapped rather than rejected — picking the end
+   * first is a slip, not a different question. The span is still capped
+   * at MAX_DAYS so no request can ask for a decade of rows.
+   */
   const today = new Date();
-  const to = new Date(
+  const todayUTC = new Date(
     Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()),
   );
-  const from = new Date(to.getTime() - (days - 1) * DAY_MS);
+
+  const fromParam = parseDay(q.get("from"));
+  const toParam = parseDay(q.get("to"));
+
+  let from: Date;
+  let to: Date;
+  if (fromParam && toParam) {
+    [from, to] = fromParam <= toParam ? [fromParam, toParam] : [toParam, fromParam];
+    const span = Math.round((to.getTime() - from.getTime()) / DAY_MS) + 1;
+    if (span > MAX_DAYS) {
+      from = new Date(to.getTime() - (MAX_DAYS - 1) * DAY_MS);
+    }
+  } else {
+    const days = Math.min(MAX_DAYS, Math.max(1, Number(q.get("days")) || 30));
+    to = todayUTC;
+    from = new Date(to.getTime() - (days - 1) * DAY_MS);
+  }
   const rangeStart = groupBy === "week" ? weekStart(from) : from;
 
   const divisionId = q.get("divisionId");
@@ -165,7 +195,9 @@ export async function GET(req: Request) {
 
   return NextResponse.json({
     groupBy,
-    days,
+    // The span actually served, which is not always the span asked for:
+    // an explicit range longer than MAX_DAYS gets trimmed above.
+    days: Math.round((to.getTime() - rangeStart.getTime()) / DAY_MS) + 1,
     from: toISODate(rangeStart),
     to: toISODate(to),
     rows,

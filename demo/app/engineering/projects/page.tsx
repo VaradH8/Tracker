@@ -277,6 +277,7 @@ export default function DomainProjectsPage() {
           ))}
         </div>
       )}
+
     </DomainPage>
   );
 }

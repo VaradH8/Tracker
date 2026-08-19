@@ -3,6 +3,13 @@ import { prisma } from "@/lib/db";
 import { requireDomainUser } from "@/lib/domain-auth";
 import { TAG_HOLDER_ROLES, divisionTagsIssue, type DomainRole } from "@/lib/domain";
 import { toISODate } from "@/lib/forecast";
+import {
+  DEFAULT_WORK_WEEK,
+  MAX_WORKING_DAYS,
+  handoverFrom,
+  isWorkWeek,
+} from "@/lib/domain-workdays";
+import { dayToDate, holidaySet } from "@/lib/domain-schedule";
 
 const INCLUDE = {
   owner: { select: { id: true, name: true } },
@@ -20,6 +27,8 @@ function serialize(p: {
   createdAt: Date;
   startDate: Date | null;
   handoverDate: Date | null;
+  workingDaysPerWeek: number | null;
+  totalWorkingDays: number | null;
   totalTags: number;
   client: string | null;
   divisions: {
@@ -45,6 +54,8 @@ function serialize(p: {
     createdAt: p.createdAt.toISOString(),
     startDate: p.startDate ? toISODate(p.startDate) : null,
     handoverDate: p.handoverDate ? toISODate(p.handoverDate) : null,
+    workingDaysPerWeek: p.workingDaysPerWeek,
+    totalWorkingDays: p.totalWorkingDays,
     totalTags: p.totalTags,
     client: p.client,
     divisions: p.divisions.map((d) => ({
@@ -141,6 +152,73 @@ export async function PATCH(
     include: { divisions: true },
   });
   if (!current) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  /**
+   * Handover from a working-day count.
+   *
+   * A partial update, so anything the request leaves out falls back to
+   * what the project already has — changing only the working week must
+   * recalculate against the stored start date and day count, not wipe
+   * them.
+   *
+   * Sending `totalWorkingDays: null`, or typing a handover date directly,
+   * stops the derivation: the stored count no longer explains the date,
+   * and keeping it would silently recompute a different one next time
+   * anybody opened the form.
+   */
+  const wantsDerived =
+    body.totalWorkingDays !== undefined &&
+    body.totalWorkingDays !== null &&
+    body.totalWorkingDays !== "";
+
+  if (wantsDerived) {
+    const startFor =
+      (data.startDate as Date | null | undefined) ?? current.startDate;
+    if (!startFor) {
+      return NextResponse.json(
+        { error: "A start date is needed to work out the handover date." },
+        { status: 400 },
+      );
+    }
+    const total = Number(body.totalWorkingDays);
+    if (!Number.isInteger(total) || total < 1 || total > MAX_WORKING_DAYS) {
+      return NextResponse.json(
+        {
+          error: `Total working days must be a whole number between 1 and ${MAX_WORKING_DAYS}.`,
+        },
+        { status: 400 },
+      );
+    }
+    const week =
+      body.workingDaysPerWeek === undefined || body.workingDaysPerWeek === null
+        ? current.workingDaysPerWeek ?? DEFAULT_WORK_WEEK
+        : Number(body.workingDaysPerWeek);
+    if (!isWorkWeek(week)) {
+      return NextResponse.json(
+        { error: "Working week must be 5 or 6 days." },
+        { status: 400 },
+      );
+    }
+    const derived = handoverFrom(
+      toISODate(startFor),
+      total,
+      week,
+      await holidaySet(),
+    );
+    if (!derived) {
+      return NextResponse.json(
+        { error: "Couldn't work out a handover date from those." },
+        { status: 400 },
+      );
+    }
+    data.startDate = startFor;
+    data.handoverDate = dayToDate(derived.handover);
+    data.workingDaysPerWeek = week;
+    data.totalWorkingDays = total;
+  } else if (body.totalWorkingDays === null || data.handoverDate !== undefined) {
+    data.workingDaysPerWeek = null;
+    data.totalWorkingDays = null;
+  }
 
   const start =
     data.startDate !== undefined ? (data.startDate as Date | null) : current.startDate;

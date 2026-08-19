@@ -13,6 +13,8 @@ import {
   LogOut,
   KeyRound,
   TrendingUp,
+  CalendarDays,
+  CalendarCheck,
   Tags,
   CheckSquare,
   Menu,
@@ -43,8 +45,12 @@ const NAV: NavItem[] = [
   { href: "/engineering/projects", label: "Projects", icon: FolderKanban, roles: EVERYONE, group: "Work" },
   { href: "/engineering/my-tags", label: "My tags", icon: Tags, roles: WORKERS, group: "Work" },
   { href: "/engineering/task-log", label: "Task log", icon: ClipboardList, roles: EVERYONE, group: "Work" },
+  // Everyone reaches this: workers request time off here, supervisors
+  // decide it. The page itself adapts to which of the two you are.
+  { href: "/engineering/leaves", label: "Attendance & leave", icon: CalendarCheck, roles: EVERYONE, group: "Work" },
   { href: "/engineering/approvals", label: "Approvals", icon: CheckSquare, roles: SUPERVISORS, group: "Manage" },
   { href: "/engineering/forecast", label: "Forecast", icon: TrendingUp, roles: SUPERVISORS, group: "Manage" },
+  { href: "/engineering/delivery", label: "Delivery by date", icon: CalendarDays, roles: SUPERVISORS, group: "Manage" },
   { href: "/engineering/availability", label: "Resource availability", icon: Gauge, roles: SUPERVISORS, group: "Manage" },
   { href: "/engineering/kpis", label: "KPIs", icon: BarChart3, roles: ["Admin"], group: "Manage" },
   // Everyone who supervises manages people here, but not equally: Admins

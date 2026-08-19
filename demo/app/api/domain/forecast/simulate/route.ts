@@ -4,6 +4,13 @@ import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
 import { SUPERVISOR_ROLES } from "@/lib/domain";
 import { allocationConflicts } from "@/lib/domain-forecast";
 import { forecastDelivery, splitRate, toISODate } from "@/lib/forecast";
+import {
+  DEFAULT_WORK_WEEK,
+  MAX_WORKING_DAYS,
+  handoverFrom,
+  isWorkWeek,
+} from "@/lib/domain-workdays";
+import { dayToDate, holidaySet } from "@/lib/domain-schedule";
 
 /**
  * What-if forecasting. A Lead enters a tag count, the people they'd put on
@@ -42,10 +49,62 @@ export async function POST(req: Request) {
   }
 
   const startDate = body.startDate ? new Date(String(body.startDate)) : new Date();
-  const handoverDate = body.handoverDate ? new Date(String(body.handoverDate)) : null;
+  // Validated before anything reads it — the derivation below formats it
+  // as an ISO day, which an invalid Date cannot survive.
   if (Number.isNaN(startDate.getTime())) {
     return NextResponse.json({ error: "Invalid start date." }, { status: 400 });
   }
+
+  /**
+   * The handover to simulate against: either derived from a working-day
+   * count, or typed in directly.
+   *
+   * Derived wins when both arrive, and it is computed here rather than
+   * taken from the request — a what-if answered against a date the
+   * browser worked out its own way would disagree with the same project
+   * once it was actually created.
+   */
+  let handoverDate = body.handoverDate ? new Date(String(body.handoverDate)) : null;
+  let derivedHandover: ReturnType<typeof handoverFrom> = null;
+  if (
+    body.totalWorkingDays !== undefined &&
+    body.totalWorkingDays !== null &&
+    body.totalWorkingDays !== ""
+  ) {
+    const total = Number(body.totalWorkingDays);
+    const week =
+      body.workingDaysPerWeek === undefined || body.workingDaysPerWeek === null
+        ? DEFAULT_WORK_WEEK
+        : Number(body.workingDaysPerWeek);
+    if (!isWorkWeek(week)) {
+      return NextResponse.json(
+        { error: "Working week must be 5 or 6 days." },
+        { status: 400 },
+      );
+    }
+    if (!Number.isInteger(total) || total < 1 || total > MAX_WORKING_DAYS) {
+      return NextResponse.json(
+        {
+          error: `Total working days must be a whole number between 1 and ${MAX_WORKING_DAYS}.`,
+        },
+        { status: 400 },
+      );
+    }
+    derivedHandover = handoverFrom(
+      toISODate(startDate),
+      total,
+      week,
+      await holidaySet(),
+    );
+    if (!derivedHandover) {
+      return NextResponse.json(
+        { error: "Couldn't work out a handover date from those." },
+        { status: 400 },
+      );
+    }
+    handoverDate = dayToDate(derivedHandover.handover);
+  }
+
   if (handoverDate && Number.isNaN(handoverDate.getTime())) {
     return NextResponse.json({ error: "Invalid handover date." }, { status: 400 });
   }
@@ -143,6 +202,9 @@ export async function POST(req: Request) {
       totalTags,
       startDate: toISODate(startDate),
       handoverDate: handoverDate ? toISODate(handoverDate) : null,
+      // Present only when the date was calculated, so the form can show
+      // which days were skipped to reach it.
+      derivedHandover,
       resources,
       forecast,
       conflicts,

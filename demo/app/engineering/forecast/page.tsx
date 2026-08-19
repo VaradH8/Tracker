@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, CalendarClock } from "lucide-react";
 import {
   ResourceChecklist,
@@ -13,10 +13,15 @@ import {
   type ProjectRow,
 } from "@/components/DomainForecastCard";
 import { DomainPage, PageHeader } from "@/components/DomainPage";
-import { DomainDeliveryByDate } from "@/components/DomainDeliveryByDate";
 import { DomainRefreshButton } from "@/components/DomainRefreshButton";
 import { fmtDate as fmt } from "@/lib/domain-format";
 import { dateClass } from "@/lib/domain-ui";
+import {
+  DomainHandoverFields,
+  emptyHandover,
+  handoverPayload,
+  type HandoverValue,
+} from "@/components/DomainHandoverFields";
 import { TAG_HOLDER_ROLES, type DomainRole } from "@/lib/domain";
 
 type Meta = { defaultTagsPerDay: number; rateHistoryDays: number };
@@ -49,23 +54,6 @@ export default function ForecastPage() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  /**
-   * The one Refresh on this page covers everything on it.
-   *
-   * Delivery by date keeps its own loader (its filters re-fetch), so the
-   * page borrows it rather than issuing a second request. A ref, not
-   * state: re-registering must not re-render the page, or the card would
-   * remount on every filter change.
-   */
-  const deliveryReload = useRef<(() => Promise<unknown>) | null>(null);
-  const registerDelivery = useCallback((fn: () => Promise<unknown>) => {
-    deliveryReload.current = fn;
-  }, []);
-  const refreshAll = useCallback(
-    () => Promise.all([load(), deliveryReload.current?.() ?? Promise.resolve()]),
-    [load],
-  );
 
   const behind = projects.filter((p) => p.forecast.status === "Behind Schedule");
   const onTrack = projects.filter((p) => p.forecast.status === "On Track");
@@ -104,7 +92,7 @@ export default function ForecastPage() {
         description={`Every estimate here is computed from tag counts a Lead has approved${
           meta ? ` in the last ${meta.rateHistoryDays} days` : ""
         } — not from manual status updates. Approve a submission and these dates move with it.`}
-        actions={<DomainRefreshButton onRefresh={refreshAll} />}
+        actions={<DomainRefreshButton onRefresh={load} />}
       />
 
       {error && (
@@ -188,8 +176,6 @@ export default function ForecastPage() {
         </section>
       )}
 
-      <DomainDeliveryByDate onReady={registerDelivery} />
-
       <Simulator onDone={load} />
 
       <section className="mb-8">
@@ -239,13 +225,12 @@ export default function ForecastPage() {
               : "No projects match that filter."}
           </p>
         ) : (
-          <div className="grid gap-5">
+          // Two up from lg. Each card is now short enough that a pair fits
+          // side by side, which is what makes a portfolio comparable
+          // rather than a list you scroll through.
+          <div className="grid gap-4 lg:grid-cols-2 items-start">
             {shown.map((p) => (
-              <DomainForecastCard
-                key={p.id}
-                p={p}
-               
-              />
+              <DomainForecastCard key={p.id} p={p} />
             ))}
           </div>
         )}
@@ -311,8 +296,7 @@ function Simulator({ onDone }: { onDone: () => void }) {
   const [people, setPeople] = useState<{ id: string; name: string; role: string }[]>([]);
   const [picked, setPicked] = useState<string[]>([]);
   const [totalTags, setTotalTags] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [handoverDate, setHandoverDate] = useState("");
+  const [schedule, setSchedule] = useState<HandoverValue>(emptyHandover());
   /** Per-person tags/day to plan at. Required — the simulation uses these
    *  and nothing else. */
   const [rateOverrides, setRateOverrides] = useState<Record<string, string>>({});
@@ -347,8 +331,7 @@ function Simulator({ onDone }: { onDone: () => void }) {
       body: JSON.stringify({
         totalTags: Number(totalTags),
         resourceIds: picked,
-        startDate: startDate || null,
-        handoverDate: handoverDate || null,
+        ...handoverPayload(schedule),
         rateOverrides: Object.fromEntries(
           Object.entries(rateOverrides)
             .filter(([id, v]) => picked.includes(id) && Number(v) > 0)
@@ -400,24 +383,13 @@ function Simulator({ onDone }: { onDone: () => void }) {
             className="w-full border border-ink-200 rounded px-2 py-1.5"
           />
         </label>
-        <label className="text-sm">
-          <span className="block text-ink-700 mb-1">Start date</span>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className={dateClass("sm", "w-full")}
-          />
-        </label>
-        <label className="text-sm">
-          <span className="block text-ink-700 mb-1">Handover date</span>
-          <input
-            type="date"
-            value={handoverDate}
-            onChange={(e) => setHandoverDate(e.target.value)}
-            className={dateClass("sm", "w-full")}
-          />
-        </label>
+      </div>
+
+      {/* Same fields and the same server calculation as creating a
+          project, so a plan that simulates well keeps its date once it
+          becomes real. */}
+      <div className="mb-4">
+        <DomainHandoverFields value={schedule} onChange={setSchedule} />
       </div>
 
       <div className="text-sm mt-3">

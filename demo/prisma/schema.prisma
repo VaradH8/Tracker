@@ -366,6 +366,9 @@ model DomainUser {
   tagAssignmentsMade  DomainTagAssignment[] @relation("DomainTagAssignmentCreator")
   tagSubmissions      DomainTagSubmission[] @relation("DomainTagSubmitter")
   tagReviews          DomainTagSubmission[] @relation("DomainTagReviewer")
+  leaveRecords   DomainLeave[] @relation("DomainLeaveSubject")
+  leavesAuthored DomainLeave[] @relation("DomainLeaveAuthor")
+  leavesDecided  DomainLeave[] @relation("DomainLeaveDecider")
 }
 
 model DomainSession {
@@ -393,6 +396,15 @@ model DomainProject {
   startDate    DateTime?
   handoverDate DateTime?
   totalTags    Int       @default(0)
+
+  // How the handover date was arrived at, kept so it can be recalculated
+  // when a holiday is added or the schedule shifts. Both nullable: a
+  // handover date typed in directly stays perfectly valid, and every
+  // project created before this existed has one.
+  //   workingDaysPerWeek — 5 (Mon-Fri) or 6 (Mon-Sat)
+  //   totalWorkingDays   — the figure the date was derived from
+  workingDaysPerWeek Int?
+  totalWorkingDays   Int?
   /// Who the work is for. A plain name, deliberately NOT a link to the
   /// tracker's Client table — the Domain module stays self-contained.
   /// Shown to actionees so they know whose work they're holding.
@@ -620,4 +632,75 @@ model DomainWorkLog {
   createdAt DateTime       @default(now())
 
   @@index([userId, date])
+}
+
+/// A public holiday: a day nobody works, on top of the weekend.
+///
+/// Stored as one row per date rather than a recurring rule because Indian
+/// public holidays move with the lunar calendar — Diwali is not "the same
+/// date every year", so a rule would be wrong more often than right. A
+/// short list an Admin types in once a year is both simpler and correct.
+///
+/// `date` is midnight UTC of the calendar day, matching DomainWorkLog.
+model DomainHoliday {
+  id        Int      @id @default(autoincrement())
+  date      DateTime @unique
+  name      String
+  createdAt DateTime @default(now())
+
+  @@index([date])
+}
+
+/// Attendance and time off for one person on one day.
+///
+/// Two ways a row appears, and the difference is who is allowed to do it:
+///
+///   - a supervisor MARKS someone — Admin, Lead or Team Lead recording
+///     that a person was present, absent, or worked a half day. Marked by
+///     someone with the authority to decide it, so it is Approved on
+///     arrival.
+///   - a worker REQUESTS time off — an SME or Actionee asking for a leave
+///     or a half day. Starts Pending and does nothing until a supervisor
+///     decides it.
+///
+/// One row per person per day (`@@unique`), because a day cannot be both
+/// a full day present and a leave. Re-marking the same day updates the
+/// row rather than stacking contradictions.
+///
+/// `hours` is only meaningful for a half day — how much of the day was
+/// actually worked. Kept nullable rather than defaulted so "half day, we
+/// never recorded how long" stays distinguishable from "half day, zero
+/// hours".
+model DomainLeave {
+  id     Int    @id @default(autoincrement())
+  userId String
+  user   DomainUser @relation("DomainLeaveSubject", fields: [userId], references: [id], onDelete: Cascade)
+  /// The IST day this covers (midnight UTC of that date), matching
+  /// DomainWorkLog and DomainHoliday.
+  date   DateTime
+  /// Present | Absent | Half day | Leave
+  kind   String
+  /// Hours worked on a half day.
+  hours  Float?
+  note   String?
+  /// Pending | Approved | Rejected
+  status String @default("Pending")
+
+  /// Who put the row there — the person themselves for a request, or the
+  /// supervisor who marked it.
+  createdById String
+  createdBy   DomainUser @relation("DomainLeaveAuthor", fields: [createdById], references: [id])
+
+  /// Who approved or rejected it, and when. Null while pending.
+  decidedById String?
+  decidedBy   DomainUser? @relation("DomainLeaveDecider", fields: [decidedById], references: [id])
+  decidedAt   DateTime?
+  decisionNote String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([status])
+  @@index([date])
 }

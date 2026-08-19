@@ -1,13 +1,30 @@
 "use client";
 
-import { CalendarClock, Users } from "lucide-react";
+import { useState } from "react";
+import {
+  AlertTriangle,
+  CalendarClock,
+  ChevronDown,
+  ChevronRight,
+  Users,
+} from "lucide-react";
 import { DomainDeliveryLog } from "@/components/DomainDeliveryLog";
 import { fmtDate as fmt, fmtDate as fmtShort } from "@/lib/domain-format";
 
 /**
- * A project's estimate, laid out to be shown to somebody rather than
- * merely read: the verdict and the two dates that decide it, a timeline
- * making the gap between them visible, then the evidence underneath.
+ * A project's estimate.
+ *
+ * Compact by default. Every project used to render its headline, four
+ * large figures, a timeline, a progress bar with a four-part legend, a
+ * division table and a delivery log — a full screen each, so a portfolio
+ * of six projects was six screens of scrolling and no way to compare any
+ * two of them.
+ *
+ * So the card now answers the only question a forecast review opens with
+ * — will this land, and when — and keeps the evidence one click away
+ * rather than deleting it. The one thing that stays visible when closed
+ * is a warning that the date rests on an assumed rate: hiding that would
+ * make the compact view more confident than the number deserves.
  */
 
 export type Forecast = {
@@ -135,9 +152,14 @@ function Timeline({ p }: { p: ProjectRow }) {
           style={{ left: `${handoverPct}%` }}
           title={`Handover — ${fmt(handover)}`}
         />
+        {/* The dashed line above marks the exact date; this label only
+            names it. Its centre is pulled back from the very edges so a
+            handover sitting at 0% or 100% doesn't print half outside the
+            card — which it did once these cards became two-up and
+            narrow. */}
         <span
           className="absolute top-full mt-0.5 text-[10px] font-medium text-ink-700 -translate-x-1/2 whitespace-nowrap"
-          style={{ left: `${handoverPct}%` }}
+          style={{ left: `${Math.min(88, Math.max(12, handoverPct))}%` }}
         >
           Handover
         </span>
@@ -195,6 +217,7 @@ export function DomainForecastCard({
 }: {
   p: ProjectRow;
 }) {
+  const [open, setOpen] = useState(false);
   const tone = statusTone(p.forecast.status);
   const pct = p.totalTags > 0 ? (p.deliveredTags / p.totalTags) * 100 : 0;
   const pendingPct =
@@ -202,65 +225,65 @@ export function DomainForecastCard({
       ? Math.min(100 - pct, (p.pendingApprovalTags / p.totalTags) * 100)
       : 0;
 
+  const noRate = p.resources.filter((r) => r.usingDefaultRate);
+  const shared = p.resources.filter((r) => r.concurrentProjects > 1);
+  const notStarted = p.startsFrom > new Date().toISOString().slice(0, 10);
+  const hasCaveats = noRate.length > 0 || shared.length > 0 || notStarted;
+
   return (
-    <article className={`card border-l-4 ${tone.rail} p-6`}>
+    <article className={`card border-l-4 ${tone.rail} p-4`}>
       {/* --- headline ------------------------------------------------ */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="font-heading text-xl font-semibold text-ink-900">
+          <h3 className="font-heading text-base font-semibold text-ink-900 truncate">
             {p.name}
           </h3>
-          <p className="text-sm text-ink-500 mt-1">
+          <p className="text-xs text-ink-500 mt-0.5 truncate">
             {p.client && (
               <>
                 <span className="text-ink-700 font-medium">{p.client}</span>
                 {" · "}
               </>
             )}
-            Owner <span className="text-ink-700">{p.owner}</span>
+            {p.owner}
             {" · "}
-            <span className="inline-flex items-center gap-1 text-ink-700">
-              <Users size={12} /> {p.peopleEngaged} engaged
+            <span className="inline-flex items-center gap-1">
+              <Users size={11} /> {p.peopleEngaged}
             </span>
           </p>
         </div>
         <span
-          className={`px-3 py-1.5 rounded-pill text-sm font-semibold ${tone.chip}`}
+          className={`px-2 py-0.5 rounded-pill text-[11px] font-semibold shrink-0 ${tone.chip}`}
         >
           {p.forecast.status}
         </span>
       </div>
 
-      {/* --- the estimate, front and centre -------------------------- */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-5 mt-5 pt-5 border-t border-ink-100">
+      {/* --- the two dates that decide it ---------------------------- */}
+      <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-ink-100">
         <div>
-          <div className="text-[11px] text-ink-500 font-medium uppercase tracking-wide flex items-center gap-1">
-            <CalendarClock size={12} /> Projected delivery
+          <div className="text-[10px] text-ink-500 font-medium uppercase tracking-wide flex items-center gap-1">
+            <CalendarClock size={11} /> Projected
           </div>
-          <div className={`font-heading text-2xl font-semibold mt-0.5 ${tone.text}`}>
+          <div className={`font-heading text-base font-semibold ${tone.text}`}>
             {fmt(p.forecast.projectedDate)}
           </div>
         </div>
-        <KeyFigure label="Handover" value={fmt(p.handoverDate)} />
-        <KeyFigure
-          label="Throughput"
-          value={`${p.forecast.dailyRate}/day`}
-          sub={`across ${p.resources.length} resource${p.resources.length === 1 ? "" : "s"}`}
-        />
-        <KeyFigure
-          label="Effort left"
-          value={`${p.forecast.workingDaysNeeded} days`}
-          sub={`${p.remainingTags} tags remaining`}
-        />
+        <div>
+          <div className="text-[10px] text-ink-500 font-medium uppercase tracking-wide">
+            Handover
+          </div>
+          <div className="font-heading text-base font-semibold text-ink-900">
+            {fmt(p.handoverDate)}
+          </div>
+        </div>
       </div>
 
-      <Timeline p={p} />
-
-      {/* --- delivery progress -------------------------------------- */}
-      <div className="mt-6 pt-5 border-t border-ink-100">
-        <div className="flex items-baseline justify-between mb-2">
-          <span className="text-sm font-medium text-ink-700">Tag delivery</span>
-          <span className="text-sm text-ink-500">
+      {/* --- tag delivery ------------------------------------------- */}
+      <div className="mt-3 pt-3 border-t border-ink-100">
+        <div className="flex items-baseline justify-between mb-1.5">
+          <span className="text-xs font-medium text-ink-700">Tag delivery</span>
+          <span className="text-xs text-ink-500">
             <strong className="text-brand-greenText">{p.deliveredTags}</strong> of{" "}
             <strong className="text-ink-900">{p.totalTags}</strong> ·{" "}
             {Math.round(pct)}%
@@ -273,7 +296,7 @@ export function DomainForecastCard({
             style={{ width: `${pendingPct}%` }}
           />
         </div>
-        <div className="flex items-center gap-4 mt-2 text-xs text-ink-500">
+        <div className="flex items-center gap-3 mt-1.5 text-[11px] text-ink-500 flex-wrap">
           <span>
             <span className="inline-block w-2 h-2 rounded-full bg-brand-green mr-1" />
             {p.deliveredTags} delivered
@@ -296,6 +319,34 @@ export function DomainForecastCard({
         </div>
       </div>
 
+      {/* The timeline carries its own verdict line ("lands N days late"),
+          so there is deliberately no second one above it. */}
+      <Timeline p={p} />
+
+      {/* Stays visible when closed: a date built on an assumed rate must
+          not look as firm as one built on measured throughput. */}
+      {hasCaveats && !open && (
+        <p className="text-[11px] text-brand-yellowText mt-2 flex items-center gap-1">
+          <AlertTriangle size={11} className="shrink-0" />
+          {noRate.length > 0
+            ? `${noRate.length} without a set rate`
+            : shared.length > 0
+              ? `${shared.length} splitting time across projects`
+              : `Starts ${fmt(p.startsFrom)}`}
+        </p>
+      )}
+
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand-blue hover:underline"
+      >
+        {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        {open ? "Hide detail" : "Detail"}
+      </button>
+
+      {!open ? null : (
+        <div className="mt-1">
       {/* --- division split ------------------------------------------ */}
       {p.divisions.length > 0 && (
         <div className="mt-5 overflow-x-auto">
@@ -340,11 +391,9 @@ export function DomainForecastCard({
       )}
 
       {/* --- caveats worth saying out loud in a review ---------------- */}
-      {(p.resources.some((r) => r.usingDefaultRate) ||
-        p.resources.some((r) => r.concurrentProjects > 1) ||
-        p.startsFrom > new Date().toISOString().slice(0, 10)) && (
+      {hasCaveats && (
         <div className="mt-4 text-xs space-y-1">
-          {p.startsFrom > new Date().toISOString().slice(0, 10) && (
+          {notStarted && (
             <p className="text-ink-500">
               Counted from <strong>{fmt(p.startsFrom)}</strong>, when the first
               resource starts.
@@ -352,21 +401,17 @@ export function DomainForecastCard({
           )}
           {/* Name the people instead of quoting the fallback figure: the
               fix is to set their rate, not to know what was assumed. */}
-          {p.resources.some((r) => r.usingDefaultRate) && (
+          {noRate.length > 0 && (
             <p className="text-brand-yellowText">
               <strong>No rate set:</strong>{" "}
-              {p.resources
-                .filter((r) => r.usingDefaultRate)
-                .map((r) => r.name)
-                .join(", ")}{" "}
-              — set their rate on the project to firm this date up.
+              {noRate.map((r) => r.name).join(", ")} — set their rate on the
+              project to firm this date up.
             </p>
           )}
-          {p.resources.some((r) => r.concurrentProjects > 1) && (
+          {shared.length > 0 && (
             <p className="text-brand-yellowText">
               <strong>Shared time:</strong>{" "}
-              {p.resources
-                .filter((r) => r.concurrentProjects > 1)
+              {shared
                 .map(
                   (r) =>
                     `${r.name} ${r.rate}/day of ${r.fullRate} (across ${r.concurrentProjects})`,
@@ -377,7 +422,9 @@ export function DomainForecastCard({
         </div>
       )}
 
-      <DomainDeliveryLog projectId={p.id} />
+          <DomainDeliveryLog projectId={p.id} />
+        </div>
+      )}
     </article>
   );
 }

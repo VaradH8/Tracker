@@ -4,6 +4,7 @@ import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
 import { TAG_HOLDER_ROLES, divisionTagsIssue, type DomainRole } from "@/lib/domain";
 import { allocationConflicts, projectForecasts } from "@/lib/domain-forecast";
 import { toISODate } from "@/lib/forecast";
+import { resolveSchedule } from "@/lib/domain-schedule";
 
 const INCLUDE = {
   owner: { select: { id: true, name: true } },
@@ -29,6 +30,8 @@ type ProjectRow = {
   createdAt: Date;
   startDate: Date | null;
   handoverDate: Date | null;
+  workingDaysPerWeek: number | null;
+  totalWorkingDays: number | null;
   totalTags: number;
   client: string | null;
   divisions: {
@@ -62,6 +65,8 @@ function serialize(p: ProjectRow) {
     createdAt: p.createdAt.toISOString(),
     startDate: p.startDate ? toISODate(p.startDate) : null,
     handoverDate: p.handoverDate ? toISODate(p.handoverDate) : null,
+    workingDaysPerWeek: p.workingDaysPerWeek,
+    totalWorkingDays: p.totalWorkingDays,
     totalTags: p.totalTags,
     client: p.client,
     divisions: p.divisions.map((d) => ({
@@ -153,20 +158,15 @@ export async function POST(req: Request) {
       ? body.description.trim()
       : null;
 
-  const startDate = body.startDate ? new Date(String(body.startDate)) : null;
-  const handoverDate = body.handoverDate ? new Date(String(body.handoverDate)) : null;
-  if (startDate && Number.isNaN(startDate.getTime())) {
-    return NextResponse.json({ error: "Invalid start date." }, { status: 400 });
+  // Dates, and — when a working-day count is supplied — the handover date
+  // derived from it. Computed here rather than trusted from the form: it
+  // is the date the client is given.
+  const schedule = await resolveSchedule(body);
+  if (!schedule.ok) {
+    return NextResponse.json({ error: schedule.error }, { status: 400 });
   }
-  if (handoverDate && Number.isNaN(handoverDate.getTime())) {
-    return NextResponse.json({ error: "Invalid handover date." }, { status: 400 });
-  }
-  if (startDate && handoverDate && handoverDate < startDate) {
-    return NextResponse.json(
-      { error: "Handover can't fall before the project starts." },
-      { status: 400 },
-    );
-  }
+  const { startDate, handoverDate, workingDaysPerWeek, totalWorkingDays } =
+    schedule.value;
 
   const totalTagsRaw = Number(body.totalTags ?? 0);
   const totalTags =
@@ -274,6 +274,8 @@ export async function POST(req: Request) {
       ownerId: user.id,
       startDate,
       handoverDate,
+      workingDaysPerWeek,
+      totalWorkingDays,
       totalTags,
       client:
         typeof body.client === "string" && body.client.trim()

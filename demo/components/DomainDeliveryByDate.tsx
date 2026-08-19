@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { CalendarDays } from "lucide-react";
-import { fmtDate, fmtWeekday } from "@/lib/domain-format";
-import { selectClass } from "@/lib/domain-ui";
+import { Fragment, useCallback, useEffect, useState } from "react";
+import { CalendarDays, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import { fmtDate, fmtStamp, fmtWeekday } from "@/lib/domain-format";
+import { dateClass, selectClass } from "@/lib/domain-ui";
 
 /**
  * Delivery by date — what was submitted on each day, and how much of it
@@ -51,6 +51,7 @@ const RANGES = [
 
 export function DomainDeliveryByDate({
   onReady,
+  heading = true,
 }: {
   /**
    * Hands this card's loader up to the page.
@@ -61,9 +62,21 @@ export function DomainDeliveryByDate({
    * that function rather than duplicating the request.
    */
   onReady?: (reload: () => Promise<unknown>) => void;
+  /**
+   * Off when this is the whole page rather than a card on one: the page
+   * header already says "Delivery by date", and repeating it immediately
+   * below reads as a mistake.
+   */
+  heading?: boolean;
 } = {}) {
   const [groupBy, setGroupBy] = useState<"day" | "week">("day");
   const [days, setDays] = useState(30);
+  /** Both set = an explicit window; the rolling `days` is ignored then. */
+  /** Which bar is opened out. One at a time: this is a drill-down, not
+   *  a second list to scroll. */
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   /** "" = every division, "none" = tags assigned straight to a project. */
   const [division, setDivision] = useState("");
   const [projectId, setProjectId] = useState("");
@@ -73,7 +86,12 @@ export function DomainDeliveryByDate({
 
   const load = useCallback(() => {
     setBusy(true);
-    const q = new URLSearchParams({ groupBy, days: String(days) });
+    // A half-filled custom range would otherwise silently fall back to
+    // the rolling window while the inputs still showed a date.
+    const custom = from !== "" && to !== "";
+    const q = custom
+      ? new URLSearchParams({ groupBy, from, to })
+      : new URLSearchParams({ groupBy, days: String(days) });
     // Returned so the shared Refresh button can await it.
     // "none" isn't a division id — it means the tags carry no division, so
     // it can't be sent as one.
@@ -91,11 +109,16 @@ export function DomainDeliveryByDate({
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => setBusy(false));
-  }, [groupBy, days, division, projectId]);
+  }, [groupBy, days, from, to, division, projectId]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // The open row belongs to the previous query once anything moves.
+  useEffect(() => {
+    setOpenKey(null);
+  }, [groupBy, days, from, to, division, projectId]);
 
   // Re-register whenever the loader changes identity, which it does every
   // time a filter moves — otherwise the page would refresh the card using
@@ -117,21 +140,25 @@ export function DomainDeliveryByDate({
       false,
   );
   const peak = Math.max(1, ...shown.map((r) => r.submitted));
+  // Drives both the select and whether the pickers show.
+  const custom = from !== "" && to !== "";
 
   return (
     <section className="card p-5 mb-8">
-      <div className="flex items-start justify-between gap-3 flex-wrap mb-4">
-        <div>
-          <h2 className="font-heading text-lg font-semibold flex items-center gap-2">
-            <CalendarDays size={17} className="text-brand-blue" />
-            Delivery by date
-          </h2>
-          <p className="text-sm text-ink-500 mt-0.5">
-            Tags submitted on each {groupBy === "week" ? "week" : "day"} across
-            every division, and how many were signed off.
-          </p>
+      {heading && (
+        <div className="flex items-start justify-between gap-3 flex-wrap mb-4">
+          <div>
+            <h2 className="font-heading text-lg font-semibold flex items-center gap-2">
+              <CalendarDays size={17} className="text-brand-blue" />
+              Delivery by date
+            </h2>
+            <p className="text-sm text-ink-500 mt-0.5">
+              Tags submitted on each {groupBy === "week" ? "week" : "day"} across
+              every division, and how many were signed off.
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="flex items-center gap-2 flex-wrap mb-4">
         <div className="flex items-center gap-1">
@@ -150,9 +177,24 @@ export function DomainDeliveryByDate({
           ))}
         </div>
 
+        {/* Rolling window, or an explicit one. Picking either end
+            switches to the explicit range; "Clear dates" goes back. A
+            month-end review is asked about a month, which a rolling
+            "last 30 days" can never answer. */}
         <select
-          value={days}
-          onChange={(e) => setDays(Number(e.target.value))}
+          value={custom ? "custom" : String(days)}
+          onChange={(e) => {
+            if (e.target.value === "custom") {
+              // Seed the pickers with the window already on screen, so
+              // switching over doesn't blank the chart.
+              setFrom(data?.from ?? "");
+              setTo(data?.to ?? "");
+              return;
+            }
+            setFrom("");
+            setTo("");
+            setDays(Number(e.target.value));
+          }}
           className={selectClass("sm")}
           aria-label="Date range"
         >
@@ -161,7 +203,42 @@ export function DomainDeliveryByDate({
               {r.label}
             </option>
           ))}
+          <option value="custom">Custom dates…</option>
         </select>
+
+        {custom && (
+          <>
+            <label className="text-xs text-ink-500 flex items-center gap-1.5">
+              From
+              <input
+                type="date"
+                value={from}
+                max={to || undefined}
+                onChange={(e) => setFrom(e.target.value)}
+                className={dateClass("sm")}
+              />
+            </label>
+            <label className="text-xs text-ink-500 flex items-center gap-1.5">
+              To
+              <input
+                type="date"
+                value={to}
+                min={from || undefined}
+                onChange={(e) => setTo(e.target.value)}
+                className={dateClass("sm")}
+              />
+            </label>
+            <button
+              onClick={() => {
+                setFrom("");
+                setTo("");
+              }}
+              className="text-xs text-ink-500 hover:text-ink-900 underline"
+            >
+              Clear dates
+            </button>
+          </>
+        )}
 
         <select
           value={division}
@@ -252,13 +329,37 @@ export function DomainDeliveryByDate({
                     <th className="text-right font-semibold pb-2 px-3">Approved</th>
                     <th className="text-right font-semibold pb-2 px-3">Awaiting</th>
                     <th className="text-right font-semibold pb-2 px-3">People</th>
+                    {/* Entries, not people: one person can file more than
+                        once a day, and an unlabelled number sitting next to
+                        "People" just reads as a second headcount. */}
+                    <th className="text-right font-semibold pb-2 pl-1">Entries</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-ink-100">
-                  {shown.map((r) => (
-                    <tr key={r.key}>
+                  {shown.map((r) => {
+                    const open = openKey === r.key;
+                    return (
+                    <Fragment key={r.key}>
+                    <tr
+                      className={`cursor-pointer ${open ? "bg-ink-50" : "hover:bg-ink-50"}`}
+                      onClick={() => setOpenKey(open ? null : r.key)}
+                    >
                       <td className="py-2 text-ink-900 whitespace-nowrap">
-                        {groupBy === "week" ? fmtDate(r.key) : fmtWeekday(r.key)}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenKey(open ? null : r.key);
+                          }}
+                          aria-expanded={open}
+                          className="inline-flex items-center gap-1 hover:text-brand-blue"
+                        >
+                          {open ? (
+                            <ChevronDown size={14} className="text-ink-400" />
+                          ) : (
+                            <ChevronRight size={14} className="text-ink-400" />
+                          )}
+                          {groupBy === "week" ? fmtDate(r.key) : fmtWeekday(r.key)}
+                        </button>
                       </td>
                       <td className="py-2 px-3">
                         <div
@@ -295,8 +396,25 @@ export function DomainDeliveryByDate({
                       <td className="py-2 px-3 text-right tabular-nums text-ink-600">
                         {r.people}
                       </td>
+                      <td className="py-2 pl-1 text-right tabular-nums text-ink-400 text-xs">
+                        {r.entries}
+                      </td>
                     </tr>
-                  ))}
+                    {open && (
+                      <tr>
+                        <td colSpan={7} className="p-0">
+                          <DeliveryDetail
+                            date={r.key}
+                            groupBy={groupBy}
+                            division={division}
+                            projectId={projectId}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
               <p className="text-xs text-ink-400 mt-3">
@@ -329,6 +447,205 @@ function Figure({
       </div>
       <div className={`font-heading text-2xl font-semibold ${tone}`}>{value}</div>
       {sub && <div className="text-xs text-ink-400">{sub}</div>}
+    </div>
+  );
+}
+
+type Entry = {
+  id: number;
+  date: string;
+  status: string;
+  submitted: number;
+  approved: number | null;
+  note: string | null;
+  person: string;
+  personRole: string;
+  submittedBy: string;
+  submittedAt: string;
+  project: string;
+  division: string | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+};
+
+const STATUS_TONE: Record<string, string> = {
+  Approved: "bg-brand-greenBg text-brand-greenText",
+  Pending: "bg-brand-yellowBg text-brand-yellowText",
+  Rejected: "bg-brand-redBg text-brand-redText",
+};
+
+/** "Rejected" is what is stored; "Sent back" is what it means. */
+function statusLabel(s: string): string {
+  return s === "Rejected" ? "Sent back" : s;
+}
+
+/**
+ * What one bar is actually made of: every submission behind it, whose
+ * work it was, which project and division it belonged to, and who signed
+ * it off.
+ *
+ * Loaded when the row is opened rather than with the chart. A 90-day
+ * range covers thousands of submissions and almost none of them are ever
+ * looked at, so fetching them all to keep one drawer instant would be
+ * paying for the whole haystack to find one needle.
+ */
+function DeliveryDetail({
+  date,
+  groupBy,
+  division,
+  projectId,
+}: {
+  date: string;
+  groupBy: "day" | "week";
+  division: string;
+  projectId: string;
+}) {
+  const [entries, setEntries] = useState<Entry[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    const q = new URLSearchParams({ date, groupBy });
+    // The chart's filters carry in, so opening a row while filtered to
+    // one division doesn't suddenly show every division.
+    if (division && division !== "none") q.set("divisionId", division);
+    if (projectId) q.set("projectId", projectId);
+
+    fetch(`/api/domain/forecast/delivery/detail?${q}`, { cache: "no-store" })
+      .then(async (r) => {
+        const b = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(b.error ?? "Couldn't load that day.");
+        return b.entries as Entry[];
+      })
+      .then((e) => {
+        if (live) {
+          setEntries(e);
+          setError(null);
+        }
+      })
+      .catch((e: Error) => {
+        if (live) setError(e.message);
+      });
+    return () => {
+      live = false;
+    };
+  }, [date, groupBy, division, projectId]);
+
+  if (error) {
+    return (
+      <div className="px-3 py-3 bg-ink-50 border-l-2 border-brand-red">
+        <p className="text-xs text-brand-redText">{error}</p>
+      </div>
+    );
+  }
+
+  if (entries === null) {
+    return (
+      <div className="px-3 py-3 bg-ink-50">
+        <p className="text-xs text-ink-500 flex items-center gap-1.5">
+          <Loader2 size={13} className="animate-spin" /> Loading…
+        </p>
+      </div>
+    );
+  }
+
+  if (entries.length === 0) {
+    return (
+      <div className="px-3 py-3 bg-ink-50">
+        <p className="text-xs text-ink-400 italic">
+          Nothing was submitted on this {groupBy === "week" ? "week" : "day"}.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-ink-50 border-l-2 border-brand-blue px-3 py-3">
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs min-w-[640px]">
+          <thead className="text-ink-500 uppercase tracking-wide">
+            <tr>
+              <th className="text-left font-semibold pb-1.5">Person</th>
+              <th className="text-left font-semibold pb-1.5 px-2">Project</th>
+              <th className="text-left font-semibold pb-1.5 px-2">Division</th>
+              <th className="text-right font-semibold pb-1.5 px-2">Submitted</th>
+              <th className="text-right font-semibold pb-1.5 px-2">Approved</th>
+              <th className="text-left font-semibold pb-1.5 px-2">Status</th>
+              <th className="text-left font-semibold pb-1.5 px-2">Reviewed by</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-ink-200/60">
+            {entries.map((e) => (
+              <Fragment key={e.id}>
+                <tr>
+                  <td className="py-1.5 text-ink-900 font-medium whitespace-nowrap">
+                    {e.person}
+                    {/* Nearly always the same person — worth saying only
+                        when it isn't, e.g. a lead filing on someone's
+                        behalf. */}
+                    {e.submittedBy !== e.person && (
+                      <span className="text-ink-400 font-normal">
+                        {" "}
+                        · filed by {e.submittedBy}
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-1.5 px-2 text-ink-700">{e.project}</td>
+                  <td className="py-1.5 px-2 text-ink-700">
+                    {e.division ?? <span className="text-ink-400">—</span>}
+                  </td>
+                  <td className="py-1.5 px-2 text-right tabular-nums text-ink-900">
+                    {e.submitted}
+                  </td>
+                  <td className="py-1.5 px-2 text-right tabular-nums font-medium text-brand-greenText">
+                    {e.approved ?? <span className="text-ink-300">—</span>}
+                  </td>
+                  <td className="py-1.5 px-2">
+                    <span
+                      className={`px-1.5 py-0.5 rounded-pill text-[10px] font-semibold ${STATUS_TONE[e.status] ?? ""}`}
+                    >
+                      {statusLabel(e.status)}
+                    </span>
+                  </td>
+                  <td className="py-1.5 px-2 text-ink-700 whitespace-nowrap">
+                    {e.reviewedBy ? (
+                      <>
+                        {e.reviewedBy}
+                        {e.reviewedAt && (
+                          <span className="text-ink-400">
+                            {" "}
+                            · {fmtStamp(e.reviewedAt)}
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-ink-400">not yet reviewed</span>
+                    )}
+                  </td>
+                </tr>
+                {/* Notes get their own line rather than a truncated cell:
+                    a reason sent back is the thing worth reading. */}
+                {(e.note || e.reviewNote) && (
+                  <tr>
+                    <td colSpan={7} className="pb-1.5 pl-1">
+                      {e.note && (
+                        <span className="text-ink-500 italic">“{e.note}”</span>
+                      )}
+                      {e.reviewNote && (
+                        <span className="text-brand-redText italic">
+                          {e.note ? " · " : ""}
+                          Reviewer: “{e.reviewNote}”
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

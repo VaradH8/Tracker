@@ -18,6 +18,13 @@ import {
 } from "@/components/DomainResourcePicker";
 import { fmtDate as fmt } from "@/lib/domain-format";
 import { dateClass, inputClass, selectClass } from "@/lib/domain-ui";
+import {
+  DomainHandoverFields,
+  emptyHandover,
+  handoverPayload,
+  handoverFromProject,
+  type HandoverValue,
+} from "@/components/DomainHandoverFields";
 
 /**
  * The forecast-facing pieces of the Domain projects page: creating and
@@ -185,8 +192,7 @@ export function CreateProjectForm({
   const [desc, setDesc] = useState("");
   const [client, setClient] = useState("");
   const [totalTags, setTotalTags] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [handoverDate, setHandoverDate] = useState("");
+  const [schedule, setSchedule] = useState<HandoverValue>(emptyHandover());
   const [divisions, setDivisions] = useState<DivisionDraft[]>([]);
   const [picked, setPicked] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -207,8 +213,7 @@ export function CreateProjectForm({
         description: desc,
         client: client || null,
         totalTags: totalTags ? Number(totalTags) : 0,
-        startDate: startDate || null,
-        handoverDate: handoverDate || null,
+        ...handoverPayload(schedule),
         divisions: divisions
           .filter((d) => d.name.trim())
           .map((d) => ({ name: d.name.trim(), totalTags: Number(d.totalTags) || 0 })),
@@ -313,24 +318,13 @@ export function CreateProjectForm({
             className="w-full px-2 py-1.5 rounded border border-ink-200"
           />
         </label>
-        <label className="text-sm">
-          <span className="block text-ink-700 mb-1">Start date</span>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className={dateClass("sm", "w-full")}
-          />
-        </label>
-        <label className="text-sm">
-          <span className="block text-ink-700 mb-1">Handover date</span>
-          <input
-            type="date"
-            value={handoverDate}
-            onChange={(e) => setHandoverDate(e.target.value)}
-            className={dateClass("sm", "w-full")}
-          />
-        </label>
+      </div>
+
+      {/* Start date, working week and total working days, which together
+          give the handover date. Shared with the edit form and the
+          simulator so all three produce the same date. */}
+      <div className="mb-4">
+        <DomainHandoverFields value={schedule} onChange={setSchedule} />
       </div>
 
       <ScopeFields
@@ -377,8 +371,7 @@ export function EditProjectForm({
   const [desc, setDesc] = useState(project.description ?? "");
   const [client, setClient] = useState(project.client ?? "");
   const [totalTags, setTotalTags] = useState(String(project.totalTags ?? ""));
-  const [startDate, setStartDate] = useState(project.startDate ?? "");
-  const [handoverDate, setHandoverDate] = useState(project.handoverDate ?? "");
+  const [schedule, setSchedule] = useState<HandoverValue>(handoverFromProject(project));
   const [divisions, setDivisions] = useState<DivisionDraft[]>(
     (project.divisions ?? []).map((d) => ({
       divisionId: d.id,
@@ -406,8 +399,7 @@ export function EditProjectForm({
         description: desc || null,
         client: client || null,
         totalTags: Number(totalTags) || 0,
-        startDate: startDate || null,
-        handoverDate: handoverDate || null,
+        ...handoverPayload(schedule),
         divisions: divisions
           .filter((d) => d.name.trim())
           .map((d) => ({
@@ -469,24 +461,13 @@ export function EditProjectForm({
             className="w-full px-2 py-1.5 rounded border border-ink-200"
           />
         </label>
-        <label className="text-sm">
-          <span className="block text-ink-700 mb-1">Start date</span>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className={dateClass("sm", "w-full")}
-          />
-        </label>
-        <label className="text-sm">
-          <span className="block text-ink-700 mb-1">Handover date</span>
-          <input
-            type="date"
-            value={handoverDate}
-            onChange={(e) => setHandoverDate(e.target.value)}
-            className={dateClass("sm", "w-full")}
-          />
-        </label>
+      </div>
+
+      {/* Start date, working week and total working days, which together
+          give the handover date. Shared with the edit form and the
+          simulator so all three produce the same date. */}
+      <div className="mb-4">
+        <DomainHandoverFields value={schedule} onChange={setSchedule} />
       </div>
 
       <ScopeFields
