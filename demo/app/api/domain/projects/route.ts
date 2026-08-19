@@ -30,6 +30,7 @@ type ProjectRow = {
   createdAt: Date;
   startDate: Date | null;
   handoverDate: Date | null;
+  contractTags: number | null;
   workingDaysPerWeek: number | null;
   totalWorkingDays: number | null;
   totalTags: number;
@@ -65,6 +66,7 @@ function serialize(p: ProjectRow) {
     createdAt: p.createdAt.toISOString(),
     startDate: p.startDate ? toISODate(p.startDate) : null,
     handoverDate: p.handoverDate ? toISODate(p.handoverDate) : null,
+    contractTags: p.contractTags,
     workingDaysPerWeek: p.workingDaysPerWeek,
     totalWorkingDays: p.totalWorkingDays,
     totalTags: p.totalTags,
@@ -172,6 +174,22 @@ export async function POST(req: Request) {
   const totalTags =
     Number.isInteger(totalTagsRaw) && totalTagsRaw > 0 ? totalTagsRaw : 0;
 
+  // The whole scope agreed with the client. Optional: a project that
+  // doesn't track it stores null, which reads as "not tracked" rather
+  // than as a contract of nothing.
+  const contractRaw = body.contractTags;
+  let contractTags: number | null = null;
+  if (contractRaw !== undefined && contractRaw !== null && contractRaw !== "") {
+    const n = Number(contractRaw);
+    if (!Number.isInteger(n) || n < 0) {
+      return NextResponse.json(
+        { error: "Contract scope must be a whole number of 0 or more." },
+        { status: 400 },
+      );
+    }
+    contractTags = n;
+  }
+
   // Divisions: [{ divisionId?, name?, totalTags? }] — an id picks from the
   // catalogue, a name creates or reuses an entry by case-insensitive match.
   const divisionInput: { divisionId?: unknown; name?: unknown; totalTags?: unknown }[] =
@@ -277,6 +295,7 @@ export async function POST(req: Request) {
       workingDaysPerWeek,
       totalWorkingDays,
       totalTags,
+      contractTags,
       client:
         typeof body.client === "string" && body.client.trim()
           ? body.client.trim()

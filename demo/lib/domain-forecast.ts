@@ -262,6 +262,9 @@ export type ProjectForecast = {
   /** The whole deliverable: the project's declared total, or the sum of
    *  what's been assigned when no total was set. */
   totalTags: number;
+  /** The whole scope agreed with the client; null when not tracked. What
+   *  the client still holds is derived from it — see lib/domain-scope. */
+  contractTags: number | null;
   assignedTags: number;
   deliveredTags: number;
   remainingTags: number;
@@ -475,6 +478,7 @@ export async function projectForecasts(
       startDate: p.startDate ? toISODate(p.startDate) : null,
       handoverDate: p.handoverDate ? toISODate(p.handoverDate) : null,
       totalTags,
+      contractTags: p.contractTags,
       assignedTags,
       deliveredTags,
       remainingTags,

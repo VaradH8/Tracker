@@ -234,7 +234,7 @@ export default function ForecastPage() {
           // Two up from lg. Each card is now short enough that a pair fits
           // side by side, which is what makes a portfolio comparable
           // rather than a list you scroll through.
-          <div className="grid gap-4 lg:grid-cols-2 items-start">
+          <div className="grid gap-4 lg:grid-cols-2">
             {shown.map((p) => (
               <DomainForecastCard key={p.id} p={p} />
             ))}

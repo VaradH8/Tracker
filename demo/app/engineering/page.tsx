@@ -65,6 +65,69 @@ export default function DomainDashboard() {
 }
 
 
+/**
+ * One thing that needs doing: how many, what it is, and enough detail to
+ * decide whether to act now — on a single line.
+ *
+ * The count leads because it is what decides urgency; the detail trails
+ * in lighter type because it only matters once you have decided to look.
+ * The whole row is the link, so there is no "Review now" to hunt for.
+ */
+function AttentionRow({
+  href,
+  tone,
+  icon,
+  count,
+  unit,
+  label,
+  detail,
+  more = 0,
+}: {
+  href: string;
+  tone: "blue" | "yellow" | "red";
+  icon: React.ReactNode;
+  count: number;
+  unit: string;
+  label: string;
+  detail?: string;
+  more?: number;
+}) {
+  const colour =
+    tone === "red"
+      ? "text-brand-redText"
+      : tone === "yellow"
+        ? "text-brand-yellowText"
+        : "text-brand-blue";
+  return (
+    <li>
+      <Link
+        href={href}
+        className="flex items-center gap-3 py-3 -mx-2 px-2 rounded hover:bg-ink-50 group"
+      >
+        <span className={`shrink-0 ${colour}`}>{icon}</span>
+        <span className="shrink-0">
+          <strong className="font-heading text-xl font-semibold text-ink-900">
+            {count}
+          </strong>{" "}
+          <span className="text-sm text-ink-700">
+            {unit} {label}
+          </span>
+        </span>
+        {detail && (
+          <span className="text-xs text-ink-500 truncate min-w-0">
+            {detail}
+            {more > 0 && ` · +${more} more`}
+          </span>
+        )}
+        <ArrowRight
+          size={14}
+          className="ml-auto shrink-0 text-ink-300 group-hover:text-brand-blue"
+        />
+      </Link>
+    </li>
+  );
+}
+
 function Stat({
   label,
   value,
@@ -169,111 +232,75 @@ function ManagerHome() {
 
   return (
     <div className="grid gap-6">
-      <section>
-        <h2 className="font-heading text-lg font-semibold mb-3">
+      {/* ---- needs your attention ----------------------------------
+          One row per thing, not three large cards.
+
+          Each card carried an uppercase eyebrow, a 3xl number, a
+          sentence and its own "Review now" link — so three items filled
+          a screen and the eye had to travel through four type sizes to
+          learn three facts. A row says the same thing in one line, and
+          the whole list can be taken in at a glance, which is the point
+          of a section called "needs your attention".                   */}
+      <section className="card p-5">
+        <h2 className="font-heading text-lg font-semibold mb-1">
           Needs your attention
         </h2>
 
         {clear ? (
-          <div className="card p-5 flex items-center gap-3">
-            <CheckSquare size={18} className="text-brand-greenText shrink-0" />
-            <p className="text-sm text-ink-700">
-              Nothing waiting — no submissions to review, and every project is on
-              track.
-            </p>
-          </div>
+          <p className="text-sm text-ink-600 flex items-center gap-2 mt-2">
+            <CheckSquare size={16} className="text-brand-greenText shrink-0" />
+            Nothing waiting — no submissions to review, and every project is on
+            track.
+          </p>
         ) : (
-          <div className="grid sm:grid-cols-2 gap-4">
-            {/* Task approvals belong to whoever handed the task out, so
-                this card only ever appears for that person. */}
+          <ul className="divide-y divide-ink-100 -mb-1">
             {taskReviews.length > 0 && (
-              <Link
+              <AttentionRow
                 href="/engineering/task-log"
-                className="card p-5 border-l-4 border-brand-blue hover:shadow-md transition block"
-              >
-                <div className="flex items-center gap-2 text-brand-blue">
-                  <CheckSquare size={16} />
-                  <span className="text-xs font-semibold uppercase tracking-wide">
-                    Tasks awaiting your approval
-                  </span>
-                </div>
-                <div className="font-heading text-3xl font-semibold mt-1 text-ink-900">
-                  {taskReviews.length}{" "}
-                  <span className="text-lg font-normal text-ink-500">
-                    task{taskReviews.length === 1 ? "" : "s"}
-                  </span>
-                </div>
-                <p className="text-sm text-ink-600 mt-1">
-                  {taskReviews
-                    .slice(0, 2)
-                    .map((t) => `${t.assignee ?? "Someone"} · ${t.title}`)
-                    .join(" · ")}
-                  {taskReviews.length > 2 && ` · +${taskReviews.length - 2} more`}
-                </p>
-                <span className="text-sm text-brand-blue inline-flex items-center gap-1 mt-2">
-                  Review now <ArrowRight size={14} />
-                </span>
-              </Link>
+                tone="blue"
+                icon={<CheckSquare size={15} />}
+                count={taskReviews.length}
+                unit={`task${taskReviews.length === 1 ? "" : "s"}`}
+                label="awaiting your approval"
+                detail={taskReviews
+                  .slice(0, 2)
+                  .map((t) => `${t.assignee ?? "Someone"} · ${t.title}`)
+                  .join("  ·  ")}
+                more={taskReviews.length > 2 ? taskReviews.length - 2 : 0}
+              />
             )}
 
             {pending.length > 0 && (
-              <Link
+              <AttentionRow
                 href="/engineering/approvals"
-                className="card p-5 border-l-4 border-brand-yellow hover:shadow-md transition block"
-              >
-                <div className="flex items-center gap-2 text-brand-yellowText">
-                  <Clock size={16} />
-                  <span className="text-xs font-semibold uppercase tracking-wide">
-                    Awaiting your approval
-                  </span>
-                </div>
-                <div className="font-heading text-3xl font-semibold mt-1 text-ink-900">
-                  {pending.length}{" "}
-                  <span className="text-lg font-normal text-ink-500">
-                    submission{pending.length === 1 ? "" : "s"}
-                  </span>
-                </div>
-                <p className="text-sm text-ink-600 mt-1">
-                  <strong>{pendingTags}</strong> tags claimed
-                  {oldest && <> · oldest from {fmtDate(oldest)}</>}
-                </p>
-                <span className="text-sm text-brand-blue inline-flex items-center gap-1 mt-2">
-                  Review now <ArrowRight size={14} />
-                </span>
-              </Link>
+                tone="yellow"
+                icon={<Clock size={15} />}
+                count={pending.length}
+                unit={`submission${pending.length === 1 ? "" : "s"}`}
+                label="awaiting your approval"
+                detail={`${pendingTags} tags claimed${oldest ? ` · oldest ${fmtDate(oldest)}` : ""}`}
+              />
             )}
 
             {behind.length > 0 && (
-              <Link
+              <AttentionRow
                 href="/engineering/forecast"
-                className="card p-5 border-l-4 border-brand-red hover:shadow-md transition block"
-              >
-                <div className="flex items-center gap-2 text-brand-redText">
-                  <AlertTriangle size={16} />
-                  <span className="text-xs font-semibold uppercase tracking-wide">
-                    Behind schedule
-                  </span>
-                </div>
-                <div className="font-heading text-3xl font-semibold mt-1 text-ink-900">
-                  {behind.length}{" "}
-                  <span className="text-lg font-normal text-ink-500">
-                    project{behind.length === 1 ? "" : "s"}
-                  </span>
-                </div>
-                <p className="text-sm text-ink-600 mt-1">
-                  {behind
-                    .map(
-                      (p) =>
-                        `${p.name} (${Math.abs(p.forecast.slackDays ?? 0)}d late)`,
-                    )
-                    .join(" · ")}
-                </p>
-                <span className="text-sm text-brand-blue inline-flex items-center gap-1 mt-2">
-                  Open forecast <ArrowRight size={14} />
-                </span>
-              </Link>
+                tone="red"
+                icon={<AlertTriangle size={15} />}
+                count={behind.length}
+                unit={`project${behind.length === 1 ? "" : "s"}`}
+                label="behind schedule"
+                detail={behind
+                  .slice(0, 3)
+                  .map(
+                    (x) =>
+                      `${x.name} (${Math.abs(x.forecast.slackDays ?? 0)}d late)`,
+                  )
+                  .join("  ·  ")}
+                more={behind.length > 3 ? behind.length - 3 : 0}
+              />
             )}
-          </div>
+          </ul>
         )}
       </section>
 

@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { DomainDeliveryLog } from "@/components/DomainDeliveryLog";
 import { fmtDate as fmt, fmtDate as fmtShort } from "@/lib/domain-format";
+import { projectScope, SCOPE_LABELS } from "@/lib/domain-scope";
 
 /**
  * A project's estimate.
@@ -43,6 +44,7 @@ export type ProjectRow = {
   startDate: string | null;
   handoverDate: string | null;
   totalTags: number;
+  contractTags?: number | null;
   assignedTags: number;
   deliveredTags: number;
   remainingTags: number;
@@ -247,13 +249,18 @@ export function DomainForecastCard({
       ? Math.min(100 - pct, (p.pendingApprovalTags / p.totalTags) * 100)
       : 0;
 
+  const scope = projectScope({
+    contractTags: p.contractTags ?? null,
+    totalTags: p.totalTags,
+    deliveredTags: p.deliveredTags,
+  });
   const noRate = p.resources.filter((r) => r.usingDefaultRate);
   const shared = p.resources.filter((r) => r.concurrentProjects > 1);
   const notStarted = p.startsFrom > new Date().toISOString().slice(0, 10);
   const hasCaveats = noRate.length > 0 || shared.length > 0 || notStarted;
 
   return (
-    <article className={`card border-l-4 ${tone.rail} p-4`}>
+    <article className={`card border-l-4 ${tone.rail} p-4 flex flex-col`}>
       {/* --- headline ------------------------------------------------ */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -308,6 +315,24 @@ export function DomainForecastCard({
             style={{ width: `${pendingPct}%` }}
           />
         </div>
+        {/* The client position, when the project tracks a contract:
+            what was agreed, and how much of it we are still waiting to
+            be given. Only shown when it adds something — a project with
+            no contract figure says nothing here. */}
+        {scope.withClientTags !== null && (
+          <p className="mt-1.5 text-[11px] text-ink-500">
+            {SCOPE_LABELS.contract}{" "}
+            <strong className="text-ink-900 tabular-nums">
+              {scope.contractTags}
+            </strong>
+            {" · "}
+            <span className="text-brand-yellowText">
+              {SCOPE_LABELS.withClient}{" "}
+              <strong className="tabular-nums">{scope.withClientTags}</strong>
+            </span>
+          </p>
+        )}
+
         {/* One sentence, in words, instead of a colour key to decode. */}
         <p className="mt-1.5 text-[11px] text-ink-500">
           <strong className="font-medium text-ink-900">
@@ -346,10 +371,12 @@ export function DomainForecastCard({
         </p>
       )}
 
+      {/* mt-auto pins this to the bottom, so cards of differing content
+          still line their action up with each other. */}
       <button
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand-blue hover:underline"
+        className="mt-auto pt-3 inline-flex items-center gap-1 self-start text-xs font-medium text-brand-blue hover:underline"
       >
         {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         {open ? "Hide detail" : "Detail"}

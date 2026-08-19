@@ -395,7 +395,21 @@ model DomainProject {
   // projects created before the forecast feature keep working.
   startDate    DateTime?
   handoverDate DateTime?
+
+  /// What the client has actually handed over for us to work on. This is
+  /// the denominator for delivery: you cannot deliver a tag you have not
+  /// been given.
   totalTags    Int       @default(0)
+
+  /// The whole scope agreed with the client, which is usually larger than
+  /// what has been released to us so far. Nullable because plenty of
+  /// projects are run without tracking the contract separately, and a
+  /// zero would be indistinguishable from "not tracked".
+  ///
+  /// Tags still sitting with the client are derived (contract − received)
+  /// rather than stored: two numbers that must agree are one number too
+  /// many, and the stored pair would drift the first time either changed.
+  contractTags Int?
 
   // How the handover date was arrived at, kept so it can be recalculated
   // when a holiday is added or the schedule shifts. Both nullable: a

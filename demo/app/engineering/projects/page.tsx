@@ -23,6 +23,7 @@ import {
 } from "@/components/DomainProjectForecast";
 import { DomainProjectResources } from "@/components/DomainProjectResources";
 import { DomainPage, PageHeader } from "@/components/DomainPage";
+import { projectScope, SCOPE_LABELS } from "@/lib/domain-scope";
 import { fmtDate as fmtDay } from "@/lib/domain-format";
 
 type Project = {
@@ -35,6 +36,7 @@ type Project = {
   startDate?: string | null;
   handoverDate?: string | null;
   totalTags?: number;
+  contractTags?: number | null;
   client?: string | null;
   divisions?: { id: number; name: string; totalTags: number }[];
   resources?: {
@@ -284,6 +286,11 @@ export default function DomainProjectsPage() {
 
 /** One project on the index: scope, progress and dates at a glance. */
 function ProjectCard({ p, onOpen }: { p: Project; onOpen: () => void }) {
+  const scope = projectScope({
+    contractTags: p.contractTags ?? null,
+    totalTags: p.totalTags ?? 0,
+    deliveredTags: p.deliveredTags ?? 0,
+  });
   const total = p.totalTags || p.assignedTags || 0;
   const delivered = p.deliveredTags ?? 0;
   const pct = total > 0 ? (delivered / total) * 100 : 0;
@@ -323,6 +330,24 @@ function ProjectCard({ p, onOpen }: { p: Project; onOpen: () => void }) {
         </>
       ) : (
         <p className="text-sm text-ink-400 italic mt-4">No tags set up yet</p>
+      )}
+
+      {/* The client position, when this project tracks a contract.
+          Silent otherwise — a project without one should not sprout an
+          empty row. */}
+      {scope.withClientTags !== null && (
+        <div className="flex items-center gap-3 mt-2 text-xs flex-wrap">
+          <span className="text-ink-500">
+            {SCOPE_LABELS.contract}{" "}
+            <strong className="text-ink-900 tabular-nums">
+              {scope.contractTags}
+            </strong>
+          </span>
+          <span className="text-brand-yellowText">
+            {SCOPE_LABELS.withClient}{" "}
+            <strong className="tabular-nums">{scope.withClientTags}</strong>
+          </span>
+        </div>
       )}
 
       <div className="flex items-center gap-3 mt-3 text-xs text-ink-500 flex-wrap">
@@ -380,6 +405,11 @@ function ProjectHeader({
   const total = project.totalTags || assigned;
   const remaining = Math.max(0, total - delivered);
   const pct = total > 0 ? (delivered / total) * 100 : 0;
+  const headerScope = projectScope({
+    contractTags: project.contractTags ?? null,
+    totalTags: project.totalTags ?? 0,
+    deliveredTags: delivered,
+  });
 
   return (
     <div className="card p-6 mb-5">
@@ -440,8 +470,29 @@ function ProjectHeader({
 
       {total > 0 && (
         <>
+          {/* The client side of the ledger first, when it is tracked:
+              what was agreed, and what we are still waiting to be given.
+              Then our side: of what we hold, how much is done. */}
+          {headerScope.withClientTags !== null && (
+            <div className="grid grid-cols-2 gap-3 mt-5">
+              <HeroStat
+                label={SCOPE_LABELS.contract}
+                value={headerScope.contractTags ?? 0}
+              />
+              <HeroStat
+                label={SCOPE_LABELS.withClient}
+                value={headerScope.withClientTags}
+                tone={
+                  headerScope.withClientTags > 0
+                    ? "text-brand-yellowText"
+                    : undefined
+                }
+              />
+            </div>
+          )}
+
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
-            <HeroStat label="Tags total" value={total} />
+            <HeroStat label={SCOPE_LABELS.received} value={total} />
             <HeroStat label="Delivered" value={delivered} tone="text-brand-greenText" />
             <HeroStat
               label="Pending approval"

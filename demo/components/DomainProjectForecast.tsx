@@ -18,6 +18,7 @@ import {
 } from "@/components/DomainResourcePicker";
 import { fmtDate as fmt } from "@/lib/domain-format";
 import { dateClass, inputClass, selectClass } from "@/lib/domain-ui";
+import { projectScope, SCOPE_LABELS } from "@/lib/domain-scope";
 import {
   DomainHandoverFields,
   emptyHandover,
@@ -40,6 +41,8 @@ export type ForecastProject = {
   description?: string | null;
   handoverDate?: string | null;
   startDate?: string | null;
+  contractTags?: number | null;
+  deliveredTags?: number;
   totalTags?: number;
   client?: string | null;
   divisions?: { id: number; name: string; totalTags: number }[];
@@ -62,6 +65,8 @@ type DivisionDraft = { divisionId?: number; name: string; totalTags: string };
 
 /** Divisions + resources editor, shared by the create and edit forms. */
 function ScopeFields({
+  contractTags,
+  deliveredTags = 0,
   totalTags,
   divisions,
   setDivisions,
@@ -70,6 +75,10 @@ function ScopeFields({
   workers,
   availability,
 }: {
+  contractTags: string;
+  /** Already delivered, so the breakdown shows the whole position. Zero
+   *  for a project that does not exist yet. */
+  deliveredTags?: number;
   totalTags: string;
   divisions: DivisionDraft[];
   setDivisions: (fn: (d: DivisionDraft[]) => DivisionDraft[]) => void;
@@ -83,8 +92,56 @@ function ScopeFields({
   // Mirrors the server rule, so the Lead sees the problem before saving.
   const over = total > 0 && divisionSum > total;
 
+  // The whole tag position, worked out from the two figures typed above.
+  const scope = projectScope({
+    contractTags: contractTags === "" ? null : Number(contractTags),
+    totalTags: total,
+    deliveredTags,
+  });
+
   return (
     <>
+      {/* What the numbers above add up to. Shown live so nobody has to
+          do the subtraction themselves, or wonder whether the system
+          agrees with them. */}
+      {(scope.contractTags !== null || total > 0) && (
+        <div className="rounded border border-ink-200 bg-ink-50 px-3 py-2.5 mb-3">
+          <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs">
+            {scope.contractTags !== null && (
+              <span className="text-ink-500">
+                {SCOPE_LABELS.contract}{" "}
+                <strong className="text-ink-900 tabular-nums">
+                  {scope.contractTags}
+                </strong>
+              </span>
+            )}
+            <span className="text-ink-500">
+              {SCOPE_LABELS.received}{" "}
+              <strong className="text-ink-900 tabular-nums">
+                {scope.receivedTags}
+              </strong>
+            </span>
+            {scope.withClientTags !== null && (
+              <span className="text-brand-yellowText">
+                {SCOPE_LABELS.withClient}{" "}
+                <strong className="tabular-nums">{scope.withClientTags}</strong>
+              </span>
+            )}
+            {deliveredTags > 0 && (
+              <span className="text-brand-greenText">
+                {SCOPE_LABELS.delivered}{" "}
+                <strong className="tabular-nums">{scope.deliveredTags}</strong>
+              </span>
+            )}
+          </div>
+          {scope.receivedExceedsContract && (
+            <p className="text-[11px] text-brand-yellowText mt-1.5">
+              More has been received than the contract covers — the contract
+              figure is probably out of date.
+            </p>
+          )}
+        </div>
+      )}
       <div className="mb-3">
         <div className="flex items-center justify-between mb-1">
           <span className="text-sm text-ink-700">Divisions</span>
@@ -191,6 +248,7 @@ export function CreateProjectForm({
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [client, setClient] = useState("");
+  const [contractTags, setContractTags] = useState("");
   const [totalTags, setTotalTags] = useState("");
   const [schedule, setSchedule] = useState<HandoverValue>(emptyHandover());
   const [divisions, setDivisions] = useState<DivisionDraft[]>([]);
@@ -213,6 +271,7 @@ export function CreateProjectForm({
         description: desc,
         client: client || null,
         totalTags: totalTags ? Number(totalTags) : 0,
+        contractTags: contractTags === "" ? null : Number(contractTags),
         ...handoverPayload(schedule),
         divisions: divisions
           .filter((d) => d.name.trim())
@@ -308,13 +367,31 @@ export function CreateProjectForm({
           />
         </label>
         <label className="text-sm">
-          <span className="block text-ink-700 mb-1">Master tag count</span>
+          {/* The whole commitment. Optional — blank on a project where the
+              contract isn't tracked separately. */}
+          <span className="block text-ink-700 mb-1">
+            {SCOPE_LABELS.contract}{" "}
+            <span className="text-ink-400 font-normal">(optional)</span>
+          </span>
+          <input
+            type="number"
+            min={0}
+            value={contractTags}
+            onChange={(e) => setContractTags(e.target.value)}
+            placeholder="13508"
+            className="w-full px-2 py-1.5 rounded border border-ink-200"
+          />
+        </label>
+        <label className="text-sm">
+          {/* What we can actually work on, and the denominator for
+              delivery — hence the rename from "master tag count". */}
+          <span className="block text-ink-700 mb-1">{SCOPE_LABELS.received}</span>
           <input
             type="number"
             min={0}
             value={totalTags}
             onChange={(e) => setTotalTags(e.target.value)}
-            placeholder="6000"
+            placeholder="10828"
             className="w-full px-2 py-1.5 rounded border border-ink-200"
           />
         </label>
@@ -328,6 +405,7 @@ export function CreateProjectForm({
       </div>
 
       <ScopeFields
+        contractTags={contractTags}
         totalTags={totalTags}
         divisions={divisions}
         setDivisions={setDivisions}
@@ -370,6 +448,9 @@ export function EditProjectForm({
   const [name, setName] = useState(project.name);
   const [desc, setDesc] = useState(project.description ?? "");
   const [client, setClient] = useState(project.client ?? "");
+  const [contractTags, setContractTags] = useState(
+    project.contractTags == null ? "" : String(project.contractTags),
+  );
   const [totalTags, setTotalTags] = useState(String(project.totalTags ?? ""));
   const [schedule, setSchedule] = useState<HandoverValue>(handoverFromProject(project));
   const [divisions, setDivisions] = useState<DivisionDraft[]>(
@@ -399,6 +480,7 @@ export function EditProjectForm({
         description: desc || null,
         client: client || null,
         totalTags: Number(totalTags) || 0,
+        contractTags: contractTags === "" ? null : Number(contractTags),
         ...handoverPayload(schedule),
         divisions: divisions
           .filter((d) => d.name.trim())
@@ -452,12 +534,31 @@ export function EditProjectForm({
           />
         </label>
         <label className="text-sm">
-          <span className="block text-ink-700 mb-1">Master tag count</span>
+          {/* The whole commitment. Optional — blank on a project where the
+              contract isn't tracked separately. */}
+          <span className="block text-ink-700 mb-1">
+            {SCOPE_LABELS.contract}{" "}
+            <span className="text-ink-400 font-normal">(optional)</span>
+          </span>
+          <input
+            type="number"
+            min={0}
+            value={contractTags}
+            onChange={(e) => setContractTags(e.target.value)}
+            placeholder="13508"
+            className="w-full px-2 py-1.5 rounded border border-ink-200"
+          />
+        </label>
+        <label className="text-sm">
+          {/* What we can actually work on, and the denominator for
+              delivery — hence the rename from "master tag count". */}
+          <span className="block text-ink-700 mb-1">{SCOPE_LABELS.received}</span>
           <input
             type="number"
             min={0}
             value={totalTags}
             onChange={(e) => setTotalTags(e.target.value)}
+            placeholder="10828"
             className="w-full px-2 py-1.5 rounded border border-ink-200"
           />
         </label>
@@ -471,6 +572,7 @@ export function EditProjectForm({
       </div>
 
       <ScopeFields
+        contractTags={contractTags}
         totalTags={totalTags}
         divisions={divisions}
         setDivisions={setDivisions}

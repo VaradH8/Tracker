@@ -27,6 +27,7 @@ function serialize(p: {
   createdAt: Date;
   startDate: Date | null;
   handoverDate: Date | null;
+  contractTags: number | null;
   workingDaysPerWeek: number | null;
   totalWorkingDays: number | null;
   totalTags: number;
@@ -54,6 +55,7 @@ function serialize(p: {
     createdAt: p.createdAt.toISOString(),
     startDate: p.startDate ? toISODate(p.startDate) : null,
     handoverDate: p.handoverDate ? toISODate(p.handoverDate) : null,
+    contractTags: p.contractTags,
     workingDaysPerWeek: p.workingDaysPerWeek,
     totalWorkingDays: p.totalWorkingDays,
     totalTags: p.totalTags,
@@ -132,6 +134,22 @@ export async function PATCH(
     }
     data[field] = d;
   }
+  // null clears it back to "not tracked".
+  if (body.contractTags !== undefined) {
+    if (body.contractTags === null || body.contractTags === "") {
+      data.contractTags = null;
+    } else {
+      const n = Number(body.contractTags);
+      if (!Number.isInteger(n) || n < 0) {
+        return NextResponse.json(
+          { error: "Contract scope must be a whole number of 0 or more." },
+          { status: 400 },
+        );
+      }
+      data.contractTags = n;
+    }
+  }
+
   if (body.totalTags !== undefined) {
     const tags = Number(body.totalTags);
     if (!Number.isInteger(tags) || tags < 0) {
