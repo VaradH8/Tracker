@@ -13,7 +13,6 @@ import {
   LogOut,
   KeyRound,
   TrendingUp,
-  CalendarDays,
   CalendarCheck,
   Tags,
   CheckSquare,
@@ -21,7 +20,11 @@ import {
   X,
 } from "lucide-react";
 import { useDomain } from "@/lib/domain-store";
-import { DOMAIN_ROLE_LABELS, type DomainRole } from "@/lib/domain";
+import {
+  DOMAIN_ROLE_LABELS,
+  PORTFOLIO_VIEWER_ROLES,
+  type DomainRole,
+} from "@/lib/domain";
 import { BRAND_NAVY, BrandPanel } from "@/components/InventiveBrand";
 
 type NavItem = {
@@ -39,19 +42,32 @@ const EVERYONE: DomainRole[] = ["Admin", "Lead", ...WORKERS];
 const MANAGERS: DomainRole[] = ["Admin", "Lead"];
 /** Delivery oversight — a Team Lead reviews and plans here too. */
 const SUPERVISORS: DomainRole[] = [...MANAGERS, "TeamLead"];
+/**
+ * Read-the-whole-portfolio screens. Taken straight from the constant the
+ * API gates on, so the rail and the endpoint can never disagree about who
+ * is allowed in — a nav item that 403s is worse than no nav item.
+ */
+const OVERSEERS = PORTFOLIO_VIEWER_ROLES;
+
+/**
+ * A CEO's rail is five items, not eleven. They are here to see whether
+ * work will land and where the people are — not to approve a tag, log an
+ * hour or reset a password. Everything left out is left out because
+ * acting on it isn't their job.
+ */
+const EVERYONE_PLUS_CEO: DomainRole[] = [...EVERYONE, "CEO"];
 
 const NAV: NavItem[] = [
-  { href: "/engineering", label: "Dashboard", icon: LayoutGrid, roles: EVERYONE, group: "Work" },
-  { href: "/engineering/projects", label: "Projects", icon: FolderKanban, roles: EVERYONE, group: "Work" },
+  { href: "/engineering", label: "Dashboard", icon: LayoutGrid, roles: EVERYONE_PLUS_CEO, group: "Work" },
+  { href: "/engineering/projects", label: "Projects", icon: FolderKanban, roles: EVERYONE_PLUS_CEO, group: "Work" },
   { href: "/engineering/my-tags", label: "My tags", icon: Tags, roles: WORKERS, group: "Work" },
   { href: "/engineering/task-log", label: "Task log", icon: ClipboardList, roles: EVERYONE, group: "Work" },
   // Everyone reaches this: workers request time off here, supervisors
   // decide it. The page itself adapts to which of the two you are.
   { href: "/engineering/leaves", label: "Attendance & leave", icon: CalendarCheck, roles: EVERYONE, group: "Work" },
   { href: "/engineering/approvals", label: "Approvals", icon: CheckSquare, roles: SUPERVISORS, group: "Manage" },
-  { href: "/engineering/forecast", label: "Forecast", icon: TrendingUp, roles: SUPERVISORS, group: "Manage" },
-  { href: "/engineering/delivery", label: "Delivery by date", icon: CalendarDays, roles: SUPERVISORS, group: "Manage" },
-  { href: "/engineering/availability", label: "Resource availability", icon: Gauge, roles: SUPERVISORS, group: "Manage" },
+  { href: "/engineering/forecast", label: "Forecast", icon: TrendingUp, roles: OVERSEERS, group: "Manage" },
+  { href: "/engineering/availability", label: "Resource availability", icon: Gauge, roles: OVERSEERS, group: "Manage" },
   { href: "/engineering/kpis", label: "KPIs", icon: BarChart3, roles: ["Admin"], group: "Manage" },
   // Everyone who supervises manages people here, but not equally: Admins
   // and Leads add and remove accounts, while a Team Lead only edits the

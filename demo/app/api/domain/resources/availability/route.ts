@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
 import { resourceForecast } from "@/lib/domain-forecast";
+import { PORTFOLIO_VIEWER_ROLES } from "@/lib/domain";
 
 /**
  * "Is this person busy, and when do they free up?" — answered at the
@@ -14,7 +15,7 @@ import { resourceForecast } from "@/lib/domain-forecast";
 export async function GET() {
   const userOrResp = await requireDomainUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
-  const forbidden = requireDomainRole(userOrResp, ["Admin", "Lead", "TeamLead"]);
+  const forbidden = requireDomainRole(userOrResp, PORTFOLIO_VIEWER_ROLES);
   if (forbidden) return forbidden;
 
   const resources = await resourceForecast();

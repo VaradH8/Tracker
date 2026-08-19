@@ -3,10 +3,17 @@
  * from both client and server (no prisma, no next/headers).
  */
 
-export type DomainRole = "Admin" | "Lead" | "TeamLead" | "SME" | "Actionee";
+export type DomainRole =
+  | "Admin"
+  | "Lead"
+  | "TeamLead"
+  | "SME"
+  | "Actionee"
+  | "CEO";
 
 export const DOMAIN_ROLES: DomainRole[] = [
   "Admin",
+  "CEO",
   "Lead",
   "TeamLead",
   "SME",
@@ -15,6 +22,7 @@ export const DOMAIN_ROLES: DomainRole[] = [
 
 export const DOMAIN_ROLE_LABELS: Record<DomainRole, string> = {
   Admin: "Admin",
+  CEO: "CEO",
   Lead: "Lead",
   TeamLead: "Team Lead",
   SME: "SME",
@@ -59,6 +67,25 @@ export const TAG_HOLDER_ROLES: DomainRole[] = [
 export const SUPERVISOR_ROLES: DomainRole[] = ["Admin", "Lead", "TeamLead"];
 
 /**
+ * Roles that may READ the whole portfolio: forecast, delivery, resource
+ * availability, every project.
+ *
+ * Deliberately a separate list from SUPERVISOR_ROLES rather than an
+ * addition to it. SUPERVISOR_ROLES gates approving submissions, booking
+ * people and resetting passwords as well as reading — so widening it to
+ * seat a CEO would hand them the ability to sign off delivery figures
+ * they are meant to be judging, which is exactly backwards.
+ *
+ * A CEO therefore appears here and nowhere else: they see everything and
+ * change nothing. They are absent from WORKING_ROLES and TAG_HOLDER_ROLES
+ * too, so they never show up as a bookable resource or get handed tags.
+ */
+export const PORTFOLIO_VIEWER_ROLES: DomainRole[] = [
+  ...SUPERVISOR_ROLES,
+  "CEO",
+];
+
+/**
  * Whether tags claimed by someone in this role have to be signed off by
  * someone else before they count as delivered.
  *
@@ -88,7 +115,10 @@ export function needsReview(role: DomainRole): boolean {
  * query, not here, so this list stays a plain statement of the rule.
  */
 export function worklogVisibleRoles(role: DomainRole): DomainRole[] {
-  if (role === "Admin") return [...DOMAIN_ROLES];
+  // Everyone who does the work. A CEO is excluded rather than merely
+  // empty: they never log an hour, so offering them here would put a
+  // person in the team log who can only ever have nothing in it.
+  if (role === "Admin") return DOMAIN_ROLES.filter((r) => r !== "CEO");
   if (role === "Lead") return ["TeamLead", "SME", "Actionee"];
   if (role === "TeamLead") return ["SME", "Actionee"];
   return [];

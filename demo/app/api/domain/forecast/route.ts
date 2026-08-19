@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
-import { SUPERVISOR_ROLES } from "@/lib/domain";
+import { PORTFOLIO_VIEWER_ROLES } from "@/lib/domain";
 import { projectForecasts, resourceForecast } from "@/lib/domain-forecast";
 import { DEFAULT_TAGS_PER_DAY, RATE_HISTORY_DAYS } from "@/lib/forecast";
 
@@ -15,7 +15,7 @@ import { DEFAULT_TAGS_PER_DAY, RATE_HISTORY_DAYS } from "@/lib/forecast";
 export async function GET(req: Request) {
   const userOrResp = await requireDomainUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
-  const forbidden = requireDomainRole(userOrResp, SUPERVISOR_ROLES);
+  const forbidden = requireDomainRole(userOrResp, PORTFOLIO_VIEWER_ROLES);
   if (forbidden) return forbidden;
 
   const url = new URL(req.url);

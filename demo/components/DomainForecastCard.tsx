@@ -3,7 +3,6 @@
 import { useState } from "react";
 import {
   AlertTriangle,
-  CalendarClock,
   ChevronDown,
   ChevronRight,
   Users,
@@ -115,14 +114,17 @@ function Timeline({ p }: { p: ProjectRow }) {
 
   const handoverPct = pct(handover);
   const projectedPct = pct(projected);
-  const late = days(projected) > days(handover);
   const tone = statusTone(p.forecast.status);
 
   const todayISO = new Date().toISOString().slice(0, 10);
   const todayPct = Math.min(100, Math.max(0, pct(todayISO)));
 
+  // pb-5 reserves the strip the "Handover" caption occupies. The caption
+  // is absolutely positioned so it can sit under its marker, which means
+  // it takes no height of its own — without this the verdict line below
+  // rides up into it.
   return (
-    <div className="mt-5">
+    <div className="mt-5 pb-5">
       <div className="flex items-center justify-between text-[11px] text-ink-500 mb-1.5">
         <span>{fmtShort(start)}</span>
         <span className="uppercase tracking-wide">Delivery timeline</span>
@@ -172,43 +174,63 @@ function Timeline({ p }: { p: ProjectRow }) {
         />
       </div>
 
-      {late && (
-        <p className={`text-xs mt-5 ${tone.text}`}>
-          Overruns the handover date by{" "}
-          <strong>{Math.abs(p.forecast.slackDays ?? 0)} working days</strong>.
-        </p>
-      )}
-      {!late && p.forecast.slackDays !== null && (
-        <p className="text-xs mt-5 text-brand-greenText">
-          Lands <strong>{p.forecast.slackDays} working days</strong> before
-          handover.
-        </p>
-      )}
     </div>
   );
 }
 
-function KeyFigure({
+/** One labelled date. Three of these read as a sequence; a grid of
+ *  differently-styled figures does not. */
+function DateCell({
   label,
   value,
-  sub,
   tone,
 }: {
   label: string;
-  value: string | number;
-  sub?: string;
+  value: string;
   tone?: string;
 }) {
   return (
-    <div>
-      <div className="text-[11px] text-ink-500 font-medium uppercase tracking-wide">
+    <div className="min-w-0">
+      <div className="text-[10px] text-ink-500 font-medium uppercase tracking-wide truncate">
         {label}
       </div>
-      <div className={`font-heading text-xl font-semibold mt-0.5 ${tone ?? "text-ink-900"}`}>
+      <div
+        className={`font-heading text-sm font-medium truncate ${tone ?? "text-ink-900"}`}
+      >
         {value}
       </div>
-      {sub && <div className="text-[11px] text-ink-500 mt-0.5">{sub}</div>}
     </div>
+  );
+}
+
+/**
+ * The headline verdict, as a number rather than a category.
+ *
+ * "Behind Schedule" says there is a problem; "1183 days late" says how
+ * big it is — same glance, same space, and it removes the need for a
+ * sentence restating it further down the card.
+ */
+function SlackChip({
+  slack,
+  tone,
+}: {
+  slack: number | null;
+  tone: ReturnType<typeof statusTone>;
+}) {
+  if (slack === null) {
+    return (
+      <span className="px-2 py-0.5 rounded-pill text-[11px] font-semibold shrink-0 bg-ink-100 text-ink-500">
+        No handover date
+      </span>
+    );
+  }
+  const late = slack < 0;
+  return (
+    <span
+      className={`px-2 py-0.5 rounded-pill text-[11px] font-semibold shrink-0 ${tone.chip}`}
+    >
+      {late ? `${Math.abs(slack)} days late` : `${slack} days spare`}
+    </span>
   );
 }
 
@@ -252,40 +274,30 @@ export function DomainForecastCard({
             </span>
           </p>
         </div>
-        <span
-          className={`px-2 py-0.5 rounded-pill text-[11px] font-semibold shrink-0 ${tone.chip}`}
-        >
-          {p.forecast.status}
-        </span>
+        <SlackChip slack={p.forecast.slackDays} tone={tone} />
       </div>
 
-      {/* --- the two dates that decide it ---------------------------- */}
-      <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-ink-100">
-        <div>
-          <div className="text-[10px] text-ink-500 font-medium uppercase tracking-wide flex items-center gap-1">
-            <CalendarClock size={11} /> Projected
-          </div>
-          <div className={`font-heading text-base font-semibold ${tone.text}`}>
-            {fmt(p.forecast.projectedDate)}
-          </div>
-        </div>
-        <div>
-          <div className="text-[10px] text-ink-500 font-medium uppercase tracking-wide">
-            Handover
-          </div>
-          <div className="font-heading text-base font-semibold text-ink-900">
-            {fmt(p.handoverDate)}
-          </div>
-        </div>
+      {/* --- the three dates, in the order they happen --------------- */}
+      <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-ink-100">
+        <DateCell label="Start" value={fmt(p.startDate ?? p.startsFrom)} />
+        <DateCell label="Handover" value={fmt(p.handoverDate)} />
+        {/* Only this one carries colour: it is the one that can be wrong. */}
+        <DateCell
+          label="Projected"
+          value={fmt(p.forecast.projectedDate)}
+          tone={tone.text}
+        />
       </div>
 
       {/* --- tag delivery ------------------------------------------- */}
       <div className="mt-3 pt-3 border-t border-ink-100">
+        {/* The percentage is the headline and is sized like one. Reading
+            a progress bar should not require decoding three colours
+            first — the number says it, the bar shows it, the sentence
+            underneath explains it in words. */}
         <div className="flex items-baseline justify-between mb-1.5">
           <span className="text-xs font-medium text-ink-700">Tag delivery</span>
-          <span className="text-xs text-ink-500">
-            <strong className="text-brand-greenText">{p.deliveredTags}</strong> of{" "}
-            <strong className="text-ink-900">{p.totalTags}</strong> ·{" "}
+          <span className="font-heading text-lg font-semibold text-ink-900 leading-none">
             {Math.round(pct)}%
           </span>
         </div>
@@ -296,27 +308,25 @@ export function DomainForecastCard({
             style={{ width: `${pendingPct}%` }}
           />
         </div>
-        <div className="flex items-center gap-3 mt-1.5 text-[11px] text-ink-500 flex-wrap">
-          <span>
-            <span className="inline-block w-2 h-2 rounded-full bg-brand-green mr-1" />
-            {p.deliveredTags} delivered
-          </span>
+        {/* One sentence, in words, instead of a colour key to decode. */}
+        <p className="mt-1.5 text-[11px] text-ink-500">
+          <strong className="font-medium text-ink-900">
+            {p.deliveredTags} of {p.totalTags}
+          </strong>{" "}
+          tags delivered
           {p.pendingApprovalTags > 0 && (
             <span className="text-brand-yellowText">
-              <span className="inline-block w-2 h-2 rounded-full bg-brand-yellow mr-1" />
-              {p.pendingApprovalTags} awaiting approval
+              {" · "}
+              {p.pendingApprovalTags} awaiting sign-off
             </span>
           )}
-          <span>
-            <span className="inline-block w-2 h-2 rounded-full bg-ink-200 mr-1" />
-            {p.remainingTags} remaining
-          </span>
           {p.assignedTags < p.totalTags && (
-            <span className="ml-auto text-brand-yellowText">
+            <span className="text-brand-yellowText">
+              {" · "}
               {p.totalTags - p.assignedTags} not yet assigned
             </span>
           )}
-        </div>
+        </p>
       </div>
 
       {/* The timeline carries its own verdict line ("lands N days late"),

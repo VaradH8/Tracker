@@ -13,6 +13,7 @@ import { useDomain } from "@/lib/domain-store";
 import { SUPERVISOR_ROLES } from "@/lib/domain";
 import { DomainTaskList, type DomainTask } from "@/components/DomainTaskList";
 import { DomainPage, PageHeader } from "@/components/DomainPage";
+import { DomainExecutiveHome } from "@/components/DomainExecutiveHome";
 import { fmtDate } from "@/lib/domain-format";
 
 /**
@@ -27,6 +28,7 @@ export default function DomainDashboard() {
   const { current } = useDomain();
   if (!current) return null;
 
+  const isExecutive = current.role === "CEO";
   const isSupervisor = SUPERVISOR_ROLES.includes(current.role);
   // A Team Lead supervises and carries tags. They get the oversight view,
   // with their own work kept below it rather than replaced by it.
@@ -37,12 +39,22 @@ export default function DomainDashboard() {
       <PageHeader
         title={`Hi ${current.name.split(" ")[0]}`}
         description={
-          isSupervisor
-            ? "Where your projects stand, and what's waiting on you."
-            : "What you're carrying, and what your Lead decided on what you sent."
+          isExecutive
+            ? "Where the portfolio stands, what is slipping, and who is free."
+            : isSupervisor
+              ? "Where your projects stand, and what's waiting on you."
+              : "What you're carrying, and what your Lead decided on what you sent."
         }
       />
-      {isSupervisor ? <ManagerHome /> : <WorkerHome />}
+      {/* A CEO gets oversight and nothing to action — see
+          components/DomainExecutiveHome. */}
+      {isExecutive ? (
+        <DomainExecutiveHome />
+      ) : isSupervisor ? (
+        <ManagerHome />
+      ) : (
+        <WorkerHome />
+      )}
       {alsoCarriesWork && (
         <div className="mt-6">
           <WorkerHome secondary />

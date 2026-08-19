@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  DomainResourceTable,
+  DomainResourceBoard,
   allFreeFrom,
   nextFreeFrom,
-  type ResourceRow,
-} from "@/components/DomainResourceTable";
+  type BoardResource as ResourceRow,
+} from "@/components/DomainResourceBoard";
 import { DomainPage, PageHeader } from "@/components/DomainPage";
 import { DomainRefreshButton } from "@/components/DomainRefreshButton";
 import { fmtDate } from "@/lib/domain-format";
@@ -130,7 +130,7 @@ export default function AvailabilityPage() {
       {resources === null ? (
         <p className="text-sm text-ink-500">Loading…</p>
       ) : (
-        <DomainResourceTable resources={resources} />
+        <DomainResourceBoard resources={resources} />
       )}
     </DomainPage>
   );
