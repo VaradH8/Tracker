@@ -10,6 +10,7 @@ import {
   Users,
 } from "lucide-react";
 import { fmtDate } from "@/lib/domain-format";
+import { allFreeFrom, nextFreeFrom } from "@/components/DomainResourceBoard";
 
 /**
  * The executive view.
@@ -64,7 +65,12 @@ type Resource = {
   status: string;
   openTags: number;
   availableFrom: string | null;
-  projects: { projectName: string; openTags: number }[];
+  projects: {
+    projectName: string;
+    startDate: string;
+    endDate: string;
+    openTags: number;
+  }[];
 };
 
 export function DomainExecutiveHome() {
@@ -127,9 +133,42 @@ export function DomainExecutiveHome() {
       (b.forecast.slackDays ?? Number.POSITIVE_INFINITY),
   );
 
-  const busy = resources
-    .filter((r) => r.openTags > 0)
-    .sort((a, b) => b.openTags - a.openTags);
+  /**
+   * Free first, then whoever frees up soonest — the order you read in
+   * when the question is "who can take this on".
+   */
+  const freeNow = resources.filter((r) => r.status === "Free");
+  const booked = resources.filter((r) => r.status !== "Free");
+  const ordered = [...resources].sort((a, b) => {
+    const af = a.status === "Free" ? 0 : 1;
+    const bf = b.status === "Free" ? 0 : 1;
+    if (af !== bf) return af - bf;
+    return (a.availableFrom ?? "").localeCompare(b.availableFrom ?? "");
+  });
+  const nextFree = nextFreeFrom(booked);
+  const allFree = allFreeFrom(booked);
+
+  /**
+   * One timeline for everybody, so a bar can be compared with the row
+   * above it. Padded before today so the marker is never pinned to the
+   * left edge.
+   */
+  const DAY_MS = 86400000;
+  const dayOf = (iso: string) =>
+    Math.floor(new Date(`${iso}T00:00:00Z`).getTime() / DAY_MS);
+  const today = Math.floor(Date.now() / DAY_MS);
+  const bookings = resources.flatMap((r) => r.projects);
+  const axisFrom = Math.min(
+    today - 5,
+    ...(bookings.length ? bookings.map((b) => dayOf(b.startDate)) : [today]),
+  );
+  const axisTo = Math.max(
+    today + 30,
+    ...(bookings.length ? bookings.map((b) => dayOf(b.endDate)) : [today + 30]),
+  );
+  const axisSpan = Math.max(1, axisTo - axisFrom);
+  const axisPct = (iso: string) => ((dayOf(iso) - axisFrom) / axisSpan) * 100;
+  const todayPct = ((today - axisFrom) / axisSpan) * 100;
 
   return (
     <div className="grid gap-5">
@@ -264,54 +303,114 @@ export function DomainExecutiveHome() {
         </ul>
       </section>
 
-      {/* ---- 3. have we got the people ----------------------------- */}
+      {/* ---- 3. have we got the people -----------------------------
+          An overview, not a list of the six busiest names. Who is free
+          is the question an executive actually acts on — it decides
+          whether the answer to "can we take this on" is yes — and a
+          panel that only showed loaded people could never answer it. */}
       <section className="card p-5">
-        <div>
-          <SectionHead
-            icon={<Gauge size={16} className="text-brand-blue" />}
-            title="Who's busy, and until when"
-            note="Ordered by how much is still open on them."
-            href="/engineering/availability"
-            linkLabel="All resources"
-          />
-          {busy.length === 0 ? (
-            <p className="text-sm text-ink-400 italic">Nobody is loaded up.</p>
-          ) : (
-            <ul className="divide-y divide-ink-100">
-              {busy.slice(0, 6).map((r) => (
-                <li key={r.id} className="py-2 flex items-center gap-3">
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-medium text-ink-900 truncate">
-                      {r.name}
-                    </span>
-                    <span className="block text-[11px] text-ink-500 truncate">
-                      {r.projects.map((x) => x.projectName).join(", ") || "—"}
-                    </span>
-                  </span>
-                  <span className="text-right whitespace-nowrap">
-                    <span className="block text-xs font-medium text-ink-900 tabular-nums">
-                      {r.openTags} open
-                    </span>
-                    <span className="block text-[11px] text-ink-500">
-                      {/* The only date a planner actually needs from this
-                          screen: when this person can take something on. */}
-                      free{" "}
-                      <span className="font-medium text-ink-700">
-                        {r.availableFrom ? fmtDate(r.availableFrom) : "now"}
-                      </span>
-                    </span>
-                  </span>
-                </li>
-              ))}
-            </ul>
+        <SectionHead
+          icon={<Gauge size={16} className="text-brand-blue" />}
+          title="Who's free, who's booked"
+          note="Bars show each booking on a shared timeline; the line is today."
+          href="/engineering/availability"
+          linkLabel="All resources"
+        />
+
+        <div className="flex items-baseline gap-x-6 gap-y-1 flex-wrap mb-4 text-sm">
+          <span>
+            <strong className="font-heading text-xl text-brand-greenText">
+              {freeNow.length}
+            </strong>{" "}
+            <span className="text-ink-500">free now</span>
+          </span>
+          <span>
+            <strong className="font-heading text-xl text-ink-900">
+              {booked.length}
+            </strong>{" "}
+            <span className="text-ink-500">booked</span>
+          </span>
+          {nextFree && (
+            <span className="text-ink-500">
+              next one free{" "}
+              <strong className="font-medium text-ink-900">
+                {fmtDate(nextFree)}
+              </strong>
+            </span>
           )}
-          {busy.length > 6 && (
-            <p className="text-xs text-ink-400 mt-2">
-              +{busy.length - 6} more on the full page.
-            </p>
+          {allFree && (
+            <span className="text-ink-500">
+              all free by{" "}
+              <strong className="font-medium text-ink-900">
+                {fmtDate(allFree)}
+              </strong>
+            </span>
           )}
         </div>
 
+        {resources.length === 0 ? (
+          <p className="text-sm text-ink-400 italic">Nobody on the books.</p>
+        ) : (
+          <ul className="divide-y divide-ink-100">
+            {ordered.slice(0, 8).map((r) => (
+              <li
+                key={r.id}
+                className="grid grid-cols-[150px_1fr_92px] gap-3 items-center py-2"
+              >
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-ink-900 truncate">
+                    {r.name}
+                  </span>
+                  <span className="block text-[11px] text-ink-500 truncate">
+                    {r.openTags > 0 ? `${r.openTags} tags open` : "nothing open"}
+                  </span>
+                </span>
+
+                {/* The same picture as the full page, in miniature. */}
+                <span className="relative block h-4">
+                  <span className="absolute inset-x-0 top-1.5 h-1.5 rounded-pill bg-ink-100" />
+                  {r.projects.map((bk, i) => {
+                    const left = Math.max(0, axisPct(bk.startDate));
+                    const right = Math.min(100, axisPct(bk.endDate));
+                    return (
+                      <span
+                        key={`${r.id}-${i}`}
+                        className="absolute top-1 h-2.5 rounded-pill bg-brand-blue"
+                        style={{
+                          left: `${left}%`,
+                          width: `${Math.max(1.5, right - left)}%`,
+                        }}
+                        title={`${bk.projectName} · ${fmtDate(bk.startDate)} to ${fmtDate(bk.endDate)}`}
+                      />
+                    );
+                  })}
+                  <span
+                    className="absolute top-0 bottom-0 w-px bg-ink-400"
+                    style={{ left: `${todayPct}%` }}
+                  />
+                </span>
+
+                <span className="text-right whitespace-nowrap">
+                  {r.status === "Free" ? (
+                    <span className="inline-block px-2 py-0.5 rounded-pill text-[11px] font-semibold bg-brand-greenBg text-brand-greenText">
+                      Free
+                    </span>
+                  ) : (
+                    <span className="text-xs font-medium text-ink-900 tabular-nums">
+                      {r.availableFrom ? fmtDate(r.availableFrom) : "—"}
+                    </span>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {ordered.length > 8 && (
+          <p className="text-xs text-ink-400 mt-2">
+            +{ordered.length - 8} more on the full page.
+          </p>
+        )}
       </section>
     </div>
   );
