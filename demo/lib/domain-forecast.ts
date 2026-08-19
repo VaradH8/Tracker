@@ -23,7 +23,7 @@ import { TAG_HOLDER_ROLES } from "./domain";
  * in the last RATE_HISTORY_DAYS. Attribution follows the assignment's
  * assignee (the person the tags belong to), not whoever typed the
  * submission. People with no approved history map to null — callers run
- * that through `effectiveRate` to get the house default.
+ * that through `effectiveRate`, which is zero when no rate is set.
  */
 export type MeasuredRate = {
   rate: number | null;
@@ -277,6 +277,9 @@ export type ProjectForecast = {
     fullRate: number;
     /** How many overlapping projects they're split across (1 = undivided). */
     concurrentProjects: number;
+    /** Whether their figure was set on this project's booking. Only these
+     *  are exempted when `usePerProjectRates` is on. */
+    rateIsPerProject: boolean;
     usingDefaultRate: boolean;
   }[];
   /** The date the projection counts from — today, unless the project is
@@ -295,8 +298,30 @@ export type ProjectForecast = {
  * assignees themselves — otherwise a project with visible work in flight
  * would report "no resources".
  */
+export type ForecastOptions = {
+  /**
+   * Treat a rate set on a booking as final for that project.
+   *
+   * Off (the default), every rate is divided between the projects a
+   * person is booked on at the same time. That is right for a whole-person
+   * figure — a measured throughput, or a house default — because two
+   * parallel projects cannot each have the whole of somebody's day.
+   *
+   * But a rate set on a booking is not a whole-person figure. It is a
+   * Lead saying "on THIS project, expect 10/day", a statement that already
+   * takes the sharing into account. Dividing it again applies the same
+   * discount twice, and forces whoever set it to enter 20 to mean 10.
+   *
+   * Turning this on exempts exactly those rates. People with no rate set
+   * on their booking keep sharing theirs, because theirs really is a
+   * whole-person number.
+   */
+  usePerProjectRates?: boolean;
+};
+
 export async function projectForecasts(
   projectId?: number,
+  opts: ForecastOptions = {},
 ): Promise<ProjectForecast[]> {
   const projects = await prisma.domainProject.findMany({
     where: projectId ? { id: projectId } : undefined,
@@ -409,19 +434,23 @@ export async function projectForecasts(
     };
 
     const resources = people.map((u) => {
-      const r =
-        perProjectRate.get(u.id) ??
-        rates.get(u.id) ??
-        expected.get(u.id) ??
-        null;
+      // Held separately from the fallback chain: whether the figure came
+      // from this booking decides whether it may be shared again.
+      const bookingRate = perProjectRate.get(u.id) ?? null;
+      const r = bookingRate ?? rates.get(u.id) ?? expected.get(u.id) ?? null;
       const fullRate = effectiveRate(r);
       const concurrentProjects = concurrentFor(u.id);
+      const rateIsPerProject = bookingRate !== null;
+      const shareAcross =
+        opts.usePerProjectRates && rateIsPerProject ? 1 : concurrentProjects;
       return {
         id: u.id,
         name: u.name,
-        rate: splitRate(fullRate, concurrentProjects),
+        rate: splitRate(fullRate, shareAcross),
         fullRate,
         concurrentProjects,
+        /** True when this person's figure was set on the booking itself. */
+        rateIsPerProject,
         usingDefaultRate: r === null,
       };
     });

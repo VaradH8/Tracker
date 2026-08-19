@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
 import { PORTFOLIO_VIEWER_ROLES } from "@/lib/domain";
 import { projectForecasts, resourceForecast } from "@/lib/domain-forecast";
-import { DEFAULT_TAGS_PER_DAY, RATE_HISTORY_DAYS } from "@/lib/forecast";
+import { RATE_HISTORY_DAYS } from "@/lib/forecast";
 
 /**
  * The forecast dashboard, for Leads and Admins: who's available and from
@@ -24,14 +24,17 @@ export async function GET(req: Request) {
 
   const [resources, projects] = await Promise.all([
     resourceForecast(),
-    projectForecasts(Number.isFinite(projectId) ? projectId : undefined),
+    projectForecasts(Number.isFinite(projectId) ? projectId : undefined, {
+      // Opt-in per request, so the same data can be read both ways
+      // without changing anything stored.
+      usePerProjectRates: url.searchParams.get("perProjectRates") === "1",
+    }),
   ]);
 
   return NextResponse.json({
     resources,
     projects,
     meta: {
-      defaultTagsPerDay: DEFAULT_TAGS_PER_DAY,
       rateHistoryDays: RATE_HISTORY_DAYS,
       generatedAt: new Date().toISOString(),
     },

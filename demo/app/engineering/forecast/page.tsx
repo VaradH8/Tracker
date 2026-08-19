@@ -24,7 +24,7 @@ import {
 } from "@/components/DomainHandoverFields";
 import { TAG_HOLDER_ROLES, type DomainRole } from "@/lib/domain";
 
-type Meta = { defaultTagsPerDay: number; rateHistoryDays: number };
+type Meta = { rateHistoryDays: number };
 
 type SortKey = "risk" | "handover" | "name";
 
@@ -34,10 +34,20 @@ export default function ForecastPage() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "risk" | "ontrack">("all");
   const [sort, setSort] = useState<SortKey>("risk");
+  /**
+   * Use a rate set on a booking exactly as set, rather than dividing it
+   * between the projects that person is on at the same time.
+   *
+   * Off by default: changing how every figure on the page is computed
+   * should be something you turn on deliberately, not something you
+   * inherit without noticing.
+   */
+  const [perProjectRates, setPerProjectRates] = useState(false);
 
   // Returns the promise so the Refresh button can show it in flight.
   const load = useCallback(() => {
-    return fetch("/api/domain/forecast", { cache: "no-store" })
+    const q = perProjectRates ? "?perProjectRates=1" : "";
+    return fetch(`/api/domain/forecast${q}`, { cache: "no-store" })
       .then(async (r) => {
         if (r.status === 403) throw new Error("Forecast is for Leads and Admins.");
         if (!r.ok) throw new Error("Couldn't load the forecast.");
@@ -49,7 +59,9 @@ export default function ForecastPage() {
         setError(null);
       })
       .catch((e: Error) => setError(e.message));
-  }, []);
+    // Re-reads when the option changes: the whole page is computed from
+    // this answer, so it cannot be filtered client-side.
+  }, [perProjectRates]);
 
   useEffect(() => {
     void load();
@@ -60,7 +72,6 @@ export default function ForecastPage() {
   const totalTags = projects.reduce((s, p) => s + p.totalTags, 0);
   const delivered = projects.reduce((s, p) => s + p.deliveredTags, 0);
   const pending = projects.reduce((s, p) => s + p.pendingApprovalTags, 0);
-  const remaining = projects.reduce((s, p) => s + p.remainingTags, 0);
   const throughput =
     Math.round(projects.reduce((s, p) => s + p.forecast.dailyRate, 0) * 100) / 100;
   const people = new Set<string>();
@@ -91,7 +102,11 @@ export default function ForecastPage() {
         title="Delivery forecast"
         description={`Every estimate here is computed from tag counts a Lead has approved${
           meta ? ` in the last ${meta.rateHistoryDays} days` : ""
-        } — not from manual status updates. Approve a submission and these dates move with it.`}
+        } — not from manual status updates.${
+          perProjectRates
+            ? " Rates set on a booking are being used as set, undivided."
+            : " A shared person's rate is divided between their concurrent projects."
+        }`}
         actions={<DomainRefreshButton onRefresh={load} />}
       />
 
@@ -101,60 +116,39 @@ export default function ForecastPage() {
         </div>
       )}
 
-      {/* ---- portfolio headline: the answer before the detail ------- */}
-      {projects.length > 0 && (
-        <section className="card p-6 mb-6">
-          <div className="flex items-start justify-between gap-6 flex-wrap">
-            <div>
-              <div className="text-xs text-ink-500 font-medium uppercase tracking-wide">
-                Portfolio status
-              </div>
-              <div className="flex items-baseline gap-3 mt-1 flex-wrap">
-                <span className="font-heading text-3xl font-semibold text-ink-900">
-                  {projects.length} project{projects.length === 1 ? "" : "s"}
-                </span>
-                {behind.length > 0 ? (
-                  <span className="px-3 py-1 rounded-pill text-sm font-semibold bg-brand-redBg text-brand-redText">
-                    {behind.length} behind schedule
-                  </span>
-                ) : (
-                  <span className="px-3 py-1 rounded-pill text-sm font-semibold bg-brand-greenBg text-brand-greenText">
-                    All on track
-                  </span>
-                )}
-                {onTrack.length > 0 && behind.length > 0 && (
-                  <span className="text-sm text-ink-500">
-                    {onTrack.length} on track
-                  </span>
-                )}
-              </div>
-              {behind.length > 0 && (
-                <p className="text-sm text-ink-600 mt-2">
-                  At risk:{" "}
-                  <strong className="text-brand-redText">
-                    {behind.map((p) => p.name).join(", ")}
-                  </strong>
-                </p>
-              )}
-            </div>
+      {/* ---- portfolio status ---------------------------------------
+          Two questions, answered in that order: how is the whole book
+          doing, and which projects are in trouble.
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-5">
-              <SummaryFigure label="Tags total" value={totalTags} />
-              <SummaryFigure
-                label="Delivered"
-                value={delivered}
-                tone="text-brand-greenText"
-              />
-              <SummaryFigure label="Remaining" value={remaining} />
-              <SummaryFigure
-                label="Throughput"
-                value={`${throughput}/day`}
-                sub={`${people.size} people`}
-              />
-            </div>
+          The projects in trouble used to be a comma-separated list inside
+          a sentence, sitting under four large figures about tag counts.
+          That put the least actionable information in the largest type
+          and the most actionable in the smallest. Now the two groups are
+          side by side, each project named with the number that decides
+          it, and each panel filters the list below.                     */}
+      {projects.length > 0 && (
+        <section className="card p-5 mb-6">
+          <div className="flex items-baseline justify-between gap-3 flex-wrap">
+            <h2 className="font-heading text-lg font-semibold">
+              {projects.length} project{projects.length === 1 ? "" : "s"}
+            </h2>
+            <span className="text-sm text-ink-500">
+              <strong className="text-brand-greenText">{delivered}</strong> of{" "}
+              <strong className="text-ink-900">{totalTags}</strong> tags
+              delivered
+              {pending > 0 && (
+                <span className="text-brand-yellowText">
+                  {" · "}
+                  {pending} awaiting sign-off
+                </span>
+              )}
+              {" · "}
+              {throughput}/day across {people.size}{" "}
+              {people.size === 1 ? "person" : "people"}
+            </span>
           </div>
 
-          <div className="h-2.5 rounded-pill bg-ink-100 overflow-hidden mt-5 flex">
+          <div className="h-2.5 rounded-pill bg-ink-100 overflow-hidden mt-3 flex">
             <div className="h-full bg-brand-green" style={{ width: `${pct}%` }} />
             <div
               className="h-full bg-brand-yellow"
@@ -163,16 +157,27 @@ export default function ForecastPage() {
               }}
             />
           </div>
-          <p className="text-xs text-ink-500 mt-2">
+          <p className="text-xs text-ink-500 mt-1.5">
             <strong className="text-ink-900">{Math.round(pct)}%</strong> of the
             portfolio delivered
-            {pending > 0 && (
-              <span className="text-brand-yellowText">
-                {" "}
-                · {pending} tags awaiting approval
-              </span>
-            )}
           </p>
+
+          <div className="grid md:grid-cols-2 gap-4 mt-5">
+            <StatusGroup
+              title="At risk"
+              tone="risk"
+              projects={behind}
+              empty="Nothing at risk."
+              onOpen={() => setFilter("risk")}
+            />
+            <StatusGroup
+              title="On track"
+              tone="ontrack"
+              projects={onTrack}
+              empty="Nothing on track yet."
+              onOpen={() => setFilter("ontrack")}
+            />
+          </div>
         </section>
       )}
 
@@ -182,6 +187,7 @@ export default function ForecastPage() {
         <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
           <h2 className="font-heading text-xl font-semibold">Project delivery</h2>
           <div className="flex items-center gap-3 flex-wrap">
+            <RateModeToggle on={perProjectRates} onChange={setPerProjectRates} />
             <div className="flex items-center gap-1">
               {(
                 [
@@ -248,29 +254,129 @@ export default function ForecastPage() {
   );
 }
 
-function SummaryFigure({
-  label,
-  value,
-  sub,
+/**
+ * One side of the portfolio split.
+ *
+ * Names the projects rather than counting them: "2 behind schedule" tells
+ * a Lead there is a problem, "uuuu, 1183 days late" tells them which
+ * conversation to have. The heading is a button because the obvious next
+ * move after reading this is to see only these projects.
+ */
+function StatusGroup({
+  title,
   tone,
+  projects,
+  empty,
+  onOpen,
 }: {
-  label: string;
-  value: string | number;
-  sub?: string;
-  tone?: string;
+  title: string;
+  tone: "risk" | "ontrack";
+  projects: ProjectRow[];
+  empty: string;
+  onOpen: () => void;
+}) {
+  const risk = tone === "risk";
+  // Worst first on the risk side, most slack first on the other: both
+  // put the project you would ask about at the top of its own column.
+  const ordered = [...projects].sort((a, b) => {
+    const sa = a.forecast.slackDays ?? 0;
+    const sb = b.forecast.slackDays ?? 0;
+    return risk ? sa - sb : sb - sa;
+  });
+
+  return (
+    <div
+      className={`rounded border-l-4 bg-ink-50 px-4 py-3 ${
+        risk ? "border-brand-red" : "border-brand-green"
+      }`}
+    >
+      <button
+        onClick={onOpen}
+        disabled={projects.length === 0}
+        className="flex items-baseline gap-2 mb-2 group disabled:cursor-default"
+      >
+        <span
+          className={`text-[11px] font-semibold uppercase tracking-wide ${
+            risk ? "text-brand-redText" : "text-brand-greenText"
+          }`}
+        >
+          {title}
+        </span>
+        <span className="font-heading text-xl font-semibold text-ink-900">
+          {projects.length}
+        </span>
+        {projects.length > 0 && (
+          <span className="text-[11px] text-brand-blue opacity-0 group-hover:opacity-100 transition">
+            show these
+          </span>
+        )}
+      </button>
+
+      {ordered.length === 0 ? (
+        <p className="text-xs text-ink-400 italic">{empty}</p>
+      ) : (
+        <ul className="space-y-1">
+          {ordered.map((p) => {
+            const slack = p.forecast.slackDays;
+            return (
+              <li
+                key={p.id}
+                className="flex items-baseline justify-between gap-3 text-sm"
+              >
+                <span className="text-ink-900 truncate">{p.name}</span>
+                <span
+                  className={`text-xs font-medium whitespace-nowrap ${
+                    risk ? "text-brand-redText" : "text-brand-greenText"
+                  }`}
+                >
+                  {slack === null
+                    ? "no handover date"
+                    : slack < 0
+                      ? `${Math.abs(slack)} days late`
+                      : `${slack} days spare`}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * "Use per-project rates as set."
+ *
+ * Says what it changes rather than naming the setting, because the two
+ * readings of a shared person's rate are genuinely different answers and
+ * the reader has to know which one is on screen.
+ */
+function RateModeToggle({
+  on,
+  onChange,
+}: {
+  on: boolean;
+  onChange: (v: boolean) => void;
 }) {
   return (
-    <div>
-      <div className="text-[11px] text-ink-500 font-medium uppercase tracking-wide">
-        {label}
-      </div>
-      <div
-        className={`font-heading text-2xl font-semibold mt-0.5 ${tone ?? "text-ink-900"}`}
-      >
-        {value}
-      </div>
-      {sub && <div className="text-[11px] text-ink-500 mt-0.5">{sub}</div>}
-    </div>
+    <label
+      className="flex items-center gap-2 text-xs cursor-pointer select-none"
+      title={
+        on
+          ? "A rate set on a booking is used as set. People without one still share their overall rate between concurrent projects."
+          : "Every rate is divided between the projects that person is booked on at the same time."
+      }
+    >
+      <input
+        type="checkbox"
+        checked={on}
+        onChange={(e) => onChange(e.target.checked)}
+        className="rounded border-ink-300 text-brand-blue focus:ring-brand-blue"
+      />
+      <span className={on ? "text-brand-blue font-medium" : "text-ink-600"}>
+        Use per-project rates as set
+      </span>
+    </label>
   );
 }
 
@@ -300,6 +406,9 @@ function Simulator({ onDone }: { onDone: () => void }) {
   /** Per-person tags/day to plan at. Required — the simulation uses these
    *  and nothing else. */
   const [rateOverrides, setRateOverrides] = useState<Record<string, string>>({});
+  /** Use the rates typed below as-is, rather than dividing each by the
+   *  projects that person is already booked on over the same window. */
+  const [simPerProjectRates, setSimPerProjectRates] = useState(false);
   const [result, setResult] = useState<SimResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -329,6 +438,7 @@ function Simulator({ onDone }: { onDone: () => void }) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        usePerProjectRates: simPerProjectRates,
         totalTags: Number(totalTags),
         resourceIds: picked,
         ...handoverPayload(schedule),
@@ -446,6 +556,29 @@ function Simulator({ onDone }: { onDone: () => void }) {
           </div>
         )}
       </div>
+
+      {/* Sits with the rates it governs rather than in a settings panel
+          elsewhere: it changes what the numbers typed above mean. */}
+      <label className="flex items-center gap-2 text-xs cursor-pointer select-none mt-4">
+        <input
+          type="checkbox"
+          checked={simPerProjectRates}
+          onChange={(e) => setSimPerProjectRates(e.target.checked)}
+          className="rounded border-ink-300 text-brand-blue focus:ring-brand-blue"
+        />
+        <span
+          className={
+            simPerProjectRates ? "text-brand-blue font-medium" : "text-ink-600"
+          }
+        >
+          Use the rates above as set
+        </span>
+        <span className="text-ink-400">
+          {simPerProjectRates
+            ? "— as typed, even for people already on other projects"
+            : "— each divided by the projects that person is already on"}
+        </span>
+      </label>
 
       <button
         onClick={run}

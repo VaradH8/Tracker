@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import {
-  DEFAULT_TAGS_PER_DAY,
   availableFrom,
   effectiveRate,
   forecastDelivery,
@@ -70,9 +69,13 @@ describe("personalRate", () => {
     expect(personalRate(20, 0)).toBeNull();
   });
 
-  it("falls back to the house default when there's no personal rate", () => {
-    expect(effectiveRate(null)).toBe(DEFAULT_TAGS_PER_DAY);
-    expect(effectiveRate(0)).toBe(DEFAULT_TAGS_PER_DAY);
+  it("plans nobody at an invented rate — no rate means no contribution", () => {
+    // There used to be a house default of 8/day here. It made a project
+    // staffed entirely by people nobody had measured look like it had a
+    // credible delivery date, which is the most expensive kind of wrong.
+    expect(effectiveRate(null)).toBe(0);
+    expect(effectiveRate(undefined)).toBe(0);
+    expect(effectiveRate(0)).toBe(0);
     expect(effectiveRate(12)).toBe(12);
   });
 });

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
-import { SUPERVISOR_ROLES } from "@/lib/domain";
+import { PORTFOLIO_VIEWER_ROLES } from "@/lib/domain";
 import { allocationConflicts } from "@/lib/domain-forecast";
 import { forecastDelivery, splitRate, toISODate } from "@/lib/forecast";
 import {
@@ -19,13 +19,19 @@ import { dayToDate, holidaySet } from "@/lib/domain-schedule";
  *
  * The rates are supplied, never inferred — see the block below.
  *
- * Writes nothing. It also reports any allocation clashes for the proposed
- * window, so a plan that only works by double-booking someone says so.
+ * Writes nothing — it reads people and existing bookings and answers a
+ * question. That is why it sits behind PORTFOLIO_VIEWER_ROLES rather than
+ * SUPERVISOR_ROLES: asking "what would it take to hit this date" is a
+ * question an executive should be able to put to the system directly,
+ * and it changes nothing whatever the answer.
+ *
+ * It also reports any allocation clashes for the proposed window, so a
+ * plan that only works by double-booking someone says so.
  */
 export async function POST(req: Request) {
   const userOrResp = await requireDomainUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
-  const forbidden = requireDomainRole(userOrResp, SUPERVISOR_ROLES);
+  const forbidden = requireDomainRole(userOrResp, PORTFOLIO_VIEWER_ROLES);
   if (forbidden) return forbidden;
 
   const body = await req.json().catch(() => ({}));
@@ -166,6 +172,19 @@ export async function POST(req: Request) {
     );
   }
 
+  /**
+   * Whether the rates typed in are already per-project.
+   *
+   * Off, each is divided by the number of overlapping bookings, on the
+   * assumption that the figure describes the person's whole day. On, it
+   * is used as given — which is what you want when you typed "10/day on
+   * this project" having already accounted for the fact that they are
+   * shared. Every rate here is explicitly supplied, so unlike the
+   * forecast there is no whole-person figure mixed in that would still
+   * need sharing.
+   */
+  const usePerProjectRates = body.usePerProjectRates === true;
+
   const resources = rated.map(({ person, rate }) => {
     // +1 for this hypothetical project itself.
     const concurrentProjects = (clashesById.get(person.id)?.length ?? 0) + 1;
@@ -174,9 +193,10 @@ export async function POST(req: Request) {
       id: person.id,
       name: person.name,
       role: person.role,
-      rate: splitRate(fullRate, concurrentProjects),
+      rate: splitRate(fullRate, usePerProjectRates ? 1 : concurrentProjects),
       fullRate,
       concurrentProjects,
+      rateIsPerProject: usePerProjectRates,
     };
   });
 
@@ -202,6 +222,7 @@ export async function POST(req: Request) {
       totalTags,
       startDate: toISODate(startDate),
       handoverDate: handoverDate ? toISODate(handoverDate) : null,
+      usePerProjectRates,
       // Present only when the date was calculated, so the form can show
       // which days were skipped to reach it.
       derivedHandover,

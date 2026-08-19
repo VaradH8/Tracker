@@ -12,8 +12,6 @@ const WORKING_DAYS_PER_WEEK = 5;
 
 /** Rate assumed for someone with no approved history yet. Deliberately
  *  conservative: a new joiner shouldn't make a project look fast. */
-export const DEFAULT_TAGS_PER_DAY = 8;
-
 /** How far back we look when deriving a person's own rate. Older work
  *  doesn't say much about how fast they're going now. */
 export const RATE_HISTORY_DAYS = 30;
@@ -82,7 +80,7 @@ export function workingDaysBetween(from: Date, to: Date): number {
  * at 10/day even if those days were spread over a fortnight.
  *
  * Returns null when there's no history to go on; callers fall back to
- * DEFAULT_TAGS_PER_DAY via `effectiveRate`.
+ * zero via `effectiveRate` — an unset rate plans nothing.
  */
 export function personalRate(
   approvedTags: number,
@@ -95,7 +93,7 @@ export function personalRate(
 /** A usable rate for planning: the person's own if we have one, else the
  *  house default. */
 export function effectiveRate(rate: number | null | undefined): number {
-  return rate && rate > 0 ? rate : DEFAULT_TAGS_PER_DAY;
+  return rate && rate > 0 ? rate : 0;
 }
 
 /**

@@ -67,8 +67,9 @@ export const TAG_HOLDER_ROLES: DomainRole[] = [
 export const SUPERVISOR_ROLES: DomainRole[] = ["Admin", "Lead", "TeamLead"];
 
 /**
- * Roles that may READ the whole portfolio: forecast, delivery, resource
- * availability, every project.
+ * Roles that may READ the whole portfolio: forecast, resource
+ * availability, every project — and run a simulation, which answers a
+ * what-if without writing anything.
  *
  * Deliberately a separate list from SUPERVISOR_ROLES rather than an
  * addition to it. SUPERVISOR_ROLES gates approving submissions, booking

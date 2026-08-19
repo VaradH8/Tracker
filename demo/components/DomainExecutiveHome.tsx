@@ -16,7 +16,9 @@ import { fmtDate } from "@/lib/domain-format";
  *
  * Built around one question — will the work land, and if not, where is it
  * stuck — and ruthless about everything else. A CEO does not approve a
- * tag, log an hour or reset a password, so none of that appears here.
+ * tag, log an hour or reset a password, so none of that appears here —
+ * including the vocabulary of it. Work is delivered or it is pending;
+ * whose signature is outstanding is somebody else's screen.
  * What does appear is either a number they would act on, or a way into
  * the screen that explains it.
  *
@@ -26,7 +28,7 @@ import { fmtDate } from "@/lib/domain-format";
  *   2. Which project is in trouble, and how far?  — the project list
  *   3. Have we got the people?  — who is busy, and when they come free
  *
- * Every figure is computed from tags a Lead has approved. Nothing here is
+ * Every figure is computed from work that has actually cleared. Nothing is
  * a manual status field somebody remembered to update, which is the usual
  * reason an executive dashboard drifts away from reality.
  */
@@ -157,8 +159,11 @@ export function DomainExecutiveHome() {
         />
       </section>
 
-      {/* Portfolio delivery as one bar. Approved and awaiting review are
-          shown apart because only the first is money in the bank. */}
+      {/* Portfolio delivery as one bar.
+          Delivered and pending are drawn apart, and only delivered counts
+          towards the figure: work somebody has claimed but that has not
+          cleared review is not delivery, and showing it as such would
+          overstate the book to the one person least able to check it. */}
       <section className="card p-5">
         <div className="flex items-baseline justify-between gap-3 flex-wrap mb-2">
           <h2 className="font-heading text-base font-semibold">
@@ -172,19 +177,17 @@ export function DomainExecutiveHome() {
         </div>
         <SegmentedBar
           total={totalTags}
-          approved={delivered}
+          delivered={delivered}
           pending={pending}
           height="h-3"
         />
         <p className="text-xs text-ink-500 mt-2">
-          <Dot className="bg-brand-green" /> {delivered} approved
+          <Dot className="bg-brand-green" /> {delivered} delivered
           {pending > 0 && (
             <>
               {" · "}
               <Dot className="bg-brand-yellow" />
-              <span className="text-brand-yellowText">
-                {pending} awaiting sign-off
-              </span>
+              <span className="text-brand-yellowText">{pending} pending</span>
             </>
           )}
           {" · "}
@@ -198,7 +201,7 @@ export function DomainExecutiveHome() {
         <SectionHead
           icon={<TrendingUp size={16} className="text-brand-blue" />}
           title="Projects, worst first"
-          note="Every date computed from approved delivery, not status updates."
+          note="Every date computed from delivered work, not status updates."
           href="/engineering/forecast"
           linkLabel="Full forecast"
         />
@@ -238,7 +241,7 @@ export function DomainExecutiveHome() {
                     <span className="flex-1 min-w-0">
                       <SegmentedBar
                         total={p.totalTags}
-                        approved={p.deliveredTags}
+                        delivered={p.deliveredTags}
                         pending={p.pendingApprovalTags}
                       />
                       <span className="block text-[11px] text-ink-500 mt-1 tabular-nums">
@@ -323,24 +326,24 @@ function Dot({ className }: { className: string }) {
 }
 
 /**
- * Approved / awaiting / remaining in one bar.
+ * Delivered / pending / remaining in one bar.
  *
  * Three segments rather than a single percentage because "80% done"
- * quietly conflates work that is signed off with work that is merely
- * claimed, and only the first counts.
+ * quietly conflates finished work with work that is merely claimed, and
+ * only the first counts as delivered.
  */
 function SegmentedBar({
   total,
-  approved,
+  delivered,
   pending,
   height = "h-2",
 }: {
   total: number;
-  approved: number;
+  delivered: number;
   pending: number;
   height?: string;
 }) {
-  const pct = total > 0 ? (approved / total) * 100 : 0;
+  const pct = total > 0 ? (delivered / total) * 100 : 0;
   const pendingPct =
     total > 0 ? Math.min(100 - pct, (pending / total) * 100) : 0;
   return (

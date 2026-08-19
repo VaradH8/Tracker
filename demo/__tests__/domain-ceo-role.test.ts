@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   DOMAIN_ROLES,
   DOMAIN_ROLE_LABELS,
@@ -26,6 +28,30 @@ import { canMarkAttendance, canMarkFor, canDecide } from "@/lib/domain-leave";
 describe("what a CEO may see", () => {
   it("can read the whole portfolio", () => {
     expect(PORTFOLIO_VIEWER_ROLES).toContain("CEO");
+  });
+
+  /**
+   * Read the route source rather than restate the constant.
+   *
+   * Asserting PORTFOLIO_VIEWER_ROLES contains "CEO" a second time would
+   * pass whatever the simulate endpoint actually does. What needs
+   * pinning is which gate that endpoint chose — and that it stays a
+   * read, since the whole justification for opening it is that it writes
+   * nothing.
+   */
+  it("runs simulations through the viewer gate, and simulation stays a read", () => {
+    const src = readFileSync(
+      resolve(__dirname, "../app/api/domain/forecast/simulate/route.ts"),
+      "utf8",
+    );
+    expect(src).toMatch(
+      /requireDomainRole\(\s*userOrResp\s*,\s*PORTFOLIO_VIEWER_ROLES\s*\)/,
+    );
+    expect(src).not.toMatch(/requireDomainRole\([^)]*SUPERVISOR_ROLES/);
+    // No write may appear on a path an executive can reach.
+    expect(src).not.toMatch(
+      /prisma\.\w+\.(create|update|delete|upsert|createMany|updateMany|deleteMany)/,
+    );
   });
 
   it("portfolio viewers are a superset of supervisors, never a replacement", () => {
