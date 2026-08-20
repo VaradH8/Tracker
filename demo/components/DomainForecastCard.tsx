@@ -31,7 +31,7 @@ export type Forecast = {
   dailyRate: number;
   workingDaysNeeded: number;
   projectedDate: string | null;
-  status: "On Track" | "Behind Schedule" | "Unknown";
+  status: "On Track" | "Behind Schedule" | "Yet to be started" | "Unknown";
   slackDays: number | null;
   reason: string;
 };
@@ -78,6 +78,14 @@ export function statusTone(s: string) {
       bar: "bg-brand-green",
       text: "text-brand-greenText",
       rail: "border-brand-green",
+    };
+  }
+  if (s === "Yet to be started") {
+    return {
+      chip: "bg-brand-blueBg text-brand-blue",
+      bar: "bg-brand-blue",
+      text: "text-brand-blue",
+      rail: "border-brand-blue",
     };
   }
   if (s === "Behind Schedule") {
@@ -215,10 +223,23 @@ function DateCell({
 function SlackChip({
   slack,
   tone,
+  status,
 }: {
   slack: number | null;
   tone: ReturnType<typeof statusTone>;
+  status: string;
 }) {
+  // Days late is a statement about progress. Before a project starts
+  // there is no progress to be late on, so it says so instead.
+  if (status === "Yet to be started") {
+    return (
+      <span
+        className={`px-2 py-0.5 rounded-pill text-[11px] font-semibold shrink-0 ${tone.chip}`}
+      >
+        Yet to start
+      </span>
+    );
+  }
   if (slack === null) {
     return (
       <span className="px-2 py-0.5 rounded-pill text-[11px] font-semibold shrink-0 bg-ink-100 text-ink-500">
@@ -281,7 +302,11 @@ export function DomainForecastCard({
             </span>
           </p>
         </div>
-        <SlackChip slack={p.forecast.slackDays} tone={tone} />
+        <SlackChip
+          slack={p.forecast.slackDays}
+          tone={tone}
+          status={p.forecast.status}
+        />
       </div>
 
       {/* --- the three dates, in the order they happen --------------- */}

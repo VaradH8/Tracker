@@ -56,6 +56,7 @@ const WORKING: string[] = TAG_HOLDER_ROLES;
 
 function verdictCls(status: string): string {
   if (status === "On Track") return "bg-brand-greenBg text-brand-greenText";
+  if (status === "Yet to be started") return "bg-brand-blueBg text-brand-blue";
   if (status === "Behind Schedule") return "bg-brand-redBg text-brand-redText";
   return "bg-ink-100 text-ink-500";
 }

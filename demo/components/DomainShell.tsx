@@ -37,6 +37,8 @@ type NavItem = {
 };
 
 const WORKERS: DomainRole[] = ["TeamLead", "SME", "Actionee"];
+/** Everyone who can hold tags, and therefore needs somewhere to submit. */
+const TAG_HOLDERS: DomainRole[] = ["Lead", ...WORKERS];
 const EVERYONE: DomainRole[] = ["Admin", "Lead", ...WORKERS];
 /** Structural screens: adding and removing people. */
 const MANAGERS: DomainRole[] = ["Admin", "Lead"];
@@ -60,7 +62,10 @@ const EVERYONE_PLUS_CEO: DomainRole[] = [...EVERYONE, "CEO"];
 const NAV: NavItem[] = [
   { href: "/engineering", label: "Dashboard", icon: LayoutGrid, roles: EVERYONE_PLUS_CEO, group: "Work" },
   { href: "/engineering/projects", label: "Projects", icon: FolderKanban, roles: EVERYONE_PLUS_CEO, group: "Work" },
-  { href: "/engineering/my-tags", label: "My tags", icon: Tags, roles: WORKERS, group: "Work" },
+  // Leads carry tags too — TAG_HOLDER_ROLES has always said so, and they
+  // can now hand themselves a batch. Without this they had nowhere to
+  // submit against it.
+  { href: "/engineering/my-tags", label: "My tags", icon: Tags, roles: TAG_HOLDERS, group: "Work" },
   { href: "/engineering/task-log", label: "Task log", icon: ClipboardList, roles: EVERYONE, group: "Work" },
   // Everyone reaches this: workers request time off here, supervisors
   // decide it. The page itself adapts to which of the two you are.

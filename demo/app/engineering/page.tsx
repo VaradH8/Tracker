@@ -177,7 +177,7 @@ type ForecastProject = {
   remainingTags: number;
   peopleEngaged: number;
   forecast: {
-    status: "On Track" | "Behind Schedule" | "Unknown";
+    status: "On Track" | "Behind Schedule" | "Yet to be started" | "Unknown";
     projectedDate: string | null;
     slackDays: number | null;
   };

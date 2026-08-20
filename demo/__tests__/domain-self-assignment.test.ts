@@ -37,27 +37,22 @@ describe("who may be handed tags", () => {
 });
 
 describe("what has to be signed off by somebody else", () => {
-  it("records a Lead's assigned-from-above work on the spot, as before", () => {
-    expect(
-      submissionNeedsReview({ assigneeRole: "Lead", selfAssigned: false }),
-    ).toBe(false);
-    expect(
-      submissionNeedsReview({ assigneeRole: "TeamLead", selfAssigned: false }),
-    ).toBe(false);
-  });
-
-  it("holds self-assigned tags for review, whatever the role", () => {
-    // The whole point: without this, a Lead could set their own target,
-    // claim against it and have it counted as delivered, with nothing in
-    // the chain anybody else touched.
-    for (const role of ["Admin", "Lead", "TeamLead", "SME", "Actionee"] as const) {
-      expect(submissionNeedsReview({ assigneeRole: role, selfAssigned: true })).toBe(
-        true,
-      );
+  it("records a Lead's and a Team Lead's own delivery on the spot", () => {
+    // Including tags they handed themselves. Self-assignment was briefly
+    // held for review so a batch could not be scoped, claimed and
+    // approved by one person; that was reversed by decision, and this
+    // pins the decision so it cannot drift back by accident.
+    for (const selfAssigned of [true, false]) {
+      expect(
+        submissionNeedsReview({ assigneeRole: "Lead", selfAssigned }),
+      ).toBe(false);
+      expect(
+        submissionNeedsReview({ assigneeRole: "TeamLead", selfAssigned }),
+      ).toBe(false);
     }
   });
 
-  it("still reviews SMEs and Actionees either way", () => {
+  it("still reviews SMEs and Actionees, however the tags arrived", () => {
     for (const selfAssigned of [true, false]) {
       expect(submissionNeedsReview({ assigneeRole: "SME", selfAssigned })).toBe(true);
       expect(

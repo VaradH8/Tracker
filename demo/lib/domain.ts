@@ -102,22 +102,25 @@ export function needsReview(role: DomainRole): boolean {
 /**
  * Whether one submission has to be signed off by somebody else.
  *
- * Role alone is not enough once Leads and Team Leads can hand themselves
- * tags. Their own submissions are normally recorded on the spot, which is
- * fine while the target was set by someone above them — but a batch they
- * assigned to themselves would otherwise be scoped, claimed and approved
- * by one person, with nothing in the chain anybody else touched. Since
- * approval is the only thing that moves the delivered figure, that would
- * let the number rest entirely on one person's account of their own work.
+ * Role alone decides it. Self-assigned tags were briefly held for review
+ * as well, so that a batch could not be scoped, claimed and approved by
+ * the same person — that was reversed by decision: a Lead or Team Lead
+ * who takes work on their own initiative records its delivery the same
+ * way they record any other, without waiting on a colleague.
  *
- * So self-assigned tags always wait for review, whatever the role.
+ * The consequence is deliberate and worth stating: for self-assigned
+ * tags, the delivered figure rests on that person's own account of their
+ * own work. What still bounds it is headroom — nobody can claim more
+ * than the batch they hold — and the assignment itself remains visible on
+ * the project with its creator recorded.
  */
 export function submissionNeedsReview(opts: {
   assigneeRole: DomainRole;
-  /** True when the person who created the assignment is its assignee. */
-  selfAssigned: boolean;
+  /** Recorded for callers that want to show it; it no longer forces a
+   *  review of its own. */
+  selfAssigned?: boolean;
 }): boolean {
-  return opts.selfAssigned || needsReview(opts.assigneeRole);
+  return needsReview(opts.assigneeRole);
 }
 
 /**

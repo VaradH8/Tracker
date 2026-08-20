@@ -322,6 +322,30 @@ export type ForecastOptions = {
   usePerProjectRates?: boolean;
 };
 
+/**
+ * Who counts as working on a project: everyone booked on it, AND everyone
+ * holding tags on it.
+ *
+ * This used to be either/or — allocations when there were any, tag holders
+ * otherwise. That made anybody carrying tags without a formal booking
+ * vanish the moment one other person was booked: absent from the resource
+ * list, and their rate left out of the project's throughput while their
+ * tags still counted in what was left to do. The projection came out
+ * pessimistic and the person came out invisible.
+ *
+ * Holding tags on a project is working on it. Both lists count, deduped
+ * by id, bookings first so their record wins.
+ */
+export function peopleOnProject<T extends { id: string }>(
+  allocations: { user: T }[],
+  tagAssignments: { assignee: T }[],
+): T[] {
+  const byId = new Map<string, T>();
+  for (const a of allocations) byId.set(a.user.id, a.user);
+  for (const t of tagAssignments) byId.set(t.assignee.id, t.assignee);
+  return Array.from(byId.values());
+}
+
 export async function projectForecasts(
   projectId?: number,
   opts: ForecastOptions = {},
@@ -410,12 +434,7 @@ export async function projectForecasts(
         .map((a) => [a.userId, a.expectedTagsPerDay as number]),
     );
 
-    // Who's on the job: the formal allocations, else whoever holds tags.
-    const allocated = p.allocations.map((a) => a.user);
-    const fromAssignments = Array.from(
-      new Map(p.tagAssignments.map((a) => [a.assignee.id, a.assignee])).values(),
-    );
-    const people = allocated.length > 0 ? allocated : fromAssignments;
+    const people = peopleOnProject(p.allocations, p.tagAssignments);
 
     // The stretch this project's delivery actually spans. Used to decide
     // which of a person's other bookings genuinely compete with this one.
@@ -489,12 +508,29 @@ export async function projectForecasts(
        *  project is staffed from a later date. */
       startsFrom: toISODate(from),
       peopleEngaged: new Set(p.tagAssignments.map((a) => a.assigneeId)).size,
-      forecast: forecastDelivery({
-        remainingTags,
-        rates: resources.map((r) => r.rate),
-        from,
-        handoverDate: p.handoverDate,
-      }),
+      /**
+       * Work that has not begun is reported as such rather than as
+       * behind. `from` is today unless the project is staffed from a
+       * later date, so `from > now` is exactly "nobody was due to start
+       * yet" — and a project nobody was due to start cannot be behind on
+       * delivery.
+       *
+       * Only the label changes. slackDays and projectedDate are left
+       * alone, so a project that already cannot make its handover still
+       * reports negative slack and still shows its projected date in the
+       * late colour.
+       */
+      forecast: (() => {
+        const f = forecastDelivery({
+          remainingTags,
+          rates: resources.map((r) => r.rate),
+          from,
+          handoverDate: p.handoverDate,
+        });
+        return from.getTime() > now.getTime()
+          ? { ...f, status: "Yet to be started" as const }
+          : f;
+      })(),
     };
   });
 }

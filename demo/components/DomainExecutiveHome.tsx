@@ -38,7 +38,7 @@ type Forecast = {
   dailyRate: number;
   workingDaysNeeded: number;
   projectedDate: string | null;
-  status: "On Track" | "Behind Schedule" | "Unknown";
+  status: "On Track" | "Behind Schedule" | "Yet to be started" | "Unknown";
   slackDays: number | null;
 };
 

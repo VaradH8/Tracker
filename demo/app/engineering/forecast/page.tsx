@@ -32,7 +32,9 @@ export default function ForecastPage() {
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "risk" | "ontrack">("all");
+  const [filter, setFilter] = useState<
+    "all" | "risk" | "ontrack" | "notstarted"
+  >("all");
   const [sort, setSort] = useState<SortKey>("risk");
   const [query, setQuery] = useState("");
   /**
@@ -70,6 +72,10 @@ export default function ForecastPage() {
 
   const behind = projects.filter((p) => p.forecast.status === "Behind Schedule");
   const onTrack = projects.filter((p) => p.forecast.status === "On Track");
+  // Counted apart from both: not started is not a verdict on delivery.
+  const notStarted = projects.filter(
+    (p) => p.forecast.status === "Yet to be started",
+  );
   const totalTags = projects.reduce((s, p) => s + p.totalTags, 0);
   const delivered = projects.reduce((s, p) => s + p.deliveredTags, 0);
   const pending = projects.reduce((s, p) => s + p.pendingApprovalTags, 0);
@@ -84,6 +90,8 @@ export default function ForecastPage() {
     .filter((p) => {
       if (filter === "risk") return p.forecast.status === "Behind Schedule";
       if (filter === "ontrack") return p.forecast.status === "On Track";
+      if (filter === "notstarted")
+        return p.forecast.status === "Yet to be started";
       return true;
     })
     // Name or client: the two things somebody actually knows when they
@@ -172,7 +180,11 @@ export default function ForecastPage() {
             portfolio delivered
           </p>
 
-          <div className="grid md:grid-cols-2 gap-4 mt-5">
+          <div
+            className={`grid gap-4 mt-5 ${
+              notStarted.length > 0 ? "md:grid-cols-3" : "md:grid-cols-2"
+            }`}
+          >
             <StatusGroup
               title="At risk"
               tone="risk"
@@ -187,6 +199,19 @@ export default function ForecastPage() {
               empty="Nothing on track yet."
               onOpen={() => setFilter("ontrack")}
             />
+            {/* Its own column, and only when there is something in it:
+                work that has not begun belongs in neither of the other
+                two, and an empty third column on every other portfolio
+                would be clutter. */}
+            {notStarted.length > 0 && (
+              <StatusGroup
+                title="Yet to start"
+                tone="notstarted"
+                projects={notStarted}
+                empty="None."
+                onOpen={() => setFilter("notstarted")}
+              />
+            )}
           </div>
         </section>
       )}
@@ -216,6 +241,7 @@ export default function ForecastPage() {
                   ["all", `All ${projects.length}`],
                   ["risk", `At risk ${behind.length}`],
                   ["ontrack", `On track ${onTrack.length}`],
+                  ["notstarted", `Yet to start ${notStarted.length}`],
                 ] as const
               ).map(([key, label]) => (
                 <button
@@ -294,12 +320,13 @@ function StatusGroup({
   onOpen,
 }: {
   title: string;
-  tone: "risk" | "ontrack";
+  tone: "risk" | "ontrack" | "notstarted";
   projects: ProjectRow[];
   empty: string;
   onOpen: () => void;
 }) {
   const risk = tone === "risk";
+  const notStartedTone = tone === "notstarted";
   // Worst first on the risk side, most slack first on the other: both
   // put the project you would ask about at the top of its own column.
   const ordered = [...projects].sort((a, b) => {
@@ -311,7 +338,11 @@ function StatusGroup({
   return (
     <div
       className={`rounded border-l-4 bg-ink-50 px-4 py-3 ${
-        risk ? "border-brand-red" : "border-brand-green"
+        notStartedTone
+          ? "border-brand-blue"
+          : risk
+            ? "border-brand-red"
+            : "border-brand-green"
       }`}
     >
       <button
@@ -321,7 +352,11 @@ function StatusGroup({
       >
         <span
           className={`text-[11px] font-semibold uppercase tracking-wide ${
-            risk ? "text-brand-redText" : "text-brand-greenText"
+            notStartedTone
+              ? "text-brand-blue"
+              : risk
+                ? "text-brand-redText"
+                : "text-brand-greenText"
           }`}
         >
           {title}
@@ -350,14 +385,20 @@ function StatusGroup({
                 <span className="text-ink-900 truncate">{p.name}</span>
                 <span
                   className={`text-xs font-medium whitespace-nowrap ${
-                    risk ? "text-brand-redText" : "text-brand-greenText"
+                    notStartedTone
+                      ? "text-brand-blue"
+                      : risk
+                        ? "text-brand-redText"
+                        : "text-brand-greenText"
                   }`}
                 >
-                  {slack === null
-                    ? "no handover date"
-                    : slack < 0
-                      ? `${Math.abs(slack)} days late`
-                      : `${slack} days spare`}
+                  {notStartedTone
+                    ? `starts ${fmt(p.startsFrom)}`
+                    : slack === null
+                      ? "no handover date"
+                      : slack < 0
+                        ? `${Math.abs(slack)} days late`
+                        : `${slack} days spare`}
                 </span>
               </li>
             );

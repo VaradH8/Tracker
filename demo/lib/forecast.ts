@@ -16,7 +16,23 @@ const WORKING_DAYS_PER_WEEK = 5;
  *  doesn't say much about how fast they're going now. */
 export const RATE_HISTORY_DAYS = 30;
 
-export type ScheduleStatus = "On Track" | "Behind Schedule" | "Unknown";
+/**
+ * "Yet to be started" is not a judgement about the plan — it says the
+ * work has not begun yet, because the project is staffed from a future
+ * date. A project nobody was due to start cannot be behind on delivery,
+ * and calling it "Behind Schedule" put a red flag on every project booked
+ * to begin next month.
+ *
+ * It is decided in projectForecasts, which knows the real start; the
+ * projection itself is unchanged, so a project that already cannot make
+ * its handover still reports negative slack and still shows its projected
+ * date in the late colour.
+ */
+export type ScheduleStatus =
+  | "On Track"
+  | "Behind Schedule"
+  | "Yet to be started"
+  | "Unknown";
 
 /** Midnight UTC of the given date — the canonical day key. */
 function dayStart(d: Date): Date {
