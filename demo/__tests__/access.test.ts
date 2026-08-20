@@ -19,6 +19,7 @@ vi.mock("next/headers", () => ({
 
 import { prisma } from "@/lib/db";
 import {
+  assigneesOutsideProject,
   canAccessProject,
   canCreateProjectTasks,
   canEditTasks,
@@ -27,6 +28,8 @@ import {
   canSeeAllProjectTasks,
   canSeeProjectAudit,
   canSeeTask,
+  forkableTasksFilter,
+  isProjectMember,
   taskAssignmentFilter,
   visibleProjectIds,
 } from "@/lib/server-access";
@@ -278,10 +281,81 @@ describe("canCreateProjectTasks", () => {
     ).toBe(false);
   });
 
-  it("Developer with no Lead/Coord row → false (BD-only escape hatch doesn't apply)", async () => {
+  it("Developer not rostered on the project → false", async () => {
     vi.mocked(prisma.projectMember.findFirst).mockResolvedValue(null);
     expect(
       await canCreateProjectTasks(userWithRole("Developer"), 7),
     ).toBe(false);
+  });
+
+  it("Developer rostered on the project → true (they raise their own work)", async () => {
+    // First findFirst (Lead/Coord check in canManageProjectTasks) → null,
+    // second findFirst (any membership row) → a row.
+    vi.mocked(prisma.projectMember.findFirst)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ userId: "user-developer" } as never);
+    expect(
+      await canCreateProjectTasks(userWithRole("Developer"), 7),
+    ).toBe(true);
+  });
+});
+
+describe("isProjectMember", () => {
+  beforeEach(() => {
+    vi.mocked(prisma.projectMember.findFirst).mockReset();
+  });
+
+  it("row present → true", async () => {
+    vi.mocked(prisma.projectMember.findFirst).mockResolvedValue({
+      userId: "u1",
+    } as never);
+    expect(await isProjectMember("u1", 3)).toBe(true);
+  });
+
+  it("no row → false", async () => {
+    vi.mocked(prisma.projectMember.findFirst).mockResolvedValue(null);
+    expect(await isProjectMember("u1", 3)).toBe(false);
+  });
+});
+
+describe("assigneesOutsideProject — a Developer may only assign the project roster", () => {
+  beforeEach(() => {
+    vi.mocked(prisma.projectMember.findMany).mockReset();
+  });
+
+  it("empty input short-circuits without a query", async () => {
+    expect(await assigneesOutsideProject(1, [])).toEqual([]);
+    expect(prisma.projectMember.findMany).not.toHaveBeenCalled();
+  });
+
+  it("all rostered → nothing outside", async () => {
+    vi.mocked(prisma.projectMember.findMany).mockResolvedValue([
+      { userId: "a" },
+      { userId: "b" },
+    ] as never);
+    expect(await assigneesOutsideProject(1, ["a", "b"])).toEqual([]);
+  });
+
+  it("names the ids that are not on the project", async () => {
+    vi.mocked(prisma.projectMember.findMany).mockResolvedValue([
+      { userId: "a" },
+    ] as never);
+    expect(await assigneesOutsideProject(1, ["a", "stranger"])).toEqual([
+      "stranger",
+    ]);
+  });
+});
+
+describe("forkableTasksFilter", () => {
+  it("excludes the caller's own work — both as assignee and as owner", () => {
+    expect(forkableTasksFilter("me")).toEqual({
+      NOT: {
+        OR: [{ assignees: { some: { userId: "me" } } }, { responsibleId: "me" }],
+      },
+    });
+  });
+
+  it("is the complement of taskAssignmentFilter", () => {
+    expect(forkableTasksFilter("me").NOT).toEqual(taskAssignmentFilter("me"));
   });
 });

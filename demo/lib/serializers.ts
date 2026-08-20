@@ -114,6 +114,11 @@ type PrismaTask = {
   remarks?: PrismaRemark[];
   attachments?: PrismaAttachment[];
   blockedBy?: { blockerTaskId: number }[];
+  forkedFromId?: number | null;
+  forkedAt?: Date | null;
+  // Only present when the caller included the relation; the lineage badge
+  // falls back to the bare id when it wasn't asked for.
+  forkedFrom?: { responsible?: { name: string } | null } | null;
 };
 
 export function serializeTask(t: PrismaTask): Task {
@@ -138,6 +143,9 @@ export function serializeTask(t: PrismaTask): Task {
     dependsOn: (t.blockedBy ?? []).map((d) => d.blockerTaskId),
     approvedBy: t.approvedBy?.name.split(" ")[0],
     approvedAt: t.approvedAt ? relativeWhen(t.approvedAt) : undefined,
+    forkedFromId: t.forkedFromId ?? null,
+    forkedFromOwner: t.forkedFrom?.responsible?.name.split(" ")[0],
+    forkedAt: t.forkedAt ? t.forkedAt.toISOString().slice(0, 10) : null,
   };
 }
 

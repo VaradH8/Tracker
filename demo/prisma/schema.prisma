@@ -157,6 +157,16 @@ model Task {
   approvedBy   User?     @relation("TaskApprover", fields: [approvedById], references: [id])
   approvedAt   DateTime?
 
+  /// Fork lineage. A fork is an independent copy of someone else's task,
+  /// owned by whoever forked it — the original keeps its own assignees and
+  /// is never modified. Null on a task that was created outright.
+  /// SetNull rather than Cascade: deleting an original must not delete the
+  /// work someone else did off the back of it.
+  forkedFromId Int?
+  forkedFrom   Task?     @relation("TaskForks", fields: [forkedFromId], references: [id], onDelete: SetNull)
+  forks        Task[]    @relation("TaskForks")
+  forkedAt     DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -166,6 +176,8 @@ model Task {
   timeEntries TimeEntry[]
   blockedBy   TaskDependency[] @relation("TaskBlockedBy")
   blocks      TaskDependency[] @relation("TaskBlocks")
+
+  @@index([forkedFromId])
 }
 
 model TaskAssignee {

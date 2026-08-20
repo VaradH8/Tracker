@@ -74,6 +74,12 @@ type Ctx = {
   approveTask: (id: number, approver: string) => Promise<void>;
   unapproveTask: (id: number) => Promise<void>;
   addTask: (input: AddTaskInput) => Promise<{ ok: boolean; error?: string }>;
+  /** Tasks on your projects that belong to somebody else — the pool you can
+   *  fork from. Read-only; fetched on demand rather than kept in `tasks`,
+   *  which stays "your work" everywhere else in the app. */
+  loadForkable: () => Promise<Task[]>;
+  /** Take your own copy of someone else's task. The original is untouched. */
+  forkTask: (id: number) => Promise<{ ok: boolean; error?: string }>;
   deleteTask: (id: number) => Promise<{ ok: boolean; error?: string }>;
   addRemark: (taskId: number, author: string, body: string) => Promise<void>;
   deleteRemark: (taskId: number, remarkId: number) => Promise<void>;
@@ -441,6 +447,45 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const loadForkable = useCallback(async (): Promise<Task[]> => {
+    try {
+      const res = await fetch("/api/tasks?forkable=true", { cache: "no-store" });
+      if (!res.ok) return [];
+      const body = await res.json().catch(() => ({}));
+      return Array.isArray(body.tasks) ? (body.tasks as Task[]) : [];
+    } catch (e) {
+      console.error("loadForkable failed:", e);
+      return [];
+    }
+  }, []);
+
+  const forkTask = useCallback(
+    async (id: number): Promise<{ ok: boolean; error?: string }> => {
+      try {
+        const res = await fetch(`/api/tasks/${id}/fork`, { method: "POST" });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const error =
+            body.error ?? res.statusText ?? "Couldn't fork that task.";
+          console.error("forkTask failed:", error);
+          return { ok: false, error };
+        }
+        // The fork is now mine, so it belongs on my board. No optimistic
+        // insert: forking is a deliberate one-off click, and showing a card
+        // that the server might reject is worse than a moment's wait.
+        if (body.task) setTasks((prev) => [body.task as Task, ...prev]);
+        return { ok: true };
+      } catch (e) {
+        console.error("forkTask network error:", e);
+        return {
+          ok: false,
+          error: "Network error — check your connection and retry.",
+        };
+      }
+    },
+    [],
+  );
+
   const addRemark = useCallback(
     async (taskId: number, _author: string, body: string) => {
       const res = await fetch(`/api/tasks/${taskId}/remarks`, {
@@ -577,6 +622,8 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         approveTask,
         unapproveTask,
         addTask,
+        loadForkable,
+        forkTask,
         deleteTask,
         addRemark,
         deleteRemark,

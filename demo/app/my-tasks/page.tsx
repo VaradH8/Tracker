@@ -5,6 +5,7 @@ import { CheckSquare, Sparkles } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { TaskCard } from "@/components/TaskCard";
 import { EmptyState } from "@/components/EmptyState";
+import { ForkableTasks } from "@/components/ForkableTasks";
 import {
   currentWeek,
   taskInWeek,
@@ -197,6 +198,8 @@ export default function MyTasksPage() {
             drawers needed.
           </p>
         )}
+
+        <ForkableTasks />
       </div>
     </AppShell>
   );

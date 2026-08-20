@@ -165,21 +165,78 @@ export async function canManageProjectTasks(
 
 /** True if the user can *create* tasks on this project. A superset of
  *  canManageProjectTasks: in addition to Lead/Coordinator authority, a
- *  BusinessDeveloper who is rostered on the project (e.g. the BD who
- *  created it) may add tasks. They can't manage the team or assign
- *  developers though — that stays with the Lead/Coordinator, who pick
- *  up the task's assignees afterwards. */
+ *  BusinessDeveloper or Developer who is rostered on the project may add
+ *  tasks — a developer raises their own work rather than waiting for a
+ *  Lead to enter it, and may hand it to a teammate on the same project.
+ *  Neither can manage the team or reassign an existing task; that stays
+ *  with the Lead/Coordinator (see canManageProjectTasks). A Developer's
+ *  choice of assignee is additionally confined to the project roster —
+ *  see {@link assigneesOutsideProject}. */
 export async function canCreateProjectTasks(
   user: SessionUser,
   projectId: number,
 ): Promise<boolean> {
   if (await canManageProjectTasks(user, projectId)) return true;
-  if (user.role !== "BusinessDeveloper") return false;
+  if (user.role !== "BusinessDeveloper" && user.role !== "Developer") {
+    return false;
+  }
+  return isProjectMember(user.id, projectId);
+}
+
+/** The projects the user is actually rostered on. Narrower than
+ *  {@link visibleProjectIds}, which also picks up projects reached only via
+ *  a task assignment. The forkable feed uses this so it never offers a Fork
+ *  button that the fork endpoint would then refuse. */
+export async function rosteredProjectIds(userId: string): Promise<number[]> {
+  const rows = await prisma.projectMember.findMany({
+    where: { userId },
+    select: { projectId: true },
+  });
+  return Array.from(new Set(rows.map((r) => r.projectId)));
+}
+
+/** True if the user holds any per-project role on this project. */
+export async function isProjectMember(
+  userId: string,
+  projectId: number,
+): Promise<boolean> {
   const row = await prisma.projectMember.findFirst({
-    where: { projectId, userId: user.id },
+    where: { projectId, userId },
     select: { userId: true },
   });
   return row !== null;
+}
+
+/** Of the given user ids, those NOT rostered on the project. Used to hold a
+ *  Developer's assignment choices to their own project team: handing work to
+ *  somebody who cannot even see the project helps nobody. Returns [] when
+ *  every id checks out. */
+export async function assigneesOutsideProject(
+  projectId: number,
+  userIds: string[],
+): Promise<string[]> {
+  if (!userIds.length) return [];
+  const rostered = await prisma.projectMember.findMany({
+    where: { projectId, userId: { in: userIds } },
+    select: { userId: true },
+  });
+  const ok = new Set(rostered.map((r) => r.userId));
+  return userIds.filter((id) => !ok.has(id));
+}
+
+/** Prisma `where` fragment for the read-only "forkable" list: work on the
+ *  user's own projects that belongs to somebody else. Their own tasks are
+ *  excluded — the board at /my-tasks already covers those, and forking your
+ *  own task would just duplicate it.
+ *
+ *  This is deliberately narrower than lifting canSeeAllProjectTasks: it is a
+ *  read-only feed for picking up a colleague's work, not a project board. */
+export function forkableTasksFilter(userId: string) {
+  return {
+    NOT: {
+      OR: [{ assignees: { some: { userId } } }, { responsibleId: userId }],
+    },
+  };
 }
 
 /** Look up a User by first name (case-insensitive). Internal tool: we

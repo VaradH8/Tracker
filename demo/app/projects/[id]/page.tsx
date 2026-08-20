@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
 import {
@@ -36,7 +36,7 @@ import {
   type ProjectMemberRole,
 } from "@/lib/projects-store";
 import { useRole, landingFor, candidatesForProjectRole } from "@/lib/role";
-import { useAccounts, useMyFirstName } from "@/lib/account-store";
+import { useAccounts, useMyFirstName, type Account } from "@/lib/account-store";
 import {
   canAccessProject,
   canExportData,
@@ -130,7 +130,29 @@ export default function ProjectDetailPage({
   // the Lead/Co-ordinator then assign developers to those tasks.
   const canManageTeam =
     role === "Admin" || role === "Lead" || role === "Coordinator";
-  const canCreateTasks = canManageTeam || role === "BusinessDeveloper";
+  // The project's own roster, first names, deduped — who a Developer is
+  // allowed to hand work to. Mirrors assigneesOutsideProject on the server,
+  // which is what actually enforces it.
+  const projectRoster = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...(project?.leads ?? []),
+          ...(project?.coordinators ?? []),
+          ...(project?.developers ?? []),
+          ...(project?.bds ?? []),
+        ]),
+      ),
+    [project],
+  );
+  // A Developer rostered on this project raises their own work rather than
+  // waiting for a Lead to enter it, and may hand it to a teammate on the
+  // same project. They still can't manage the roster or edit others' tasks.
+  const isOnRoster = projectRoster.includes(me);
+  const canCreateTasks =
+    canManageTeam ||
+    role === "BusinessDeveloper" ||
+    (role === "Developer" && isOnRoster);
   // "Import Tasks" is Admin/Coordinator only (the server enforces the same
   // gate, and scopes Coordinators to projects they coordinate).
   const canImportTasks = role === "Admin" || role === "Coordinator";
@@ -679,7 +701,8 @@ export default function ProjectDetailPage({
       {createOpen && (
         <CreateTaskModal
           projectName={project.name}
-          canAssign={canManageTeam}
+          canAssign={canManageTeam || role === "Developer"}
+          restrictTo={role === "Developer" ? projectRoster : undefined}
           onClose={() => setCreateOpen(false)}
           onCreate={async (input) => {
             setCreateOpen(false);
@@ -1015,11 +1038,15 @@ function EditProjectModal({
 function CreateTaskModal({
   projectName,
   canAssign,
+  restrictTo,
   onClose,
   onCreate,
 }: {
   projectName: string;
   canAssign: boolean;
+  /** When set, only these first names may be picked — a Developer can only
+   *  assign the project's own roster. Undefined means no restriction. */
+  restrictTo?: string[];
   onClose: () => void;
   onCreate: (input: {
     title: string;
@@ -1034,15 +1061,16 @@ function CreateTaskModal({
 }) {
   const { accounts } = useAccounts();
   // Assignable people, split by role — Developers, Co-ordinators, Leads.
-  const devCandidates = accounts
-    .filter((a) => a.active && a.role === "Developer")
-    .map((a) => a.name.split(" ")[0]);
-  const coordCandidates = accounts
-    .filter((a) => a.active && a.role === "Coordinator")
-    .map((a) => a.name.split(" ")[0]);
-  const leadCandidates = accounts
-    .filter((a) => a.active && (a.role === "Lead" || a.isAdmin))
-    .map((a) => a.name.split(" ")[0]);
+  // `restrictTo` narrows every lane to the project roster for a Developer.
+  const allowed = restrictTo ? new Set(restrictTo) : null;
+  const eligible = (pick: (a: Account) => boolean) =>
+    accounts
+      .filter((a) => a.active && pick(a))
+      .map((a) => a.name.split(" ")[0])
+      .filter((n) => !allowed || allowed.has(n));
+  const devCandidates = eligible((a) => a.role === "Developer");
+  const coordCandidates = eligible((a) => a.role === "Coordinator");
+  const leadCandidates = eligible((a) => a.role === "Lead" || Boolean(a.isAdmin));
   const [assigneeTab, setAssigneeTab] = useState<
     "Developer" | "Coordinator" | "Lead"
   >("Developer");

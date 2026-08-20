@@ -72,6 +72,14 @@ export type Task = {
   /** Sign-off — set when a Done task is approved by Lead / Coord / Responsible. */
   approvedBy?: string;
   approvedAt?: string;
+  /** Id of the task this one was forked from, or null if it was raised
+   *  outright. The fork is independent work — the original is untouched. */
+  forkedFromId?: number | null;
+  /** Who held the original at the moment of the fork, by first name. Only
+   *  present where the caller asked for the lineage to be resolved. */
+  forkedFromOwner?: string;
+  /** Date (YYYY-MM-DD) the fork was taken. */
+  forkedAt?: string | null;
 };
 
 export type Remark = {
