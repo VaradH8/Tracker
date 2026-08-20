@@ -1,7 +1,8 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useState } from "react";
-import { Plus, Trash2, Pencil, X } from "lucide-react";
+import { ChevronDown, Plus, Trash2, Pencil, X } from "lucide-react";
+import { DomainRemoveResource } from "@/components/DomainRemoveResource";
 import {
   DOMAIN_ROLE_LABELS,
   TAG_COMPLEXITIES,
@@ -653,6 +654,19 @@ export function TagAssignmentPanel({
    *  yet on the project. */
   const [assigningTo, setAssigningTo] = useState<string | null>(null);
   const [editing, setEditing] = useState<number | null>(null);
+  /**
+   * The per-person breakdown is folded away by default.
+   *
+   * On a project with a dozen people it ran for several screens, and the
+   * division rollup above it — the thing most visits are actually for —
+   * was pushed off the top. Open it when you want it.
+   */
+  const [showPeople, setShowPeople] = useState(false);
+  const [removeNotice, setRemoveNotice] = useState<string | null>(null);
+  /** Who is being taken off, while the dialog is up. */
+  const [leaving, setLeaving] = useState<{ id: string; name: string } | null>(
+    null,
+  );
 
   const workers = people.filter((p) => WORKING.includes(p.role));
   const divisions = project.divisions ?? [];
@@ -660,16 +674,6 @@ export function TagAssignmentPanel({
    *  Lead who approves their own team's submissions must not also be able
    *  to type the total afterwards. Enforced at the route regardless. */
   const isAdmin = current?.role === "Admin";
-
-  // Per-division project rollup — the whole-project view above the people.
-  const divisionRollup = divisions.map((d) => {
-    const forDiv = rows.filter((r) => r.divisionId === d.id);
-    return {
-      ...d,
-      assigned: forDiv.reduce((s, r) => s + r.assignedCount, 0),
-      delivered: forDiv.reduce((s, r) => s + r.deliveredCount, 0),
-    };
-  });
 
   /**
    * One section per person, in two groups.
@@ -725,62 +729,47 @@ export function TagAssignmentPanel({
 
   return (
     <section className="card p-5 mb-5">
-      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-        <div>
-          <h3 className="font-heading text-lg font-semibold text-ink-900">
-            Tags by division
-          </h3>
-          <p className="text-sm text-ink-500 mt-0.5">
-            How the project&apos;s tags split across disciplines, and who is
-            carrying them.
-          </p>
-        </div>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <button
+          onClick={() => setShowPeople((v) => !v)}
+          aria-expanded={showPeople}
+          className="flex items-center gap-2 text-left min-w-0"
+        >
+          <ChevronDown
+            size={18}
+            className={`shrink-0 text-ink-400 transition-transform ${showPeople ? "rotate-180" : ""}`}
+          />
+          <span className="min-w-0">
+            <span className="block font-heading text-lg font-semibold text-ink-900">
+              Assign Tags
+            </span>
+            <span className="block text-sm text-ink-500">
+              {ordered.length === 0
+                ? "Nobody is carrying tags on this project yet."
+                : `${ordered.length} ${ordered.length === 1 ? "person" : "people"} · ${totalDelivered} of ${totalAssigned} delivered${
+                    sections.unbooked.length > 0
+                      ? ` · ${sections.unbooked.length} not booked`
+                      : ""
+                  }`}
+            </span>
+          </span>
+        </button>
         {canAssign && (
           <button
-            onClick={() => setAssigningTo(assigningTo === "new" ? null : "new")}
-            className="btn-ghost text-sm"
+            onClick={() => {
+              setShowPeople(true);
+              setAssigningTo(assigningTo === "new" ? null : "new");
+            }}
+            className="btn-ghost text-sm shrink-0"
           >
             <Plus size={14} className="mr-1" /> Assign to someone else
           </button>
         )}
       </div>
 
-      {divisionRollup.length > 0 && (
-        <div className="mb-5 overflow-x-auto">
-          <table className="w-full text-sm min-w-[420px]">
-            <thead className="bg-ink-50 text-ink-500 text-xs uppercase tracking-wide">
-              <tr>
-                <th className="text-left font-semibold px-3 py-2">Division</th>
-                <th className="text-right font-semibold px-3 py-2">Total</th>
-                <th className="text-right font-semibold px-3 py-2">Assigned</th>
-                <th className="text-right font-semibold px-3 py-2">Delivered</th>
-                <th className="text-right font-semibold px-3 py-2">Left</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-ink-100">
-              {divisionRollup.map((d) => (
-                <tr key={d.id}>
-                  <td className="px-3 py-2 text-ink-900 font-medium">{d.name}</td>
-                  <td className="px-3 py-2 text-right text-ink-700">
-                    {d.totalTags || "—"}
-                  </td>
-                  <td className="px-3 py-2 text-right text-ink-700">{d.assigned}</td>
-                  <td className="px-3 py-2 text-right text-brand-greenText font-semibold">
-                    {d.delivered}
-                  </td>
-                  <td className="px-3 py-2 text-right text-ink-700">
-                    {Math.max(0, (d.totalTags || d.assigned) - d.delivered)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
       {/* Assigning to somebody not already on the project. */}
-      {assigningTo === "new" && (
-        <div className="mb-5 p-4 rounded-card border border-ink-200 bg-ink-50">
+      {assigningTo === "new" && showPeople && (
+        <div className="mt-4 p-4 rounded-card border border-ink-200 bg-ink-50">
           <AssignForm
             projectId={project.id}
             divisions={divisions}
@@ -795,17 +784,33 @@ export function TagAssignmentPanel({
         </div>
       )}
 
-      <h4 className="font-heading text-sm font-semibold text-ink-700 uppercase tracking-wide mb-2">
-        Allocated resources
-      </h4>
+      {leaving && (
+        <DomainRemoveResource
+          projectId={project.id}
+          person={leaving}
+          canDelete={isAdmin}
+          onClose={() => setLeaving(null)}
+          onDone={(message) => {
+            setLeaving(null);
+            setRemoveNotice(message);
+            onChanged();
+          }}
+        />
+      )}
 
-      {ordered.length === 0 ? (
-        <p className="text-sm text-ink-400 italic">
-          Nobody is allocated to this project yet. Edit the project to book
-          resources, or use &ldquo;Assign to someone else&rdquo;.
+      {removeNotice && (
+        <p className="text-sm text-brand-yellowText mt-2 border-l-4 border-brand-yellow pl-3 py-1">
+          {removeNotice}
+        </p>
+      )}
+
+      {!showPeople ? null : ordered.length === 0 ? (
+        <p className="text-sm text-ink-400 italic mt-3">
+          Nobody is allocated to this project yet. Book someone below, or
+          use &ldquo;Assign to someone else&rdquo;.
         </p>
       ) : (
-        <div className="grid gap-3">
+        <div className="grid gap-3 mt-3">
           {sections.booked.length === 0 && (
             <p className="text-sm text-ink-400 italic">
               Nobody is booked on this project.
@@ -831,7 +836,8 @@ export function TagAssignmentPanel({
                     </h4>
                     <p className="text-xs text-ink-500 mt-0.5">
                       Not booked on this project, but still carrying tags on
-                      it. Book them, or move the tags to someone who is.
+                      it. Book them, or take them off — their submissions
+                      stay in Approvals either way.
                     </p>
                   </div>
                 )}
@@ -898,6 +904,22 @@ export function TagAssignmentPanel({
                         className="btn-primary text-sm"
                       >
                         <Plus size={14} className="mr-1" /> Assign tags
+                      </button>
+                    )}
+                    {/* Only for the unbooked. Somebody with a booking is
+                        removed by deleting the booking, which takes their
+                        tags with it — two ways to do the same thing would
+                        eventually disagree about what each one does. */}
+                    {canAssign && !sec.booked && (
+                      <button
+                        onClick={() =>
+                          setLeaving({ id: sec.id, name: sec.name })
+                        }
+                        title={`Take ${sec.name} off this project`}
+                        aria-label={`Take ${sec.name} off this project`}
+                        className="btn-ghost text-sm text-brand-redText border border-ink-200"
+                      >
+                        <Trash2 size={13} />
                       </button>
                     )}
                   </div>

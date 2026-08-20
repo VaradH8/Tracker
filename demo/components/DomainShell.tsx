@@ -26,6 +26,7 @@ import {
   type DomainRole,
 } from "@/lib/domain";
 import { BRAND_NAVY, BrandPanel } from "@/components/InventiveBrand";
+import { NumberFieldGuard } from "@/components/NumberFieldGuard";
 
 type NavItem = {
   href: string;
@@ -200,7 +201,9 @@ export function DomainShell({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen bg-ink-50">
+    <div className="eng-shell min-h-screen bg-ink-50">
+      {/* Keeps the wheel from stepping a focused number field. */}
+      <NumberFieldGuard />
       {/* Narrow screens: a slim bar carrying the menu button. */}
       <header
         className="lg:hidden sticky top-0 z-30 border-b border-ink-200 h-14 flex items-center gap-3 px-4"

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Plus, Trash2, UserPlus } from "lucide-react";
+import { AlertTriangle, ChevronDown, Plus, Trash2, UserPlus } from "lucide-react";
 import {
   DOMAIN_ROLE_LABELS,
   TAG_HOLDER_ROLES,
@@ -16,6 +16,8 @@ import {
 import { fmtDate as fmt } from "@/lib/domain-format";
 import { dateClass, inputClass } from "@/lib/domain-ui";
 import { DateInput } from "@/components/DateInput";
+import { DomainRemoveResource } from "@/components/DomainRemoveResource";
+import { useDomain } from "@/lib/domain-store";
 
 /**
  * Who is booked on this project, for how long, and how fast each of them is
@@ -84,9 +86,23 @@ export function DomainProjectResources({
   onChanged: () => void;
 }) {
   const { byId: availability, reload } = useAvailability(canManage);
+  /**
+   * Folded away by default, like the tags panel above it.
+   *
+   * Bookings are set up once and then read rarely; the summary line —
+   * how many people and what they add up to a day — is what a visit
+   * usually needs. Open it to change something.
+   */
+  const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  /** Who is being taken off, while the dialog is up. */
+  const [leaving, setLeaving] = useState<{ id: string; name: string } | null>(
+    null,
+  );
+  const { current } = useDomain();
 
   const allocated = new Set(resources.map((r) => r.id));
   const addable = people.filter(
@@ -104,46 +120,80 @@ export function DomainProjectResources({
     (r) => effectiveFor(r, availability.get(r.id)) === null,
   ).length;
 
-  async function remove(allocationId: number) {
-    setError(null);
-    const res = await fetch(`/api/domain/allocations/${allocationId}`, {
-      method: "DELETE",
-    });
-    if (!res.ok) {
-      const b = await res.json().catch(() => ({}));
-      setError(b.error ?? "Couldn't remove that booking.");
-      return;
-    }
+  /**
+   * Both ways off a project live in one dialog — see
+   * components/DomainRemoveResource. Remove and Delete look alike and are
+   * not, so the choice is made on a screen that states what each costs,
+   * rather than by picking between two icons in a table row.
+   */
+  function finished(message: string) {
+    setLeaving(null);
+    setNotice(message);
     onChanged();
     reload();
   }
 
   return (
     <section className="card p-5 mb-5">
-      <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
-        <div>
-          <h3 className="font-heading text-lg font-semibold text-ink-900">
-            Resource allocation
-          </h3>
-          <p className="text-sm text-ink-500 mt-0.5">
-            {resources.length === 0
-              ? "Nobody is booked on this project yet."
-              : `${resources.length} booked · combined ${Math.round(combined * 100) / 100} tags/day`}
-          </p>
-        </div>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <button
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className="flex items-center gap-2 text-left min-w-0"
+        >
+          <ChevronDown
+            size={18}
+            className={`shrink-0 text-ink-400 transition-transform ${open ? "rotate-180" : ""}`}
+          />
+          <span className="min-w-0">
+            <span className="block font-heading text-lg font-semibold text-ink-900">
+              Resource allocation
+            </span>
+            <span className="block text-sm text-ink-500">
+              {resources.length === 0
+                ? "Nobody is booked on this project yet."
+                : `${resources.length} booked · combined ${Math.round(combined * 100) / 100} tags/day${
+                    unrated > 0
+                      ? ` · ${unrated} without a rate`
+                      : ""
+                  }`}
+            </span>
+          </span>
+        </button>
         {canManage && addable.length > 0 && (
           <button
-            onClick={() => setAdding((v) => !v)}
-            className="btn-primary text-sm"
+            onClick={() => {
+              setOpen(true);
+              setAdding((v) => !v);
+            }}
+            className="btn-primary text-sm shrink-0"
           >
             <UserPlus size={14} className="mr-1.5" /> Allocate someone
           </button>
         )}
       </div>
 
-      {error && <p className="text-sm text-brand-redText mb-3">{error}</p>}
+      {leaving && (
+        <DomainRemoveResource
+          projectId={projectId}
+          person={leaving}
+          canDelete={current?.role === "Admin"}
+          onClose={() => setLeaving(null)}
+          onDone={finished}
+        />
+      )}
 
-      {adding && (
+      {error && <p className="text-sm text-brand-redText mt-3">{error}</p>}
+      {/* Shown whether or not the panel is open: it reports tags that just
+          left the project, which nobody should have to expand a section to
+          find out about. */}
+      {notice && (
+        <p className="text-sm text-brand-yellowText mt-3 border-l-4 border-brand-yellow pl-3 py-1">
+          {notice}
+        </p>
+      )}
+
+      {adding && open && (
         <AllocateForm
           projectId={projectId}
           projectStart={projectStart}
@@ -159,14 +209,17 @@ export function DomainProjectResources({
         />
       )}
 
-      {resources.length === 0 ? (
+      {!open ? null : resources.length === 0 ? (
         !adding && (
-          <p className="text-sm text-ink-400 italic">
+          <p className="text-sm text-ink-400 italic mt-4">
             Allocate people so the forecast knows who is delivering this work.
           </p>
         )
       ) : (
-        <div className="overflow-x-auto">
+        // overflow-x-auto is a clipping context, which is why the pickers
+        // inside this table render their lists into document.body rather
+        // than beside themselves — see components/SearchSelect.
+        <div className="overflow-x-auto mt-4">
           <table className="w-full text-sm min-w-[760px]">
             <thead className="bg-ink-50 text-ink-500 text-xs uppercase tracking-wide">
               <tr>
@@ -255,9 +308,10 @@ export function DomainProjectResources({
                           Edit
                         </button>
                         <button
-                          onClick={() => remove(r.allocationId)}
+                          onClick={() => setLeaving({ id: r.id, name: r.name })}
+                          title={`Take ${r.name} off this project`}
+                          aria-label={`Take ${r.name} off this project`}
                           className="btn-ghost text-xs text-brand-redText"
-                          aria-label={`Remove ${r.name} from this project`}
                         >
                           <Trash2 size={13} />
                         </button>

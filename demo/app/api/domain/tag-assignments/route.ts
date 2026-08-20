@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
 import {
+  purgeFromProject,
+  removalImpact,
+  removeTagsFromProject,
+} from "@/lib/domain-tag-removal";
+import {
+  LIVE_ASSIGNMENT,
   assignableRoles,
   assignmentCapIssue,
   normaliseComplexity,
@@ -127,7 +133,9 @@ export async function GET(req: Request) {
   const scopedToSelf = mine || user.role === "Actionee" || user.role === "SME";
 
   const assignments = await prisma.domainTagAssignment.findMany({
+    // Removed work is history, and history lives in Approvals.
     where: {
+      ...LIVE_ASSIGNMENT,
       ...(projectId ? { projectId: Number(projectId) } : {}),
       ...(scopedToSelf ? { assigneeId: user.id } : assigneeId ? { assigneeId } : {}),
     },
@@ -302,4 +310,80 @@ export async function POST(req: Request) {
     { assignment: serialize(assignment), toppedUp: Boolean(existing) },
     { status: 201 },
   );
+}
+
+/**
+ * Take one person off one project. Two modes.
+ *
+ * `mode=remove` (the default) marks their assignments removed. They leave
+ * the project and the project leaves them, and everything they submitted
+ * stays in Approvals attached to this project. Any supervisor may do it.
+ *
+ * `mode=delete` destroys the tag work outright — assignments, submissions,
+ * delivery corrections, their booking — so it disappears from Approvals
+ * and from their own history alike. Admin only, and it cannot be undone,
+ * so it also requires `confirm=true`: a destructive call must not be one
+ * query parameter away from the safe one.
+ */
+export async function DELETE(req: Request) {
+  const userOrResp = await requireDomainUser();
+  if (userOrResp instanceof NextResponse) return userOrResp;
+  const forbidden = requireDomainRole(userOrResp, ["Admin", "Lead", "TeamLead"]);
+  if (forbidden) return forbidden;
+
+  const url = new URL(req.url);
+  const projectId = Number(url.searchParams.get("projectId"));
+  const assigneeId = url.searchParams.get("assigneeId") ?? "";
+  const mode = url.searchParams.get("mode") ?? "remove";
+  if (!Number.isInteger(projectId) || !assigneeId) {
+    return NextResponse.json(
+      { error: "Say which person on which project." },
+      { status: 400 },
+    );
+  }
+
+  if (mode === "delete") {
+    if (userOrResp.role !== "Admin") {
+      return NextResponse.json(
+        {
+          error:
+            "Only an admin can delete a resource and their history. Remove them from the project instead — the record stays and they leave.",
+        },
+        { status: 403 },
+      );
+    }
+    if (url.searchParams.get("confirm") !== "true") {
+      return NextResponse.json(
+        { error: "This erases delivery history and can't be undone. Confirm it first." },
+        { status: 400 },
+      );
+    }
+    const purged = await purgeFromProject(projectId, assigneeId);
+    if (purged.assignments === 0 && purged.tasks === 0) {
+      return NextResponse.json(
+        { error: "They have nothing on this project to delete." },
+        { status: 404 },
+      );
+    }
+    return NextResponse.json({ ok: true, mode: "delete", removed: purged });
+  }
+
+  if (mode !== "remove") {
+    return NextResponse.json({ error: "Unknown mode." }, { status: 400 });
+  }
+
+  const removed = await removeTagsFromProject(
+    projectId,
+    assigneeId,
+    userOrResp.id,
+  );
+  // Releasing a booking counts as having done something, even from
+  // somebody who was carrying no tags.
+  if (removed.assignments === 0 && !removed.releasedBooking) {
+    return NextResponse.json(
+      { error: "They are not on this project." },
+      { status: 404 },
+    );
+  }
+  return NextResponse.json({ ok: true, mode: "remove", removed });
 }

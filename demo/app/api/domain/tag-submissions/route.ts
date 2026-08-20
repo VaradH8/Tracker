@@ -1,14 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser } from "@/lib/domain-auth";
-import {
-  backdateFloorISO,
-  backdateWindowLabel,
-  istDayStart,
-  istParts,
-  submissionNeedsReview,
-  type DomainRole,
-} from "@/lib/domain";
+import { LIVE_ASSIGNMENT, backdateFloorISO, backdateWindowLabel, istDayStart, istParts, submissionNeedsReview, type DomainRole } from "@/lib/domain";
 import { toISODate } from "@/lib/forecast";
 
 /**
@@ -99,8 +92,18 @@ export async function GET(req: Request) {
   // Both filters narrow the same relation, so they have to be merged rather
   // than spread over each other — two `assignment:` keys would silently
   // drop the first.
+  /**
+   * Removed work is filtered out for the person it belonged to, and only
+   * for them.
+   *
+   * Taking somebody off a project takes the work off their screens: the
+   * assignment goes, and so does the record of what they submitted
+   * against it. What must not go is the decision trail a Lead relies on,
+   * so Approvals — which is everybody else's view of the same rows —
+   * keeps showing them.
+   */
   const assignmentWhere = {
-    ...(scopedToSelf ? { assigneeId: user.id } : {}),
+    ...(scopedToSelf ? { assigneeId: user.id, ...LIVE_ASSIGNMENT } : {}),
     ...(projectId ? { projectId: Number(projectId) } : {}),
   };
 

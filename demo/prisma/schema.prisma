@@ -378,6 +378,7 @@ model DomainUser {
   tagAssignmentsMade  DomainTagAssignment[] @relation("DomainTagAssignmentCreator")
   tagSubmissions      DomainTagSubmission[] @relation("DomainTagSubmitter")
   deliveryCorrections DomainDeliveryCorrection[] @relation("DomainDeliveryCorrector")
+  tagAssignmentsRemoved DomainTagAssignment[] @relation("DomainTagAssignmentRemover")
   tagReviews          DomainTagSubmission[] @relation("DomainTagReviewer")
   leaveRecords   DomainLeave[] @relation("DomainLeaveSubject")
   leavesAuthored DomainLeave[] @relation("DomainLeaveAuthor")
@@ -530,12 +531,26 @@ model DomainTagAssignment {
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
+  /// Set when somebody is taken off the project and their tags go with
+  /// them. The row stays.
+  ///
+  /// It has to stay, because every submission hangs off it by a cascading
+  /// foreign key — deleting the assignment would take the approval history
+  /// with it, and the history is the one thing that must survive somebody
+  /// leaving a project. So the row is marked instead: every screen that
+  /// asks "what work is live" filters these out, and the Approvals history,
+  /// which asks "what was decided", does not.
+  removedAt      DateTime?
+  removedById    String?
+  removedBy      DomainUser?     @relation("DomainTagAssignmentRemover", fields: [removedById], references: [id], onDelete: SetNull)
+
   submissions DomainTagSubmission[]
   corrections DomainDeliveryCorrection[]
 
   @@index([projectId])
   @@index([assigneeId])
   @@index([divisionId])
+  @@index([removedAt])
 }
 
 /// An Admin's manual correction to a delivered count.

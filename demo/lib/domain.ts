@@ -380,3 +380,72 @@ export function backdateFloorISO(now: Date = new Date()): string {
 export function backdateWindowLabel(): string {
   return "back to the 1st of this month";
 }
+/**
+ * The Prisma filter for tag work that is still live.
+ *
+ * Taking somebody off a project marks their assignments removed rather
+ * than deleting them: every submission hangs off the assignment by a
+ * cascading foreign key, so a delete would take the approval history with
+ * it — and the history is the one thing that has to survive somebody
+ * leaving.
+ *
+ * So there are now two questions a query can be asking, and they want
+ * different answers:
+ *
+ *   "what work is live"  -> filter with this
+ *   "what was decided"   -> do not; Approvals shows removed work too
+ *
+ * Exported as one constant so the call sites cannot drift apart, which is
+ * how half a screen ends up counting work the other half has written off.
+ */
+export const LIVE_ASSIGNMENT = { removedAt: null } as const;
+
+/**
+ * What a tag batch still contributes to its project once its holder has
+ * been removed.
+ *
+ * Removing somebody is not a statement about the work. Tags they delivered
+ * were delivered — a Lead approved them, they went to the client, and the
+ * project is that much further along whoever is carrying the rest. The
+ * first version filtered removed rows out of the project totals entirely,
+ * so taking a Lead off a project silently wiped ten delivered tags off it.
+ *
+ * The undelivered remainder is different: nobody holds it any more, so it
+ * returns to the pool and shows up again as "not yet assigned to anyone".
+ *
+ * Hence: a removed batch counts as `delivered` on both sides of the
+ * ledger — delivered, and assigned — while a live one counts in full.
+ * Deleting a resource, which destroys the rows outright, is the operation
+ * that does take the delivered figure with it, and is why it is Admin-only
+ * and asks twice.
+ */
+export function assignmentContribution(row: {
+  assignedCount: number;
+  deliveredCount: number;
+  removedAt?: Date | string | null;
+}): { assigned: number; delivered: number } {
+  return {
+    assigned: row.removedAt ? row.deliveredCount : row.assignedCount,
+    delivered: row.deliveredCount,
+  };
+}
+
+/** Project-wide totals over a mix of live and removed batches. */
+export function totalTagPosition(
+  rows: {
+    assignedCount: number;
+    deliveredCount: number;
+    removedAt?: Date | string | null;
+  }[],
+): { assigned: number; delivered: number } {
+  return rows.reduce(
+    (acc, r) => {
+      const c = assignmentContribution(r);
+      return {
+        assigned: acc.assigned + c.assigned,
+        delivered: acc.delivered + c.delivered,
+      };
+    },
+    { assigned: 0, delivered: 0 },
+  );
+}

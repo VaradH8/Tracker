@@ -17,7 +17,11 @@ import {
   toISODate,
   type ForecastResult,
 } from "./forecast";
-import { TAG_HOLDER_ROLES } from "./domain";
+import {
+  LIVE_ASSIGNMENT,
+  TAG_HOLDER_ROLES,
+  totalTagPosition,
+} from "./domain";
 
 /**
  * Tags/day for each person, derived from what Leads have actually approved
@@ -159,8 +163,12 @@ export async function resourceForecast(): Promise<ResourceForecast[]> {
 
   // Tag totals per person per project, so a row can show what the booking
   // is actually carrying rather than just its dates.
+  // Live work only. Somebody taken off a project keeps their rows for
+  // the approval history's sake, but they are not carrying those tags any
+  // more and must not read as busy because of them.
   const assignments = await prisma.domainTagAssignment.groupBy({
     by: ["assigneeId", "projectId"],
+    where: LIVE_ASSIGNMENT,
     _sum: { assignedCount: true, deliveredCount: true },
   });
   const tagsBy = new Map(
@@ -363,6 +371,12 @@ export async function projectForecasts(
       allocations: {
         include: { user: { select: { id: true, name: true } } },
       },
+      /**
+       * Every batch, removed ones included. What each contributes to the
+       * totals is decided by `removedAt` (see assignmentContribution);
+       * who is *on* the project is decided by filtering to the live ones,
+       * a few lines down. Two different questions of the same rows.
+       */
       tagAssignments: {
         include: {
           assignee: { select: { id: true, name: true } },
@@ -414,6 +428,7 @@ export async function projectForecasts(
    * came to be counted six times in a single figure.
    */
   const allTagHolders = await prisma.domainTagAssignment.findMany({
+    where: LIVE_ASSIGNMENT,
     select: { assigneeId: true, projectId: true },
   });
   const tagProjectsByUser = new Map<string, Set<number>>();
@@ -435,9 +450,14 @@ export async function projectForecasts(
   );
 
   return projects.map((p) => {
-    const assignedTags = p.tagAssignments.reduce((s, a) => s + a.assignedCount, 0);
-    const deliveredTags = p.tagAssignments.reduce((s, a) => s + a.deliveredCount, 0);
-    const pendingApprovalTags = p.tagAssignments.reduce(
+    // Batches still carried by somebody on the project. Capacity, the
+    // people list and the per-division split of live work all come from
+    // these; the totals below come from every batch.
+    const liveAssignments = p.tagAssignments.filter((a) => !a.removedAt);
+    const position = totalTagPosition(p.tagAssignments);
+    const assignedTags = position.assigned;
+    const deliveredTags = position.delivered;
+    const pendingApprovalTags = liveAssignments.reduce(
       (s, a) => s + (pendingBy.get(a.id) ?? 0),
       0,
     );
@@ -460,7 +480,7 @@ export async function projectForecasts(
         .map((a) => [a.userId, a.expectedTagsPerDay as number]),
     );
 
-    const people = peopleOnProject(p.allocations, p.tagAssignments);
+    const people = peopleOnProject(p.allocations, liveAssignments);
 
     // The stretch this project's delivery actually spans. Used to decide
     // which of a person's other bookings genuinely compete with this one.
@@ -544,12 +564,13 @@ export async function projectForecasts(
       const forDivision = p.tagAssignments.filter(
         (a) => a.divisionId === pd.divisionId,
       );
+      const divPosition = totalTagPosition(forDivision);
       return {
         id: pd.division.id,
         name: pd.division.name,
         totalTags: pd.totalTags,
-        assignedTags: forDivision.reduce((s, a) => s + a.assignedCount, 0),
-        deliveredTags: forDivision.reduce((s, a) => s + a.deliveredCount, 0),
+        assignedTags: divPosition.assigned,
+        deliveredTags: divPosition.delivered,
       };
     });
 
@@ -570,7 +591,7 @@ export async function projectForecasts(
       /** When the projection starts counting from — today, unless the
        *  project is staffed from a later date. */
       startsFrom: toISODate(from),
-      peopleEngaged: new Set(p.tagAssignments.map((a) => a.assigneeId)).size,
+      peopleEngaged: new Set(liveAssignments.map((a) => a.assigneeId)).size,
       /**
        * Work that has not begun is reported as such rather than as
        * behind. `from` is today unless the project is staffed from a

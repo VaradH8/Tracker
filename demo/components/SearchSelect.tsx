@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -8,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown, Search } from "lucide-react";
 import { selectClass, type FieldSize } from "@/lib/domain-ui";
 
@@ -54,12 +56,22 @@ function isPinned(o: SelectOption): boolean {
 }
 
 /**
- * Below this many options, the search box is more clutter than help. Eight
- * is roughly where a list stops being scannable at a glance — long enough
- * that a team, a project list or a division list qualifies, short enough
- * that status and role pickers do not.
+ * Below this many options, the search box is more clutter than help. Five
+ * is roughly where a list stops being scannable at a glance.
+ *
+ * It started at eight, which was wrong for the case that matters most: a
+ * project's divisions run to four or five entries named things like
+ * "MRJN 162/169_BATCH 3", where the first fifteen characters are identical
+ * and telling them apart by eye is the whole difficulty. Count is a poor
+ * proxy for "hard to scan" — see LONG_LABEL, which catches that directly.
  */
-export const SEARCH_THRESHOLD = 8;
+export const SEARCH_THRESHOLD = 5;
+
+/**
+ * A label this long is not read at a glance, however few of them there
+ * are. Lists of these get a search box on length alone.
+ */
+export const LONG_LABEL = 24;
 
 export function SearchSelect({
   value,
@@ -93,8 +105,26 @@ export function SearchSelect({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
-  const [dropUp, setDropUp] = useState(false);
+  /**
+   * Where to draw the popover, in viewport coordinates.
+   *
+   * It is rendered into document.body rather than beside the button,
+   * because several of the places this control lives sit inside a card
+   * with `overflow-hidden` — the per-person assign form is one — and an
+   * absolutely positioned list inside one of those is simply cut off at
+   * the card's edge. That was the bug: the division list looked truncated
+   * and could not be scrolled, because the part you were reaching for had
+   * been clipped away rather than hidden behind a scrollbar.
+   */
+  const [box, setBox] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    maxHeight: number;
+    dropUp: boolean;
+  } | null>(null);
   const root = useRef<HTMLDivElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
   const search = useRef<HTMLInputElement>(null);
   const listId = useId();
 
@@ -110,7 +140,9 @@ export function SearchSelect({
     return [...pinned, ...rest];
   }, [options, sorted]);
 
-  const showSearch = ordered.length >= SEARCH_THRESHOLD;
+  const showSearch =
+    ordered.length >= SEARCH_THRESHOLD ||
+    (ordered.length > 2 && ordered.some((o) => o.label.length > LONG_LABEL));
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -131,7 +163,13 @@ export function SearchSelect({
   useEffect(() => {
     if (!open) return;
     function onDocDown(e: MouseEvent) {
-      if (!root.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      // The list is portaled out of this component's subtree, so
+      // `root.contains` alone would treat every click inside it as an
+      // outside click and close before the option fired.
+      if (root.current?.contains(t)) return;
+      if (menu.current?.contains(t)) return;
+      setOpen(false);
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
@@ -144,13 +182,68 @@ export function SearchSelect({
     };
   }, [open]);
 
-  // Open upwards when there isn't room below. A picker at the foot of a
-  // form otherwise drops its list off the bottom of the window.
+  /**
+   * Measure the trigger and decide where the list goes.
+   *
+   * Width is at least the trigger's, so it never looks detached, but it is
+   * free to grow past it up to a sensible cap — division names like
+   * "MRJN 162/169_BATCH 3" do not fit in a 180px field and truncating them
+   * there leaves nothing to choose between.
+   */
+  const place = useCallback(() => {
+    const el = root.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const below = window.innerHeight - r.bottom - 8;
+    const above = r.top - 8;
+    const dropUp = below < 220 && above > below;
+    setBox({
+      left: Math.max(8, Math.min(r.left, window.innerWidth - 8 - Math.max(r.width, 240))),
+      // Placed as a plain top coordinate rather than a translate, so the
+      // correction pass above can move it without fighting a transform.
+      top: dropUp ? Math.max(8, r.top - Math.min(360, above)) : r.bottom,
+      width: Math.max(r.width, 240),
+      // Never taller than the room available, so the list always ends with
+      // a scrollbar rather than running off the screen.
+      maxHeight: Math.max(160, Math.min(360, dropUp ? above : below)),
+      dropUp,
+    });
+  }, []);
+
+  /**
+   * Correct the placement once the list has a real height.
+   *
+   * `place` has to guess whether there is room below before the menu
+   * exists, and the guess goes wrong whenever opening the menu also
+   * changes the layout — expanding a person's assign form pushes the
+   * trigger down the page after the measurement was taken. This runs with
+   * the actual rendered height and pulls the list back inside the window.
+   */
   useLayoutEffect(() => {
-    if (!open || !root.current) return;
-    const box = root.current.getBoundingClientRect();
-    setDropUp(window.innerHeight - box.bottom < 280 && box.top > 280);
-  }, [open]);
+    const el = menu.current;
+    if (!open || !el || !box) return;
+    const h = el.getBoundingClientRect().height;
+    const overflow = box.top + h - (window.innerHeight - 8);
+    if (overflow > 1) {
+      const top = Math.max(8, box.top - overflow);
+      // Only when it is genuinely a move: setting the same number back
+      // would re-run this effect for ever.
+      if (Math.abs(top - box.top) > 1) setBox({ ...box, top });
+    }
+  }, [open, box]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    place();
+    // `true` for the capture phase: the scroller is usually an ancestor,
+    // and scroll does not bubble.
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [open, place]);
 
   useEffect(() => {
     if (open && showSearch) search.current?.focus();
@@ -216,12 +309,20 @@ export function SearchSelect({
         />
       </button>
 
-      {open && (
-        <div
-          className={`absolute z-30 left-0 right-0 min-w-[200px] rounded-card border border-ink-200 bg-white shadow-lg ${
-            dropUp ? "bottom-full mb-1" : "top-full mt-1"
-          }`}
-        >
+      {open &&
+        box &&
+        createPortal(
+          <div
+            ref={menu}
+            style={{
+              position: "fixed",
+              left: box.left,
+              top: box.top,
+              width: box.width,
+              maxWidth: "min(32rem, calc(100vw - 16px))",
+            }}
+            className="z-50 rounded-card border border-ink-200 bg-white shadow-lg"
+          >
           {showSearch && (
             <div className="p-2 border-b border-ink-100">
               <div className="relative">
@@ -247,7 +348,8 @@ export function SearchSelect({
           <ul
             id={listId}
             role="listbox"
-            className="max-h-60 overflow-y-auto py-1"
+            style={{ maxHeight: box.maxHeight }}
+            className="overflow-y-auto py-1"
           >
             {shown.length === 0 ? (
               <li className="px-3 py-2 text-sm text-ink-400 italic">
@@ -273,12 +375,17 @@ export function SearchSelect({
                         o.value === value ? "" : "invisible"
                       }`}
                     />
+                    {/* Wrapping, not truncating. The closed button truncates
+                        because it has one line to work with; the list is
+                        where you actually read the name, and three
+                        divisions all showing "MRJN 162/169_BATC…" are not
+                        a choice. */}
                     <span className="min-w-0">
-                      <span className="block text-ink-900 truncate">
+                      <span className="block text-ink-900 break-words">
                         {o.label}
                       </span>
                       {o.hint && (
-                        <span className="block text-xs text-ink-500 truncate">
+                        <span className="block text-xs text-ink-500 break-words">
                           {o.hint}
                         </span>
                       )}
@@ -288,8 +395,9 @@ export function SearchSelect({
               ))
             )}
           </ul>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
 import { rateIssue, toISODate } from "@/lib/forecast";
+import { removeTagsFromProject } from "@/lib/domain-tag-removal";
 
 /**
  * Adjust or end a booking. Releasing someone early (`releasedAt`) frees
@@ -101,7 +102,17 @@ export async function PATCH(
   });
 }
 
-/** Remove a booking outright — for one added by mistake. */
+/**
+ * Take somebody off the project.
+ *
+ * The booking goes and their tags go with it. Leaving the tags behind is
+ * what produced the "Holding tags without a booking" row nobody wanted:
+ * removed from the allocation table, still on the project, still in its
+ * totals.
+ *
+ * The tags are marked removed, not deleted, so the approval history
+ * survives — see lib/domain-tag-removal.
+ */
 export async function DELETE(
   _req: Request,
   context: { params: Promise<{ id: string }> },
@@ -120,5 +131,12 @@ export async function DELETE(
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   await prisma.domainAllocation.delete({ where: { id } });
-  return NextResponse.json({ ok: true });
+  const removed = await removeTagsFromProject(
+    existing.projectId,
+    existing.userId,
+    userOrResp.id,
+  );
+  // Reported back so the screen can say what actually left the project
+  // rather than silently dropping a few thousand tags out of its totals.
+  return NextResponse.json({ ok: true, removed });
 }

@@ -59,6 +59,33 @@ h4 {
    *
    * Engineering-only class; nothing in the tracker uses it.
    */
+  /**
+   * Number fields, without the stepper.
+   *
+   * The spinner arrows are a hazard on a count somebody typed: they are a
+   * tiny target beside the caret, and — worse — a focused number input in
+   * Chrome and Firefox changes its value when the wheel scrolls over it.
+   * Scrolling down a form to read the rest of it silently turned 4857 into
+   * 4856. A tag count is typed, not nudged.
+   *
+   * Scoped to the Engineering shell rather than applied globally, so the
+   * tracker's inputs keep whatever behaviour they were built with.
+   * `.eng-shell` is on the outermost element of components/DomainShell.
+   *
+   * The wheel itself is blocked in components/NumberFieldGuard — CSS can
+   * hide the arrows but cannot stop the event.
+   */
+  .eng-shell input[type="number"]::-webkit-outer-spin-button,
+  .eng-shell input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    appearance: none;
+    margin: 0;
+  }
+  .eng-shell input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
   .eng-date {
     @apply font-sans text-ink-900;
     /* Firefox and Safari ignore the -webkit rules below and simply inherit

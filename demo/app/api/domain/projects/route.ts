@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
-import { TAG_HOLDER_ROLES, divisionTagsIssue, type DomainRole } from "@/lib/domain";
+import {
+  LIVE_ASSIGNMENT,
+  TAG_HOLDER_ROLES,
+  divisionTagsIssue,
+  totalTagPosition,
+  type DomainRole,
+} from "@/lib/domain";
 import { allocationConflicts, projectForecasts } from "@/lib/domain-forecast";
 import { toISODate } from "@/lib/forecast";
 import { resolveSchedule } from "@/lib/domain-schedule";
@@ -16,8 +22,19 @@ const INCLUDE = {
   },
   // Enough of the tag position to draw a progress bar on the index without
   // a second round trip per project.
+  /**
+   * Every batch, removed ones included — `removedAt` decides what each
+   * contributes. Filtering them out here wiped a removed person's
+   * delivered tags off the project, which is not what removing somebody
+   * means; see assignmentContribution.
+   */
   tagAssignments: {
-    select: { assigneeId: true, assignedCount: true, deliveredCount: true },
+    select: {
+      assigneeId: true,
+      assignedCount: true,
+      deliveredCount: true,
+      removedAt: true,
+    },
   },
 } as const;
 
@@ -52,6 +69,7 @@ type ProjectRow = {
     assigneeId: string;
     assignedCount: number;
     deliveredCount: number;
+    removedAt: Date | null;
   }[];
 };
 
@@ -86,9 +104,13 @@ function serialize(p: ProjectRow) {
       expectedTagsPerDay: a.expectedTagsPerDay,
       role: a.user.role,
     })),
-    assignedTags: p.tagAssignments.reduce((s, a) => s + a.assignedCount, 0),
-    deliveredTags: p.tagAssignments.reduce((s, a) => s + a.deliveredCount, 0),
-    peopleEngaged: new Set(p.tagAssignments.map((a) => a.assigneeId)).size,
+    assignedTags: totalTagPosition(p.tagAssignments).assigned,
+    deliveredTags: totalTagPosition(p.tagAssignments).delivered,
+    // People, unlike tags, do leave. Somebody removed is not engaged on
+    // this project any more, however much of it they delivered.
+    peopleEngaged: new Set(
+      p.tagAssignments.filter((a) => !a.removedAt).map((a) => a.assigneeId),
+    ).size,
   };
 }
 
@@ -122,7 +144,7 @@ export async function GET() {
     where: ownOnly
       ? {
           OR: [
-            { tagAssignments: { some: { assigneeId: user.id } } },
+            { tagAssignments: { some: { assigneeId: user.id, ...LIVE_ASSIGNMENT } } },
             { allocations: { some: { userId: user.id } } },
             { tasks: { some: { assigneeId: user.id } } },
           ],

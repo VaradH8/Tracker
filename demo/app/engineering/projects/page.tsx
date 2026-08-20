@@ -195,6 +195,21 @@ export default function DomainProjectsPage() {
           </>
         ) : (
           <>
+            {/* Tags first, then who is on it.
+                The scope of the work is the thing anybody opening a
+                project came to read; the booking table is how you act on
+                it once you have. Staffing above scope put the answer to
+                "how big is this?" below a table of dates and rates. */}
+            <TagAssignmentPanel
+              project={selectedProject}
+              people={people}
+              canAssign={canAssign}
+              rows={assignments}
+              onChanged={() => {
+                void loadAssignments();
+                void loadProjects();
+              }}
+            />
             <DomainProjectResources
               projectId={selectedProject.id}
               projectStart={selectedProject.startDate ?? null}
@@ -205,16 +220,6 @@ export default function DomainProjectsPage() {
               onChanged={() => {
                 void loadProjects();
                 void loadAssignments();
-              }}
-            />
-            <TagAssignmentPanel
-              project={selectedProject}
-              people={people}
-              canAssign={canAssign}
-              rows={assignments}
-              onChanged={() => {
-                void loadAssignments();
-                void loadProjects();
               }}
             />
           </>
@@ -532,24 +537,56 @@ function ProjectHeader({
   }
 
   /**
-   * Project-wide figures. An SME is only handed their own assignment rows,
-   * so summing them here would have printed one person's five delivered
-   * tags under a heading that says the project's. The list endpoint
-   * already carries the real totals; use those when the rows are partial,
-   * and drop "pending approval", which has no project-wide equivalent.
+   * Project-wide figures come from the list endpoint, never from summing
+   * the assignment rows on this page.
+   *
+   * Two reasons, and they bit in turn. An SME is only handed their own
+   * rows, so summing printed one person's five delivered tags under a
+   * heading that says the project's. And the rows are live work only — a
+   * removed person's batches are not among them — so summing also wiped
+   * their delivered tags off the header the moment they left, which is not
+   * what removing somebody means.
+   *
+   * Pending is the exception: it has no project-wide equivalent on the
+   * list endpoint, so it is summed here and hidden when the rows are
+   * partial.
    */
-  const assigned = ownRowsOnly
-    ? (project.assignedTags ?? 0)
-    : assignments.reduce((s, r) => s + r.assignedCount, 0);
-  const delivered = ownRowsOnly
-    ? (project.deliveredTags ?? 0)
-    : assignments.reduce((s, r) => s + r.deliveredCount, 0);
+  const assigned = project.assignedTags ?? 0;
+  const delivered = project.deliveredTags ?? 0;
   const pending = ownRowsOnly
     ? null
     : assignments.reduce((s, r) => s + r.pendingCount, 0);
   const total = project.totalTags || assigned;
   const remaining = Math.max(0, total - delivered);
   const pct = total > 0 ? (delivered / total) * 100 : 0;
+  /**
+   * Rolled up here rather than in the tags panel, which used to own it.
+   * The panel is collapsed by default now, and a project's division split
+   * is not something you should have to open anything to see.
+   */
+  /**
+   * Per-division delivery, summed from the live assignment rows this page
+   * holds. A removed person's batches are not among them, so the split can
+   * come out short of the project total above.
+   *
+   * `deliveredElsewhere` is exactly that difference, named rather than
+   * hidden — it reads as a fact about people who have left, instead of as
+   * an arithmetic error nobody can account for.
+   */
+  const divisions = (project.divisions ?? []).map((d) => {
+    const forDiv = assignments.filter((r) => r.divisionId === d.id);
+    return {
+      id: d.id,
+      name: d.name,
+      totalTags: d.totalTags,
+      assigned: forDiv.reduce((s, r) => s + r.assignedCount, 0),
+      delivered: forDiv.reduce((s, r) => s + r.deliveredCount, 0),
+    };
+  });
+  const deliveredElsewhere = ownRowsOnly
+    ? 0
+    : Math.max(0, delivered - divisions.reduce((s, d) => s + d.delivered, 0));
+
   const headerScope = projectScope({
     contractTags: project.contractTags ?? null,
     totalTags: project.totalTags ?? 0,
@@ -664,7 +701,122 @@ function ProjectHeader({
               </span>
             )}
           </p>
+
+          {/*
+            Delivery by division, in the header rather than in a panel of
+            its own further down.
+
+            It answers the same question as the four figures above it —
+            how much of this project is done — just broken out by
+            discipline. Keeping it in a separate card meant scrolling past
+            the staffing table to find out where the work actually stands.
+          */}
+          <DivisionBreakdown
+            divisions={divisions}
+            deliveredElsewhere={deliveredElsewhere}
+          />
         </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Past this many divisions the list stops being a glance and starts being
+ * a table, so the names get clipped to keep every row one line tall. Under
+ * it, they are shown whole however long they are.
+ */
+const CROWDED_DIVISIONS = 5;
+
+/**
+ * Per-division delivery: what each discipline holds, and how far along it
+ * is. One row each, with the bar carrying the comparison so the eye does
+ * not have to divide two four-figure numbers.
+ *
+ * Silent for a project with no divisions — an empty table under the hero
+ * figures is worse than nothing there at all.
+ */
+function DivisionBreakdown({
+  divisions,
+  deliveredElsewhere,
+}: {
+  divisions: {
+    id: number;
+    name: string;
+    totalTags: number;
+    assigned: number;
+    delivered: number;
+  }[];
+  /** Delivered tags held by people since removed from the project, so the
+   *  split below falls short of the header by this much. */
+  deliveredElsewhere: number;
+}) {
+  if (divisions.length === 0) return null;
+
+  /**
+   * Names run long and near-identical — "MRJN 162/169_BATCH 1 CABLE
+   * SCHEDULE" against "…BATCH 2 CABLE SCHEDULE" — and it is the tail that
+   * tells them apart. So a crowded list clips rather than wraps, and the
+   * full name stays available on hover and to a screen reader.
+   */
+  const crowded = divisions.length > CROWDED_DIVISIONS;
+
+  return (
+    <div className="mt-5 pt-4 border-t border-ink-100">
+      <h3 className="text-xs font-semibold text-ink-500 uppercase tracking-wide mb-2">
+        Delivery by division
+        {crowded && (
+          <span className="text-ink-400 font-normal normal-case tracking-normal">
+            {" "}
+            — {divisions.length} of them
+          </span>
+        )}
+      </h3>
+      {/* One per row, full width. Two columns fitted twice as many on a
+          screen and gave each of them half the room, which is the wrong
+          trade when the names are the hard part to read. */}
+      <ul className="grid gap-2.5">
+        {divisions.map((d) => {
+          const scope = d.totalTags || d.assigned;
+          const pct = scope > 0 ? (d.delivered / scope) * 100 : 0;
+          const left = Math.max(0, scope - d.delivered);
+          return (
+            <li key={d.id}>
+              <div className="flex items-baseline justify-between gap-3 text-sm">
+                <span
+                  title={d.name}
+                  className={`text-ink-800 font-medium min-w-0 ${
+                    crowded ? "truncate" : "break-words"
+                  }`}
+                >
+                  {d.name}
+                </span>
+                <span className="text-ink-500 shrink-0 tabular-nums">
+                  <strong className="text-brand-greenText">{d.delivered}</strong>
+                  {" / "}
+                  {scope}
+                  <span className="text-ink-400"> · {left} left</span>
+                </span>
+              </div>
+              <div className="h-1 rounded-pill bg-ink-100 overflow-hidden mt-1">
+                <div
+                  className="h-full bg-brand-green"
+                  style={{ width: `${Math.min(100, pct)}%` }}
+                />
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      {deliveredElsewhere > 0 && (
+        <p className="text-xs text-ink-500 mt-2.5">
+          A further{" "}
+          <strong className="text-brand-greenText tabular-nums">
+            {deliveredElsewhere}
+          </strong>{" "}
+          delivered by people since removed from this project. Their work
+          still counts; they no longer sit against a division.
+        </p>
       )}
     </div>
   );

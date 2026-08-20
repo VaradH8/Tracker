@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser } from "@/lib/domain-auth";
-import { TAG_HOLDER_ROLES, divisionTagsIssue, type DomainRole } from "@/lib/domain";
+import {
+  LIVE_ASSIGNMENT,
+  TAG_HOLDER_ROLES,
+  divisionTagsIssue,
+  type DomainRole,
+} from "@/lib/domain";
 import { toISODate } from "@/lib/forecast";
 import {
   DEFAULT_WORK_WEEK,
@@ -256,6 +261,12 @@ export async function PATCH(
   // division still carrying assigned tags can't be dropped — that would
   // orphan work people are holding.
   let divisionPlan: { divisionId: number; totalTags: number }[] | null = null;
+  /**
+   * Tags to re-point when a project moves off a shared division onto its
+   * own. Collected during validation, applied in the transaction — a
+   * request that fails a later check must not have moved anything.
+   */
+  const divisionMoves: { from: number; to: number }[] = [];
   if (Array.isArray(body.divisions)) {
     const catalogue = await prisma.domainDivision.findMany({
       select: { id: true, name: true },
@@ -277,6 +288,92 @@ export async function PATCH(
         if (!validIds.has(divId)) {
           return NextResponse.json({ error: "Unknown division." }, { status: 400 });
         }
+
+        /**
+         * Renaming a division you already have.
+         *
+         * This branch used to take the id and drop `name` on the floor, so
+         * editing a division's name in the project form saved cleanly,
+         * returned 200, and changed nothing. Silent, which is the worst
+         * way for an edit to fail.
+         *
+         * Divisions are a shared catalogue: one row, linked to however
+         * many projects use it. Typing "Piping" on a second project finds
+         * the existing row rather than making another, so by the time
+         * anybody wants to rename it, it is usually shared — and a rename
+         * means one of two quite different things.
+         *
+         * It means "this project's division is now called X". So that is
+         * what it does: where the row is shared, the project moves onto
+         * its own division under the new name and takes its tags with it,
+         * and every other project keeps the one it had. Where the row
+         * belongs to this project alone, there is nothing to move and it
+         * is renamed in place.
+         *
+         * The alternative — renaming the shared row — would retitle a
+         * discipline on somebody else's project from inside this form,
+         * which is not a thing this screen should be able to do.
+         */
+        const wanted = String(raw.name ?? "").trim();
+        const existing = catalogue.find((d) => d.id === divId);
+        if (wanted && existing && wanted !== existing.name) {
+          const clash = byLowerName.get(wanted.toLowerCase());
+          // Renaming onto a division this project already has would merge
+          // two sets of tags into one, which is a different operation and
+          // not one anybody asked for by typing in a name field.
+          if (clash && clash.id !== divId) {
+            const alreadyHere = current.divisions.some(
+              (d) => d.divisionId === clash.id,
+            );
+            if (alreadyHere) {
+              return NextResponse.json(
+                {
+                  error: `This project already has a division called "${clash.name}". Merge them by moving the tags across, or pick a different name.`,
+                },
+                { status: 400 },
+              );
+            }
+          }
+
+          const usedElsewhere = await prisma.domainProjectDivision.count({
+            where: { divisionId: divId, projectId: { not: id } },
+          });
+
+          if (usedElsewhere === 0) {
+            // Ours alone: rename the row and keep the id, so nothing that
+            // points at it has to move.
+            const renamed = await prisma.domainDivision.update({
+              where: { id: divId },
+              data: { name: wanted },
+              select: { id: true, name: true },
+            });
+            byLowerName.delete(existing.name.toLowerCase());
+            byLowerName.set(renamed.name.toLowerCase(), renamed);
+            existing.name = renamed.name;
+            plan.push({ divisionId: divId, totalTags: divisionTags });
+            continue;
+          }
+
+          // Shared: move this project onto a division of its own. Reuse a
+          // row that already carries the name if there is one — two
+          // divisions called the same thing is how the catalogue rots.
+          let target = clash ?? null;
+          if (!target) {
+            target = await prisma.domainDivision.create({
+              data: { name: wanted },
+              select: { id: true, name: true },
+            });
+            catalogue.push(target);
+            byLowerName.set(target.name.toLowerCase(), target);
+            validIds.add(target.id);
+          }
+          // Applied in the transaction below, not here: nothing is written
+          // until the rest of the request has passed validation.
+          divisionMoves.push({ from: divId, to: target.id });
+          plan.push({ divisionId: target.id, totalTags: divisionTags });
+          continue;
+        }
+
         plan.push({ divisionId: divId, totalTags: divisionTags });
         continue;
       }
@@ -298,8 +395,11 @@ export async function PATCH(
     divisionPlan = Array.from(new Map(plan.map((d) => [d.divisionId, d])).values());
 
     const keptIds = new Set(divisionPlan.map((d) => d.divisionId));
+    // A division being moved off is not being dropped — its tags follow it
+    // — so it must not trip the "still has tags assigned" guard below.
+    const movingFrom = new Set(divisionMoves.map((m) => m.from));
     const removedIds = current.divisions
-      .filter((d) => !keptIds.has(d.divisionId))
+      .filter((d) => !keptIds.has(d.divisionId) && !movingFrom.has(d.divisionId))
       .map((d) => d.divisionId);
     if (removedIds.length > 0) {
       const held = await prisma.domainTagAssignment.count({
@@ -333,8 +433,11 @@ export async function PATCH(
   // Dropping the master total below what's already handed out would leave
   // the project owing more than it holds.
   if (data.totalTags !== undefined && nextTotal > 0) {
+    // Live work only. Tags belonging to somebody who has been taken off
+    // the project are no longer handed out, so counting them would block
+    // a total the project can perfectly well carry.
     const assigned = await prisma.domainTagAssignment.aggregate({
-      where: { projectId: id },
+      where: { projectId: id, ...LIVE_ASSIGNMENT },
       _sum: { assignedCount: true },
     });
     const handedOut = assigned._sum.assignedCount ?? 0;
@@ -416,6 +519,15 @@ export async function PATCH(
   await prisma.$transaction(async (tx) => {
     if (Object.keys(data).length > 0) {
       await tx.domainProject.update({ where: { id }, data });
+    }
+    // Before the links are rewritten: the tags have to land on the new
+    // division while the old link still exists, or they would briefly
+    // point at a division this project does not have.
+    for (const move of divisionMoves) {
+      await tx.domainTagAssignment.updateMany({
+        where: { projectId: id, divisionId: move.from },
+        data: { divisionId: move.to },
+      });
     }
     if (divisionPlan) {
       await tx.domainProjectDivision.deleteMany({
