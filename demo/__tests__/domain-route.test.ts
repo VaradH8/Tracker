@@ -81,6 +81,10 @@ describe("domain route role gates", () => {
     vi.mocked(prisma.domainProject.findMany).mockResolvedValue([]);
     vi.mocked(prisma.domainAllocation.findMany).mockResolvedValue([]);
     vi.mocked(prisma.domainTagAssignment.groupBy).mockResolvedValue([] as never);
+    // Read by projectForecasts to work out how many projects each person
+    // is split across — tags held count as being on a project, not just
+    // bookings.
+    vi.mocked(prisma.domainTagAssignment.findMany).mockResolvedValue([]);
     vi.mocked(prisma.domainTagSubmission.findMany).mockResolvedValue([]);
     vi.mocked(prisma.domainTagSubmission.groupBy).mockResolvedValue([] as never);
 

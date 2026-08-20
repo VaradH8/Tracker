@@ -171,23 +171,24 @@ export async function DELETE(
   if (!row) return NextResponse.json({ ok: true });
 
   /**
-   * Two ways this is allowed:
-   *   - you filed it and nobody has decided it yet — withdrawing your own
-   *     pending request
-   *   - you supervise the person it belongs to
+   * Admin only.
    *
-   * Once a request is decided the person who filed it can no longer make
-   * it disappear: the decision is a record, not a draft.
+   * The register is the record of who was where, and it is read back
+   * months later to settle questions about a delivery date or a
+   * timesheet. A record anybody in the chain can erase is not a record —
+   * a Team Lead could delete the absence they marked, and a worker could
+   * delete a rejected request and file a fresh one as though the first
+   * had never happened.
+   *
+   * Nobody is trapped by this. Filing again for the same day overwrites
+   * that day rather than stacking a second row (see the POST upsert), so
+   * a wrong entry is corrected by re-entering it. Deletion is only for
+   * the case correction cannot reach: a row on a day that should have no
+   * row at all.
    */
-  const ownPending = row.createdBy.id === me.id && row.status === "Pending";
-  // Removing a row is record-keeping, not a decision — so it follows the
-  // supervisory line rather than the approval routing.
-  const supervises =
-    row.user.id !== me.id &&
-    canMarkFor(me.role, row.user.role as DomainRole);
-  if (!ownPending && !supervises) {
+  if (me.role !== "Admin") {
     return NextResponse.json(
-      { error: "That isn't yours to remove." },
+      { error: "Only an admin can delete from the register." },
       { status: 403 },
     );
   }

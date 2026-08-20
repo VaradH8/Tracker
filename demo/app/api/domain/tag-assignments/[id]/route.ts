@@ -13,9 +13,16 @@ import { toISODate } from "@/lib/forecast";
  * Edit or remove a tag assignment: move it to a different person or
  * division, change its dates, or adjust the count.
  *
- * The one thing that can't be edited here is `deliveredCount` — that moves
- * only through Lead approval, so an edit can never quietly manufacture
- * delivered work.
+ * `deliveredCount` is special. It normally moves one way only — an
+ * actionee submits, a Lead approves, the total goes up — and that is what
+ * makes it worth anything. An Admin, and only an Admin, may set it
+ * directly, because a figure that cannot be corrected is not trustworthy
+ * either: tags delivered before the system existed, a batch approved
+ * twice, an import that landed short. None of those can be fixed by
+ * approving something.
+ *
+ * Every such edit costs a stated reason and writes a
+ * DomainDeliveryCorrection row, so the number stays as auditable as it was.
  */
 
 const INCLUDE = {
@@ -140,6 +147,66 @@ export async function PATCH(
     data.assignedCount = assignedCount;
   }
 
+  /**
+   * The manual correction.
+   *
+   * Admin only — not Lead, not Team Lead. A Lead approving their own
+   * team's submissions and also being able to type the total afterwards
+   * is a delivery figure with no second pair of eyes anywhere in it.
+   */
+  let correction: { before: number; after: number; reason: string } | null = null;
+  if (body.deliveredCount !== undefined) {
+    if (userOrResp.role !== "Admin") {
+      return NextResponse.json(
+        {
+          error:
+            "Only an admin can set a delivered count by hand. Everyone else moves it by approving a submission.",
+        },
+        { status: 403 },
+      );
+    }
+    const deliveredCount = Number(body.deliveredCount);
+    if (!Number.isInteger(deliveredCount) || deliveredCount < 0) {
+      return NextResponse.json(
+        { error: "Delivered must be a whole number of 0 or more." },
+        { status: 400 },
+      );
+    }
+    // The ceiling is what this batch carries. Letting delivered exceed
+    // assigned would put progress bars over 100% and make "remaining"
+    // negative everywhere it is computed; raising the assigned count
+    // first is the honest fix, and it is editable in the same form.
+    const ceiling = (data.assignedCount as number) ?? existing.assignedCount;
+    if (deliveredCount > ceiling) {
+      return NextResponse.json(
+        {
+          error: `This batch only carries ${ceiling} tags. Raise the assigned count first, then set delivered.`,
+        },
+        { status: 400 },
+      );
+    }
+    const reason =
+      typeof body.correctionReason === "string"
+        ? body.correctionReason.trim().slice(0, 500)
+        : "";
+    if (!reason) {
+      return NextResponse.json(
+        { error: "Say why you're correcting this — it goes on the record." },
+        { status: 400 },
+      );
+    }
+    // A no-op edit records nothing. Otherwise re-saving a form would fill
+    // the history with rows that say a number stayed the same.
+    if (deliveredCount !== existing.deliveredCount) {
+      data.deliveredCount = deliveredCount;
+      correction = {
+        before: existing.deliveredCount,
+        after: deliveredCount,
+        reason,
+      };
+    }
+  }
+
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
   }
@@ -172,11 +239,24 @@ export async function PATCH(
   const capIssue = assignmentCapIssue(cap, alreadyAssigned, nextCount, label);
   if (capIssue) return NextResponse.json({ error: capIssue }, { status: 400 });
 
-  const updated = await prisma.domainTagAssignment.update({
-    where: { id },
-    data,
-    include: INCLUDE,
-  });
+  // One transaction: a delivered figure that moved without its
+  // explanation is exactly the thing this feature is supposed to prevent.
+  const [updated] = await prisma.$transaction([
+    prisma.domainTagAssignment.update({ where: { id }, data, include: INCLUDE }),
+    ...(correction
+      ? [
+          prisma.domainDeliveryCorrection.create({
+            data: {
+              assignmentId: id,
+              before: correction.before,
+              after: correction.after,
+              reason: correction.reason,
+              actorId: userOrResp.id,
+            },
+          }),
+        ]
+      : []),
+  ]);
 
   return NextResponse.json({
     assignment: {

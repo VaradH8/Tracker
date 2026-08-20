@@ -17,6 +17,7 @@ import {
   fmtStamp,
   submissionStatusCls as statusCls,
 } from "@/lib/domain-format";
+import { SearchSelect } from "@/components/SearchSelect";
 
 type Submission = {
   id: number;
@@ -239,20 +240,17 @@ export default function ApprovalsPage() {
         </div>
 
         {projects.length > 1 && (
-          <select
-            value={projectFilter}
-            onChange={(e) =>
-              setProjectFilter(e.target.value === "all" ? "all" : Number(e.target.value))
-            }
-            className="ml-auto px-2 py-1.5 rounded border border-ink-200 text-sm"
-          >
-            <option value="all">All projects</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+          <SearchSelect
+            value={String(projectFilter)}
+            onChange={(v) => setProjectFilter(v === "all" ? "all" : Number(v))}
+            size="sm"
+            className="ml-auto min-w-[180px]"
+            searchPlaceholder="Search projects"
+            options={[
+              { value: "all", label: "All projects" },
+              ...projects.map((p) => ({ value: String(p.id), label: p.name })),
+            ]}
+          />
         )}
       </div>
 

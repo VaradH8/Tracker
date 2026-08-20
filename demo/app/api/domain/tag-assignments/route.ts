@@ -27,6 +27,25 @@ const INCLUDE = {
   division: { select: { id: true, name: true } },
   assignee: { select: { id: true, name: true, role: true } },
   createdBy: { select: { id: true, name: true } },
+  /**
+   * Manual corrections to the delivered figure, newest first.
+   *
+   * Carried on the row rather than fetched separately, because the only
+   * place it means anything is next to the number it explains. A
+   * delivered count that was set by hand and does not say so is the
+   * thing this whole feature exists to avoid.
+   */
+  corrections: {
+    select: {
+      id: true,
+      before: true,
+      after: true,
+      reason: true,
+      createdAt: true,
+      actor: { select: { name: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  },
 } as const;
 
 type Row = {
@@ -46,6 +65,14 @@ type Row = {
   division: { id: number; name: string } | null;
   assignee: { id: string; name: string; role: string };
   createdBy: { id: string; name: string };
+  corrections: {
+    id: number;
+    before: number;
+    after: number;
+    reason: string;
+    createdAt: Date;
+    actor: { name: string } | null;
+  }[];
 };
 
 function serialize(a: Row, pendingTags = 0) {
@@ -71,6 +98,14 @@ function serialize(a: Row, pendingTags = 0) {
     targetDate: a.targetDate ? toISODate(a.targetDate) : null,
     createdBy: a.createdBy.name,
     createdAt: a.createdAt.toISOString(),
+    corrections: a.corrections.map((c) => ({
+      id: c.id,
+      before: c.before,
+      after: c.after,
+      reason: c.reason,
+      by: c.actor?.name ?? "(removed user)",
+      at: c.createdAt.toISOString(),
+    })),
   };
 }
 

@@ -10,6 +10,7 @@ import {
 import { dateClass, selectClass } from "@/lib/domain-ui";
 import type { DomainTask } from "@/components/DomainTaskList";
 import { DateInput } from "@/components/DateInput";
+import { SearchSelect } from "@/components/SearchSelect";
 
 /**
  * Filtering your own task list.
@@ -74,34 +75,28 @@ export function DomainTaskFilters({
       <div className="flex items-end gap-3 flex-wrap">
         <label className="text-xs">
           <span className="block text-ink-700 font-medium mb-1">Assigned by</span>
-          <select
+          <SearchSelect
             value={filters.createdBy}
-            onChange={(e) => set({ createdBy: e.target.value })}
-            className={selectClass("sm", "min-w-[150px]")}
-          >
-            <option value="">Anyone</option>
-            {people.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => set({ createdBy: v })}
+            size="sm"
+            className="min-w-[150px]"
+            placeholder="Anyone"
+            searchPlaceholder="Search people"
+            options={people.map((p) => ({ value: p.id, label: p.name }))}
+          />
         </label>
 
         <label className="text-xs">
           <span className="block text-ink-700 font-medium mb-1">Project</span>
-          <select
+          <SearchSelect
             value={filters.project}
-            onChange={(e) => set({ project: e.target.value })}
-            className={selectClass("sm", "min-w-[170px]")}
-          >
-            <option value="">All projects</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => set({ project: v })}
+            size="sm"
+            className="min-w-[170px]"
+            placeholder="All projects"
+            searchPlaceholder="Search projects"
+            options={projects.map((p) => ({ value: p.id, label: p.name }))}
+          />
         </label>
 
         <label className="text-xs">

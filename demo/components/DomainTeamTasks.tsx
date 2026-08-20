@@ -7,6 +7,7 @@ import { dateClass, selectClass } from "@/lib/domain-ui";
 import { DomainRefreshButton } from "@/components/DomainRefreshButton";
 import { DomainTaskList, type DomainTask } from "@/components/DomainTaskList";
 import { DateInput } from "@/components/DateInput";
+import { SearchSelect } from "@/components/SearchSelect";
 
 /**
  * Every task across the team, for the people entitled to read them.
@@ -97,34 +98,37 @@ export function DomainTeamTasks({
       <div className="card p-4 mb-4 flex items-end gap-3 flex-wrap">
         <label className="text-xs">
           <span className="block text-ink-700 font-medium mb-1">Person</span>
-          <select
+          <SearchSelect
             value={person}
-            onChange={(e) => setPerson(e.target.value)}
-            className={selectClass("md", "min-w-[180px]")}
-          >
-            <option value="all">Everyone</option>
-            {people.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} — {DOMAIN_ROLE_LABELS[p.role] ?? p.role}
-              </option>
-            ))}
-          </select>
+            onChange={setPerson}
+            className="min-w-[180px]"
+            searchPlaceholder="Search people"
+            options={[
+              { value: "all", label: "Everyone" },
+              ...people.map((p) => ({
+                value: p.id,
+                label: p.name,
+                hint: DOMAIN_ROLE_LABELS[p.role] ?? p.role,
+              })),
+            ]}
+          />
         </label>
         <label className="text-xs">
           <span className="block text-ink-700 font-medium mb-1">Project</span>
-          <select
+          <SearchSelect
             value={project}
-            onChange={(e) => setProject(e.target.value)}
-            className={selectClass("md", "min-w-[170px]")}
-          >
-            <option value="all">All projects</option>
-            <option value="adhoc">Ad hoc — no project</option>
-            {projects.map((p) => (
-              <option key={p.id} value={String(p.id)}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+            onChange={setProject}
+            className="min-w-[170px]"
+            searchPlaceholder="Search projects"
+            options={[
+              { value: "all", label: "All projects" },
+              { value: "adhoc", label: "Ad hoc — no project", pinned: true },
+              ...projects.map((p) => ({
+                value: String(p.id),
+                label: p.name,
+              })),
+            ]}
+          />
         </label>
         <label className="text-xs">
           <span className="block text-ink-700 font-medium mb-1">Status</span>

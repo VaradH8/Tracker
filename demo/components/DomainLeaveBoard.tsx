@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, Clock, History, Plus, X } from "lucide-react";
+import { Check, Clock, History, Plus, Trash2, X } from "lucide-react";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { fmtDate } from "@/lib/domain-format";
 import { dateClass, selectClass } from "@/lib/domain-ui";
 import { DOMAIN_ROLE_LABELS, type DomainRole } from "@/lib/domain";
@@ -13,6 +14,7 @@ import {
   type LeaveKind,
 } from "@/lib/domain-leave";
 import { DateInput } from "@/components/DateInput";
+import { SearchSelect } from "@/components/SearchSelect";
 
 /**
  * Attendance and time off.
@@ -171,6 +173,25 @@ export function DomainLeaveBoard({
     await load();
   }
 
+  /**
+   * Admin only, enforced at the route. Removing a day is not a
+   * correction — filing the same day again overwrites it — so this is
+   * only for a row that should not exist at all.
+   */
+  async function remove(row: Leave) {
+    setBusy(true);
+    const res = await fetch(`/api/domain/leaves/${row.id}`, { method: "DELETE" });
+    setBusy(false);
+    if (!res.ok) {
+      setError(
+        (await res.json().catch(() => ({}))).error ?? "Couldn't remove that.",
+      );
+      return;
+    }
+    setError(null);
+    await load();
+  }
+
   const rows = data?.leaves ?? [];
   const mine = data?.me.id;
   /**
@@ -255,18 +276,24 @@ export function DomainLeaveBoard({
           {canMark && (
             <label className="text-xs">
               <span className="block text-ink-700 mb-1">Who</span>
-              <select
+              <SearchSelect
                 value={who}
-                onChange={(e) => setWho(e.target.value)}
-                className={selectClass("sm", "min-w-[160px]")}
-              >
-                <option value="">Myself ({data?.me.name})</option>
-                {(data?.people ?? []).map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
+                onChange={setWho}
+                size="sm"
+                className="min-w-[160px]"
+                searchPlaceholder="Search people"
+                options={[
+                  // Pinned first rather than sorted under your own
+                  // initial: "myself" is the entry you reach for most and
+                  // it is not really a name in the list.
+                  { value: "", label: `Myself (${data?.me.name ?? ""})` },
+                  ...(data?.people ?? []).map((p) => ({
+                    value: p.id,
+                    label: p.name,
+                    hint: DOMAIN_ROLE_LABELS[p.role as DomainRole] ?? p.role,
+                  })),
+                ]}
+              />
             </label>
           )}
 
@@ -325,7 +352,13 @@ export function DomainLeaveBoard({
         </form>
       </section>
 
-      <LeaveHistory rows={rows} meId={mine} canMark={canMark} />
+      <LeaveHistory
+        rows={rows}
+        meId={mine}
+        canMark={canMark}
+        canDelete={data?.me.role === "Admin"}
+        onDelete={remove}
+      />
     </div>
   );
 }
@@ -346,10 +379,15 @@ function LeaveHistory({
   rows,
   meId,
   canMark,
+  canDelete,
+  onDelete,
 }: {
   rows: Leave[];
   meId: string | undefined;
   canMark: boolean;
+  /** Admins only. Mirrors the route so the button and the rule agree. */
+  canDelete: boolean;
+  onDelete: (row: Leave) => void;
 }) {
   const [status, setStatus] = useState<
     "all" | "Pending" | "Approved" | "Rejected"
@@ -385,18 +423,17 @@ function LeaveHistory({
           {people.length > 1 && (
             <label className="text-xs">
               <span className="block text-ink-700 mb-1">Person</span>
-              <select
+              <SearchSelect
                 value={person}
-                onChange={(e) => setPerson(e.target.value)}
-                className={selectClass("sm", "min-w-[150px]")}
-              >
-                <option value="all">Everyone</option>
-                {people.map(([id, name]) => (
-                  <option key={id} value={id}>
-                    {name}
-                  </option>
-                ))}
-              </select>
+                onChange={setPerson}
+                size="sm"
+                className="min-w-[150px]"
+                searchPlaceholder="Search people"
+                options={[
+                  { value: "all", label: "Everyone" },
+                  ...people.map(([id, name]) => ({ value: id, label: name })),
+                ]}
+              />
             </label>
           )}
           <label className="text-xs">
@@ -438,6 +475,7 @@ function LeaveHistory({
                 <th className="text-left font-semibold px-3 py-2">Status</th>
                 <th className="text-left font-semibold px-3 py-2">Raised by</th>
                 <th className="text-left font-semibold px-3 py-2">Outcome</th>
+                {canDelete && <th className="px-3 py-2 w-12" />}
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-100">
@@ -524,6 +562,18 @@ function LeaveHistory({
                       <span className="text-ink-400">&mdash;</span>
                     )}
                   </td>
+                  {canDelete && (
+                    <td className="px-3 py-2 text-right">
+                      <ConfirmButton
+                        onConfirm={() => onDelete(r)}
+                        title={`Remove ${r.userName}'s ${fmtDate(r.date)}`}
+                        confirmLabel="Remove?"
+                        className="btn-ghost text-xs text-brand-redText"
+                      >
+                        <Trash2 size={13} />
+                      </ConfirmButton>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

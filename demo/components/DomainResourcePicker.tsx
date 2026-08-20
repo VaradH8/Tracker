@@ -9,6 +9,7 @@ import {
 } from "@/lib/domain";
 import { fmtDate as fmtDay } from "@/lib/domain-format";
 import { selectClass, type FieldSize } from "@/lib/domain-ui";
+import { SearchSelect, type SelectOption } from "@/components/SearchSelect";
 
 /**
  * Shared "who's free?" affordance for every place a Lead picks a person —
@@ -134,20 +135,28 @@ function rateText(a: Availability): string | null {
  * behind them.
  */
 function availabilityLabel(name: string, a?: Availability): string {
-  if (!a) return name;
-  if (a.status === "Free") {
-    return `${name} — Free`;
-  }
+  const state = availabilityText(a);
+  return state ? `${name} — ${state}` : name;
+}
+
+/**
+ * The same read without a name in front of it, for places that show the
+ * person's name separately — the searchable picker puts it on its own
+ * line under the name rather than running the two together.
+ */
+export function availabilityText(a?: Availability): string | null {
+  if (!a) return null;
+  if (a.status === "Free") return "Free";
   // Tags without a booking: busy, but with no end date to quote.
   if (a.projects.length === 0) {
-    return `${name} — Busy · ${a.openTags} tag${a.openTags === 1 ? "" : "s"} open`;
+    return `Busy · ${a.openTags} tag${a.openTags === 1 ? "" : "s"} open`;
   }
   const where =
     a.projects.length === 1
       ? a.projects[0].projectName
       : `${a.projects.length} projects`;
   const open = a.openTags > 0 ? ` · ${a.openTags} tags open` : "";
-  return `${name} — Busy on ${where}, free ${fmtDay(a.availableFrom)}${open}`;
+  return `Busy on ${where}, free ${fmtDay(a.availableFrom)}${open}`;
 }
 
 /**
@@ -527,58 +536,42 @@ export function ResourceSelect({
   className?: string;
   disabled?: boolean;
 }) {
-  // Ranked on measured throughput only; unmeasured people sort last
-  // rather than being ranked on a number nobody earned.
-  const rateOf = (id: string) => availability.get(id)?.measuredRate ?? -1;
   const dupes = duplicateNames(people);
-  const groups = TAG_HOLDER_ROLES.map((role) => ({
-    role,
-    people: people
-      .filter((p) => p.role === role)
-      .sort((a, b) => {
-        const d = rateOf(b.id) - rateOf(a.id);
-        return d !== 0 ? d : a.name.localeCompare(b.name);
-      }),
-  })).filter((g) => g.people.length > 0);
+
+  /**
+   * One flat, alphabetical list rather than groups ranked by throughput.
+   *
+   * The old order was role groups, and within each, fastest first. It
+   * reads well on a team of five and is unusable on a team of forty:
+   * finding "Priya" meant knowing her role, then scanning a list sorted
+   * by a number. You cannot search a ranking for a name.
+   *
+   * Nothing is lost — the role moves into the hint line under each name,
+   * where it is searchable, and availability stays beside it.
+   */
+  const options: SelectOption[] = people.map((p) => {
+    const a = availability.get(p.id);
+    const shown = personLabel(p.name, dupes, a?.email);
+    const role = DOMAIN_ROLE_LABELS[p.role as DomainRole] ?? p.role;
+    const state = availabilityText(a);
+    return {
+      value: p.id,
+      label: shown,
+      hint: state ? `${role} · ${state}` : role,
+    };
+  });
 
   const select = (
-    <select
+    <SearchSelect
       value={value}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={onChange}
+      options={options}
+      placeholder={placeholder}
+      size={size}
       disabled={disabled}
-      title="Grouped by role. Shows who is free and when the busy ones come back."
-      className={selectClass(
-        size,
-        `${minWidth ? SELECT_MIN[size] : ""} ${className}`,
-      )}
-    >
-      <option value="">{placeholder}</option>
-      {groups.map((g) => (
-        <optgroup key={g.role} label={`${DOMAIN_ROLE_LABELS[g.role]}s`}>
-          {g.people.map((p, i) => {
-            // A native select renders the chosen option's own text in the
-            // collapsed box, so the selected person is rendered as a bare
-            // name: you get the full "busy until…, N/day" read while
-            // choosing, and a clean name once it's decided. The detail
-            // panel underneath still carries the specifics.
-            const a = availability.get(p.id);
-            const shown = personLabel(p.name, dupes, a?.email);
-            if (p.id === value) {
-              return (
-                <option key={p.id} value={p.id}>
-                  {shown}
-                </option>
-              );
-            }
-            return (
-              <option key={p.id} value={p.id}>
-                {availabilityLabel(shown, a)}
-              </option>
-            );
-          })}
-        </optgroup>
-      ))}
-    </select>
+      searchPlaceholder="Search people"
+      className={`${minWidth ? SELECT_MIN[size] : ""} ${className}`}
+    />
   );
 
   if (!label) return select;

@@ -16,6 +16,7 @@ import { DomainPage, PageHeader } from "@/components/DomainPage";
 import { DomainRefreshButton } from "@/components/DomainRefreshButton";
 import { fmtDate as fmt } from "@/lib/domain-format";
 import { dateClass } from "@/lib/domain-ui";
+import { MAX_TAGS_PER_DAY } from "@/lib/forecast";
 import {
   DomainHandoverFields,
   emptyHandover,
@@ -79,10 +80,34 @@ export default function ForecastPage() {
   const totalTags = projects.reduce((s, p) => s + p.totalTags, 0);
   const delivered = projects.reduce((s, p) => s + p.deliveredTags, 0);
   const pending = projects.reduce((s, p) => s + p.pendingApprovalTags, 0);
-  const throughput =
-    Math.round(projects.reduce((s, p) => s + p.forecast.dailyRate, 0) * 100) / 100;
+  /**
+   * The book's capacity, in whole tags a day.
+   *
+   * Summing the projects works only because each person's rate is shared
+   * between the projects they are on, so the shares add back up to one
+   * person. Two decimals on a portfolio-wide figure were false precision
+   * — "107014.17/day" invited you to read it as measured — so it is
+   * rounded to something a person can actually say out loud.
+   */
+  const throughput = Math.round(
+    projects.reduce((s, p) => s + p.forecast.dailyRate, 0),
+  );
   const people = new Set<string>();
   projects.forEach((p) => p.resources.forEach((r) => people.add(r.id)));
+  /**
+   * People whose stored rate was too high to be a daily rate and is being
+   * planned with at the ceiling. Named rather than silently corrected:
+   * a capped rate means a figure somewhere needs fixing, and the plan is
+   * running on a substitute until it is.
+   */
+  const cappedRates = Array.from(
+    new Map(
+      projects
+        .flatMap((p) => p.resources)
+        .filter((r) => r.rateClamped)
+        .map((r) => [r.id, r.name] as const),
+    ).values(),
+  );
   const pct = totalTags > 0 ? (delivered / totalTags) * 100 : 0;
 
   const q = query.trim().toLowerCase();
@@ -118,12 +143,12 @@ export default function ForecastPage() {
     <DomainPage width="wide">
       <PageHeader
         title="Delivery forecast"
-        description={`Every estimate here is computed from tag counts a Lead has approved${
+        description={`Rates come from what a Lead has set — on the booking first, then on the person. Where nobody has set one, the rate is measured from tags approved${
           meta ? ` in the last ${meta.rateHistoryDays} days` : ""
-        } — not from manual status updates.${
+        }.${
           perProjectRates
             ? " Rates set on a booking are being used as set, undivided."
-            : " A shared person's rate is divided between their concurrent projects."
+            : " A shared person's rate is divided between the projects they are on."
         }`}
         actions={<DomainRefreshButton onRefresh={load} />}
       />
@@ -161,10 +186,23 @@ export default function ForecastPage() {
                 </span>
               )}
               {" · "}
-              {throughput}/day across {people.size}{" "}
+              {throughput.toLocaleString()}/day across {people.size}{" "}
               {people.size === 1 ? "person" : "people"}
             </span>
           </div>
+
+          {cappedRates.length > 0 && (
+            <p className="text-xs text-brand-yellowText mt-2 flex items-start gap-1.5">
+              <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+              <span>
+                <strong>{cappedRates.join(", ")}</strong>
+                {cappedRates.length === 1 ? " has" : " have"} a rate above{" "}
+                {MAX_TAGS_PER_DAY}/day, which is a project total rather than a
+                daily rate. Planning is using {MAX_TAGS_PER_DAY}/day until it
+                is corrected on their booking.
+              </span>
+            </p>
+          )}
 
           <div className="h-2.5 rounded-pill bg-ink-100 overflow-hidden mt-3 flex">
             <div className="h-full bg-brand-green" style={{ width: `${pct}%` }} />
@@ -453,6 +491,9 @@ type SimResult = {
     rate: number;
     fullRate: number;
     concurrentProjects: number;
+    /** Their stored figure was too high to be a daily rate — see
+     *  MAX_TAGS_PER_DAY. */
+    rateClamped: boolean;
   }[];
   conflicts: {
     resourceName: string;
@@ -681,7 +722,7 @@ function Simulator({ onDone }: { onDone: () => void }) {
                     // Every rate here was typed in, so the only thing worth
                     // saying is when it had to be shared across projects.
                     r.rate !== r.fullRate ? ` (you set ${r.fullRate})` : ""
-                  }${
+                  }${r.rateClamped ? " — capped, that figure is a total" : ""}${
                     r.concurrentProjects > 1
                       ? ` — shared across ${r.concurrentProjects} projects`
                       : ""

@@ -63,6 +63,9 @@ export type ProjectRow = {
     rate: number;
     fullRate: number;
     concurrentProjects: number;
+    /** Their stored figure was above MAX_TAGS_PER_DAY and is being planned
+     *  with at the ceiling — see lib/forecast. */
+    rateClamped: boolean;
     usingDefaultRate: boolean;
   }[];
   startsFrom: string;

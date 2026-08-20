@@ -11,6 +11,7 @@ import {
   canManageUser,
   type DomainRole,
 } from "@/lib/domain";
+import { rateIssue } from "@/lib/forecast";
 
 function serialize(u: {
   id: string;
@@ -92,7 +93,16 @@ export async function POST(req: Request) {
 
   // Expected tags/day, set when the person is added so forecasts have a
   // sensible number before they've built up any approved history.
+  //
+  // Only checked when something was actually sent: the field is optional
+  // here, and refusing an absent one would block creating a person whose
+  // rate is not known yet.
   const expected = Number(body.expectedTagsPerDay);
+  if (body.expectedTagsPerDay !== undefined && body.expectedTagsPerDay !== null &&
+      body.expectedTagsPerDay !== "") {
+    const issue = rateIssue(body.expectedTagsPerDay);
+    if (issue) return NextResponse.json({ error: issue }, { status: 400 });
+  }
   if (Number.isFinite(expected) && expected > 0) {
     await prisma.domainUser.update({
       where: { id: r.id },

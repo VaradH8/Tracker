@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
-import { toISODate } from "@/lib/forecast";
+import { rateIssue, toISODate } from "@/lib/forecast";
 
 /**
  * Adjust or end a booking. Releasing someone early (`releasedAt`) frees
@@ -60,13 +60,9 @@ export async function PATCH(
     if (body.expectedTagsPerDay === null || body.expectedTagsPerDay === "") {
       data.expectedTagsPerDay = null;
     } else {
+      const issue = rateIssue(body.expectedTagsPerDay);
+      if (issue) return NextResponse.json({ error: issue }, { status: 400 });
       const r = Number(body.expectedTagsPerDay);
-      if (!Number.isFinite(r) || r <= 0) {
-        return NextResponse.json(
-          { error: "Tags per day must be a positive number." },
-          { status: 400 },
-        );
-      }
       data.expectedTagsPerDay = Math.round(r * 100) / 100;
     }
   }

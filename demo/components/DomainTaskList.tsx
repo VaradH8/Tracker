@@ -12,6 +12,7 @@ import { fmtDate, fmtStamp } from "@/lib/domain-format";
 import { dateClass, inputClass } from "@/lib/domain-ui";
 import { ConfirmButton } from "./ConfirmButton";
 import { DateInput } from "@/components/DateInput";
+import { SearchSelect } from "@/components/SearchSelect";
 
 /**
  * A task, from all three sides of it.
@@ -281,19 +282,16 @@ function TaskRow({
         )}
 
         {canManage && assignable.length > 0 && status !== "Approved" && (
-          <select
+          <SearchSelect
             value={t.assigneeId ?? ""}
-            onChange={(e) => onPatch(t.id, { assigneeId: e.target.value || null })}
-            className="text-xs rounded border border-ink-200 px-2 py-1 bg-white max-w-[150px]"
+            onChange={(v) => onPatch(t.id, { assigneeId: v || null })}
+            size="sm"
+            className="w-[150px]"
+            placeholder="Unassigned"
+            searchPlaceholder="Search people"
             aria-label="Reassign"
-          >
-            <option value="">Unassigned</option>
-            {assignable.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+            options={assignable.map((p) => ({ value: p.id, label: p.name }))}
+          />
         )}
         {/* Whoever handed the task out can withdraw it, wherever they
             happen to be looking at it — the Projects board passes

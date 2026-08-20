@@ -365,6 +365,7 @@ model DomainUser {
   tagAssignments      DomainTagAssignment[] @relation("DomainTagAssignee")
   tagAssignmentsMade  DomainTagAssignment[] @relation("DomainTagAssignmentCreator")
   tagSubmissions      DomainTagSubmission[] @relation("DomainTagSubmitter")
+  deliveryCorrections DomainDeliveryCorrection[] @relation("DomainDeliveryCorrector")
   tagReviews          DomainTagSubmission[] @relation("DomainTagReviewer")
   leaveRecords   DomainLeave[] @relation("DomainLeaveSubject")
   leavesAuthored DomainLeave[] @relation("DomainLeaveAuthor")
@@ -518,10 +519,47 @@ model DomainTagAssignment {
   updatedAt      DateTime        @updatedAt
 
   submissions DomainTagSubmission[]
+  corrections DomainDeliveryCorrection[]
 
   @@index([projectId])
   @@index([assigneeId])
   @@index([divisionId])
+}
+
+/// An Admin's manual correction to a delivered count.
+///
+/// Delivery normally moves one way only: an actionee submits, a Lead
+/// approves, the total goes up. That is what makes the number trustworthy,
+/// and it is why nobody — not even an Admin — could edit it directly.
+///
+/// But a figure that cannot be corrected is not trustworthy either. Tags
+/// delivered before the system existed, a batch approved twice, an import
+/// that landed short: none of those can be fixed by approving something,
+/// and until they are the whole portfolio reads wrong.
+///
+/// So an Admin can set the figure, and every time they do, a row lands
+/// here: what it was, what they made it, why, and who. The delivered count
+/// stays as auditable as it was — the audit just has two kinds of entry in
+/// it now instead of one.
+model DomainDeliveryCorrection {
+  id           Int                 @id @default(autoincrement())
+  assignmentId Int
+  assignment   DomainTagAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  /// The delivered count before and after, kept as absolutes rather than a
+  /// delta so a row still reads correctly beside later corrections.
+  before       Int
+  after        Int
+  /// Required. A correction without a stated reason is indistinguishable
+  /// from someone moving a number they did not like.
+  reason       String
+  /// Nullable so removing an account does not erase the history of what
+  /// they changed — same rule as AuditEntry.
+  actorId      String?
+  actor        DomainUser?         @relation("DomainDeliveryCorrector", fields: [actorId], references: [id], onDelete: SetNull)
+  createdAt    DateTime            @default(now())
+
+  @@index([assignmentId])
+  @@index([createdAt])
 }
 
 /// An actionee's end-of-day "I finished N tags", pending a Lead's review.

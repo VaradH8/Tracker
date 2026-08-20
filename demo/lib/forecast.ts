@@ -103,13 +103,72 @@ export function personalRate(
   activeDays: number,
 ): number | null {
   if (activeDays <= 0 || approvedTags <= 0) return null;
+  // Reported as measured, not as capped. The ceiling belongs on the way
+  // into a projection (effectiveRate), so the availability screen can
+  // still show the honest figure — a person "measuring" 8,000 a day is
+  // the evidence that a batch was backdated onto one date.
   return Math.round((approvedTags / activeDays) * 100) / 100;
 }
 
-/** A usable rate for planning: the person's own if we have one, else the
- *  house default. */
+/**
+ * The most tags a day anybody is credited with.
+ *
+ * Two things produce a figure nobody could work: a rate typed into a
+ * per-day field that was really a project total — the allocation form asks
+ * for "Avg tags/day" next to a project counted in thousands — and a
+ * historical batch approved against a single date, which makes
+ * `personalRate` read months of work as one day's output. Either puts a
+ * five-figure number into a plan, and the portfolio line then reported
+ * 107,014 tags a day across 25 people.
+ *
+ * 1000 is not a target or an expectation. Observed rates on real work run
+ * to tens, and the highest figure any Lead has set by hand is 150, so this
+ * is more than six times anything genuine — high enough that nothing real
+ * is ever clipped, low enough that a mistyped total cannot swamp the book.
+ *
+ * Clamping is deliberately not silent: `rateWasClamped` lets the screens
+ * mark the figure, because a capped rate means there is bad data to go and
+ * fix, not merely a number to display.
+ */
+export const MAX_TAGS_PER_DAY = 1000;
+
+export function clampRate(rate: number): number {
+  return Math.min(rate, MAX_TAGS_PER_DAY);
+}
+
+/** Whether a figure hit the ceiling — i.e. whether it is being shown as
+ *  something other than what is stored. */
+export function rateWasClamped(rate: number | null | undefined): boolean {
+  return rate != null && rate > MAX_TAGS_PER_DAY;
+}
+
+/**
+ * Validate a rate somebody typed. Returns an error message, or null.
+ *
+ * The ceiling is enforced at every write as well as at every read: the
+ * clamp keeps a bad figure already in the database from wrecking a plan,
+ * and this keeps a new one from getting in.
+ */
+export function rateIssue(raw: unknown): string | null {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return "Enter a number of tags per day.";
+  if (n <= 0) return "Tags per day must be more than 0.";
+  if (n > MAX_TAGS_PER_DAY) {
+    return `${n} tags a day isn't a daily rate — that looks like a project total. Enter what this person delivers in one day (the highest set so far is 150).`;
+  }
+  return null;
+}
+
+/**
+ * A usable rate for planning: the person's own, or zero when nobody has
+ * set one. Never a house default — an unset rate plans nothing rather
+ * than inventing a figure.
+ *
+ * Clamped on the way out, so a bad number already stored cannot reach a
+ * projection even though it is still sitting in the database.
+ */
 export function effectiveRate(rate: number | null | undefined): number {
-  return rate && rate > 0 ? rate : 0;
+  return rate && rate > 0 ? clampRate(rate) : 0;
 }
 
 /**

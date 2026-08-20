@@ -12,6 +12,7 @@ import {
   manageableRoles,
   type DomainRole,
 } from "@/lib/domain";
+import { rateIssue } from "@/lib/forecast";
 
 /**
  * Delete a domain user.
@@ -242,13 +243,9 @@ export async function PATCH(
     if (body.expectedTagsPerDay === null || body.expectedTagsPerDay === "") {
       data.expectedTagsPerDay = null;
     } else {
+      const issue = rateIssue(body.expectedTagsPerDay);
+      if (issue) return NextResponse.json({ error: issue }, { status: 400 });
       const rate = Number(body.expectedTagsPerDay);
-      if (!Number.isFinite(rate) || rate <= 0) {
-        return NextResponse.json(
-          { error: "Expected tags/day must be a positive number." },
-          { status: 400 },
-        );
-      }
       data.expectedTagsPerDay = Math.round(rate * 100) / 100;
     }
   }

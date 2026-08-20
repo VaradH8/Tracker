@@ -30,9 +30,17 @@ export default function DomainDashboard() {
 
   const isExecutive = current.role === "CEO";
   const isSupervisor = SUPERVISOR_ROLES.includes(current.role);
-  // A Team Lead supervises and carries tags. They get the oversight view,
-  // with their own work kept below it rather than replaced by it.
-  const alsoCarriesWork = current.role === "TeamLead";
+  /**
+   * Leads and Team Leads both supervise and carry work. They get the
+   * oversight view with their own below it, rather than instead of it.
+   *
+   * A Lead used to get oversight only, so a task somebody handed them —
+   * and, since Leads may take tags themselves, tags they were carrying —
+   * appeared nowhere on their dashboard. The one role able to assign work
+   * to itself was the one role that could not see it.
+   */
+  const alsoCarriesWork =
+    current.role === "TeamLead" || current.role === "Lead";
 
   return (
     <DomainPage width="wide">
@@ -192,6 +200,9 @@ function ManagerHome() {
   const [resources, setResources] = useState<ResourceRow[]>([]);
   /** Tasks this person handed out that are now waiting on their decision. */
   const [taskReviews, setTaskReviews] = useState<DomainTask[]>([]);
+  /** Tasks somebody handed to THEM and that are still open. A supervisor
+   *  gets given work too, and it was reaching neither list. */
+  const [myTasks, setMyTasks] = useState<DomainTask[]>([]);
 
   useEffect(() => {
     Promise.all([
@@ -204,12 +215,18 @@ function ManagerHome() {
       fetch("/api/domain/tasks?review=true", { cache: "no-store" }).then((r) =>
         r.ok ? r.json() : { tasks: [] },
       ),
+      // Only what is still outstanding — an approved task is history, and
+      // this list is about what is waiting on them.
+      fetch("/api/domain/tasks?mine=true&open=true", { cache: "no-store" }).then(
+        (r) => (r.ok ? r.json() : { tasks: [] }),
+      ),
     ])
-      .then(([f, p, t]) => {
+      .then(([f, p, t, m]) => {
         setProjects(f.projects ?? []);
         setResources(f.resources ?? []);
         setPending(p.submissions ?? []);
         setTaskReviews(t.tasks ?? []);
+        setMyTasks(m.tasks ?? []);
       })
       .catch(() => setProjects([]));
   }, []);
@@ -228,7 +245,10 @@ function ManagerHome() {
   const total = projects.reduce((s, p) => s + p.totalTags, 0);
   const pct = total > 0 ? Math.round((delivered / total) * 100) : 0;
   const clear =
-    pending.length === 0 && behind.length === 0 && taskReviews.length === 0;
+    pending.length === 0 &&
+    behind.length === 0 &&
+    taskReviews.length === 0 &&
+    myTasks.length === 0;
 
   return (
     <div className="grid gap-6">
@@ -249,11 +269,33 @@ function ManagerHome() {
         {clear ? (
           <p className="text-sm text-ink-600 flex items-center gap-2 mt-2">
             <CheckSquare size={16} className="text-brand-greenText shrink-0" />
-            Nothing waiting — no submissions to review, and every project is on
-            track.
+            Nothing waiting — no tasks assigned to you, no submissions to
+            review, and every project is on track.
           </p>
         ) : (
           <ul className="divide-y divide-ink-100 -mb-1">
+            {/* Work handed TO them, first: it is the only row on this list
+                that nobody else can pick up. The whole row is the link
+                through to the Task log, same as every other row here. */}
+            {myTasks.length > 0 && (
+              <AttentionRow
+                href="/engineering/task-log"
+                tone="blue"
+                icon={<CheckSquare size={15} />}
+                count={myTasks.length}
+                unit={`task${myTasks.length === 1 ? "" : "s"}`}
+                label="assigned to you"
+                detail={myTasks
+                  .slice(0, 2)
+                  .map(
+                    (t) =>
+                      `${t.title}${t.createdBy ? ` — from ${t.createdBy}` : ""}`,
+                  )
+                  .join("  ·  ")}
+                more={myTasks.length > 2 ? myTasks.length - 2 : 0}
+              />
+            )}
+
             {taskReviews.length > 0 && (
               <AttentionRow
                 href="/engineering/task-log"

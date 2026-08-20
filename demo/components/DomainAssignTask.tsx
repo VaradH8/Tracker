@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { DOMAIN_ROLE_LABELS, type DomainRole } from "@/lib/domain";
-import { dateClass, inputClass, selectClass, textareaClass } from "@/lib/domain-ui";
+import { dateClass, inputClass, textareaClass } from "@/lib/domain-ui";
 import { DateInput } from "@/components/DateInput";
+import { SearchSelect } from "@/components/SearchSelect";
 
 /**
  * Handing out work, from the Task log.
@@ -134,44 +135,52 @@ export function DomainAssignTask({
       <div className="grid sm:grid-cols-2 gap-3 mb-3">
         <label className="text-xs">
           <span className="block text-ink-700 font-medium mb-1">Assign to</span>
-          <select
+          <SearchSelect
             value={assigneeId}
-            onChange={(e) => setAssigneeId(e.target.value)}
-            className={selectClass("md", "w-full")}
-          >
-            <option value="">Pick a person…</option>
-            {viewerId && (
-              <option value={viewerId}>Myself (work I picked up)</option>
-            )}
-            {people
-              .filter((p) => p.id !== viewerId)
-              .map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} — {DOMAIN_ROLE_LABELS[p.role] ?? p.role}
-                </option>
-              ))}
-          </select>
+            onChange={setAssigneeId}
+            placeholder="Pick a person…"
+            searchPlaceholder="Search people"
+            options={[
+              // Kept off the alphabetical run and pinned by its label:
+              // "Myself" is not a name, and sorting it under M would bury
+              // the one entry you can always pick.
+              ...(viewerId
+                ? [
+                    {
+                      value: viewerId,
+                      label: "Myself (work I picked up)",
+                      pinned: true,
+                    },
+                  ]
+                : []),
+              ...people
+                .filter((p) => p.id !== viewerId)
+                .map((p) => ({
+                  value: p.id,
+                  label: p.name,
+                  hint: DOMAIN_ROLE_LABELS[p.role] ?? p.role,
+                })),
+            ]}
+          />
         </label>
 
         <label className="text-xs">
           <span className="block text-ink-700 font-medium mb-1">Project</span>
-          <select
+          <SearchSelect
             value={projectId}
-            onChange={(e) => {
-              setProjectId(e.target.value);
+            onChange={(v) => {
+              setProjectId(v);
               // A division belongs to one project; keeping a stale one
               // would silently attach the task to the wrong discipline.
               setDivisionId("");
             }}
-            className={selectClass("md", "w-full")}
-          >
-            <option value="">Ad hoc — no project</option>
-            {projects.map((p) => (
-              <option key={p.id} value={String(p.id)}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+            placeholder="Ad hoc — no project"
+            searchPlaceholder="Search projects"
+            options={projects.map((p) => ({
+              value: String(p.id),
+              label: p.name,
+            }))}
+          />
         </label>
 
         {/* Only meaningful once a project with divisions is chosen. */}
@@ -181,18 +190,16 @@ export function DomainAssignTask({
               Division{" "}
               <span className="text-ink-400 font-normal">(optional)</span>
             </span>
-            <select
+            <SearchSelect
               value={divisionId}
-              onChange={(e) => setDivisionId(e.target.value)}
-              className={selectClass("md", "w-full")}
-            >
-              <option value="">Not division-specific</option>
-              {divisions.map((d) => (
-                <option key={d.id} value={String(d.id)}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
+              onChange={setDivisionId}
+              placeholder="Not division-specific"
+              searchPlaceholder="Search divisions"
+              options={divisions.map((d) => ({
+                value: String(d.id),
+                label: d.name,
+              }))}
+            />
           </label>
         )}
 

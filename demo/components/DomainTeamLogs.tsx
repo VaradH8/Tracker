@@ -8,6 +8,7 @@ import { dateClass, inputClass } from "@/lib/domain-ui";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { useDomain } from "@/lib/domain-store";
 import { DateInput } from "@/components/DateInput";
+import { SearchSelect } from "@/components/SearchSelect";
 
 /**
  * The team's work log, for the people entitled to read it.
@@ -140,18 +141,20 @@ export function DomainTeamLogs() {
         <div className="flex items-end gap-3 flex-wrap">
           <label className="text-sm">
             <span className="block text-ink-700 mb-1">Person</span>
-            <select
+            <SearchSelect
               value={person}
-              onChange={(e) => setPerson(e.target.value)}
-              className="px-2 py-1.5 rounded border border-ink-200 text-sm min-w-[200px]"
-            >
-              <option value="all">Everyone</option>
-              {people.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} — {DOMAIN_ROLE_LABELS[p.role] ?? p.role}
-                </option>
-              ))}
-            </select>
+              onChange={setPerson}
+              className="min-w-[200px]"
+              searchPlaceholder="Search people"
+              options={[
+                { value: "all", label: "Everyone" },
+                ...people.map((p) => ({
+                  value: p.id,
+                  label: p.name,
+                  hint: DOMAIN_ROLE_LABELS[p.role] ?? p.role,
+                })),
+              ]}
+            />
           </label>
           <label className="text-sm">
             <span className="block text-ink-700 mb-1">From</span>

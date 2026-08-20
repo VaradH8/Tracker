@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
 import { TAG_HOLDER_ROLES, SUPERVISOR_ROLES, type DomainRole } from "@/lib/domain";
 import { allocationConflicts } from "@/lib/domain-forecast";
-import { toISODate } from "@/lib/forecast";
+import { rateIssue, toISODate } from "@/lib/forecast";
 
 /**
  * Booking a resource onto a project for a window of time. This is what the
@@ -156,9 +156,23 @@ export async function POST(req: Request) {
   }
 
   // What this person is expected to manage on this project specifically.
+  //
+  // This is the field a project total gets typed into by mistake — it sits
+  // beside a project counted in thousands and asks for a number — so it is
+  // checked rather than merely coerced. A rate nobody could work makes the
+  // whole portfolio forecast meaningless, and it is far easier to refuse
+  // than to find afterwards.
+  const sent =
+    body.expectedTagsPerDay !== undefined &&
+    body.expectedTagsPerDay !== null &&
+    body.expectedTagsPerDay !== "";
+  if (sent) {
+    const issue = rateIssue(body.expectedTagsPerDay);
+    if (issue) return NextResponse.json({ error: issue }, { status: 400 });
+  }
   const rateRaw = Number(body.expectedTagsPerDay);
   const expectedTagsPerDay =
-    Number.isFinite(rateRaw) && rateRaw > 0
+    sent && Number.isFinite(rateRaw) && rateRaw > 0
       ? Math.round(rateRaw * 100) / 100
       : null;
 

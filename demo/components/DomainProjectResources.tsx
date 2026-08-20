@@ -52,8 +52,16 @@ function effectiveFor(
   if (r.expectedTagsPerDay != null) {
     return { rate: r.expectedTagsPerDay, source: "set for this project" };
   }
-  if (a?.measuredRate != null) {
-    return { rate: a.measuredRate, source: "measured" };
+  // `a.rate` already carries the precedence the forecast uses — a rate
+  // set on the person first, measurement only when nobody has set one.
+  // Reading measuredRate directly here made this panel contradict the
+  // projection it feeds.
+  if (a?.rate != null) {
+    return {
+      rate: a.rate,
+      source:
+        a.rateSource === "expected" ? "set for this person" : "measured",
+    };
   }
   return null;
 }
@@ -180,7 +188,11 @@ export function DomainProjectResources({
                     <EditAllocationRow
                       key={r.allocationId}
                       r={r}
-                      measured={a?.measuredRate ?? null}
+                      // What clearing the box would actually fall back
+                      // to — the person's own rate, or measurement when
+                      // they have none. Passing measuredRate promised a
+                      // number the forecast would not have used.
+                      measured={a?.rate ?? null}
                       onCancel={() => setEditing(null)}
                       onSaved={() => {
                         setEditing(null);
@@ -419,6 +431,7 @@ function AllocateForm({
 /** Change one booking's window, its rate, or release the person early. */
 function EditAllocationRow({
   r,
+  /** The rate this booking falls back to when its own box is cleared. */
   measured,
   onCancel,
   onSaved,
@@ -496,8 +509,8 @@ function EditAllocationRow({
       <td className="px-3 py-2 text-xs text-ink-500">
         {rate === ""
           ? measured != null
-            ? `will use measured ${measured}`
-            : "will use the default"
+            ? `will fall back to ${measured}`
+            : "no rate — this person plans nothing"
           : "set for this project"}
       </td>
       <td className="px-3 py-2 text-right whitespace-nowrap">

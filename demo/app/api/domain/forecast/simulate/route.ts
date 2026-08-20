@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
 import { PORTFOLIO_VIEWER_ROLES } from "@/lib/domain";
 import { allocationConflicts } from "@/lib/domain-forecast";
-import { forecastDelivery, splitRate, toISODate } from "@/lib/forecast";
+import { forecastDelivery, rateIssue, splitRate, toISODate } from "@/lib/forecast";
 import {
   DEFAULT_WORK_WEEK,
   MAX_WORKING_DAYS,
@@ -162,6 +162,17 @@ export async function POST(req: Request) {
       rate: Number.isFinite(raw) && raw > 0 ? Math.round(raw * 100) / 100 : null,
     };
   });
+  // A simulation run at 10,000 tags a day answers a question nobody
+  // asked. Same ceiling as the real forecast, refused at the door here
+  // because there is no stored record to fall back on.
+  const absurd = rated.filter((r) => r.rate !== null && rateIssue(r.rate));
+  if (absurd.length > 0) {
+    return NextResponse.json(
+      { error: rateIssue(absurd[0].rate) },
+      { status: 400 },
+    );
+  }
+
   const missing = rated.filter((r) => r.rate === null);
   if (missing.length > 0) {
     return NextResponse.json(
@@ -197,6 +208,10 @@ export async function POST(req: Request) {
       fullRate,
       concurrentProjects,
       rateIsPerProject: usePerProjectRates,
+      // Always false: every rate here was just typed in and validated
+      // above, so none can be over the ceiling. Present so the simulator
+      // and the forecast hand back the same shape.
+      rateClamped: false,
     };
   });
 

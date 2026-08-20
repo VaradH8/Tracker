@@ -12,6 +12,7 @@ import {
   forecastDelivery,
   personalRate,
   rangesOverlap,
+  rateWasClamped,
   splitRate,
   toISODate,
   type ForecastResult,
@@ -201,9 +202,11 @@ export async function resourceForecast(): Promise<ResourceForecast[]> {
         projectName: projectNames.get(a.projectId) ?? "Unknown project",
         openTags: openOf(a),
       }));
-    // Measured history wins; a Lead's expectation covers the gap until
-    // there is any; the house default is the last resort.
-    const rate = measured ?? p.expectedTagsPerDay ?? null;
+    // Same precedence as the forecast, for the same reason: the rate a
+    // Lead set is the plan, and measurement is the check on it. Two
+    // screens disagreeing about someone's speed is worse than either
+    // being wrong alone.
+    const rate = p.expectedTagsPerDay ?? measured ?? null;
     const free = availableFrom(
       mine.map((a) => ({ endDate: a.endDate, releasedAt: a.releasedAt })),
     );
@@ -220,12 +223,11 @@ export async function resourceForecast(): Promise<ResourceForecast[]> {
       usingDefaultRate: rate === null,
       /** Where the number came from, so the UI never passes off an
        *  assumption as a measurement. */
-      rateSource:
-        measured !== null
+      rateSource: p.expectedTagsPerDay
+        ? ("expected" as const)
+        : measured !== null
           ? ("measured" as const)
-          : p.expectedTagsPerDay
-            ? ("expected" as const)
-            : ("default" as const),
+          : ("default" as const),
       projects: mine.map((a) => {
         const tags = tagsBy.get(`${p.id}:${a.projectId}`);
         return {
@@ -283,6 +285,9 @@ export type ProjectForecast = {
     /** Whether their figure was set on this project's booking. Only these
      *  are exempted when `usePerProjectRates` is on. */
     rateIsPerProject: boolean;
+    /** The stored rate was implausible and has been capped for planning.
+     *  Shown, not hidden — it means there is a figure to go and fix. */
+    rateClamped: boolean;
     usingDefaultRate: boolean;
   }[];
   /** The date the projection counts from — today, unless the project is
@@ -397,6 +402,27 @@ export async function projectForecasts(
     allocationsByUser.set(a.userId, list);
   }
 
+  /**
+   * Every project a person holds tags on, booked there or not.
+   *
+   * peopleOnProject counts holding tags as working on a project, so the
+   * divisor that shares a rate out has to count the same projects. It did
+   * not: it looked only at bookings, so somebody holding tags on six
+   * projects without a formal booking on any of them was returned as
+   * "1 project" six times over, and their whole rate was added to all six.
+   * The portfolio line sums those project rates, which is how one person
+   * came to be counted six times in a single figure.
+   */
+  const allTagHolders = await prisma.domainTagAssignment.findMany({
+    select: { assigneeId: true, projectId: true },
+  });
+  const tagProjectsByUser = new Map<string, Set<number>>();
+  for (const t of allTagHolders) {
+    const set = tagProjectsByUser.get(t.assigneeId) ?? new Set<number>();
+    set.add(t.projectId);
+    tagProjectsByUser.set(t.assigneeId, set);
+  }
+
   // Claimed-but-not-yet-approved tags, so a Lead can see what's sitting in
   // the review queue against each project.
   const pending = await prisma.domainTagSubmission.groupBy({
@@ -445,21 +471,55 @@ export async function projectForecasts(
       p.handoverDate ??
       (allocEnds.length > 0 ? new Date(Math.max(...allocEnds)) : from);
 
-    /** How many overlapping projects this person is split across. Always
-     *  at least 1 — someone holding tags without a formal booking still
-     *  counts as working on this one. */
+    /**
+     * How many projects this person's day is split across.
+     *
+     * Counted as distinct projects, from both routes onto one: a booking
+     * that overlaps this project's delivery window, or tags held. A
+     * project reached both ways is still one project, which is why this
+     * is a Set and not two lengths added together.
+     *
+     * Always at least 1, so a rate is never multiplied rather than shared.
+     */
     const concurrentFor = (userId: string): number => {
-      const overlapping = (allocationsByUser.get(userId) ?? []).filter((a) =>
-        rangesOverlap(from, windowEnd, a.startDate, a.releasedAt ?? a.endDate),
-      );
-      return Math.max(1, overlapping.length);
+      const projectIds = new Set<number>();
+      for (const a of allocationsByUser.get(userId) ?? []) {
+        if (rangesOverlap(from, windowEnd, a.startDate, a.releasedAt ?? a.endDate)) {
+          projectIds.add(a.projectId);
+        }
+      }
+      for (const id of tagProjectsByUser.get(userId) ?? []) projectIds.add(id);
+      return Math.max(1, projectIds.size);
     };
 
     const resources = people.map((u) => {
       // Held separately from the fallback chain: whether the figure came
       // from this booking decides whether it may be shared again.
+      /**
+       * A rate somebody set beats a rate we measured. Always.
+       *
+       *   1. set on this booking — "on THIS project, expect 100/day"
+       *   2. set on the person   — what they were signed up at
+       *   3. measured            — only when nobody has said
+       *
+       * The order used to put measurement second, so a set figure was
+       * overruled the moment there was any approved history at all. Set
+       * an Actionee at 100/day, have them deliver a 1,000-tag batch on
+       * one date, and every projection they touched switched to
+       * 1,000/day — the plan quietly abandoned the number a Lead had
+       * given it in favour of one nobody could sustain.
+       *
+       * Measurement is still there and still shown, on Resource
+       * availability, where it belongs: it tells a Lead whether the rate
+       * they set is holding up. What it must not do is silently replace
+       * it.
+       */
       const bookingRate = perProjectRate.get(u.id) ?? null;
-      const r = bookingRate ?? rates.get(u.id) ?? expected.get(u.id) ?? null;
+      const r = bookingRate ?? expected.get(u.id) ?? rates.get(u.id) ?? null;
+      // effectiveRate clamps; this records that it had to, so the screens
+      // can point at the figure that needs correcting instead of quietly
+      // planning with a different number from the one stored.
+      const rateClamped = rateWasClamped(r);
       const fullRate = effectiveRate(r);
       const concurrentProjects = concurrentFor(u.id);
       const rateIsPerProject = bookingRate !== null;
@@ -473,6 +533,9 @@ export async function projectForecasts(
         concurrentProjects,
         /** True when this person's figure was set on the booking itself. */
         rateIsPerProject,
+        /** True when the stored figure was above MAX_TAGS_PER_DAY and is
+         *  being planned with at the ceiling instead. */
+        rateClamped,
         usingDefaultRate: r === null,
       };
     });

@@ -16,6 +16,7 @@ import {
   type Availability,
 } from "@/components/DomainResourcePicker";
 import { fmtDate as fmt } from "@/lib/domain-format";
+import { useDomain } from "@/lib/domain-store";
 import { dateClass, inputClass, selectClass } from "@/lib/domain-ui";
 import { projectScope, SCOPE_LABELS } from "@/lib/domain-scope";
 import {
@@ -26,6 +27,7 @@ import {
   type HandoverValue,
 } from "@/components/DomainHandoverFields";
 import { DateInput } from "@/components/DateInput";
+import { SearchSelect } from "@/components/SearchSelect";
 
 /**
  * The forecast-facing pieces of the Domain projects page: creating and
@@ -608,6 +610,16 @@ type AssignmentRow = {
   complexity?: string;
   startDate: string | null;
   targetDate: string | null;
+  /** Manual corrections an Admin has made to the delivered figure,
+   *  newest first. Empty for the overwhelming majority of rows. */
+  corrections?: {
+    id: number;
+    before: number;
+    after: number;
+    reason: string;
+    by: string;
+    at: string;
+  }[];
 };
 
 
@@ -634,6 +646,7 @@ export function TagAssignmentPanel({
   rows: AssignmentRow[];
   onChanged: () => void;
 }) {
+  const { current } = useDomain();
   const { byId: availability, reload: reloadAvailability } =
     useAvailability(canAssign);
   /** Which person's section has its assign form open; "new" = someone not
@@ -643,6 +656,10 @@ export function TagAssignmentPanel({
 
   const workers = people.filter((p) => WORKING.includes(p.role));
   const divisions = project.divisions ?? [];
+  /** Correcting a delivered figure by hand is an Admin's job alone — a
+   *  Lead who approves their own team's submissions must not also be able
+   *  to type the total afterwards. Enforced at the route regardless. */
+  const isAdmin = current?.role === "Admin";
 
   // Per-division project rollup — the whole-project view above the people.
   const divisionRollup = divisions.map((d) => {
@@ -925,6 +942,7 @@ export function TagAssignmentPanel({
                           row={r}
                           divisions={divisions}
                           workers={workers}
+                          canCorrectDelivered={isAdmin}
                           onCancel={() => setEditing(null)}
                           onSaved={() => {
                             setEditing(null);
@@ -1079,18 +1097,16 @@ function AssignForm({
         {divisions.length > 0 && (
           <label className="text-sm block">
             <span className="block text-ink-700 font-medium mb-1">Division</span>
-            <select
+            <SearchSelect
               value={divisionId}
-              onChange={(e) => setDivisionId(e.target.value)}
-              className={selectClass("md")}
-            >
-              <option value="">Pick a division…</option>
-              {divisions.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
+              onChange={setDivisionId}
+              placeholder="Pick a division…"
+              searchPlaceholder="Search divisions"
+              options={divisions.map((d) => ({
+                value: String(d.id),
+                label: d.name,
+              }))}
+            />
           </label>
         )}
         <label className="text-sm">
@@ -1149,12 +1165,19 @@ function EditAssignmentRow({
   row,
   divisions,
   workers,
+  canCorrectDelivered,
   onCancel,
   onSaved,
 }: {
   row: AssignmentRow;
   divisions: { id: number; name: string }[];
   workers: ForecastPerson[];
+  /**
+   * Admins only. Everyone else moves delivery by approving a submission —
+   * see the PATCH route, which refuses this field for other roles whatever
+   * the browser sends.
+   */
+  canCorrectDelivered: boolean;
   onCancel: () => void;
   onSaved: () => void;
 }) {
@@ -1165,6 +1188,12 @@ function EditAssignmentRow({
   const [count, setCount] = useState(String(row.assignedCount));
   const [startDate, setStartDate] = useState(row.startDate ?? "");
   const [targetDate, setTargetDate] = useState(row.targetDate ?? "");
+  /** Kept behind a toggle. Delivery is not an ordinary field, and an
+   *  editable box sitting open beside the tag count invites the edit
+   *  rather than waiting to be asked for. */
+  const [correcting, setCorrecting] = useState(false);
+  const [delivered, setDelivered] = useState(String(row.deliveredCount));
+  const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { byId: availability } = useAvailability();
@@ -1181,6 +1210,14 @@ function EditAssignmentRow({
         assignedCount: Number(count),
         startDate: startDate || null,
         targetDate: targetDate || null,
+        // Only sent when the correction panel is open, so an ordinary
+        // edit can never carry a delivered figure by accident.
+        ...(correcting
+          ? {
+              deliveredCount: Number(delivered),
+              correctionReason: reason,
+            }
+          : {}),
       }),
     });
     const body = await res.json().catch(() => ({}));
@@ -1220,17 +1257,15 @@ function EditAssignmentRow({
         {divisions.length > 0 && (
           <label className="text-sm block">
             <span className="block text-ink-700 font-medium mb-1">Division</span>
-            <select
+            <SearchSelect
               value={divisionId}
-              onChange={(e) => setDivisionId(e.target.value)}
-              className={selectClass("md")}
-            >
-              {divisions.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
+              onChange={setDivisionId}
+              searchPlaceholder="Search divisions"
+              options={divisions.map((d) => ({
+                value: String(d.id),
+                label: d.name,
+              }))}
+            />
           </label>
         )}
         <label className="text-xs">
@@ -1270,6 +1305,74 @@ function EditAssignmentRow({
           <Trash2 size={13} />
         </button>
       </div>
+      {canCorrectDelivered && (
+        <div className="mt-2 pt-2 border-t border-ink-200">
+          {!correcting ? (
+            <button
+              onClick={() => setCorrecting(true)}
+              className="text-xs text-brand-blue"
+            >
+              Correct the delivered count ({row.deliveredCount})
+            </button>
+          ) : (
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="text-xs">
+                <span className="block text-ink-700 mb-1">Delivered</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={Number(count) || row.assignedCount}
+                  value={delivered}
+                  onChange={(e) => setDelivered(e.target.value)}
+                  className="w-24 px-2 py-1 rounded border border-ink-200 text-sm"
+                />
+              </label>
+              <label className="text-xs flex-1 min-w-[200px]">
+                <span className="block text-ink-700 mb-1">
+                  Why <span className="text-brand-redText">*</span>
+                </span>
+                <input
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  maxLength={500}
+                  placeholder="e.g. 400 delivered before this system, never recorded"
+                  className="w-full px-2 py-1 rounded border border-ink-200 text-sm"
+                />
+              </label>
+              <button
+                onClick={() => {
+                  setCorrecting(false);
+                  setDelivered(String(row.deliveredCount));
+                  setReason("");
+                }}
+                className="btn-ghost text-xs"
+              >
+                Cancel correction
+              </button>
+              <p className="text-[11px] text-ink-500 w-full">
+                Was <strong>{row.deliveredCount}</strong>. This goes on the
+                record with your name against it, and Save applies it.
+              </p>
+            </div>
+          )}
+
+          {/* What has already been corrected here. Kept visible so nobody
+              has to wonder why a figure does not match the submissions
+              behind it. */}
+          {(row.corrections ?? []).length > 0 && (
+            <ul className="mt-2 space-y-0.5">
+              {(row.corrections ?? []).map((c) => (
+                <li key={c.id} className="text-[11px] text-ink-500">
+                  {fmt(c.at.slice(0, 10))} · {c.by} set delivered{" "}
+                  <strong>{c.before}</strong> → <strong>{c.after}</strong> —{" "}
+                  <span className="italic">&ldquo;{c.reason}&rdquo;</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       <ResourceDetail a={availability.get(assigneeId)} />
       {error && <p className="text-xs text-brand-redText mt-1.5">{error}</p>}
     </li>
