@@ -156,6 +156,7 @@ export default function DomainProjectsPage() {
         <ProjectHeader
           project={selectedProject}
           assignments={assignments}
+          ownRowsOnly={onlyOwnProjects}
           canManage={canManageProject}
           onEdit={() => setEditingProject(selectedProject.id)}
           onDeleted={() => {
@@ -175,28 +176,49 @@ export default function DomainProjectsPage() {
             }}
           />
         )}
-        <DomainProjectResources
-          projectId={selectedProject.id}
-          projectStart={selectedProject.startDate ?? null}
-          projectEnd={selectedProject.handoverDate ?? null}
-          resources={selectedProject.resources ?? []}
-          people={people}
-          canManage={canManageProject}
-          onChanged={() => {
-            void loadProjects();
-            void loadAssignments();
-          }}
-        />
-        <TagAssignmentPanel
-          project={selectedProject}
-          people={people}
-          canAssign={canAssign}
-          rows={assignments}
-          onChanged={() => {
-            void loadAssignments();
-            void loadProjects();
-          }}
-        />
+        {/*
+          What an SME or an Actionee gets is a different screen, not the
+          same screen with buttons removed. They need two things: who else
+          is on this with them, and what they themselves are carrying. The
+          division rollup and the per-person allocation breakdown are a
+          planner's tools, and the rollup is actively misleading for them
+          anyway — the API only ever hands them their own assignment rows,
+          so the "by division" totals would show their share as the
+          project's whole.
+        */}
+        {onlyOwnProjects ? (
+          <>
+            <ProjectRoster resources={selectedProject.resources ?? []} />
+            <MyTagsOnProject
+              rows={assignments.filter((r) => r.assigneeId === current?.id)}
+            />
+          </>
+        ) : (
+          <>
+            <DomainProjectResources
+              projectId={selectedProject.id}
+              projectStart={selectedProject.startDate ?? null}
+              projectEnd={selectedProject.handoverDate ?? null}
+              resources={selectedProject.resources ?? []}
+              people={people}
+              canManage={canManageProject}
+              onChanged={() => {
+                void loadProjects();
+                void loadAssignments();
+              }}
+            />
+            <TagAssignmentPanel
+              project={selectedProject}
+              people={people}
+              canAssign={canAssign}
+              rows={assignments}
+              onChanged={() => {
+                void loadAssignments();
+                void loadProjects();
+              }}
+            />
+          </>
+        )}
       </DomainPage>
     );
   }
@@ -281,6 +303,112 @@ export default function DomainProjectsPage() {
       )}
 
     </DomainPage>
+  );
+}
+
+/**
+ * Who is on this project — the read-only half of the allocation table.
+ *
+ * Names, roles and the window they are booked for. No rates, no source
+ * column, no combined throughput: those are planning figures, and a
+ * colleague's expected tags a day is not an SME's business.
+ */
+function ProjectRoster({ resources }: { resources: NonNullable<Project["resources"]> }) {
+  return (
+    <section className="card p-5 mb-5">
+      <h3 className="font-heading text-lg font-semibold text-ink-900">
+        Who&apos;s on this project
+      </h3>
+      <p className="text-sm text-ink-500 mt-0.5 mb-4">
+        {resources.length === 0
+          ? "Nobody is booked on this project yet."
+          : `${resources.length} ${resources.length === 1 ? "person" : "people"} booked.`}
+      </p>
+      {resources.length > 0 && (
+        <ul className="grid sm:grid-cols-2 gap-2">
+          {resources.map((r) => (
+            <li
+              key={r.allocationId}
+              className="rounded-card border border-ink-200 px-4 py-3"
+            >
+              <div className="text-ink-900 font-medium">{r.name}</div>
+              <div className="text-xs text-ink-500">
+                {DOMAIN_ROLE_LABELS[r.role as DomainRole] ?? r.role}
+                {" · "}
+                {fmtDay(r.startDate)} → {fmtDay(r.releasedAt ?? r.endDate)}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/**
+ * The one thing a worker opened the project for: their own tags on it.
+ *
+ * Same numbers as the My tags page, in the place they are standing.
+ */
+function MyTagsOnProject({ rows }: { rows: AssignmentRow[] }) {
+  const assigned = rows.reduce((s, r) => s + r.assignedCount, 0);
+  const delivered = rows.reduce((s, r) => s + r.deliveredCount, 0);
+  const pending = rows.reduce((s, r) => s + r.pendingCount, 0);
+
+  return (
+    <section className="card p-5 mb-5">
+      <h3 className="font-heading text-lg font-semibold text-ink-900">
+        Your tags on this project
+      </h3>
+      {rows.length === 0 ? (
+        <p className="text-sm text-ink-400 italic mt-2">
+          You haven&apos;t been given any tags on this project yet.
+        </p>
+      ) : (
+        <>
+          <p className="text-sm text-ink-500 mt-0.5 mb-4">
+            <strong className="text-brand-greenText">{delivered}</strong> of{" "}
+            {assigned} delivered
+            {pending > 0 && (
+              <span className="text-brand-yellowText">
+                {" · "}
+                {pending} waiting to be approved
+              </span>
+            )}
+          </p>
+          <ul className="divide-y divide-ink-100">
+            {rows.map((r) => (
+              <li
+                key={r.id}
+                className="flex items-center justify-between gap-3 py-2.5 text-sm flex-wrap"
+              >
+                <span className="text-ink-900 font-medium">
+                  {r.divisionName ?? "No division"}
+                  {(r.startDate || r.targetDate) && (
+                    <span className="text-ink-500 font-normal">
+                      {" · "}
+                      {fmtDay(r.startDate)} → {fmtDay(r.targetDate)}
+                    </span>
+                  )}
+                </span>
+                <span className="text-ink-700">
+                  <strong className="text-brand-greenText">
+                    {r.deliveredCount}
+                  </strong>{" "}
+                  / {r.assignedCount}
+                  {r.pendingCount > 0 && (
+                    <span className="text-brand-yellowText">
+                      {" "}
+                      (+{r.pendingCount})
+                    </span>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </section>
   );
 }
 
@@ -382,12 +510,16 @@ function ProjectCard({ p, onOpen }: { p: Project; onOpen: () => void }) {
 function ProjectHeader({
   project,
   assignments,
+  ownRowsOnly,
   canManage,
   onEdit,
   onDeleted,
 }: {
   project: Project;
   assignments: AssignmentRow[];
+  /** True when `assignments` holds only the caller's own rows — see the
+   *  tag-assignments route, which narrows for SMEs and Actionees. */
+  ownRowsOnly: boolean;
   canManage: boolean;
   onEdit: () => void;
   onDeleted: () => void;
@@ -399,9 +531,22 @@ function ProjectHeader({
     if (res.ok) onDeleted();
   }
 
-  const assigned = assignments.reduce((s, r) => s + r.assignedCount, 0);
-  const delivered = assignments.reduce((s, r) => s + r.deliveredCount, 0);
-  const pending = assignments.reduce((s, r) => s + r.pendingCount, 0);
+  /**
+   * Project-wide figures. An SME is only handed their own assignment rows,
+   * so summing them here would have printed one person's five delivered
+   * tags under a heading that says the project's. The list endpoint
+   * already carries the real totals; use those when the rows are partial,
+   * and drop "pending approval", which has no project-wide equivalent.
+   */
+  const assigned = ownRowsOnly
+    ? (project.assignedTags ?? 0)
+    : assignments.reduce((s, r) => s + r.assignedCount, 0);
+  const delivered = ownRowsOnly
+    ? (project.deliveredTags ?? 0)
+    : assignments.reduce((s, r) => s + r.deliveredCount, 0);
+  const pending = ownRowsOnly
+    ? null
+    : assignments.reduce((s, r) => s + r.pendingCount, 0);
   const total = project.totalTags || assigned;
   const remaining = Math.max(0, total - delivered);
   const pct = total > 0 ? (delivered / total) * 100 : 0;
@@ -491,14 +636,20 @@ function ProjectHeader({
             </div>
           )}
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
+          <div
+            className={`grid grid-cols-2 gap-3 mt-5 ${
+              pending === null ? "sm:grid-cols-3" : "sm:grid-cols-4"
+            }`}
+          >
             <HeroStat label={SCOPE_LABELS.received} value={total} />
             <HeroStat label="Delivered" value={delivered} tone="text-brand-greenText" />
-            <HeroStat
-              label="Pending approval"
-              value={pending}
-              tone={pending > 0 ? "text-brand-yellowText" : undefined}
-            />
+            {pending !== null && (
+              <HeroStat
+                label="Pending approval"
+                value={pending}
+                tone={pending > 0 ? "text-brand-yellowText" : undefined}
+              />
+            )}
             <HeroStat label="Remaining" value={remaining} />
           </div>
           <div className="h-1.5 rounded-pill bg-ink-100 overflow-hidden mt-4">

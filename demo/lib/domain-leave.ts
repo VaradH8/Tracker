@@ -47,6 +47,35 @@ export function canMarkFor(actor: DomainRole, target: DomainRole): boolean {
   return canManageUser(actor, target);
 }
 
+/**
+ * Who signs off a request, by the role of the person whose day it is.
+ *
+ * A Lead's or a Team Lead's own leave goes to an Admin, and only to an
+ * Admin. The alternative is a Lead approving the Team Lead who reports to
+ * them, on a project they both deliver — a sign-off that is really a
+ * negotiation. Supervisors are approved one level up, at the top.
+ *
+ * SMEs and Actionees go to their Team Lead or their Lead, with Admin
+ * behind them so a request does not sit forever while a Lead is the one
+ * who is away.
+ */
+export function approverRoles(targetRole: DomainRole): DomainRole[] {
+  // Anyone who runs the register, or sits outside it, is signed off by an
+  // Admin. Listing the workers instead would silently route any role
+  // added later to the whole supervisory chain.
+  if (targetRole === "SME" || targetRole === "Actionee") {
+    return ["Admin", "Lead", "TeamLead"];
+  }
+  return ["Admin"];
+}
+
+/** "an Admin", "your team lead or lead" — for saying who a request is with. */
+export function approverLabel(targetRole: DomainRole): string {
+  return approverRoles(targetRole).includes("TeamLead")
+    ? "a team lead, lead or admin"
+    : "an admin";
+}
+
 /** Marking your own attendance is self-certification; approving your own
  *  request is worse. Both are refused, for supervisors too. */
 export function canDecide(
@@ -54,7 +83,28 @@ export function canDecide(
   request: { userId: string; targetRole: DomainRole },
 ): boolean {
   if (actor.id === request.userId) return false;
+  // Both tests, not either: the routing says which rank signs this off,
+  // and canMarkFor says whether this particular actor covers this person.
+  if (!approverRoles(request.targetRole).includes(actor.role)) return false;
   return canMarkFor(actor.role, request.targetRole);
+}
+
+/**
+ * Whether `actor` may READ `target`'s attendance.
+ *
+ * Deciding and reading used to be the same test. Routing supervisors'
+ * requests to an Admin would then have quietly emptied Team Leads out of
+ * their Lead's register — the Lead could no longer approve them, so they
+ * could no longer see them either. They are separate questions: a Lead
+ * reads the whole team they cover, and decides for the ones the routing
+ * hands them.
+ */
+export function canSeeLeaveOf(
+  actor: { id: string; role: DomainRole },
+  target: { id: string; role: DomainRole },
+): boolean {
+  if (actor.id === target.id) return true;
+  return canMarkFor(actor.role, target.role);
 }
 
 export type HoursIssue = string | null;

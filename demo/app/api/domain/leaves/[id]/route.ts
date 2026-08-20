@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser } from "@/lib/domain-auth";
 import type { DomainRole } from "@/lib/domain";
-import { canDecide, hoursIssue, isLeaveKind } from "@/lib/domain-leave";
+import {
+  canDecide,
+  canMarkFor,
+  hoursIssue,
+  isLeaveKind,
+} from "@/lib/domain-leave";
 
 /**
  * Deciding, correcting and withdrawing one attendance row.
@@ -70,13 +75,24 @@ export async function PATCH(
   });
   if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const allowed = canDecide(
-    { id: me.id, role: me.role },
-    { userId: row.user.id, targetRole: row.user.role as DomainRole },
-  );
-  if (!allowed) {
+  /**
+   * Two different permissions, deliberately separated.
+   *
+   * Keeping the record — correcting a half day logged as four hours that
+   * was really two — follows the ordinary supervisory line: a Lead keeps
+   * the register for everyone under them.
+   *
+   * Signing off a *request* follows the routing instead, which sends a
+   * Lead's or a Team Lead's own leave to an Admin. Without the split, a
+   * Lead who cannot approve their Team Lead also could not fix a typo in
+   * that Team Lead's row.
+   */
+  const supervises =
+    row.user.id !== me.id &&
+    canMarkFor(me.role, row.user.role as DomainRole);
+  if (!supervises) {
     return NextResponse.json(
-      { error: "That isn't yours to decide." },
+      { error: "That isn't yours to change." },
       { status: 403 },
     );
   }
@@ -85,6 +101,16 @@ export async function PATCH(
   const data: Record<string, unknown> = {};
 
   if (body.status !== undefined) {
+    const mayDecide = canDecide(
+      { id: me.id, role: me.role },
+      { userId: row.user.id, targetRole: row.user.role as DomainRole },
+    );
+    if (!mayDecide) {
+      return NextResponse.json(
+        { error: "That request is for an admin to decide." },
+        { status: 403 },
+      );
+    }
     if (body.status !== "Approved" && body.status !== "Rejected") {
       return NextResponse.json(
         { error: "A decision is either Approved or Rejected." },
@@ -154,10 +180,11 @@ export async function DELETE(
    * it disappear: the decision is a record, not a draft.
    */
   const ownPending = row.createdBy.id === me.id && row.status === "Pending";
-  const supervises = canDecide(
-    { id: me.id, role: me.role },
-    { userId: row.user.id, targetRole: row.user.role as DomainRole },
-  );
+  // Removing a row is record-keeping, not a decision — so it follows the
+  // supervisory line rather than the approval routing.
+  const supervises =
+    row.user.id !== me.id &&
+    canMarkFor(me.role, row.user.role as DomainRole);
   if (!ownPending && !supervises) {
     return NextResponse.json(
       { error: "That isn't yours to remove." },

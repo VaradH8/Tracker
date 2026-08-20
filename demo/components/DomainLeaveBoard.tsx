@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, Clock, Plus, X } from "lucide-react";
+import { Check, Clock, History, Plus, X } from "lucide-react";
 import { fmtDate } from "@/lib/domain-format";
 import { dateClass, selectClass } from "@/lib/domain-ui";
+import { DOMAIN_ROLE_LABELS, type DomainRole } from "@/lib/domain";
 import {
+  approverLabel,
   LEAVE_KINDS,
   REQUESTABLE_KINDS,
   MAX_HALF_DAY_HOURS,
@@ -15,9 +17,10 @@ import { DateInput } from "@/components/DateInput";
 /**
  * Attendance and time off.
  *
- * Two things only: the requests waiting on you to decide, and the form to
- * file one. A supervisor opens this to clear their queue; an SME or
- * Actionee opens it to ask for a day.
+ * Three things: the requests waiting on you to decide, the form to file
+ * one, and the register itself. A supervisor opens this to clear their
+ * queue; an SME or Actionee opens it to ask for a day and to see what
+ * happened to the last one.
  *
  * The form offers only what the caller may actually file. A worker never
  * sees "Present" as an option, because the server would refuse it and an
@@ -39,6 +42,10 @@ type Leave = {
   decidedByName: string | null;
   decidedAt: string | null;
   decisionNote: string | null;
+  /** Decided by the server, not guessed here — see the leaves route. */
+  canDecide: boolean;
+  /** Which roles a still-pending row is sitting with. */
+  awaitingRoles: string[];
 };
 
 type Payload = {
@@ -55,6 +62,19 @@ const KIND_TONE: Record<string, string> = {
   "Half day": "bg-brand-yellowBg text-brand-yellowText",
   Leave: "bg-brand-blueBg text-brand-blue",
 };
+
+const STATUS_TONE: Record<string, string> = {
+  Approved: "bg-brand-greenBg text-brand-greenText",
+  Pending: "bg-brand-yellowBg text-brand-yellowText",
+  Rejected: "bg-brand-redBg text-brand-redText",
+};
+
+/** "Admin", "Team Lead or Lead" — who a pending row is waiting on. */
+function awaitingLabel(roles: string[]): string {
+  const names = roles.map((r) => DOMAIN_ROLE_LABELS[r as DomainRole] ?? r);
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} or ${names[names.length - 1]}`;
+}
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -102,6 +122,9 @@ export function DomainLeaveBoard({
   // Filing for yourself is a request even when you supervise others —
   // nobody approves their own day.
   const forSelf = !canMark || who === "" || who === data?.me.id;
+  const myApprover = data
+    ? approverLabel(data.me.role as DomainRole)
+    : "your lead";
   const offered: readonly LeaveKind[] = forSelf ? REQUESTABLE_KINDS : LEAVE_KINDS;
 
   // Keep the picked kind legal when switching between self and someone else.
@@ -150,9 +173,12 @@ export function DomainLeaveBoard({
 
   const rows = data?.leaves ?? [];
   const mine = data?.me.id;
-  // Waiting on this person specifically — not their own pending request,
-  // which they cannot decide.
-  const awaitingMe = rows.filter((r) => r.status === "Pending" && r.userId !== mine);
+  /**
+   * Waiting on this person specifically. Not their own request, and not
+   * one the routing sends elsewhere — a Lead's own leave goes to an
+   * Admin, so it must not sit in a queue the Lead cannot clear.
+   */
+  const awaitingMe = rows.filter((r) => r.status === "Pending" && r.canDecide);
 
   return (
     <div className="grid gap-6">
@@ -217,9 +243,12 @@ export function DomainLeaveBoard({
           {canMark ? "Mark attendance" : "Request time off"}
         </h2>
         <p className="text-sm text-ink-500 mb-4">
+          {/* Naming the approver is the whole point of the line. A Lead
+              who is told "your team lead decides it" goes looking for a
+              team lead they do not have. */}
           {canMark
-            ? "Record someone as present, absent, or on a half day. Your own days go through as a request — nobody approves their own."
-            : "Ask for a half day or a leave. Your team lead decides it."}
+            ? `Record someone as present, absent, or on a half day. Your own days go through as a request — ${myApprover} decides them.`
+            : `Ask for a half day or a leave. ${myApprover[0].toUpperCase()}${myApprover.slice(1)} decides it.`}
         </p>
 
         <form onSubmit={submit} className="flex items-end gap-3 flex-wrap">
@@ -296,6 +325,211 @@ export function DomainLeaveBoard({
         </form>
       </section>
 
+      <LeaveHistory rows={rows} meId={mine} canMark={canMark} />
     </div>
+  );
+}
+
+/**
+ * The register.
+ *
+ * Everything the caller may see, decided or not: their own days, and — for
+ * a supervisor — the days of everyone they cover. Absences a lead marked
+ * on somebody else's behalf land here too, which is the only place the
+ * person marked absent ever finds out.
+ *
+ * Deliberately one list rather than "approved" and "pending" tabs. The
+ * question people actually arrive with is "what happened to Tuesday", and
+ * splitting the answer across two tabs means checking both.
+ */
+function LeaveHistory({
+  rows,
+  meId,
+  canMark,
+}: {
+  rows: Leave[];
+  meId: string | undefined;
+  canMark: boolean;
+}) {
+  const [status, setStatus] = useState<
+    "all" | "Pending" | "Approved" | "Rejected"
+  >("all");
+  const [person, setPerson] = useState("all");
+
+  // Only worth offering when there is more than one person in the list.
+  const people = Array.from(
+    new Map(rows.map((r) => [r.userId, r.userName])).entries(),
+  ).sort((a, b) => a[1].localeCompare(b[1]));
+
+  const shown = rows.filter(
+    (r) =>
+      (status === "all" || r.status === status) &&
+      (person === "all" || r.userId === person),
+  );
+
+  return (
+    <section className="card p-5">
+      <div className="flex items-start justify-between gap-3 flex-wrap mb-4">
+        <div>
+          <h2 className="font-heading text-lg font-semibold flex items-center gap-2">
+            <History size={17} className="text-ink-400" />
+            {canMark ? "Attendance history" : "Your history"}
+          </h2>
+          <p className="text-sm text-ink-500 mt-0.5">
+            {canMark
+              ? "Every day marked or requested by the people you cover, and your own."
+              : "Every day you have asked for, and where it got to."}
+          </p>
+        </div>
+        <div className="flex items-end gap-2">
+          {people.length > 1 && (
+            <label className="text-xs">
+              <span className="block text-ink-700 mb-1">Person</span>
+              <select
+                value={person}
+                onChange={(e) => setPerson(e.target.value)}
+                className={selectClass("sm", "min-w-[150px]")}
+              >
+                <option value="all">Everyone</option>
+                {people.map(([id, name]) => (
+                  <option key={id} value={id}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label className="text-xs">
+            <span className="block text-ink-700 mb-1">Status</span>
+            <select
+              value={status}
+              onChange={(e) =>
+                setStatus(
+                  e.target.value as "all" | "Pending" | "Approved" | "Rejected",
+                )
+              }
+              className={selectClass("sm", "min-w-[120px]")}
+            >
+              <option value="all">All</option>
+              <option value="Pending">Pending</option>
+              <option value="Approved">Approved</option>
+              <option value="Rejected">Rejected</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      {shown.length === 0 ? (
+        <p className="text-sm text-ink-400 italic">
+          {rows.length === 0
+            ? "Nothing on the register yet."
+            : "Nothing matches those filters."}
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[720px]">
+            <thead className="bg-ink-50 text-ink-500 text-xs uppercase tracking-wide">
+              <tr>
+                <th className="text-left font-semibold px-3 py-2">Date</th>
+                {canMark && (
+                  <th className="text-left font-semibold px-3 py-2">Person</th>
+                )}
+                <th className="text-left font-semibold px-3 py-2">What</th>
+                <th className="text-left font-semibold px-3 py-2">Status</th>
+                <th className="text-left font-semibold px-3 py-2">Raised by</th>
+                <th className="text-left font-semibold px-3 py-2">Outcome</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-ink-100">
+              {shown.map((r) => (
+                <tr
+                  key={r.id}
+                  // Only worth tinting when there is somebody else in the
+                  // table to tell your own rows apart from.
+                  className={
+                    canMark && r.userId === meId ? "bg-brand-blueBg/30" : ""
+                  }
+                >
+                  <td className="px-3 py-2 whitespace-nowrap text-ink-700">
+                    {fmtDate(r.date)}
+                  </td>
+                  {canMark && (
+                    <td className="px-3 py-2">
+                      <div className="text-ink-900 font-medium">
+                        {r.userName}
+                        {r.userId === meId && (
+                          <span className="text-ink-400 font-normal"> (you)</span>
+                        )}
+                      </div>
+                      <div className="text-xs text-ink-500">
+                        {DOMAIN_ROLE_LABELS[r.userRole as DomainRole] ??
+                          r.userRole}
+                      </div>
+                    </td>
+                  )}
+                  <td className="px-3 py-2">
+                    <span
+                      className={`px-2 py-0.5 rounded-pill text-[11px] font-semibold ${KIND_TONE[r.kind] ?? ""}`}
+                    >
+                      {r.kind}
+                      {r.hours != null && ` · ${r.hours}h`}
+                    </span>
+                    {r.note && (
+                      <div className="text-xs text-ink-500 italic mt-1 max-w-[220px] truncate">
+                        &ldquo;{r.note}&rdquo;
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-3 py-2">
+                    <span
+                      className={`px-2 py-0.5 rounded-pill text-[11px] font-semibold ${STATUS_TONE[r.status] ?? ""}`}
+                    >
+                      {r.status}
+                    </span>
+                    {/* A pending row is only useful if it says who it is
+                        with — otherwise "Pending" reads as "lost". */}
+                    {r.status === "Pending" && r.awaitingRoles.length > 0 && (
+                      <div className="text-[11px] text-ink-500 mt-1">
+                        with {awaitingLabel(r.awaitingRoles)}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-ink-600">
+                    {/* Filed by somebody else means it was marked, not
+                        requested — which is how an absence reaches the
+                        person it belongs to. */}
+                    {r.createdById === r.userId
+                      ? "Requested"
+                      : `Marked by ${r.createdByName}`}
+                  </td>
+                  <td className="px-3 py-2 text-ink-600">
+                    {r.decidedByName ? (
+                      <>
+                        <div>
+                          {r.status === "Rejected" ? "Declined" : "Approved"} by{" "}
+                          {r.decidedByName}
+                        </div>
+                        {r.decidedAt && (
+                          <div className="text-xs text-ink-400">
+                            {fmtDate(r.decidedAt.slice(0, 10))}
+                          </div>
+                        )}
+                        {r.decisionNote && (
+                          <div className="text-xs text-ink-500 italic">
+                            &ldquo;{r.decisionNote}&rdquo;
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-ink-400">&mdash;</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }

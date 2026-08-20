@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { Plus, Trash2, Pencil, X } from "lucide-react";
 import {
   DOMAIN_ROLE_LABELS,
@@ -654,30 +654,53 @@ export function TagAssignmentPanel({
     };
   });
 
-  // One section per person: everyone booked on the project, plus anyone
-  // holding tags without a formal booking (otherwise their work would be
-  // invisible here).
+  /**
+   * One section per person, in two groups.
+   *
+   * "Allocated resources" means the people actually booked on this
+   * project. It used to mean "booked, or holding a tag" — so taking
+   * somebody's booking away left them sitting in the allocated list, and
+   * the panel contradicted the allocation table three inches above it.
+   *
+   * Their tags do not vanish with the booking, though, and dropping them
+   * from the screen would leave work assigned to nobody visible. So they
+   * move to a second group instead, named for what they actually are.
+   */
+  type Section = {
+    id: string;
+    name: string;
+    booked: boolean;
+    items: AssignmentRow[];
+  };
   const sections = (() => {
-    const map = new Map<string, { id: string; name: string; items: AssignmentRow[] }>();
+    const map = new Map<string, Section>();
     for (const r of project.resources ?? []) {
-      map.set(r.id, { id: r.id, name: r.name, items: [] });
+      map.set(r.id, { id: r.id, name: r.name, booked: true, items: [] });
     }
     for (const a of rows) {
       const entry = map.get(a.assigneeId) ?? {
         id: a.assigneeId,
         name: a.assigneeName,
+        booked: false,
         items: [],
       };
       entry.items.push(a);
       map.set(a.assigneeId, entry);
     }
     // Most tags outstanding first — where a Lead's attention belongs.
-    return Array.from(map.values()).sort((a, b) => {
-      const open = (x: typeof a) =>
-        x.items.reduce((s, i) => s + (i.assignedCount - i.deliveredCount), 0);
-      return open(b) - open(a) || a.name.localeCompare(b.name);
-    });
+    const open = (x: Section) =>
+      x.items.reduce((s, i) => s + (i.assignedCount - i.deliveredCount), 0);
+    const byWork = (a: Section, b: Section) =>
+      open(b) - open(a) || a.name.localeCompare(b.name);
+    const all = Array.from(map.values());
+    return {
+      booked: all.filter((x) => x.booked).sort(byWork),
+      unbooked: all.filter((x) => !x.booked).sort(byWork),
+    };
   })();
+
+  /** Both groups in render order, so one loop draws them. */
+  const ordered: Section[] = [...sections.booked, ...sections.unbooked];
 
   const totalAssigned = rows.reduce((s, r) => s + r.assignedCount, 0);
   const totalDelivered = rows.reduce((s, r) => s + r.deliveredCount, 0);
@@ -759,25 +782,43 @@ export function TagAssignmentPanel({
         Allocated resources
       </h4>
 
-      {sections.length === 0 ? (
+      {ordered.length === 0 ? (
         <p className="text-sm text-ink-400 italic">
           Nobody is allocated to this project yet. Edit the project to book
           resources, or use &ldquo;Assign to someone else&rdquo;.
         </p>
       ) : (
         <div className="grid gap-3">
-          {sections.map((sec) => {
+          {sections.booked.length === 0 && (
+            <p className="text-sm text-ink-400 italic">
+              Nobody is booked on this project.
+            </p>
+          )}
+          {ordered.map((sec, i) => {
             const a = availability.get(sec.id);
             const assigned = sec.items.reduce((s, r) => s + r.assignedCount, 0);
             const delivered = sec.items.reduce((s, r) => s + r.deliveredCount, 0);
             const pending = sec.items.reduce((s, r) => s + r.pendingCount, 0);
             const pct = assigned > 0 ? (delivered / assigned) * 100 : 0;
 
+            /** The heading for the second group, drawn once, above the
+             *  first person in it. */
+            const opensUnbooked = !sec.booked && i === sections.booked.length;
+
             return (
-              <div
-                key={sec.id}
-                className="rounded-card border border-ink-200 overflow-hidden"
-              >
+              <Fragment key={sec.id}>
+                {opensUnbooked && (
+                  <div className="mt-2">
+                    <h4 className="font-heading text-sm font-semibold text-ink-700 uppercase tracking-wide">
+                      Holding tags without a booking
+                    </h4>
+                    <p className="text-xs text-ink-500 mt-0.5">
+                      Not booked on this project, but still carrying tags on
+                      it. Book them, or move the tags to someone who is.
+                    </p>
+                  </div>
+                )}
+                <div className="rounded-card border border-ink-200 overflow-hidden">
                 <div className="flex items-start justify-between gap-3 px-4 py-3 bg-ink-50 border-b border-ink-200 flex-wrap">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -942,7 +983,8 @@ export function TagAssignmentPanel({
                     )}
                   </ul>
                 )}
-              </div>
+                </div>
+              </Fragment>
             );
           })}
         </div>

@@ -3,8 +3,11 @@ import { prisma } from "@/lib/db";
 import { requireDomainUser } from "@/lib/domain-auth";
 import type { DomainRole } from "@/lib/domain";
 import {
+  approverRoles,
+  canDecide,
   canMarkAttendance,
   canMarkFor,
+  canSeeLeaveOf,
   hoursIssue,
   initialStatus,
   isLeaveKind,
@@ -42,7 +45,7 @@ function serialize(r: {
   user: { id: string; name: string; role: string };
   createdBy: { id: string; name: string };
   decidedBy: { id: string; name: string } | null;
-}) {
+}, me?: { id: string; role: DomainRole }) {
   return {
     id: r.id,
     date: iso(r.date),
@@ -58,6 +61,21 @@ function serialize(r: {
     decidedByName: r.decidedBy?.name ?? null,
     decidedAt: r.decidedAt ? r.decidedAt.toISOString() : null,
     decisionNote: r.decisionNote,
+    /**
+     * Answered here rather than re-derived in the browser, so the buttons
+     * a person sees and the calls the server will accept come from one
+     * rule. A row the client thinks is decidable but the server refuses
+     * is just a 403 in the face.
+     */
+    canDecide: me
+      ? canDecide(me, {
+          userId: r.user.id,
+          targetRole: r.user.role as DomainRole,
+        })
+      : false,
+    /** Who a pending row is sitting with — "Admin", "Team Lead"… */
+    awaitingRoles:
+      r.status === "Pending" ? approverRoles(r.user.role as DomainRole) : [],
   };
 }
 
@@ -102,13 +120,14 @@ export async function GET(req: Request) {
     take: MAX_RANGE_DAYS * 4,
   });
 
-  const visible = canMarkAttendance(me.role)
-    ? rows.filter(
-        (r) =>
-          r.user.id === me.id ||
-          canMarkFor(me.role, r.user.role as DomainRole),
-      )
-    : rows.filter((r) => r.user.id === me.id);
+  /**
+   * Everything the caller may read — their own days, plus the team they
+   * cover. Reading is deliberately wider than deciding: a Lead keeps the
+   * Team Leads in their register even though an Admin signs those off.
+   */
+  const visible = rows.filter((r) =>
+    canSeeLeaveOf(me, { id: r.user.id, role: r.user.role as DomainRole }),
+  );
 
   // Who this person may file or mark for, so the form can offer a list
   // rather than let someone type an id and find out.
@@ -121,13 +140,18 @@ export async function GET(req: Request) {
     ? everyone.filter((u) => canMarkFor(me.role, u.role as DomainRole))
     : [];
 
+  const serialized = visible.map((r) => serialize(r, me));
+
   return NextResponse.json({
-    leaves: visible.map(serialize),
+    leaves: serialized,
     canMark: canMarkAttendance(me.role),
     me: { id: me.id, name: me.name, role: me.role },
     people: markableFor,
-    pendingCount: visible.filter(
-      (r) => r.status === "Pending" && r.user.id !== me.id,
+    // Only what is actually theirs to action. Counting every pending row
+    // they can see put a badge on Leads for Team Lead requests that only
+    // an Admin can clear.
+    pendingCount: serialized.filter(
+      (r) => r.status === "Pending" && r.canDecide,
     ).length,
   });
 }
