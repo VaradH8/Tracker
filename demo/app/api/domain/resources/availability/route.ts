@@ -42,7 +42,19 @@ export async function GET() {
       projects: r.projects.map((p) => ({
         projectId: p.projectId,
         projectName: p.projectName,
+        /**
+         * The project's own working week, 5 or 6.
+         *
+         * The availability bar draws real working days, so without this
+         * every booking silently fell back to five and a six-day
+         * project's Saturdays were drawn — and counted — as time off.
+         * This route hand-picks its fields, so anything the bar needs has
+         * to be named here; adding it upstream is not enough.
+         */
+        workingDaysPerWeek: p.workingDaysPerWeek,
         startDate: p.startDate,
+        // Early release folded in, so the bar stops where the booking
+        // really stopped rather than where it was first meant to.
         endDate: p.releasedAt ?? p.endDate,
         assignedTags: p.assignedTags,
         deliveredTags: p.deliveredTags,

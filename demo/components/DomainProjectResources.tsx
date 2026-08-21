@@ -406,8 +406,14 @@ function AllocateForm({
             step="0.5"
             value={rate}
             onChange={(e) => setRate(e.target.value)}
-            placeholder={picked?.rate ? String(picked.rate) : ""}
-            title="What you expect this person to average on this project"
+            // No placeholder carrying their rate from elsewhere: it looked
+            // prefilled, and the point of this field is that a rate belongs
+            // to one booking. Somebody managing 60 a day on one project is
+            // not thereby managing 60 on the next. What they are already
+            // set at is stated below in words, where it reads as context
+            // rather than as a default.
+            placeholder="e.g. 40"
+            title="What you expect this person to average on THIS project"
             className={inputClass("md", "w-28")}
           />
         </label>

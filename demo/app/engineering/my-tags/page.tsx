@@ -161,6 +161,14 @@ export default function MyTagsPage() {
       newestFirst ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date),
     );
 
+  /**
+   * Batches with tags left to claim, once delivered and already-pending
+   * ones are taken off. Everything else is history and lives below.
+   */
+  const toSubmit = shownAssignments.filter(
+    (a) => a.assignedCount - a.deliveredCount - a.pendingCount > 0,
+  );
+
   const filtered =
     project !== ALL ||
     division !== ALL ||
@@ -309,7 +317,8 @@ export default function MyTagsPage() {
             <div className="ml-auto text-sm text-ink-500">
               <strong className="text-brand-greenText">{total.delivered}</strong>
               {" of "}
-              <strong className="text-ink-900">{total.assigned}</strong> delivered
+              <strong className="text-ink-900">{total.assigned}</strong> tags
+              delivered
               {total.pending > 0 && (
                 <span className="text-brand-yellowText">
                   {" · "}
@@ -325,33 +334,41 @@ export default function MyTagsPage() {
             </div>
           </div>
 
-          <section className="mb-8">
-            <h2 className="font-heading text-lg font-semibold mb-3">
-              What you&apos;re carrying
-              <span className="text-ink-400 font-normal text-sm">
-                {" "}
-                ({shownAssignments.length})
-              </span>
-            </h2>
-            {shownAssignments.length === 0 ? (
-              <p className="text-sm text-ink-400 italic">
-                {rows.length === 0
-                  ? "Nothing assigned to you yet."
-                  : "No tags match those filters."}
-              </p>
-            ) : (
+          {/*
+            Only what still needs submitting.
+
+            This listed everything assigned, which on a team whose work is
+            largely delivered meant a card per finished batch — the same
+            projects, at the same totals, as the history immediately below
+            it. Two lists saying the same thing, and the reader has to work
+            out which is which.
+
+            A batch with nothing left to claim has nothing to do on this
+            screen; it is in the history. So the section holds the ones you
+            can act on and disappears entirely when there are none, which
+            is the point at which it was purely duplication.
+          */}
+          {toSubmit.length > 0 && (
+            <section className="mb-8">
+              <h2 className="font-heading text-lg font-semibold mb-3">
+                To submit
+                <span className="text-ink-400 font-normal text-sm">
+                  {" "}
+                  ({toSubmit.length})
+                </span>
+              </h2>
               <div className="grid gap-3">
-                {shownAssignments.map((a) => (
+                {toSubmit.map((a) => (
                   <AssignmentCard key={a.id} a={a} onSubmitted={load} />
                 ))}
               </div>
-            )}
-          </section>
+            </section>
+          )}
 
           <section>
             <div className="flex items-baseline justify-between gap-3 flex-wrap mb-3">
               <h2 className="font-heading text-lg font-semibold">
-                What you&apos;ve submitted
+                Your submissions
                 <span className="text-ink-400 font-normal text-sm">
                   {" "}
                   ({shownSubmissions.length})

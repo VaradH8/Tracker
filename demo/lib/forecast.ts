@@ -17,6 +17,15 @@ const WORKING_DAYS_PER_WEEK = 5;
 export const RATE_HISTORY_DAYS = 30;
 
 /**
+ * "Completed" and "Yet to be started" are not judgements about the plan —
+ * they say the work is finished, or has not begun. Both are decided in
+ * projectForecasts, which knows the totals and the real start date; the
+ * projection itself is unchanged underneath.
+ *
+ * Completed matters because a finished project used to report "On Track",
+ * which is true and useless: it sat in the on-track list beside everything
+ * still running, so nothing on any screen ever said a project was done.
+ *
  * "Yet to be started" is not a judgement about the plan — it says the
  * work has not begun yet, because the project is staffed from a future
  * date. A project nobody was due to start cannot be behind on delivery,
@@ -32,6 +41,7 @@ export type ScheduleStatus =
   | "On Track"
   | "Behind Schedule"
   | "Yet to be started"
+  | "Completed"
   | "Unknown";
 
 /** Midnight UTC of the given date — the canonical day key. */

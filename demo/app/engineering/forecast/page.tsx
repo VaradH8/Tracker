@@ -34,7 +34,7 @@ export default function ForecastPage() {
   const [meta, setMeta] = useState<Meta | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<
-    "all" | "risk" | "ontrack" | "notstarted"
+    "all" | "risk" | "ontrack" | "notstarted" | "completed"
   >("all");
   const [sort, setSort] = useState<SortKey>("risk");
   const [query, setQuery] = useState("");
@@ -77,6 +77,12 @@ export default function ForecastPage() {
   const notStarted = projects.filter(
     (p) => p.forecast.status === "Yet to be started",
   );
+  /**
+   * Delivered in full. Counted apart from on track, because a finished
+   * project used to sit in that list beside everything still running —
+   * true, and no use to anybody asking what is left to do.
+   */
+  const completed = projects.filter((p) => p.forecast.status === "Completed");
   const totalTags = projects.reduce((s, p) => s + p.totalTags, 0);
   const delivered = projects.reduce((s, p) => s + p.deliveredTags, 0);
   const pending = projects.reduce((s, p) => s + p.pendingApprovalTags, 0);
@@ -117,6 +123,7 @@ export default function ForecastPage() {
       if (filter === "ontrack") return p.forecast.status === "On Track";
       if (filter === "notstarted")
         return p.forecast.status === "Yet to be started";
+      if (filter === "completed") return p.forecast.status === "Completed";
       return true;
     })
     // Name or client: the two things somebody actually knows when they
@@ -220,7 +227,11 @@ export default function ForecastPage() {
 
           <div
             className={`grid gap-4 mt-5 ${
-              notStarted.length > 0 ? "md:grid-cols-3" : "md:grid-cols-2"
+              notStarted.length > 0 && completed.length > 0
+                ? "md:grid-cols-4"
+                : notStarted.length > 0 || completed.length > 0
+                  ? "md:grid-cols-3"
+                  : "md:grid-cols-2"
             }`}
           >
             <StatusGroup
@@ -248,6 +259,15 @@ export default function ForecastPage() {
                 projects={notStarted}
                 empty="None."
                 onOpen={() => setFilter("notstarted")}
+              />
+            )}
+            {completed.length > 0 && (
+              <StatusGroup
+                title="Completed"
+                tone="completed"
+                projects={completed}
+                empty="None."
+                onOpen={() => setFilter("completed")}
               />
             )}
           </div>
@@ -280,6 +300,7 @@ export default function ForecastPage() {
                   ["risk", `At risk ${behind.length}`],
                   ["ontrack", `On track ${onTrack.length}`],
                   ["notstarted", `Yet to start ${notStarted.length}`],
+                  ["completed", `Completed ${completed.length}`],
                 ] as const
               ).map(([key, label]) => (
                 <button
@@ -358,13 +379,14 @@ function StatusGroup({
   onOpen,
 }: {
   title: string;
-  tone: "risk" | "ontrack" | "notstarted";
+  tone: "risk" | "ontrack" | "notstarted" | "completed";
   projects: ProjectRow[];
   empty: string;
   onOpen: () => void;
 }) {
   const risk = tone === "risk";
   const notStartedTone = tone === "notstarted";
+  const doneTone = tone === "completed";
   // Worst first on the risk side, most slack first on the other: both
   // put the project you would ask about at the top of its own column.
   const ordered = [...projects].sort((a, b) => {
@@ -376,11 +398,13 @@ function StatusGroup({
   return (
     <div
       className={`rounded border-l-4 bg-ink-50 px-4 py-3 ${
-        notStartedTone
-          ? "border-brand-blue"
-          : risk
-            ? "border-brand-red"
-            : "border-brand-green"
+        doneTone
+          ? "border-ink-300"
+          : notStartedTone
+            ? "border-brand-blue"
+            : risk
+              ? "border-brand-red"
+              : "border-brand-green"
       }`}
     >
       <button
@@ -390,11 +414,13 @@ function StatusGroup({
       >
         <span
           className={`text-[11px] font-semibold uppercase tracking-wide ${
-            notStartedTone
-              ? "text-brand-blue"
-              : risk
-                ? "text-brand-redText"
-                : "text-brand-greenText"
+            doneTone
+              ? "text-ink-600"
+              : notStartedTone
+                ? "text-brand-blue"
+                : risk
+                  ? "text-brand-redText"
+                  : "text-brand-greenText"
           }`}
         >
           {title}

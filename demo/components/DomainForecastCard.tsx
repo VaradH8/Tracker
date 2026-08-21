@@ -31,7 +31,12 @@ export type Forecast = {
   dailyRate: number;
   workingDaysNeeded: number;
   projectedDate: string | null;
-  status: "On Track" | "Behind Schedule" | "Yet to be started" | "Unknown";
+  status:
+    | "On Track"
+    | "Behind Schedule"
+    | "Yet to be started"
+    | "Completed"
+    | "Unknown";
   slackDays: number | null;
   reason: string;
 };
@@ -75,6 +80,20 @@ export type ProjectRow = {
 
 
 export function statusTone(s: string) {
+  /**
+   * Finished reads as settled, not as good news still in progress. The
+   * same green as On Track would put a delivered project and a project
+   * running comfortably in the same visual bucket, which is exactly the
+   * confusion this status exists to end.
+   */
+  if (s === "Completed") {
+    return {
+      chip: "bg-ink-100 text-ink-700",
+      bar: "bg-brand-green",
+      text: "text-ink-600",
+      rail: "border-ink-300",
+    };
+  }
   if (s === "On Track") {
     return {
       chip: "bg-brand-greenBg text-brand-greenText",

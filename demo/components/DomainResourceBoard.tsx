@@ -5,6 +5,12 @@ import { Search } from "lucide-react";
 import { TAG_HOLDER_ROLES, DOMAIN_ROLE_LABELS, type DomainRole } from "@/lib/domain";
 import { fmtDate } from "@/lib/domain-format";
 import { selectClass } from "@/lib/domain-ui";
+import {
+  buildSegments,
+  colourIndexes,
+  freeWorkingDays,
+  isoFromDay,
+} from "@/lib/domain-availability-bar";
 
 /**
  * Who is free, who is booked, and until when — read in one pass.
@@ -37,6 +43,10 @@ export type BoardResource = {
     projectName: string;
     startDate: string;
     endDate: string;
+    /** Ends the booking early; the bar stops here rather than at endDate. */
+    releasedAt?: string | null;
+    /** 5 or 6. Decides which Saturdays are working days on this booking. */
+    workingDaysPerWeek?: number | null;
     assignedTags: number;
     deliveredTags: number;
     openTags: number;
@@ -62,40 +72,34 @@ function todayISO(): string {
  * and it doesn't. Keyed by project id instead, with a key printed above
  * the chart, the colour answers "is this the same job?" at a glance.
  */
-const BAND = [
-  { bar: "bg-brand-blue", dot: "bg-brand-blue" },
-  { bar: "bg-brand-yellow", dot: "bg-brand-yellow" },
-  { bar: "bg-brand-green", dot: "bg-brand-green" },
-  { bar: "bg-brand-red", dot: "bg-brand-red" },
-  // Darker shades continue the run. Every entry has to be a real
-  // background token: an earlier version reached for `brand-blueText`,
-  // which is a text colour with no bg- utility, so the fifth project
-  // silently drew no swatch at all.
-  { bar: "bg-brand-greenText", dot: "bg-brand-greenText" },
-  { bar: "bg-brand-yellowText", dot: "bg-brand-yellowText" },
-  { bar: "bg-brand-redText", dot: "bg-brand-redText" },
-];
-
 /**
- * Bookings that overlap in time get their own lane, so somebody on two
- * projects at once reads as two stacked bars rather than one bar drawn
- * over another. Being double-booked is exactly the thing this screen
- * should make obvious, not hide.
+ * A colour per project, and none of them a traffic light.
+ *
+ * These used to come from the app's own palette, which meant red and amber
+ * bars — and red means "late" on every other screen here, so a bar that
+ * only meant "the fourth project alphabetically" read as an alarm.
+ *
+ * Deliberately outside that vocabulary now: blues, purples, teals. Green
+ * is not among them either, because green has a job on this chart — it
+ * means free. Nine, and they wrap, which is why the key above the chart is
+ * not optional.
  */
-function packLanes<T extends { startDate: string; endDate: string }>(
-  bookings: T[],
-): { booking: T; lane: number }[] {
-  const laneEnds: number[] = [];
-  return [...bookings]
-    .sort((a, b) => a.startDate.localeCompare(b.startDate))
-    .map((booking) => {
-      const start = days(booking.startDate);
-      let lane = laneEnds.findIndex((end) => end < start);
-      if (lane === -1) lane = laneEnds.length;
-      laneEnds[lane] = days(booking.endDate);
-      return { booking, lane };
-    });
-}
+const PROJECT_COLOURS = [
+  "bg-sky-500",
+  "bg-violet-500",
+  "bg-teal-500",
+  "bg-indigo-500",
+  "bg-fuchsia-500",
+  "bg-cyan-600",
+  "bg-purple-600",
+  "bg-blue-700",
+  "bg-rose-400",
+];
+/** Working time with nothing against it — what the screen is for. */
+const FREE_COLOUR = "bg-brand-green";
+/** A non-working day is drawn as a faded version of whatever it
+ *  interrupts, so the bar stays one rectangle — see the renderer. */
+const OFF_OPACITY = "opacity-40";
 
 export function DomainResourceBoard({
   resources,
@@ -135,18 +139,32 @@ export function DomainResourceBoard({
    */
   const axis = useMemo(() => {
     const today = todays();
-    const all = shown.flatMap((r) => r.projects);
-    const starts = all.map((p) => days(p.startDate));
-    const ends = all.map((p) => days(p.endDate));
-    // A few days of lead-in before the earliest thing on the chart. With
-    // no lead-in, a portfolio where nothing started before today puts
-    // today at 0% — and the "today" caption then prints straight on top
-    // of the start-date label.
-    const LEAD_IN = 5;
-    const from = Math.min(today - LEAD_IN, ...(starts.length ? starts : [today]));
+    const ends = shown.flatMap((r) =>
+      r.projects.map((b) => days(b.releasedAt ?? b.endDate)),
+    );
+    // Today forward. The axis used to stretch back over every finished
+    // booking, so on a busy portfolio a third of the chart was history —
+    // on a screen whose only question is who is free from when. A booking
+    // that started earlier simply begins at the left edge.
     const to = Math.max(today + 30, ...(ends.length ? ends : [today + 30]));
-    return { from, to, span: Math.max(1, to - from) };
+    return { from: today, to, span: Math.max(1, to - today) };
   }, [shown]);
+
+  /** One colour per project across the whole chart, so the same job reads
+   *  the same on every row. */
+  const colourOf = useMemo(() => {
+    const bookings = resources.flatMap((r) => r.projects);
+    const index = colourIndexes(bookings);
+    const names = new Map<number, string>();
+    for (const b of bookings) names.set(b.projectId, b.projectName);
+    return {
+      colour: (id: number) =>
+        PROJECT_COLOURS[(index.get(id) ?? 0) % PROJECT_COLOURS.length],
+      list: Array.from(index.keys())
+        .map((id: number) => ({ id, name: names.get(id) ?? "Unknown" }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    };
+  }, [resources]);
 
   const pct = (iso: string) => ((days(iso) - axis.from) / axis.span) * 100;
   const todayPct = Math.min(
@@ -164,23 +182,6 @@ export function DomainResourceBoard({
   const freeCount = resources.filter((r) => r.status === "Free").length;
 
   /** projectId -> colour, assigned once in a stable order. */
-  const colourOf = useMemo(() => {
-    const seen: { id: number; name: string }[] = [];
-    const known = new Set<number>();
-    for (const r of resources) {
-      for (const pr of r.projects) {
-        if (!known.has(pr.projectId)) {
-          known.add(pr.projectId);
-          seen.push({ id: pr.projectId, name: pr.projectName });
-        }
-      }
-    }
-    seen.sort((a, b) => a.name.localeCompare(b.name));
-    const map = new Map<number, (typeof BAND)[number]>();
-    seen.forEach((pr, i) => map.set(pr.id, BAND[i % BAND.length]));
-    return { map, list: seen };
-  }, [resources]);
-
   const roles = useMemo(
     () =>
       TAG_HOLDER_ROLES.filter((r) => resources.some((x) => x.role === r)),
@@ -241,19 +242,25 @@ export function DomainResourceBoard({
         </label>
       </div>
 
-      {/* ---- which colour is which project --------------------------- */}
-      {colourOf.list.length > 0 && (
-        <div className="flex items-center gap-x-4 gap-y-1 flex-wrap mb-3 text-[11px] text-ink-600">
-          {colourOf.list.map((pr) => (
-            <span key={pr.id} className="inline-flex items-center gap-1.5">
-              <span
-                className={`w-2.5 h-2.5 rounded-sm ${colourOf.map.get(pr.id)?.dot}`}
-              />
-              {pr.name}
-            </span>
-          ))}
-        </div>
-      )}
+      {/* ---- which colour is which ----------------------------------
+          Not optional: nine hues wrap, so past the ninth project the
+          colour narrows it down and this settles it.                   */}
+      <div className="flex items-center gap-x-4 gap-y-1 flex-wrap mb-3 text-[11px] text-ink-600">
+        <span className="inline-flex items-center gap-1.5">
+          <span className={`w-2.5 h-2.5 rounded-sm ${FREE_COLOUR}`} />
+          Free
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className={`w-2.5 h-2.5 rounded-sm ${FREE_COLOUR} ${OFF_OPACITY}`} />
+          Non-working day
+        </span>
+        {colourOf.list.map((pr) => (
+          <span key={pr.id} className="inline-flex items-center gap-1.5">
+            <span className={`w-2.5 h-2.5 rounded-sm ${colourOf.colour(pr.id)}`} />
+            {pr.name}
+          </span>
+        ))}
+      </div>
 
       {/* ---- the axis, stated once ---------------------------------- */}
       <div className="hidden sm:grid grid-cols-[200px_1fr_92px] gap-3 items-end pb-1.5 border-b border-ink-200 text-[11px] text-ink-500">
@@ -286,8 +293,14 @@ export function DomainResourceBoard({
         <ul className="divide-y divide-ink-100">
           {shown.map((r) => {
             const free = r.status === "Free";
-            const packed = packLanes(r.projects);
-            const laneCount = Math.max(1, ...packed.map((x) => x.lane + 1));
+            /**
+             * The whole window as one run of segments — busy, free, or a
+             * non-working day — so every person's bar is the same
+             * rectangle and two rows can be compared by eye.
+             */
+            const segments = buildSegments(axis.from, axis.to, r.projects);
+            const freeDays = freeWorkingDays(segments);
+            const doubled = segments.some((sg) => sg.projects.length > 1);
             return (
               <li
                 key={r.id}
@@ -301,65 +314,75 @@ export function DomainResourceBoard({
                   <div className="text-[11px] text-ink-500 truncate">
                     {DOMAIN_ROLE_LABELS[r.role as DomainRole] ?? r.role}
                     {r.openTags > 0 && <> · {r.openTags} tags open</>}
-                    {laneCount > 1 && (
+                    {doubled && (
                       <span className="text-brand-yellowText font-medium">
                         {" "}
-                        · {laneCount} at once
+                        · double-booked
                       </span>
                     )}
                   </div>
                 </div>
 
-                {/* when they are booked */}
-                <div
-                  className="relative"
-                  style={{ height: `${18 + laneCount * 10}px` }}
-                >
-                  {/* the whole window, as ground */}
-                  <div className="absolute inset-x-0 top-2 h-1.5 rounded-pill bg-ink-100" />
+                {/*
+                  One rectangle, filled end to end.
 
-                  {packed.map(({ booking: bk, lane }) => {
-                    const left = Math.max(0, pct(bk.startDate));
-                    const right = Math.min(100, pct(bk.endDate));
-                    const width = Math.max(1.5, right - left);
-                    const done =
-                      bk.assignedTags > 0
-                        ? (bk.deliveredTags / bk.assignedTags) * 100
-                        : 0;
-                    const colour = colourOf.map.get(bk.projectId) ?? BAND[0];
+                  Every day is committed, free, or not a working day, and
+                  the segments tile the whole window — so the amount of
+                  colour IS the amount of time spoken for, which is the
+                  thing a floating bar per booking never showed. Green
+                  gaps are what the screen is for.
+                */}
+                <div
+                  className="flex h-4 rounded-pill overflow-hidden bg-ink-100"
+                  role="img"
+                  aria-label={
+                    freeDays > 0
+                      ? `${freeDays} working days free before ${fmtDate(isoFromDay(axis.to))}`
+                      : "fully booked in this window"
+                  }
+                >
+                  {segments.map((sg) => {
+                    const width = (sg.days / (axis.span + 1)) * 100;
+                    const dates = `${fmtDate(isoFromDay(sg.from))} – ${fmtDate(isoFromDay(sg.to))}`;
+                    const title =
+                      sg.kind === "busy"
+                        ? `${sg.projects.map((x) => x.projectName).join(" + ")} · ${dates} · ${sg.workingDays} working day${sg.workingDays === 1 ? "" : "s"}`
+                        : sg.kind === "free"
+                          ? `Free · ${dates} · ${sg.workingDays} working day${sg.workingDays === 1 ? "" : "s"}`
+                          : `Weekend · ${dates}`;
+
+                    // Two projects on one day still has to be visible in a
+                    // single rectangle, so the segment splits into bands
+                    // rather than picking a winner.
                     return (
                       <div
-                        key={`${bk.projectId}-${bk.startDate}-${lane}`}
-                        className={`absolute h-2.5 rounded-pill overflow-hidden ${colour.bar}`}
-                        style={{
-                          left: `${left}%`,
-                          width: `${width}%`,
-                          top: `${4 + lane * 10}px`,
-                        }}
-                        title={`${bk.projectName} · ${fmtDate(bk.startDate)} to ${fmtDate(bk.endDate)} · ${bk.deliveredTags}/${bk.assignedTags} tags`}
+                        key={`${sg.from}-${sg.kind}`}
+                        title={title}
+                        style={{ width: `${width}%` }}
+                        className={`h-full flex flex-col ${
+                          sg.kind === "free"
+                            ? FREE_COLOUR
+                            : sg.kind === "off" && sg.projects.length === 0
+                              ? `${FREE_COLOUR} ${OFF_OPACITY}`
+                              : ""
+                        }`}
                       >
-                        {/* Work still outstanding on this booking, drawn
-                            inside it — one nearly finished should not look
-                            like one just begun. */}
-                        <div
-                          className="h-full bg-white/50"
-                          style={{ marginLeft: `${done}%`, width: `${100 - done}%` }}
-                        />
+                        {/* A weekend inside a booking is tinted, not cut
+                            out. Drawn as a hard grey break it turned a
+                            six-month bar into twenty-six blocks; the day
+                            still does not count as time anybody could be
+                            given, which is what "excluded" has to mean. */}
+                        {sg.projects.map((pr) => (
+                          <span
+                            key={pr.projectId}
+                            className={`flex-1 ${colourOf.colour(pr.projectId)} ${
+                              sg.kind === "off" ? OFF_OPACITY : ""
+                            }`}
+                          />
+                        ))}
                       </div>
                     );
                   })}
-
-                  {/* today, straight down every row */}
-                  <div
-                    className="absolute top-0 bottom-0 w-px bg-ink-400"
-                    style={{ left: `${todayPct}%` }}
-                  />
-
-                  {free && (
-                    <span className="absolute left-0 top-0 text-[11px] text-brand-greenText font-medium">
-                      available now
-                    </span>
-                  )}
                 </div>
 
                 {/* when they come free */}
@@ -369,9 +392,20 @@ export function DomainResourceBoard({
                       Free
                     </span>
                   ) : (
-                    <span className="text-xs font-medium text-ink-900 tabular-nums">
-                      {r.availableFrom ? fmtDate(r.availableFrom) : "—"}
-                    </span>
+                    <>
+                      <span className="block text-xs font-medium text-ink-900 tabular-nums">
+                        {r.availableFrom ? fmtDate(r.availableFrom) : "—"}
+                      </span>
+                      {/* Free time inside the window, not just the day the
+                          last booking ends — somebody booked in March with
+                          a clear February is available now, and the date
+                          alone hides that. */}
+                      {freeDays > 0 && (
+                        <span className="block text-[11px] text-brand-greenText">
+                          {freeDays}d free
+                        </span>
+                      )}
+                    </>
                   )}
                 </div>
               </li>
@@ -381,10 +415,12 @@ export function DomainResourceBoard({
       )}
 
       <p className="text-xs text-ink-400 mt-3">
-        Each bar is one booking, coloured by project and drawn on a shared
-        timeline; the pale part of a bar is work still outstanding. Stacked
-        bars mean two projects at once, and a gap means nothing is booked
-        then. Hover a bar for its dates.
+        One bar per person, from today onwards, filled end to end: coloured
+        where they are committed, green where they are free, faded on
+        non-working days. Weekends follow each project&apos;s own working
+        week and never count towards the free days on the right. A segment
+        split into bands is two projects at once. Hover any segment for its
+        dates.
       </p>
     </div>
   );

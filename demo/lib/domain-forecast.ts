@@ -118,6 +118,9 @@ export type ResourceForecast = {
   projects: {
     projectId: number;
     projectName: string;
+    /** 5 or 6; null when the project never declared one, and the reader
+     *  falls back to a five-day week. */
+    workingDaysPerWeek: number | null;
     startDate: string;
     endDate: string;
     releasedAt: string | null;
@@ -157,7 +160,15 @@ export async function resourceForecast(): Promise<ResourceForecast[]> {
   ]);
 
   const allocations = await prisma.domainAllocation.findMany({
-    include: { project: { select: { id: true, name: true } } },
+    // workingDaysPerWeek comes along because the availability bar draws
+    // real working days: a five-day project and a six-day one do not have
+    // the same Saturdays, and a bar that ignores that overstates how much
+    // of somebody's month is actually committed.
+    include: {
+      project: {
+        select: { id: true, name: true, workingDaysPerWeek: true },
+      },
+    },
     orderBy: { startDate: "asc" },
   });
 
@@ -239,6 +250,9 @@ export async function resourceForecast(): Promise<ResourceForecast[]> {
         return {
           projectId: a.projectId,
           projectName: a.project.name,
+          /** 5 or 6; null when the project never said, and the reader
+           *  falls back to a five-day week. */
+          workingDaysPerWeek: a.project.workingDaysPerWeek,
           startDate: toISODate(a.startDate),
           endDate: toISODate(a.endDate),
           releasedAt: a.releasedAt ? toISODate(a.releasedAt) : null,
@@ -301,6 +315,8 @@ export type ProjectForecast = {
   startsFrom: string;
   /** How many people actually hold tags on this project. */
   peopleEngaged: number;
+  /** Bookings still open, whether or not the work is finished. */
+  activeBookings: number;
   forecast: ForecastResult;
 };
 
@@ -602,6 +618,9 @@ export async function projectForecasts(
        * reports negative slack and still shows its projected date in the
        * late colour.
        */
+      /** Bookings still open on this project — what "free up the
+       *  resources" would release once it is finished. */
+      activeBookings: p.allocations.length,
       forecast: (() => {
         const f = forecastDelivery({
           remainingTags,
@@ -609,6 +628,17 @@ export async function projectForecasts(
           from,
           handoverDate: p.handoverDate,
         });
+        /**
+         * Finished. Everything the project holds has been delivered.
+         *
+         * Decided here rather than inside forecastDelivery because that
+         * only sees what is left, and "nothing left" is also true of a
+         * project with no tags set up at all — which is not finished, it
+         * is not started. Both totals are needed to tell them apart.
+         */
+        if (totalTags > 0 && deliveredTags >= totalTags) {
+          return { ...f, status: "Completed" as const, slackDays: null };
+        }
         return from.getTime() > now.getTime()
           ? { ...f, status: "Yet to be started" as const }
           : f;

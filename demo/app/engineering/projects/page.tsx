@@ -22,6 +22,7 @@ import {
   TagAssignmentPanel,
 } from "@/components/DomainProjectForecast";
 import { DomainProjectResources } from "@/components/DomainProjectResources";
+import { DomainFreeResources } from "@/components/DomainFreeResources";
 import { DomainPage, PageHeader } from "@/components/DomainPage";
 import { projectScope, SCOPE_LABELS } from "@/lib/domain-scope";
 import { fmtDate as fmtDay } from "@/lib/domain-format";
@@ -172,6 +173,24 @@ export default function DomainProjectsPage() {
             void loadProjects();
           }}
         />
+        {/*
+          Finished, but the team is still booked on it. Derived here rather
+          than fetched: the list endpoint already carries both totals, and
+          the bookings are the resources array on the same object.
+        */}
+        {(selectedProject.totalTags ?? 0) > 0 &&
+          (selectedProject.deliveredTags ?? 0) >= (selectedProject.totalTags ?? 0) && (
+            <DomainFreeResources
+              projectId={selectedProject.id}
+              bookings={(selectedProject.resources ?? []).length}
+              canManage={canManageProject}
+              onDone={() => {
+                void loadProjects();
+                void loadAssignments();
+              }}
+            />
+          )}
+
         {editingProject === selectedProject.id && (
           <EditProjectForm
             project={selectedProject}
