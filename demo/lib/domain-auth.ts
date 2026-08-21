@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 import { prisma } from "./db";
 import { passwordIssue } from "./auth";
-import { rateLimit } from "./rate-limit";
+import { clearRateLimit, peekRateLimit, rateLimit } from "./rate-limit";
 import { DOMAIN_ROLES, type DomainRole } from "./domain";
 
 /**
@@ -93,9 +93,26 @@ export function requireDomainRole(
 
 // Brute-force throttle for domain sign-in, mirroring the tracker's login
 // gate. Per-email and per-IP, fixed 15-minute window.
+/**
+ * Brute-force limits, counted against FAILURES only.
+ *
+ * The per-IP ceiling is the one that needed room. Everybody in an office
+ * arrives at the server from one NAT address, and behind the reverse
+ * proxy they can share it even more thoroughly, so this is not "one
+ * attacker" — it is the whole team's mistyped passwords in a morning. At
+ * twenty it locked the building out. Fifty failures in fifteen minutes is
+ * still nowhere near a useful brute-force rate against bcrypt, and it is
+ * far above what a team of twenty-five generates by fumbling.
+ */
 const DOMAIN_LOGIN_MAX_PER_EMAIL = 5;
-const DOMAIN_LOGIN_MAX_PER_IP = 20;
+const DOMAIN_LOGIN_MAX_PER_IP = 50;
 const DOMAIN_LOGIN_WINDOW_MS = 15 * 60 * 1000;
+
+/** The bucket a person's lockout lives in. Exported so the places that
+ *  legitimately end a lockout can name the same key. */
+export function loginRateKey(email: string): string {
+  return `domain-login:em:${email.trim().toLowerCase()}`;
+}
 
 export async function domainSignIn(
   email: string,
@@ -106,37 +123,101 @@ export async function domainSignIn(
   if (!q || !password) {
     return { ok: false, error: "Enter your email and password." };
   }
-  const emailGate = rateLimit(
-    `domain-login:em:${q}`,
-    DOMAIN_LOGIN_MAX_PER_EMAIL,
-    DOMAIN_LOGIN_WINDOW_MS,
-  );
-  if (!emailGate.ok) {
+
+  const emailKey = loginRateKey(q);
+  const ipKey = ip ? `domain-login:ip:${ip}` : null;
+
+  /**
+   * Look, do not count.
+   *
+   * This check has to happen before the password is known, and the old
+   * version spent a hit on every attempt to make it — so five sign-ins in
+   * fifteen minutes locked the account out whether or not any of them
+   * were wrong. On a tool people sign in and out of all day, the throttle
+   * was locking out the people it was meant to protect.
+   */
+  const byEmail = peekRateLimit(emailKey, DOMAIN_LOGIN_MAX_PER_EMAIL);
+  const byIp = ipKey
+    ? peekRateLimit(ipKey, DOMAIN_LOGIN_MAX_PER_IP)
+    : { ok: true, retryInSec: 0 };
+  const locked = !byEmail.ok ? byEmail : byIp;
+  if (!locked.ok) {
     return {
       ok: false,
-      error: `Too many failed attempts. Try again in ${Math.ceil(emailGate.retryInSec / 60)} min.`,
+      error: `Too many failed attempts. Try again in ${Math.ceil(locked.retryInSec / 60)} min, or ask an admin to reset your password.`,
     };
   }
-  if (ip) {
-    const ipGate = rateLimit(
-      `domain-login:ip:${ip}`,
-      DOMAIN_LOGIN_MAX_PER_IP,
-      DOMAIN_LOGIN_WINDOW_MS,
-    );
-    if (!ipGate.ok) {
-      return {
-        ok: false,
-        error: `Too many failed attempts. Try again in ${Math.ceil(ipGate.retryInSec / 60)} min.`,
-      };
-    }
-  }
-  const user = await prisma.domainUser.findUnique({ where: { email: q } });
+
+  /** One failed attempt: charged to the email and to the address. */
+  const chargeFailure = () => {
+    rateLimit(emailKey, DOMAIN_LOGIN_MAX_PER_EMAIL, DOMAIN_LOGIN_WINDOW_MS);
+    if (ipKey) rateLimit(ipKey, DOMAIN_LOGIN_MAX_PER_IP, DOMAIN_LOGIN_WINDOW_MS);
+  };
+
+  const user = await findByEmail(q);
   const GENERIC = "Wrong email or password.";
-  if (!user || !user.isActive) return { ok: false, error: GENERIC };
+  if (!user) {
+    chargeFailure();
+    return { ok: false, error: GENERIC };
+  }
+  /**
+   * A switched-off account says so.
+   *
+   * It used to answer "Wrong email or password", which is the correct
+   * instinct — do not confirm to a stranger that an address exists — and
+   * the wrong trade here. Deleting somebody with delivery history is
+   * refused (it would erase the history), so an admin trying to fix a
+   * broken login deactivates instead, and the account then reports the
+   * one message guaranteed to send everybody looking at the password. An
+   * afternoon was spent resetting a password that was never wrong.
+   *
+   * The cost is that somebody outside can learn an address exists and is
+   * disabled. On an internal tool behind a company login, that is worth
+   * far less than the hours this sentence saves.
+   */
+  if (!user.isActive) {
+    chargeFailure();
+    return {
+      ok: false,
+      error:
+        "That account is deactivated. An admin can switch it back on from People.",
+    };
+  }
   const ok = await bcrypt.compare(password, user.passwordHash);
-  if (!ok) return { ok: false, error: GENERIC };
+  if (!ok) {
+    chargeFailure();
+    return { ok: false, error: GENERIC };
+  }
+
+  // Proved. Nothing is owed on either bucket.
+  clearRateLimit(emailKey);
+  if (ipKey) clearRateLimit(ipKey);
   await createSession(user.id);
   return { ok: true, user: toSessionUser(user) };
+}
+
+/**
+ * Find the account this email signs in as.
+ *
+ * Every write path lower-cases before storing, so the indexed lookup
+ * answers for anything created through the app. The scan behind it is for
+ * rows that did not come through those paths — a seed, an import, a hand
+ * edit — where one capital letter in the stored address makes the account
+ * permanently unreachable: no password reset helps, because the lookup
+ * never finds the row to compare against.
+ *
+ * Only reached when the fast path misses, and the table is a few dozen
+ * rows, so the cost is nil.
+ */
+async function findByEmail(lowerEmail: string) {
+  const direct = await prisma.domainUser.findUnique({
+    where: { email: lowerEmail },
+  });
+  if (direct) return direct;
+  const all = await prisma.domainUser.findMany();
+  return (
+    all.find((u) => u.email.trim().toLowerCase() === lowerEmail) ?? null
+  );
 }
 
 export async function domainSignOut(): Promise<void> {
@@ -180,6 +261,13 @@ export async function createDomainAccount(
   const user = await prisma.domainUser.create({
     data: { name, email, passwordHash, role: input.role, isActive: true },
   });
+  /**
+   * Buckets are keyed by email, not by account. Deleting somebody and
+   * adding them back therefore handed the new account the old one's
+   * lockout — which is exactly what an admin does when a login is broken,
+   * and it left them no better off.
+   */
+  clearRateLimit(loginRateKey(email));
   if (opts.signInAfter) await createSession(user.id);
   return { ok: true, id: user.id };
 }
@@ -248,6 +336,13 @@ export async function setDomainPassword(
     where: { id: target.id },
     data: { passwordHash },
   });
+  /**
+   * The credential just changed, so whatever was counted against the old
+   * one is spent. Without this a reset did not help the one person it
+   * exists to help: they were locked out, a Lead reset their password,
+   * and the lockout was still counting down.
+   */
+  clearRateLimit(loginRateKey(target.email));
   const { count } = await prisma.domainSession.deleteMany({
     where: { userId: target.id },
   });

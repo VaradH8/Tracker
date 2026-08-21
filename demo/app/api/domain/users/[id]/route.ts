@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import {
   requireDomainUser,
   requireDomainRole,
+  loginRateKey,
   nameClash,
   setDomainEmail,
 } from "@/lib/domain-auth";
@@ -13,6 +14,7 @@ import {
   type DomainRole,
 } from "@/lib/domain";
 import { rateIssue } from "@/lib/forecast";
+import { clearRateLimit } from "@/lib/rate-limit";
 
 /**
  * Delete a domain user.
@@ -47,7 +49,7 @@ export async function DELETE(
 
   const target = await prisma.domainUser.findUnique({
     where: { id },
-    select: { id: true, name: true, role: true },
+    select: { id: true, name: true, role: true, email: true },
   });
   if (!target) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -90,6 +92,11 @@ export async function DELETE(
 
   try {
     await prisma.domainUser.delete({ where: { id } });
+    // Login throttling is keyed by email, not by account, so a lockout
+    // outlives the row. Without this, deleting somebody and adding them
+    // back hands the new account the old one's lockout — which is the
+    // first thing an admin tries when a login is broken.
+    clearRateLimit(loginRateKey(target.email));
   } catch {
     // Something still references them that we didn't anticipate. Say so
     // rather than claiming success.
@@ -128,7 +135,7 @@ export async function PATCH(
   const { id } = await context.params;
   const target = await prisma.domainUser.findUnique({
     where: { id },
-    select: { id: true, name: true, role: true, isActive: true },
+    select: { id: true, name: true, role: true, isActive: true, email: true },
   });
   if (!target) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -200,7 +207,12 @@ export async function PATCH(
     }
   }
 
-  if (typeof body.isActive === "boolean") data.isActive = body.isActive;
+  if (typeof body.isActive === "boolean") {
+    data.isActive = body.isActive;
+    // Switching an account back on should not leave it locked out by
+    // attempts made while it was off.
+    if (body.isActive === true) clearRateLimit(loginRateKey(target.email));
+  }
   if (wantsRole) data.role = wantsRole;
 
   /**

@@ -51,6 +51,40 @@ export function rateLimit(
   return { ok: true, retryInSec: 0 };
 }
 
+/**
+ * Is this key already locked out, without spending a hit on asking?
+ *
+ * `rateLimit` both counts and judges, which is right when every call is a
+ * thing you want to limit. It is wrong for a login: the check has to
+ * happen before the password is known, so counting there counts the
+ * successes too — five sign-ins in the window and the account locks
+ * itself out. Peek first, and only spend a hit when the attempt actually
+ * fails.
+ */
+export function peekRateLimit(key: string, max: number): RateLimitResult {
+  const now = Date.now();
+  const b = BUCKETS.get(key);
+  if (!b || b.resetAt <= now) return { ok: true, retryInSec: 0 };
+  if (b.count > max) {
+    return { ok: false, retryInSec: Math.ceil((b.resetAt - now) / 1000) };
+  }
+  return { ok: true, retryInSec: 0 };
+}
+
+/**
+ * Forget everything counted against this key.
+ *
+ * A lockout has to be clearable by something, or it outlives the problem
+ * it was protecting against. It is dropped when the credential is proved
+ * (a successful sign-in), when it is changed (a password reset), and when
+ * the account itself goes — buckets are keyed by email, so without the
+ * last one, deleting somebody and re-adding them hands the new account
+ * the old account's lockout.
+ */
+export function clearRateLimit(key: string) {
+  BUCKETS.delete(key);
+}
+
 /** Test/maintenance helper — wipe all buckets. */
 export function __resetRateLimits() {
   BUCKETS.clear();

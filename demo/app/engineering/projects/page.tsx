@@ -229,6 +229,21 @@ export default function DomainProjectsPage() {
                 void loadAssignments();
               }}
             />
+            {/* Anybody carrying tags here without being booked on it. Its
+                own row, under the two that describe the project as it is
+                meant to be — and absent entirely when nobody is in that
+                state, which is most of the time. */}
+            <TagAssignmentPanel
+              project={selectedProject}
+              people={people}
+              canAssign={canAssign}
+              rows={assignments}
+              scope="unbooked"
+              onChanged={() => {
+                void loadAssignments();
+                void loadProjects();
+              }}
+            />
           </>
         )}
       </DomainPage>

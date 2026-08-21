@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Clock, X } from "lucide-react";
+import { ArrowUpDown, CheckCircle2, Clock, X } from "lucide-react";
 import { DomainPage, PageHeader } from "@/components/DomainPage";
 import { DateInput } from "@/components/DateInput";
 import { SearchSelect } from "@/components/SearchSelect";
@@ -26,6 +26,8 @@ type Assignment = {
   deliveredCount: number;
   remainingCount: number;
   pendingCount: number;
+  /** Who handed it over. */
+  createdBy?: string | null;
 };
 
 type Submission = {
@@ -37,6 +39,8 @@ type Submission = {
   projectName: string;
   divisionName: string | null;
   reviewNote: string | null;
+  /** Who handed the batch over — see the tag-submissions route. */
+  assignedBy?: string | null;
 };
 
 const ALL = "all";
@@ -64,8 +68,12 @@ export default function MyTagsPage() {
 
   const [project, setProject] = useState(ALL);
   const [division, setDivision] = useState(ALL);
+  const [assigner, setAssigner] = useState(ALL);
+  const [status, setStatus] = useState(ALL);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  /** Newest first by default — the day you are most likely asking about. */
+  const [newestFirst, setNewestFirst] = useState(true);
 
   const load = useCallback(() => {
     setLoadError(null);
@@ -114,6 +122,14 @@ export default function MyTagsPage() {
     return Array.from(names).map((n) => ({ value: n, label: n }));
   }, [rows, submissions, project]);
 
+  /** Everyone who has handed this person work, across both halves. */
+  const assignerOptions = useMemo(() => {
+    const names = new Set<string>();
+    for (const a of rows) if (a.createdBy) names.add(a.createdBy);
+    for (const sub of submissions) if (sub.assignedBy) names.add(sub.assignedBy);
+    return Array.from(names).map((n) => ({ value: n, label: n }));
+  }, [rows, submissions]);
+
   // A division picked under one project is meaningless under another.
   useEffect(() => {
     if (division !== ALL && !divisionOptions.some((d) => d.value === division)) {
@@ -124,18 +140,34 @@ export default function MyTagsPage() {
   const shownAssignments = rows.filter(
     (a) =>
       (project === ALL || a.projectName === project) &&
-      (division === ALL || a.divisionName === division),
+      (division === ALL || a.divisionName === division) &&
+      (assigner === ALL || a.createdBy === assigner),
   );
 
-  const shownSubmissions = submissions.filter(
-    (s) =>
-      (project === ALL || s.projectName === project) &&
-      (division === ALL || s.divisionName === division) &&
-      (!from || s.date >= from) &&
-      (!to || s.date <= to),
-  );
+  const shownSubmissions = submissions
+    .filter(
+      (s) =>
+        (project === ALL || s.projectName === project) &&
+        (division === ALL || s.divisionName === division) &&
+        (assigner === ALL || s.assignedBy === assigner) &&
+        (status === ALL || s.status === status) &&
+        (!from || s.date >= from) &&
+        (!to || s.date <= to),
+    )
+    // By day, either way round. Two submissions on one day keep the order
+    // they were entered in, which is the only tiebreak that means
+    // anything here.
+    .sort((a, b) =>
+      newestFirst ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date),
+    );
 
-  const filtered = project !== ALL || division !== ALL || !!from || !!to;
+  const filtered =
+    project !== ALL ||
+    division !== ALL ||
+    assigner !== ALL ||
+    status !== ALL ||
+    !!from ||
+    !!to;
 
   // Totals follow the filter: the point of narrowing to one project is to
   // see that project's position, not the whole book's.
@@ -201,6 +233,39 @@ export default function MyTagsPage() {
               />
             </label>
 
+            <label className="text-xs">
+              <span className="block text-ink-700 font-medium mb-1">
+                Assigned by
+              </span>
+              <SearchSelect
+                value={assigner}
+                onChange={setAssigner}
+                size="sm"
+                className="min-w-[150px]"
+                disabled={assignerOptions.length === 0}
+                searchPlaceholder="Search people"
+                options={[{ value: ALL, label: "Anyone" }, ...assignerOptions]}
+              />
+            </label>
+
+            {/* Submissions only — an assignment has no decision on it. */}
+            <label className="text-xs">
+              <span className="block text-ink-700 font-medium mb-1">Status</span>
+              <SearchSelect
+                value={status}
+                onChange={setStatus}
+                size="sm"
+                className="min-w-[130px]"
+                sorted={false}
+                options={[
+                  { value: ALL, label: "Any status" },
+                  { value: "Pending", label: "Pending" },
+                  { value: "Approved", label: "Approved" },
+                  { value: "Rejected", label: "Sent back" },
+                ]}
+              />
+            </label>
+
             {/* Labelled for what it actually does. A bare "From/To" beside
                 a project filter reads as though it narrows the assignments
                 too, and it does not — an assignment is not an event. */}
@@ -230,6 +295,8 @@ export default function MyTagsPage() {
                 onClick={() => {
                   setProject(ALL);
                   setDivision(ALL);
+                  setAssigner(ALL);
+                  setStatus(ALL);
                   setFrom("");
                   setTo("");
                 }}
@@ -282,13 +349,24 @@ export default function MyTagsPage() {
           </section>
 
           <section>
-            <h2 className="font-heading text-lg font-semibold mb-3">
-              What you&apos;ve submitted
-              <span className="text-ink-400 font-normal text-sm">
-                {" "}
-                ({shownSubmissions.length})
-              </span>
-            </h2>
+            <div className="flex items-baseline justify-between gap-3 flex-wrap mb-3">
+              <h2 className="font-heading text-lg font-semibold">
+                What you&apos;ve submitted
+                <span className="text-ink-400 font-normal text-sm">
+                  {" "}
+                  ({shownSubmissions.length})
+                </span>
+              </h2>
+              {shownSubmissions.length > 1 && (
+                <button
+                  onClick={() => setNewestFirst((v) => !v)}
+                  className="btn-ghost text-xs"
+                >
+                  <ArrowUpDown size={13} className="mr-1" />
+                  {newestFirst ? "Newest first" : "Oldest first"}
+                </button>
+              )}
+            </div>
             {shownSubmissions.length === 0 ? (
               <p className="text-sm text-ink-400 italic">
                 {submissions.length === 0

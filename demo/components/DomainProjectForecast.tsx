@@ -638,6 +638,7 @@ export function TagAssignmentPanel({
   people,
   canAssign,
   rows,
+  scope = "booked",
   onChanged,
 }: {
   project: ForecastProject;
@@ -645,6 +646,16 @@ export function TagAssignmentPanel({
   canAssign: boolean;
   /** Owned by the page, which also renders the project header from it. */
   rows: AssignmentRow[];
+  /**
+   * Which half of the project's people this instance draws.
+   *
+   * The two used to share one panel, with the unbooked group tucked under
+   * a sub-heading inside it — so finding somebody who is on a project
+   * without a booking meant expanding "Assign Tags" and scrolling past
+   * everybody who is properly on it. They are different situations and
+   * they get their own row now, each opening on its own.
+   */
+  scope?: "booked" | "unbooked";
   onChanged: () => void;
 }) {
   const { current } = useDomain();
@@ -720,8 +731,16 @@ export function TagAssignmentPanel({
     };
   })();
 
-  /** Both groups in render order, so one loop draws them. */
-  const ordered: Section[] = [...sections.booked, ...sections.unbooked];
+  const ordered: Section[] =
+    scope === "booked" ? sections.booked : sections.unbooked;
+  const unbookedScope = scope === "unbooked";
+
+  /**
+   * The unbooked panel is a fault report, not a fixture: on a healthy
+   * project nobody is holding tags without a booking, and a permanently
+   * empty section teaches people to stop reading it.
+   */
+  if (unbookedScope && ordered.length === 0) return null;
 
   const totalAssigned = rows.reduce((s, r) => s + r.assignedCount, 0);
   const totalDelivered = rows.reduce((s, r) => s + r.deliveredCount, 0);
@@ -740,21 +759,23 @@ export function TagAssignmentPanel({
             className={`shrink-0 text-ink-400 transition-transform ${showPeople ? "rotate-180" : ""}`}
           />
           <span className="min-w-0">
-            <span className="block font-heading text-lg font-semibold text-ink-900">
-              Assign Tags
+            <span
+              className={`block font-heading text-lg font-semibold ${
+                unbookedScope ? "text-brand-yellowText" : "text-ink-900"
+              }`}
+            >
+              {unbookedScope ? "Holding tags without a booking" : "Assign Tags"}
             </span>
             <span className="block text-sm text-ink-500">
-              {ordered.length === 0
-                ? "Nobody is carrying tags on this project yet."
-                : `${ordered.length} ${ordered.length === 1 ? "person" : "people"} · ${totalDelivered} of ${totalAssigned} delivered${
-                    sections.unbooked.length > 0
-                      ? ` · ${sections.unbooked.length} not booked`
-                      : ""
-                  }`}
+              {unbookedScope
+                ? `${ordered.length} ${ordered.length === 1 ? "person is" : "people are"} carrying tags here without being booked on it. Book them, or take them off.`
+                : ordered.length === 0
+                  ? "Nobody is booked on this project yet."
+                  : `${ordered.length} ${ordered.length === 1 ? "person" : "people"} · ${totalDelivered} of ${totalAssigned} delivered`}
             </span>
           </span>
         </button>
-        {canAssign && (
+        {canAssign && !unbookedScope && (
           <button
             onClick={() => {
               setShowPeople(true);
@@ -811,36 +832,15 @@ export function TagAssignmentPanel({
         </p>
       ) : (
         <div className="grid gap-3 mt-3">
-          {sections.booked.length === 0 && (
-            <p className="text-sm text-ink-400 italic">
-              Nobody is booked on this project.
-            </p>
-          )}
-          {ordered.map((sec, i) => {
+          {ordered.map((sec) => {
             const a = availability.get(sec.id);
             const assigned = sec.items.reduce((s, r) => s + r.assignedCount, 0);
             const delivered = sec.items.reduce((s, r) => s + r.deliveredCount, 0);
             const pending = sec.items.reduce((s, r) => s + r.pendingCount, 0);
             const pct = assigned > 0 ? (delivered / assigned) * 100 : 0;
 
-            /** The heading for the second group, drawn once, above the
-             *  first person in it. */
-            const opensUnbooked = !sec.booked && i === sections.booked.length;
-
             return (
               <Fragment key={sec.id}>
-                {opensUnbooked && (
-                  <div className="mt-2">
-                    <h4 className="font-heading text-sm font-semibold text-ink-700 uppercase tracking-wide">
-                      Holding tags without a booking
-                    </h4>
-                    <p className="text-xs text-ink-500 mt-0.5">
-                      Not booked on this project, but still carrying tags on
-                      it. Book them, or take them off — their submissions
-                      stay in Approvals either way.
-                    </p>
-                  </div>
-                )}
                 <div className="rounded-card border border-ink-200 overflow-hidden">
                 <div className="flex items-start justify-between gap-3 px-4 py-3 bg-ink-50 border-b border-ink-200 flex-wrap">
                   <div className="min-w-0">

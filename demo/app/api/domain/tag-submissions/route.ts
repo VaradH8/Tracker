@@ -17,6 +17,10 @@ const INCLUDE = {
       project: { select: { id: true, name: true, client: true } },
       division: { select: { id: true, name: true } },
       assignee: { select: { id: true, name: true } },
+      // Who handed the batch over. Carried through so My tags can be
+      // filtered by it — "what did Himanshu give me" is a question people
+      // ask, and the answer lives on the assignment, not the submission.
+      createdBy: { select: { id: true, name: true } },
     },
   },
   submittedBy: { select: { id: true, name: true } },
@@ -41,6 +45,10 @@ type Row = {
     project: { id: number; name: string; client: string | null };
     division: { id: number; name: string } | null;
     assignee: { id: string; name: string };
+    /** Optional in the type, not in the query: every read path includes
+     *  it, and a serialiser that throws on a missing relation turns a
+     *  display detail into a 500. */
+    createdBy?: { id: string; name: string } | null;
   };
   submittedBy: { id: string; name: string };
   reviewedBy: { id: string; name: string } | null;
@@ -62,6 +70,7 @@ function serialize(s: Row) {
     divisionName: s.assignment.division?.name ?? null,
     assigneeId: s.assignment.assignee.id,
     assigneeName: s.assignment.assignee.name,
+    assignedBy: s.assignment.createdBy?.name ?? null,
     assignedCount: s.assignment.assignedCount,
     deliveredCount: s.assignment.deliveredCount,
     complexity: s.assignment.complexity,

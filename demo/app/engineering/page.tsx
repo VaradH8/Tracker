@@ -597,109 +597,80 @@ type MySubmission = {
  * question — the old flat list of assignment cards split the same project
  * across several cards whenever the work spanned divisions.
  */
+/**
+ * One project, one line.
+ *
+ * This used to be a full card per project, carrying a division-by-division
+ * table of delivered, remaining, due date and who assigned it. All of that
+ * already exists on My tags, in a screen built for reading it, with
+ * filters. Printing it a second time on the dashboard turned "what am I
+ * working on" into three screens of scrolling, and every completed project
+ * sat there in full at 14000/14000 saying nothing anybody needed.
+ *
+ * What survives is what a dashboard is for: which projects, how far along,
+ * and anything actually waiting on somebody. The detail is one click away
+ * and says so.
+ */
 function ProjectGroupCard({ g }: { g: ProjectGroup }) {
   const pct = g.assigned > 0 ? (g.delivered / g.assigned) * 100 : 0;
+  const done = g.assigned > 0 && g.remaining === 0 && g.pending === 0;
 
   return (
-    <div className="card p-5">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="min-w-0">
-          <h3 className="font-heading font-semibold text-ink-900">
+    <Link
+      href={`/engineering/projects?project=${g.projectId}`}
+      className="card px-4 py-3 flex items-center gap-4 hover:bg-ink-50 transition"
+    >
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-2 flex-wrap">
+          <span className="font-medium text-ink-900 truncate">
             {g.projectName}
-          </h3>
-          <p className="text-xs text-ink-500 mt-0.5">
-            {g.client && <>{g.client} · </>}
-            {g.allocation ? (
-              <>
-                You are on this from {fmtDate(g.allocation.startDate)} to{" "}
-                {fmtDate(g.allocation.endDate)}
-              </>
-            ) : (
-              <>Tags assigned to you on this project</>
-            )}
-          </p>
-        </div>
-        {g.assigned > 0 && (
-          <div className="text-right shrink-0">
-            <div className="font-heading text-lg font-semibold text-ink-900">
-              {g.delivered} / {g.assigned}
-            </div>
-            <div className="text-xs text-ink-500">tags delivered</div>
-          </div>
+          </span>
+          {done && (
+            <span className="px-1.5 py-0.5 rounded-pill text-[10px] font-semibold bg-brand-greenBg text-brand-greenText">
+              done
+            </span>
+          )}
+        </span>
+        {/* Only what the figures on the right cannot say. A project you are
+            booked on but hold nothing for is worth a word; a project
+            ticking along is not. */}
+        {g.assigned === 0 ? (
+          <span className="block text-xs text-ink-500 mt-0.5">
+            Nothing assigned to you here yet.
+          </span>
+        ) : g.pending > 0 ? (
+          <span className="block text-xs text-brand-yellowText mt-0.5">
+            <Clock size={11} className="inline" /> {g.pending} waiting on your
+            Lead
+          </span>
+        ) : (
+          <span className="block text-xs text-ink-500 mt-0.5 truncate">
+            {g.client ?? ""}
+          </span>
         )}
-      </div>
+      </span>
 
       {g.assigned > 0 && (
-        <div className="h-1.5 rounded-pill bg-ink-100 overflow-hidden mt-3">
-          <div className="h-full bg-brand-green" style={{ width: `${pct}%` }} />
-        </div>
+        <>
+          <span className="hidden sm:block w-28 shrink-0">
+            <span className="block h-1.5 rounded-pill bg-ink-100 overflow-hidden">
+              <span
+                className="block h-full bg-brand-green rounded-pill"
+                style={{ width: `${pct}%` }}
+              />
+            </span>
+          </span>
+          <span className="text-right shrink-0 tabular-nums">
+            <span className="block text-sm font-semibold text-ink-900">
+              {g.delivered} / {g.assigned}
+            </span>
+            <span className="block text-[11px] text-ink-500">delivered</span>
+          </span>
+        </>
       )}
 
-      {g.assignments.length === 0 ? (
-        // Booked on, nothing handed over yet. Saying so beats an empty card.
-        <p className="text-sm text-ink-500 mt-3">
-          No tags assigned to you here yet — your Lead will assign them.
-        </p>
-      ) : (
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full text-sm min-w-[540px]">
-            <thead className="text-ink-500 text-xs uppercase tracking-wide">
-              <tr>
-                <th className="text-left font-semibold pb-2">Division</th>
-                <th className="text-right font-semibold pb-2">Delivered</th>
-                <th className="text-right font-semibold pb-2 pl-4">Remaining</th>
-                <th className="text-left font-semibold pb-2 pl-4">Due</th>
-                <th className="text-left font-semibold pb-2 pl-4">Assigned by</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-ink-100">
-              {g.assignments.map((t) => (
-                <tr key={t.id}>
-                  <td className="py-2 text-ink-900 font-medium">
-                    {t.divisionName ?? "General"}
-                  </td>
-                  <td className="py-2 text-right whitespace-nowrap">
-                    <span className="text-brand-greenText font-semibold">
-                      {t.deliveredCount}
-                    </span>
-                    <span className="text-ink-500"> / {t.assignedCount}</span>
-                    {t.pendingCount > 0 && (
-                      <div className="text-xs text-brand-yellowText inline-flex items-center gap-1">
-                        <Clock size={11} /> {t.pendingCount} awaiting approval
-                      </div>
-                    )}
-                  </td>
-                  <td className="py-2 pl-4 text-right text-ink-700">
-                    {t.remainingCount}
-                  </td>
-                  <td className="py-2 pl-4 text-ink-700 whitespace-nowrap">
-                    {fmtDate(t.targetDate)}
-                  </td>
-                  <td className="py-2 pl-4 text-ink-700">{t.createdBy}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <div className="flex items-center gap-3 mt-3 text-sm flex-wrap">
-        <Link
-          href={`/engineering/projects?project=${g.projectId}`}
-          className="text-brand-blue inline-flex items-center gap-1"
-        >
-          Open project <ArrowRight size={14} />
-        </Link>
-        {g.remaining > 0 && (
-          <Link
-            href="/engineering/my-tags"
-            className="text-brand-blue inline-flex items-center gap-1 ml-auto"
-          >
-            Submit a count <ArrowRight size={14} />
-          </Link>
-        )}
-      </div>
-    </div>
+      <ArrowRight size={14} className="shrink-0 text-ink-400" />
+    </Link>
   );
 }
 
@@ -757,9 +728,24 @@ function WorkerHome({ secondary = false }: { secondary?: boolean }) {
   const pending = rows.reduce((s, r) => s + r.pendingCount, 0);
   const remaining = rows.reduce((s, r) => s + r.remainingCount, 0);
 
-  // The last few decisions, so an approval — or a reduced count — doesn't
-  // go unnoticed.
-  const decided = subs.filter((s) => s.status !== "Pending").slice(0, 5);
+  /**
+   * Only decisions that went against them.
+   *
+   * This was the last five decisions of any kind, which on a working week
+   * is five rows of "Approved, 24 of 24" — the same history My tags
+   * already lists, in a screen built for reading it. A plain approval is
+   * not news; being sent back, or approved for less than you claimed, is,
+   * and it is the only part anybody has to do something about.
+   */
+  const needsAttention = subs
+    .filter(
+      (s) =>
+        s.status === "Rejected" ||
+        (s.status === "Approved" &&
+          s.approvedCount !== null &&
+          s.approvedCount < s.completedCount),
+    )
+    .slice(0, 4);
 
   return (
     <div className="grid gap-6">
@@ -801,7 +787,9 @@ function WorkerHome({ secondary = false }: { secondary?: boolean }) {
               </div>
             )}
 
-            <div className="grid gap-4">
+            {/* Tighter than the old gap-4 grid of full cards: these are
+                rows now, and rows want to sit close enough to scan. */}
+            <div className="grid gap-2">
               {groups.map((g) => (
                 <ProjectGroupCard key={g.projectId} g={g} />
               ))}
@@ -810,13 +798,13 @@ function WorkerHome({ secondary = false }: { secondary?: boolean }) {
         )}
       </section>
 
-      {decided.length > 0 && (
+      {needsAttention.length > 0 && (
         <section>
           <h2 className="font-heading text-lg font-semibold mb-3">
-            Recent decisions
+            Sent back or reduced
           </h2>
           <div className="card divide-y divide-ink-100">
-            {decided.map((s) => {
+            {needsAttention.map((s) => {
               const reduced =
                 s.status === "Approved" &&
                 s.approvedCount !== null &&
@@ -868,7 +856,7 @@ function WorkerHome({ secondary = false }: { secondary?: boolean }) {
             href="/engineering/my-tags"
             className="text-sm text-brand-blue inline-flex items-center gap-1 mt-2"
           >
-            All my submissions <ArrowRight size={14} />
+            Everything you have submitted <ArrowRight size={14} />
           </Link>
         </section>
       )}
