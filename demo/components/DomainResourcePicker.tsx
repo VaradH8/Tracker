@@ -26,10 +26,13 @@ export type Availability = {
   role: DomainRole;
   status: "Free" | "Allocated";
   availableFrom: string | null;
-  /** Planning rate: measured if there is history, else a Lead's estimate.
+  /** Planning rate: what somebody set for them, or null.
    *  Null when neither exists — no house default is ever substituted. */
   rate: number | null;
   /** Observed only: approved tags per working day. Null until measurable. */
+  /** Observed throughput from approved work. Reported by the API but no
+   *  longer shown or planned with — a single backdated batch put one
+   *  person at 21,257 tags a day. Plans run on set rates only. */
   measuredRate: number | null;
   rateSource: "measured" | "expected" | "default";
   /** Undelivered tags across every project — enough on its own to be busy. */
@@ -120,7 +123,7 @@ export function useAvailability(enabled = true): {
  * not as a plausible-looking number.
  */
 function rateText(a: Availability): string | null {
-  return a.measuredRate === null ? null : `${a.measuredRate}/day`;
+  return a.rate === null ? null : `${a.rate}/day`;
 }
 
 /**
@@ -177,8 +180,8 @@ export function ResourceDetail({ a }: { a?: Availability }) {
         </div>
         <div className="text-ink-700 mt-0.5">
           {measured
-            ? `Averages ${measured} on approved work`
-            : "No approved work yet — set their tags/day for this project below."}
+            ? `Set at ${measured}`
+            : "No rate set for them yet — set their tags/day for this project below."}
         </div>
       </div>
     );
@@ -213,7 +216,7 @@ export function ResourceDetail({ a }: { a?: Availability }) {
         ) : (
           <>Free once the outstanding tags are delivered</>
         )}
-        {measured && <> · averages {measured} on approved work</>}
+        {measured && <> · set at {measured}</>}
       </div>
     </div>
   );
@@ -297,7 +300,7 @@ export function ResourceChecklist({
   /** The rate we'd plan with — used to order people fastest-first. */
   // Ranked on measured throughput only; unmeasured people sort last
   // rather than being ranked on a number nobody earned.
-  const rateOf = (id: string) => availability.get(id)?.measuredRate ?? -1;
+  const rateOf = (id: string) => availability.get(id)?.rate ?? -1;
   const dupes = duplicateNames(people);
 
   // Roles stay separable rather than one mixed list — picking "who are my
@@ -443,14 +446,14 @@ export function ResourceChecklist({
                         measured work, so it is absent until there is any.
                         Hidden with the rate itself: a "fastest" badge next
                         to no number is a ranking nobody can check. */}
-                    {showRate && idx === 0 && a?.measuredRate !== null && a !== undefined && (
+                    {showRate && idx === 0 && a?.rate !== null && a !== undefined && (
                       <span className="text-[10px] font-medium text-brand-greenText bg-brand-greenBg px-1.5 py-0.5 rounded-pill shrink-0">
                         fastest
                       </span>
                     )}
-                    {showRate && a?.measuredRate !== null && a !== undefined && (
+                    {showRate && a?.rate !== null && a !== undefined && (
                       <span className="ml-auto shrink-0 text-xs font-semibold text-ink-900">
-                        {a.measuredRate}/day
+                        {a.rate}/day
                       </span>
                     )}
                     {suffix && <span className="shrink-0">{suffix(p.id)}</span>}
@@ -651,7 +654,7 @@ export function RateField({
           setSaved(false);
         }}
         onBlur={save}
-        title="What this person averages. Edit to set the rate forecasts use."
+        title="The rate forecasts plan with. Edit to change it."
         className="w-24 px-2 py-1.5 rounded border border-ink-200"
       />
       {/* Out of flow: in an items-end row, a status line under the input
@@ -663,7 +666,7 @@ export function RateField({
           <span className="text-ink-400">saving…</span>
         ) : saved ? (
           <span className="text-brand-greenText">saved</span>
-        ) : a && a.measuredRate !== null ? (
+        ) : a && a.rate !== null ? (
           <span className="text-ink-400">measured</span>
         ) : (
           <span className="text-ink-400">set by a Lead</span>

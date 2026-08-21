@@ -54,16 +54,10 @@ function effectiveFor(
   if (r.expectedTagsPerDay != null) {
     return { rate: r.expectedTagsPerDay, source: "set for this project" };
   }
-  // `a.rate` already carries the precedence the forecast uses — a rate
-  // set on the person first, measurement only when nobody has set one.
-  // Reading measuredRate directly here made this panel contradict the
-  // projection it feeds.
+  // `a.rate` is the rate set on the person, or null. Nothing is measured
+  // and nothing is inferred: a plan runs on figures a human stands behind.
   if (a?.rate != null) {
-    return {
-      rate: a.rate,
-      source:
-        a.rateSource === "expected" ? "set for this person" : "measured",
-    };
+    return { rate: a.rate, source: "set for this person" };
   }
   return null;
 }
@@ -241,11 +235,9 @@ export function DomainProjectResources({
                     <EditAllocationRow
                       key={r.allocationId}
                       r={r}
-                      // What clearing the box would actually fall back
-                      // to — the person's own rate, or measurement when
-                      // they have none. Passing measuredRate promised a
-                      // number the forecast would not have used.
-                      measured={a?.rate ?? null}
+                      // What clearing the box falls back to: the rate
+                      // set on the person, or nothing at all.
+                      fallback={a?.rate ?? null}
                       onCancel={() => setEditing(null)}
                       onSaved={() => {
                         setEditing(null);
@@ -292,12 +284,7 @@ export function DomainProjectResources({
                       >
                         {eff ? eff.source : "not set — edit to add one"}
                       </span>
-                      {r.expectedTagsPerDay != null &&
-                        a?.measuredRate != null && (
-                          <div className="text-[11px] text-ink-400">
-                            measures {a.measuredRate}
-                          </div>
-                        )}
+
                     </td>
                     {canManage && (
                       <td className="px-3 py-2 text-right whitespace-nowrap">
@@ -419,7 +406,7 @@ function AllocateForm({
             step="0.5"
             value={rate}
             onChange={(e) => setRate(e.target.value)}
-            placeholder={picked?.measuredRate ? String(picked.measuredRate) : ""}
+            placeholder={picked?.rate ? String(picked.rate) : ""}
             title="What you expect this person to average on this project"
             className={inputClass("md", "w-28")}
           />
@@ -444,10 +431,14 @@ function AllocateForm({
       {picked && (
         <>
           <ResourceDetail a={picked} />
+          {/* What they are already set at, if anything — not what they
+              have averaged. A measured figure here invited the reader to
+              plan against it, and one backdated batch is enough to make
+              that number nonsense. */}
           <p className="text-xs text-ink-500 mt-1">
-            {picked.measuredRate === null
-              ? "No approved history to go on — set what you expect them to average here."
-              : `They average ${picked.measuredRate}/day on approved work. Set what you expect on this project.`}
+            {picked.rate === null
+              ? "No rate set for them yet — set what you expect on this project."
+              : `They are set at ${picked.rate}/day. Set what you expect on this project.`}
           </p>
         </>
       )}
@@ -486,12 +477,12 @@ function AllocateForm({
 function EditAllocationRow({
   r,
   /** The rate this booking falls back to when its own box is cleared. */
-  measured,
+  fallback,
   onCancel,
   onSaved,
 }: {
   r: ProjectResource;
-  measured: number | null;
+  fallback: number | null;
   onCancel: () => void;
   onSaved: () => void;
 }) {
@@ -556,14 +547,14 @@ function EditAllocationRow({
           step="0.5"
           value={rate}
           onChange={(e) => setRate(e.target.value)}
-          placeholder={measured != null ? String(measured) : "auto"}
+          placeholder={fallback != null ? String(fallback) : "not set"}
           className="w-20 px-1.5 py-1 rounded border border-ink-200 text-xs text-right"
         />
       </td>
       <td className="px-3 py-2 text-xs text-ink-500">
         {rate === ""
-          ? measured != null
-            ? `will fall back to ${measured}`
+          ? fallback != null
+            ? `will use their own ${fallback}/day`
             : "no rate — this person plans nothing"
           : "set for this project"}
       </td>

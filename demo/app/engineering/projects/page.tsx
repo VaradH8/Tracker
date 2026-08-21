@@ -38,7 +38,14 @@ type Project = {
   totalTags?: number;
   contractTags?: number | null;
   client?: string | null;
-  divisions?: { id: number; name: string; totalTags: number }[];
+  divisions?: {
+    id: number;
+    name: string;
+    totalTags: number;
+    /** Counted across removed batches too — see the projects route. */
+    assignedTags?: number;
+    deliveredTags?: number;
+  }[];
   resources?: {
     allocationId: number;
     id: string;
@@ -565,27 +572,22 @@ function ProjectHeader({
    * is not something you should have to open anything to see.
    */
   /**
-   * Per-division delivery, summed from the live assignment rows this page
-   * holds. A removed person's batches are not among them, so the split can
-   * come out short of the project total above.
+   * Per-division delivery, straight from the endpoint that also produces
+   * the project total above it.
    *
-   * `deliveredElsewhere` is exactly that difference, named rather than
-   * hidden — it reads as a fact about people who have left, instead of as
-   * an arithmetic error nobody can account for.
+   * It used to be summed from the live assignment rows this page holds,
+   * which meant a removed person's delivered tags counted in the header
+   * and vanished from the split — every division reading "0 delivered"
+   * under a project that said 4,857. Both figures come from one place now,
+   * so they cannot disagree.
    */
-  const divisions = (project.divisions ?? []).map((d) => {
-    const forDiv = assignments.filter((r) => r.divisionId === d.id);
-    return {
-      id: d.id,
-      name: d.name,
-      totalTags: d.totalTags,
-      assigned: forDiv.reduce((s, r) => s + r.assignedCount, 0),
-      delivered: forDiv.reduce((s, r) => s + r.deliveredCount, 0),
-    };
-  });
-  const deliveredElsewhere = ownRowsOnly
-    ? 0
-    : Math.max(0, delivered - divisions.reduce((s, d) => s + d.delivered, 0));
+  const divisions = (project.divisions ?? []).map((d) => ({
+    id: d.id,
+    name: d.name,
+    totalTags: d.totalTags,
+    assigned: d.assignedTags ?? 0,
+    delivered: d.deliveredTags ?? 0,
+  }));
 
   const headerScope = projectScope({
     contractTags: project.contractTags ?? null,
@@ -711,10 +713,7 @@ function ProjectHeader({
             discipline. Keeping it in a separate card meant scrolling past
             the staffing table to find out where the work actually stands.
           */}
-          <DivisionBreakdown
-            divisions={divisions}
-            deliveredElsewhere={deliveredElsewhere}
-          />
+          <DivisionBreakdown divisions={divisions} />
         </>
       )}
     </div>
@@ -738,7 +737,6 @@ const CROWDED_DIVISIONS = 5;
  */
 function DivisionBreakdown({
   divisions,
-  deliveredElsewhere,
 }: {
   divisions: {
     id: number;
@@ -747,9 +745,6 @@ function DivisionBreakdown({
     assigned: number;
     delivered: number;
   }[];
-  /** Delivered tags held by people since removed from the project, so the
-   *  split below falls short of the header by this much. */
-  deliveredElsewhere: number;
 }) {
   if (divisions.length === 0) return null;
 
@@ -808,16 +803,6 @@ function DivisionBreakdown({
           );
         })}
       </ul>
-      {deliveredElsewhere > 0 && (
-        <p className="text-xs text-ink-500 mt-2.5">
-          A further{" "}
-          <strong className="text-brand-greenText tabular-nums">
-            {deliveredElsewhere}
-          </strong>{" "}
-          delivered by people since removed from this project. Their work
-          still counts; they no longer sit against a division.
-        </p>
-      )}
     </div>
   );
 }

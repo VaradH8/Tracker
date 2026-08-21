@@ -864,11 +864,11 @@ export function TagAssignmentPanel({
                       {a ? (
                         <>
                           {DOMAIN_ROLE_LABELS[a.role]}
-                          {a.measuredRate !== null && (
+                          {a.rate !== null && (
                             <>
                               {" · "}
                               <strong className="text-ink-700">
-                                {a.measuredRate}/day
+                                {a.rate}/day
                               </strong>
                             </>
                           )}

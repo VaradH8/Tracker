@@ -210,11 +210,10 @@ export async function resourceForecast(): Promise<ResourceForecast[]> {
         projectName: projectNames.get(a.projectId) ?? "Unknown project",
         openTags: openOf(a),
       }));
-    // Same precedence as the forecast, for the same reason: the rate a
-    // Lead set is the plan, and measurement is the check on it. Two
+    // The set rate, or nothing. Same rule as the forecast, because two
     // screens disagreeing about someone's speed is worse than either
     // being wrong alone.
-    const rate = p.expectedTagsPerDay ?? measured ?? null;
+    const rate = p.expectedTagsPerDay ?? null;
     const free = availableFrom(
       mine.map((a) => ({ endDate: a.endDate, releasedAt: a.releasedAt })),
     );
@@ -231,11 +230,10 @@ export async function resourceForecast(): Promise<ResourceForecast[]> {
       usingDefaultRate: rate === null,
       /** Where the number came from, so the UI never passes off an
        *  assumption as a measurement. */
+      // Only two answers now: somebody set it, or nobody did.
       rateSource: p.expectedTagsPerDay
         ? ("expected" as const)
-        : measured !== null
-          ? ("measured" as const)
-          : ("default" as const),
+        : ("default" as const),
       projects: mine.map((a) => {
         const tags = tagsBy.get(`${p.id}:${a.projectId}`);
         return {
@@ -516,26 +514,26 @@ export async function projectForecasts(
       // Held separately from the fallback chain: whether the figure came
       // from this booking decides whether it may be shared again.
       /**
-       * A rate somebody set beats a rate we measured. Always.
+       * Only a rate somebody set. There is no third option.
        *
        *   1. set on this booking — "on THIS project, expect 100/day"
        *   2. set on the person   — what they were signed up at
-       *   3. measured            — only when nobody has said
        *
-       * The order used to put measurement second, so a set figure was
-       * overruled the moment there was any approved history at all. Set
-       * an Actionee at 100/day, have them deliver a 1,000-tag batch on
-       * one date, and every projection they touched switched to
-       * 1,000/day — the plan quietly abandoned the number a Lead had
-       * given it in favour of one nobody could sustain.
+       * Measured throughput used to sit underneath as a fallback, and
+       * before that it sat ABOVE the person's own figure, which meant a
+       * single backdated batch could rewrite the plan: one person's
+       * measurement came out at 21,257 tags a day because months of work
+       * had been approved against one date.
        *
-       * Measurement is still there and still shown, on Resource
-       * availability, where it belongs: it tells a Lead whether the rate
-       * they set is holding up. What it must not do is silently replace
-       * it.
+       * Removing it entirely rather than ranking it last is deliberate.
+       * A figure that can only ever be reached when nobody has set a rate
+       * is a house default wearing a different hat, and a plan built on a
+       * number no human stands behind is worse than a plan that admits it
+       * has none. Somebody with no rate set contributes nothing, and the
+       * screens say so.
        */
       const bookingRate = perProjectRate.get(u.id) ?? null;
-      const r = bookingRate ?? expected.get(u.id) ?? rates.get(u.id) ?? null;
+      const r = bookingRate ?? expected.get(u.id) ?? null;
       // effectiveRate clamps; this records that it had to, so the screens
       // can point at the figure that needs correcting instead of quietly
       // planning with a different number from the one stored.

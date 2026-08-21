@@ -31,6 +31,7 @@ const INCLUDE = {
   tagAssignments: {
     select: {
       assigneeId: true,
+      divisionId: true,
       assignedCount: true,
       deliveredCount: true,
       removedAt: true,
@@ -67,6 +68,7 @@ type ProjectRow = {
   }[];
   tagAssignments: {
     assigneeId: string;
+    divisionId: number | null;
     assignedCount: number;
     deliveredCount: number;
     removedAt: Date | null;
@@ -89,11 +91,31 @@ function serialize(p: ProjectRow) {
     totalWorkingDays: p.totalWorkingDays,
     totalTags: p.totalTags,
     client: p.client,
-    divisions: p.divisions.map((d) => ({
-      id: d.division.id,
-      name: d.division.name,
-      totalTags: d.totalTags,
-    })),
+    /**
+     * Per-division delivery, counted the same way as the project total
+     * right below it — removed batches included, contributing what they
+     * delivered.
+     *
+     * This used to send only `totalTags`, so the project page had to sum
+     * the live assignment rows it happened to be holding. Take somebody
+     * off a project and their batches leave those rows, and every
+     * division dropped to "0 delivered" while the project above it still
+     * said 4,857. The work had not moved; the only list that could see it
+     * had.
+     */
+    divisions: p.divisions.map((d) => {
+      const forDivision = p.tagAssignments.filter(
+        (a) => a.divisionId === d.division.id,
+      );
+      const position = totalTagPosition(forDivision);
+      return {
+        id: d.division.id,
+        name: d.division.name,
+        totalTags: d.totalTags,
+        assignedTags: position.assigned,
+        deliveredTags: position.delivered,
+      };
+    }),
     resources: p.allocations.map((a) => ({
       allocationId: a.id,
       id: a.user.id,
