@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Settings2, Trash2, X } from "lucide-react";
+import { KeyRound, Plus, Settings2, Trash2, X } from "lucide-react";
 import {
   DOMAIN_ROLES,
   DOMAIN_ROLE_LABELS,
@@ -293,6 +293,37 @@ function ManageRow({
     );
   }
 
+  /**
+   * One button for "they cannot sign in".
+   *
+   * Every cause but a wrong password reports itself as "Wrong email or
+   * password", so an admin cannot tell which one they have and resets the
+   * password over and over. This clears all of them at once — the stored
+   * address, the deactivation, the throttle, and the password if one is
+   * typed — and says what it actually changed.
+   */
+  async function fixSignIn() {
+    setError(null);
+    setBusy("fix");
+    const res = await fetch(`/api/domain/users/${u.id}/fix-signin`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(password ? { password } : {}),
+    });
+    const body = await res.json().catch(() => ({}));
+    setBusy(null);
+    if (!res.ok) {
+      setError(body.error ?? "Couldn't fix that.");
+      return;
+    }
+    setPassword("");
+    const did = (body.changed ?? []).join(", ");
+    onChanged(
+      `${body.name} can sign in with ${body.email} — ${did}.` +
+        ((body.warnings ?? []).length > 0 ? ` ${body.warnings.join(" ")}` : ""),
+    );
+  }
+
   async function remove() {
     setError(null);
     setBusy("delete");
@@ -439,6 +470,22 @@ function ManageRow({
                 <p className="text-[11px] text-ink-400 mt-1">
                   Signs them out everywhere. Read it back to them — it is not
                   shown again.
+                </p>
+              </Field>
+
+              <Field label="They can't sign in">
+                <button
+                  onClick={fixSignIn}
+                  disabled={busy !== null}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded border border-brand-blue text-brand-blue hover:bg-brand-blueBg disabled:opacity-40"
+                >
+                  <KeyRound size={13} />
+                  {busy === "fix" ? "Fixing…" : "Fix their sign-in"}
+                </button>
+                <p className="text-[11px] text-ink-400 mt-1">
+                  Tidies their address, switches the account back on, and
+                  clears the login lockout. Type a password above first and it
+                  sets that too. Use this when a reset alone hasn&apos;t worked.
                 </p>
               </Field>
 
