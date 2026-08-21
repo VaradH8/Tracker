@@ -6,16 +6,21 @@ import {
   freeWorkingDays,
   isWorkingDay,
   isoFromDay,
+  totalWorkingDays,
 } from "@/lib/domain-availability-bar";
 
 /**
- * One rectangle per person, filled end to end.
+ * One rectangle per person, filled end to end — and only with working
+ * days.
  *
- * Every day in the window is committed, free, or not a working day, and
- * consecutive days in the same state merge into a segment. What this has
- * to get right is the working week: a five-day project and a six-day one
- * do not share their Saturdays, and a bar that ignores that overstates how
- * much of somebody's month is spoken for.
+ * Non-working days take no width and do not break a stretch, so a booking
+ * running Friday into Monday is one block rather than three. Drawn to
+ * scale they padded every row with two-sevenths of nothing and made a
+ * five-day project and a six-day one look equally committed over the same
+ * fortnight, when one of them is plainly busier.
+ *
+ * What this has to get right is which days those are: a five-day project
+ * and a six-day one do not share their Saturdays.
  */
 
 const d = dayNumber;
@@ -52,32 +57,43 @@ describe("building the bar", () => {
     ...over,
   });
 
-  it("covers every day in the window exactly once", () => {
+  it("accounts for every working day in the window, once", () => {
     // The bar is one rectangle, so the segments have to tile it — a gap
     // would render as a hole and an overlap as a bar wider than its row.
+    // Three weeks from a Monday is fifteen working days.
     const segs = buildSegments(MON, MON + 20, [booking()]);
     expect(segs[0].from).toBe(MON);
-    expect(segs[segs.length - 1].to).toBe(MON + 20);
-    expect(segs.reduce((n, s) => n + s.days, 0)).toBe(21);
-    for (let i = 1; i < segs.length; i++) {
-      expect(segs[i].from).toBe(segs[i - 1].to + 1);
-    }
+    expect(totalWorkingDays(segs)).toBe(15);
   });
 
-  it("breaks a booking at the weekend it runs across", () => {
+  it("does not break a booking at the weekend it runs across", () => {
+    // The whole point of drawing working days only: Friday and Monday on
+    // the same project are one block, not two either side of a gap.
     const segs = buildSegments(MON, SUN, [booking()]);
-    expect(segs.map((s) => s.kind)).toEqual(["busy", "off"]);
-    expect(segs[0].days).toBe(5); // Mon–Fri
-    expect(segs[1].days).toBe(2); // Sat–Sun
+    expect(segs.map((s) => s.kind)).toEqual(["busy"]);
+    expect(segs[0].workingDays).toBe(5); // Mon–Fri; Sat and Sun take no width
   });
 
-  it("keeps Saturday busy when the project works six days", () => {
-    const segs = buildSegments(MON, SUN, [
+  it("counts Saturday when the project works six days", () => {
+    const segs = buildSegments(MON, SUN, [booking({ workingDaysPerWeek: 6 })]);
+    expect(segs.map((s) => s.kind)).toEqual(["busy"]);
+    expect(segs[0].workingDays).toBe(6); // Mon–Sat
+  });
+
+  it("gives a six-day project more of the bar than a five-day one", () => {
+    // Same fortnight, same dates — the six-day project genuinely takes
+    // more of somebody's time, and the width has to say so.
+    const five = buildSegments(MON, MON + 13, [booking()]);
+    const six = buildSegments(MON, MON + 13, [
       booking({ workingDaysPerWeek: 6 }),
     ]);
-    expect(segs.map((s) => s.kind)).toEqual(["busy", "off"]);
-    expect(segs[0].days).toBe(6); // Mon–Sat
-    expect(segs[1].days).toBe(1); // Sunday only
+    expect(totalWorkingDays(six)).toBeGreaterThan(totalWorkingDays(five));
+  });
+
+  it("never emits a non-working day as a segment of its own", () => {
+    const segs = buildSegments(MON, MON + 20, []);
+    expect(segs.every((sg) => sg.workingDays > 0)).toBe(true);
+    expect(segs.map((sg) => sg.kind)).toEqual(["free"]);
   });
 
   it("marks the gap between two bookings as free", () => {
@@ -119,7 +135,7 @@ describe("building the bar", () => {
       booking({ releasedAt: "2026-08-25" }),
     ]);
     expect(segs[0].kind).toBe("busy");
-    expect(segs[0].days).toBe(2); // Mon and Tue
+    expect(segs[0].workingDays).toBe(2); // Mon and Tue
     expect(segs[1].kind).toBe("free");
   });
 
@@ -140,6 +156,13 @@ describe("counting free time", () => {
     // number is worse than not showing one.
     const segs = buildSegments(MON, SUN, []);
     expect(freeWorkingDays(segs)).toBe(5);
+  });
+
+  it("matches the width the bar divides up", () => {
+    // freeWorkingDays and totalWorkingDays have to agree, or the green
+    // proportion of the bar and the number beside it disagree.
+    const segs = buildSegments(MON, SUN, []);
+    expect(freeWorkingDays(segs)).toBe(totalWorkingDays(segs));
   });
 
   it("is zero when every working day is booked", () => {

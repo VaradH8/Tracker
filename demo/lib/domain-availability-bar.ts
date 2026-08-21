@@ -7,16 +7,23 @@
  * for, and where the gaps are. Stacked lanes also made two people
  * impossible to compare, because their rows were different heights.
  *
- * So: every person gets the same rectangle, filled end to end. Each day is
- * one of three things — committed to a project, free, or not a working day
- * — and consecutive days in the same state merge into a segment. A gap you
- * could put work into is drawn as a gap, not as absence of a bar.
+ * So: every person gets the same rectangle, filled end to end. Each
+ * WORKING day is either committed to a project or free, and consecutive
+ * days in the same state merge into a segment. A gap you could put work
+ * into is drawn as a gap, not as absence of a bar.
  *
- * Weekends come from the project's own working week, because a five-day
- * project and a six-day one do not share their Saturdays. On a day nobody
- * has booked, there is no project to ask, so a five-day week is assumed —
- * the common case, and the conservative one: it counts fewer days as free
- * rather than more.
+ * Non-working days take no width at all. The bar is a picture of capacity,
+ * and a Sunday is not capacity — drawn to scale it padded every row with
+ * two-sevenths of nothing, and made a five-day project and a six-day one
+ * look equally committed over the same fortnight when one of them is
+ * plainly busier. Excluded outright, the width of a bar IS the working
+ * time it covers, and two people can be compared by eye.
+ *
+ * Which days those are comes from each project's own working week, because
+ * a five-day project and a six-day one do not share their Saturdays. On a
+ * day nobody has booked there is no project to ask, so a five-day week is
+ * assumed — the common case, and the conservative one: it counts fewer
+ * days as free rather than more.
  */
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
@@ -61,24 +68,20 @@ export type Booking = {
 };
 
 export type Segment = {
-  /** Inclusive day range this segment covers. */
+  /**
+   * First and last working day in the segment.
+   *
+   * The calendar days between them can include a weekend — a stretch
+   * running Friday to Monday reads "21/08 – 24/08" — because those are the
+   * dates somebody is actually committed for. It is only the width that
+   * ignores the days nobody works.
+   */
   from: number;
   to: number;
-  /** How many days wide — the segment's share of the bar. */
-  days: number;
-  /** Working days inside it, which is what "3 days free" should count. */
+  /** Working days, which is both the width and the count. */
   workingDays: number;
-  kind: "busy" | "free" | "off";
-  /**
-   * Projects covering this stretch — kept on non-working days too.
-   *
-   * A Saturday inside a booking is still inside that booking; it is just
-   * not a day anybody works. Dropping the projects there made every
-   * weekend a hard grey break, so a six-month bar came out as twenty-six
-   * separate blocks instead of one rectangle. The renderer tints these
-   * rather than interrupting, and the day still does not count as time
-   * anybody could be given.
-   */
+  kind: "busy" | "free";
+  /** Projects covering this stretch. More than one means double-booked. */
   projects: { projectId: number; projectName: string }[];
 };
 
@@ -119,13 +122,13 @@ export function buildSegments(
             ...covering.map((b) => b.workingDaysPerWeek ?? DEFAULT_WORK_WEEK),
           )
         : DEFAULT_WORK_WEEK;
-    const working = isWorkingDay(day, perWeek);
 
-    const kind: Segment["kind"] = !working
-      ? "off"
-      : covering.length > 0
-        ? "busy"
-        : "free";
+    // Not a working day: no width, no count, and it does not break a
+    // stretch either — Friday and Monday on the same project are one
+    // segment, because the weekend between them is not a change of state.
+    if (!isWorkingDay(day, perWeek)) continue;
+
+    const kind: Segment["kind"] = covering.length > 0 ? "busy" : "free";
     const projects = covering.map((b) => ({
       projectId: b.projectId,
       projectName: b.projectName,
@@ -139,20 +142,20 @@ export function buildSegments(
 
     if (last && lastKey === key) {
       last.to = day;
-      last.days += 1;
-      if (working) last.workingDays += 1;
+      last.workingDays += 1;
     } else {
-      out.push({
-        from: day,
-        to: day,
-        days: 1,
-        workingDays: working ? 1 : 0,
-        kind,
-        projects,
-      });
+      out.push({ from: day, to: day, workingDays: 1, kind, projects });
     }
   }
   return out;
+}
+
+/** Working days in the window, and so the width the bar divides up. */
+export function totalWorkingDays(segments: Segment[]): number {
+  return Math.max(
+    1,
+    segments.reduce((n, s) => n + s.workingDays, 0),
+  );
 }
 
 /** Working days in the window with nothing booked against them. */

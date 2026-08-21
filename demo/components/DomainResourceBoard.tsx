@@ -10,6 +10,7 @@ import {
   colourIndexes,
   freeWorkingDays,
   isoFromDay,
+  totalWorkingDays,
 } from "@/lib/domain-availability-bar";
 
 /**
@@ -97,9 +98,7 @@ const PROJECT_COLOURS = [
 ];
 /** Working time with nothing against it — what the screen is for. */
 const FREE_COLOUR = "bg-brand-green";
-/** A non-working day is drawn as a faded version of whatever it
- *  interrupts, so the bar stays one rectangle — see the renderer. */
-const OFF_OPACITY = "opacity-40";
+
 
 export function DomainResourceBoard({
   resources,
@@ -250,10 +249,7 @@ export function DomainResourceBoard({
           <span className={`w-2.5 h-2.5 rounded-sm ${FREE_COLOUR}`} />
           Free
         </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className={`w-2.5 h-2.5 rounded-sm ${FREE_COLOUR} ${OFF_OPACITY}`} />
-          Non-working day
-        </span>
+
         {colourOf.list.map((pr) => (
           <span key={pr.id} className="inline-flex items-center gap-1.5">
             <span className={`w-2.5 h-2.5 rounded-sm ${colourOf.colour(pr.id)}`} />
@@ -299,6 +295,7 @@ export function DomainResourceBoard({
              * rectangle and two rows can be compared by eye.
              */
             const segments = buildSegments(axis.from, axis.to, r.projects);
+            const workingDays = totalWorkingDays(segments);
             const freeDays = freeWorkingDays(segments);
             const doubled = segments.some((sg) => sg.projects.length > 1);
             return (
@@ -342,17 +339,18 @@ export function DomainResourceBoard({
                   }
                 >
                   {segments.map((sg) => {
-                    const width = (sg.days / (axis.span + 1)) * 100;
+                    // Working days only, so the bar is a straight run of
+                    // project blocks rather than a week-by-week stripe.
+                    const width = (sg.workingDays / workingDays) * 100;
                     const dates = `${fmtDate(isoFromDay(sg.from))} – ${fmtDate(isoFromDay(sg.to))}`;
+                    const days = `${sg.workingDays} working day${sg.workingDays === 1 ? "" : "s"}`;
                     const title =
                       sg.kind === "busy"
-                        ? `${sg.projects.map((x) => x.projectName).join(" + ")} · ${dates} · ${sg.workingDays} working day${sg.workingDays === 1 ? "" : "s"}`
-                        : sg.kind === "free"
-                          ? `Free · ${dates} · ${sg.workingDays} working day${sg.workingDays === 1 ? "" : "s"}`
-                          : `Weekend · ${dates}`;
+                        ? `${sg.projects.map((x) => x.projectName).join(" + ")} · ${dates} · ${days}`
+                        : `Free · ${dates} · ${days}`;
 
-                    // Two projects on one day still has to be visible in a
-                    // single rectangle, so the segment splits into bands
+                    // Two projects on the same day still has to be visible
+                    // in a single bar, so the block splits into bands
                     // rather than picking a winner.
                     return (
                       <div
@@ -360,24 +358,13 @@ export function DomainResourceBoard({
                         title={title}
                         style={{ width: `${width}%` }}
                         className={`h-full flex flex-col ${
-                          sg.kind === "free"
-                            ? FREE_COLOUR
-                            : sg.kind === "off" && sg.projects.length === 0
-                              ? `${FREE_COLOUR} ${OFF_OPACITY}`
-                              : ""
+                          sg.kind === "free" ? FREE_COLOUR : ""
                         }`}
                       >
-                        {/* A weekend inside a booking is tinted, not cut
-                            out. Drawn as a hard grey break it turned a
-                            six-month bar into twenty-six blocks; the day
-                            still does not count as time anybody could be
-                            given, which is what "excluded" has to mean. */}
                         {sg.projects.map((pr) => (
                           <span
                             key={pr.projectId}
-                            className={`flex-1 ${colourOf.colour(pr.projectId)} ${
-                              sg.kind === "off" ? OFF_OPACITY : ""
-                            }`}
+                            className={`flex-1 ${colourOf.colour(pr.projectId)}`}
                           />
                         ))}
                       </div>
@@ -415,12 +402,11 @@ export function DomainResourceBoard({
       )}
 
       <p className="text-xs text-ink-400 mt-3">
-        One bar per person, from today onwards, filled end to end: coloured
-        where they are committed, green where they are free, faded on
-        non-working days. Weekends follow each project&apos;s own working
-        week and never count towards the free days on the right. A segment
-        split into bands is two projects at once. Hover any segment for its
-        dates.
+        One bar per person, from today onwards: coloured where they are
+        committed, green where they are free. Only working days are drawn,
+        following each project&apos;s own working week, so the width of a
+        block is the working time it covers. A block split into bands is
+        two projects at once. Hover any block for its dates.
       </p>
     </div>
   );
