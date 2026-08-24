@@ -8,6 +8,8 @@ import { selectClass } from "@/lib/domain-ui";
 import {
   buildSegments,
   colourIndexes,
+  impliedBookings,
+  undatedCarriedWork,
   freeWorkingDays,
   isoFromDay,
   totalWorkingDays,
@@ -52,6 +54,29 @@ export type BoardResource = {
     deliveredTags: number;
     openTags: number;
   }[];
+  /**
+   * Projects they hold undelivered tags on with no booking behind them.
+   * Drawn on the bar as carried work: it is real commitment, and leaving
+   * it out drew somebody on two projects as half free.
+   */
+  openTagProjects?: {
+    projectId: number;
+    projectName: string;
+    openTags: number;
+    startDate: string | null;
+    handoverDate: string | null;
+    workingDaysPerWeek: number | null;
+  }[];
+};
+
+/**
+ * Carried work is drawn in its project's colour but hatched, so it reads
+ * as commitment without being mistaken for a booking. Same hue answers
+ * "which job"; the texture answers "is this actually booked".
+ */
+const CARRIED_HATCH: React.CSSProperties = {
+  backgroundImage:
+    "repeating-linear-gradient(45deg, rgba(255,255,255,0.55) 0 3px, rgba(255,255,255,0) 3px 6px)",
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -138,9 +163,15 @@ export function DomainResourceBoard({
    */
   const axis = useMemo(() => {
     const today = todays();
-    const ends = shown.flatMap((r) =>
-      r.projects.map((b) => days(b.releasedAt ?? b.endDate)),
-    );
+    const ends = shown.flatMap((r) => [
+      ...r.projects.map((b) => days(b.releasedAt ?? b.endDate)),
+      // Carried work counts: if the only thing keeping somebody busy is
+      // tags with no booking, the axis still has to reach its handover or
+      // the stretch is clipped off the right-hand edge.
+      ...(r.openTagProjects ?? [])
+        .filter((c) => c.handoverDate)
+        .map((c) => days(c.handoverDate as string)),
+    ]);
     // Today forward. The axis used to stretch back over every finished
     // booking, so on a busy portfolio a third of the chart was history —
     // on a screen whose only question is who is free from when. A booking
@@ -152,7 +183,12 @@ export function DomainResourceBoard({
   /** One colour per project across the whole chart, so the same job reads
    *  the same on every row. */
   const colourOf = useMemo(() => {
-    const bookings = resources.flatMap((r) => r.projects);
+    // Carried work included, or a project somebody holds tags on without a
+    // booking would be drawn on the bar and missing from the key.
+    const bookings = resources.flatMap((r) => [
+      ...r.projects,
+      ...(r.openTagProjects ?? []),
+    ]);
     const index = colourIndexes(bookings);
     const names = new Map<number, string>();
     for (const b of bookings) names.set(b.projectId, b.projectName);
@@ -294,10 +330,21 @@ export function DomainResourceBoard({
              * non-working day — so every person's bar is the same
              * rectangle and two rows can be compared by eye.
              */
-            const segments = buildSegments(axis.from, axis.to, r.projects);
+            const carried = r.openTagProjects ?? [];
+            const segments = buildSegments(axis.from, axis.to, [
+              ...r.projects,
+              // Tags held with no booking behind them. Without this the bar
+              // showed only the formal allocations, so somebody on two
+              // projects with one of them unbooked was drawn half free.
+              ...impliedBookings(carried, axis.from),
+            ]);
             const workingDays = totalWorkingDays(segments);
             const freeDays = freeWorkingDays(segments);
             const doubled = segments.some((sg) => sg.projects.length > 1);
+            // Carried work whose project never set a handover date. There is
+            // no honest span for it, so it is named on the row instead of
+            // drawn — better than the silence that hid it before.
+            const undated = undatedCarriedWork(carried, axis.from);
             return (
               <li
                 key={r.id}
@@ -315,6 +362,17 @@ export function DomainResourceBoard({
                       <span className="text-brand-yellowText font-medium">
                         {" "}
                         · double-booked
+                      </span>
+                    )}
+                    {undated.length > 0 && (
+                      <span
+                        className="text-brand-yellowText font-medium"
+                        title={`${undated
+                          .map((c) => `${c.projectName} (${c.openTags} open)`)
+                          .join(", ")} — no handover date set, so this can't be placed on the bar.`}
+                      >
+                        {" "}
+                        · {undated.length} undated
                       </span>
                     )}
                   </div>
@@ -346,7 +404,12 @@ export function DomainResourceBoard({
                     const days = `${sg.workingDays} working day${sg.workingDays === 1 ? "" : "s"}`;
                     const title =
                       sg.kind === "busy"
-                        ? `${sg.projects.map((x) => x.projectName).join(" + ")} · ${dates} · ${days}`
+                        ? `${sg.projects
+                            .map(
+                              (x) =>
+                                `${x.projectName}${x.implied ? " (tags carried, not booked)" : ""}`,
+                            )
+                            .join(" + ")} · ${dates} · ${days}`
                         : `Free · ${dates} · ${days}`;
 
                     // Two projects on the same day still has to be visible
@@ -365,6 +428,7 @@ export function DomainResourceBoard({
                           <span
                             key={pr.projectId}
                             className={`flex-1 ${colourOf.colour(pr.projectId)}`}
+                            style={pr.implied ? CARRIED_HATCH : undefined}
                           />
                         ))}
                       </div>
@@ -406,7 +470,14 @@ export function DomainResourceBoard({
         committed, green where they are free. Only working days are drawn,
         following each project&apos;s own working week, so the width of a
         block is the working time it covers. A block split into bands is
-        two projects at once. Hover any block for its dates.
+        two projects at once.{" "}
+        <span
+          className="inline-block align-middle w-3 h-3 rounded-sm bg-ink-400"
+          style={CARRIED_HATCH}
+        />{" "}
+        Hatched means tags carried on a project with no booking behind them —
+        real work, drawn over the project&apos;s own dates. Hover any block
+        for its dates.
       </p>
     </div>
   );

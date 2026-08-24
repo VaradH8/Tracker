@@ -28,7 +28,20 @@ export async function GET() {
       role: r.role,
       status: r.status,
       openTags: r.openTags,
-      openTagProjects: r.openTagProjects,
+      /**
+       * Projects they carry undelivered tags on without a booking. The
+       * availability bar draws these too — a person on two projects with
+       * only one of them booked used to be drawn half free — so the
+       * project's own dates come along to place them.
+       */
+      openTagProjects: r.openTagProjects.map((p) => ({
+        projectId: p.projectId,
+        projectName: p.projectName,
+        openTags: p.openTags,
+        startDate: p.startDate,
+        handoverDate: p.handoverDate,
+        workingDaysPerWeek: p.workingDaysPerWeek,
+      })),
       availableFrom: r.availableFrom,
       // The planning rate, null when nobody has set or earned one. The
       // house default is deliberately not sent: a made-up number shown

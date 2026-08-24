@@ -65,6 +65,17 @@ export type Booking = {
   endDate: string;
   releasedAt?: string | null;
   workingDaysPerWeek?: number | null;
+  /**
+   * True when nobody booked this window — the person simply holds
+   * undelivered tags on the project, and the span is the project's own.
+   *
+   * Assigning tags is what makes somebody busy in practice, which is why
+   * `status` has always counted it. The bar did not, so a person on two
+   * projects with only one of them formally booked was drawn half free,
+   * and the free-days figure beside them said so in numbers. Carried work
+   * is drawn, and marked, so the two are not confused.
+   */
+  implied?: boolean;
 };
 
 export type Segment = {
@@ -82,7 +93,7 @@ export type Segment = {
   workingDays: number;
   kind: "busy" | "free";
   /** Projects covering this stretch. More than one means double-booked. */
-  projects: { projectId: number; projectName: string }[];
+  projects: { projectId: number; projectName: string; implied: boolean }[];
 };
 
 /** Bookings covering a given day, released ones ending when they were released. */
@@ -132,13 +143,20 @@ export function buildSegments(
     const projects = covering.map((b) => ({
       projectId: b.projectId,
       projectName: b.projectName,
+      implied: b.implied === true,
     }));
-    const key = `${kind}:${projects.map((p) => p.projectId).sort().join(",")}`;
+    // Booked and carried work on the same project are different states, so
+    // the flag is part of the key — otherwise a booking that lapses into
+    // carried tags would merge into one stretch and hide the handover.
+    const stamp = (ps: Segment["projects"]) =>
+      ps
+        .map((x) => `${x.projectId}${x.implied ? "~" : ""}`)
+        .sort()
+        .join(",");
+    const key = `${kind}:${stamp(projects)}`;
 
     const last = out[out.length - 1];
-    const lastKey = last
-      ? `${last.kind}:${last.projects.map((p) => p.projectId).sort().join(",")}`
-      : null;
+    const lastKey = last ? `${last.kind}:${stamp(last.projects)}` : null;
 
     if (last && lastKey === key) {
       last.to = day;
@@ -184,4 +202,84 @@ export function colourIndexes(
     a[1].localeCompare(b[1]),
   );
   return new Map(sorted.map(([id], i) => [id, i]));
+}
+
+/* ------------------------------------------------------------------ */
+/* Work carried without a booking                                      */
+/* ------------------------------------------------------------------ */
+
+/** A project somebody holds undelivered tags on but was never booked onto. */
+export type CarriedWork = {
+  projectId: number;
+  projectName: string;
+  openTags: number;
+  startDate: string | null;
+  handoverDate: string | null;
+  workingDaysPerWeek: number | null;
+};
+
+/**
+ * Turn carried work into spans the bar can draw.
+ *
+ * The window is the project's own: from its start, or today where it began
+ * earlier, through to its handover date. That date is a real commitment —
+ * the work has to be delivered by then — which is what makes it honest to
+ * draw, unlike a guess at how long the tags will take.
+ *
+ * Work already past its handover is dropped rather than drawn in the past:
+ * the bar starts at today, so it would render as nothing anyway, and
+ * pretending it runs to today would invent a deadline nobody set.
+ */
+export function impliedBookings(
+  carried: CarriedWork[],
+  today: number,
+): Booking[] {
+  const out: Booking[] = [];
+  for (const c of carried) {
+    if (!c.handoverDate) continue;
+    const end = dayNumber(c.handoverDate);
+    if (end < today) continue;
+    const declaredStart = c.startDate ? dayNumber(c.startDate) : today;
+    const start = Math.max(today, Math.min(declaredStart, end));
+    out.push({
+      projectId: c.projectId,
+      projectName: c.projectName,
+      startDate: isoFromDay(start),
+      endDate: isoFromDay(end),
+      workingDaysPerWeek: c.workingDaysPerWeek,
+      implied: true,
+    });
+  }
+  return out;
+}
+
+/**
+ * Carried work with no handover date, which cannot be placed on a
+ * timeline at all.
+ *
+ * Returned so the caller can say so on the row. The alternative — drawing
+ * it to the edge of the window — would claim a deadline nobody set, and
+ * silently dropping it is the bug this whole path exists to fix.
+ */
+export function undatedCarriedWork(
+  carried: CarriedWork[],
+  today: number,
+): CarriedWork[] {
+  return carried.filter(
+    (c) => !c.handoverDate || dayNumber(c.handoverDate) < today,
+  );
+}
+
+/** Every distinct project on a run of segments, booked or carried. */
+export function projectsOnBar(
+  segments: Segment[],
+): { projectId: number; projectName: string }[] {
+  const seen = new Map<number, string>();
+  for (const s of segments) {
+    for (const p of s.projects) if (!seen.has(p.projectId)) seen.set(p.projectId, p.projectName);
+  }
+  return Array.from(seen.entries()).map(([projectId, projectName]) => ({
+    projectId,
+    projectName,
+  }));
 }

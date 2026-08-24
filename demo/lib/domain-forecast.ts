@@ -129,8 +129,23 @@ export type ResourceForecast = {
   }[];
   /** Tags assigned to them and not yet delivered, across every project. */
   openTags: number;
-  /** Projects they hold open tags on without a booking window. */
-  openTagProjects: { projectId: number; projectName: string; openTags: number }[];
+  /**
+   * Projects they hold open tags on without a booking window.
+   *
+   * This is real commitment — assigning tags is what makes somebody busy
+   * in practice — so the availability bar draws it too, and needs the
+   * project's own dates to place it. Both dates are null on a project that
+   * never declared them, in which case there is no honest span to draw and
+   * the row says so rather than inventing one.
+   */
+  openTagProjects: {
+    projectId: number;
+    projectName: string;
+    openTags: number;
+    startDate: string | null;
+    handoverDate: string | null;
+    workingDaysPerWeek: number | null;
+  }[];
   /**
    * ISO date they next free up. Null means no booking is holding them —
    * which is only the same as "free now" when `openTags` is 0 too.
@@ -193,11 +208,21 @@ export async function resourceForecast(): Promise<ResourceForecast[]> {
   );
 
   // groupBy can't join, and tags may point at a project the person has no
-  // allocation for, so names come from a separate lookup.
-  const projectNames = new Map(
+  // allocation for, so the details come from a separate lookup. Dates come
+  // along because the availability bar has to place that work on a
+  // timeline, and an unbooked project has no allocation to take them from.
+  const projectMeta = new Map(
     (
-      await prisma.domainProject.findMany({ select: { id: true, name: true } })
-    ).map((p) => [p.id, p.name]),
+      await prisma.domainProject.findMany({
+        select: {
+          id: true,
+          name: true,
+          startDate: true,
+          handoverDate: true,
+          workingDaysPerWeek: true,
+        },
+      })
+    ).map((p) => [p.id, p]),
   );
 
   return people.map((p) => {
@@ -216,11 +241,17 @@ export async function resourceForecast(): Promise<ResourceForecast[]> {
     const bookedOn = new Set(mine.map((a) => a.projectId));
     const openOnly = myTags
       .filter((a) => !bookedOn.has(a.projectId) && openOf(a) > 0)
-      .map((a) => ({
-        projectId: a.projectId,
-        projectName: projectNames.get(a.projectId) ?? "Unknown project",
-        openTags: openOf(a),
-      }));
+      .map((a) => {
+        const meta = projectMeta.get(a.projectId);
+        return {
+          projectId: a.projectId,
+          projectName: meta?.name ?? "Unknown project",
+          openTags: openOf(a),
+          startDate: meta?.startDate ? toISODate(meta.startDate) : null,
+          handoverDate: meta?.handoverDate ? toISODate(meta.handoverDate) : null,
+          workingDaysPerWeek: meta?.workingDaysPerWeek ?? null,
+        };
+      });
     // The set rate, or nothing. Same rule as the forecast, because two
     // screens disagreeing about someone's speed is worse than either
     // being wrong alone.
