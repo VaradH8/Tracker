@@ -14,7 +14,6 @@ import {
   manageableRoles,
   needsReview,
 } from "@/lib/domain";
-import { canMarkAttendance, canMarkFor, canDecide } from "@/lib/domain-leave";
 
 /**
  * The CEO role exists to see everything and change nothing.
@@ -86,16 +85,6 @@ describe("what a CEO may NOT do", () => {
     for (const target of DOMAIN_ROLES) {
       expect(canManageUser("CEO", target)).toBe(false);
     }
-  });
-
-  it("cannot mark or decide attendance", () => {
-    expect(canMarkAttendance("CEO")).toBe(false);
-    for (const target of DOMAIN_ROLES) {
-      expect(canMarkFor("CEO", target)).toBe(false);
-    }
-    expect(
-      canDecide({ id: "ceo", role: "CEO" }, { userId: "a", targetRole: "Actionee" }),
-    ).toBe(false);
   });
 });
 

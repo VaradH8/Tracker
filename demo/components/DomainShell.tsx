@@ -6,14 +6,12 @@ import { useEffect, useState, type ReactNode } from "react";
 import {
   LayoutGrid,
   FolderKanban,
-  ClipboardList,
   Users,
   Gauge,
   BarChart3,
   LogOut,
   KeyRound,
   TrendingUp,
-  CalendarCheck,
   Tags,
   CheckSquare,
   Menu,
@@ -67,10 +65,6 @@ const NAV: NavItem[] = [
   // can now hand themselves a batch. Without this they had nowhere to
   // submit against it.
   { href: "/engineering/my-tags", label: "My tags", icon: Tags, roles: TAG_HOLDERS, group: "Work" },
-  { href: "/engineering/task-log", label: "Task log", icon: ClipboardList, roles: EVERYONE, group: "Work" },
-  // Everyone reaches this: workers request time off here, supervisors
-  // decide it. The page itself adapts to which of the two you are.
-  { href: "/engineering/leaves", label: "Attendance & leave", icon: CalendarCheck, roles: EVERYONE, group: "Work" },
   { href: "/engineering/approvals", label: "Approvals", icon: CheckSquare, roles: SUPERVISORS, group: "Manage" },
   { href: "/engineering/forecast", label: "Forecast", icon: TrendingUp, roles: OVERSEERS, group: "Manage" },
   { href: "/engineering/availability", label: "Resource availability", icon: Gauge, roles: OVERSEERS, group: "Manage" },

@@ -11,6 +11,7 @@ import {
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { useDomain } from "@/lib/domain-store";
 import { DomainPage, PageHeader } from "@/components/DomainPage";
+import { DomainEmployees } from "@/components/DomainEmployees";
 import { inputClass, selectClass } from "@/lib/domain-ui";
 
 type DUser = {
@@ -91,13 +92,13 @@ export default function DomainUsersPage() {
           <h1 className="font-heading text-2xl font-semibold">People</h1>
           <p className="text-sm text-ink-500 mt-1">
             {canAddOrRemove
-              ? "Add people to the module, and manage the ones you look after."
+              ? "Employees on the payroll, and the login accounts for those who sign in."
               : "Manage the people you supervise."}
           </p>
         </div>
         {canAddOrRemove && (
           <button onClick={() => setAdding((v) => !v)} className="btn-primary">
-            <Plus size={16} className="mr-1.5" /> Add user
+            <Plus size={16} className="mr-1.5" /> Add login account
           </button>
         )}
       </div>
@@ -209,6 +210,11 @@ export default function DomainUsersPage() {
           </tbody>
         </table>
       </div>
+
+      <DomainEmployees
+        canEdit={canAddOrRemove}
+        accounts={users.map((u) => ({ id: u.id, name: u.name, email: u.email }))}
+      />
     </DomainPage>
   );
 }

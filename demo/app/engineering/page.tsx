@@ -195,6 +195,7 @@ type PendingRow = { id: number; date: string; completedCount: number };
 type ResourceRow = { id: string; status: "Free" | "Allocated" };
 
 function ManagerHome() {
+  const { current } = useDomain();
   const [projects, setProjects] = useState<ForecastProject[] | null>(null);
   const [pending, setPending] = useState<PendingRow[]>([]);
   const [resources, setResources] = useState<ResourceRow[]>([]);
@@ -204,7 +205,7 @@ function ManagerHome() {
    *  gets given work too, and it was reaching neither list. */
   const [myTasks, setMyTasks] = useState<DomainTask[]>([]);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     Promise.all([
       fetch("/api/domain/forecast", { cache: "no-store" }).then((r) =>
         r.ok ? r.json() : { projects: [], resources: [] },
@@ -230,6 +231,10 @@ function ManagerHome() {
       })
       .catch(() => setProjects([]));
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   if (projects === null) return <p className="text-sm text-ink-500">Loading…</p>;
 
@@ -275,11 +280,11 @@ function ManagerHome() {
         ) : (
           <ul className="divide-y divide-ink-100 -mb-1">
             {/* Work handed TO them, first: it is the only row on this list
-                that nobody else can pick up. The whole row is the link
-                through to the Task log, same as every other row here. */}
+                that nobody else can pick up. The row jumps to the list
+                further down this page, where it can be acted on. */}
             {myTasks.length > 0 && (
               <AttentionRow
-                href="/engineering/task-log"
+                href="#my-tasks"
                 tone="blue"
                 icon={<CheckSquare size={15} />}
                 count={myTasks.length}
@@ -298,7 +303,7 @@ function ManagerHome() {
 
             {taskReviews.length > 0 && (
               <AttentionRow
-                href="/engineering/task-log"
+                href="#task-reviews"
                 tone="blue"
                 icon={<CheckSquare size={15} />}
                 count={taskReviews.length}
@@ -483,6 +488,41 @@ function ManagerHome() {
           </div>
         )}
       </section>
+
+      {/* Work assigned to this supervisor. The Task log page is gone, so the
+          list lives where its summary row already pointed — DomainTaskList
+          carries the submit control inline, so nothing needs navigating to. */}
+      {myTasks.length > 0 && (
+        <section id="my-tasks" className="scroll-mt-6">
+          <h2 className="font-heading text-lg font-semibold mb-3">
+            Tasks assigned to me
+          </h2>
+          <DomainTaskList
+            tasks={myTasks}
+            canManage={false}
+            viewerId={current?.id}
+            viewerRole={current?.role}
+            onChanged={load}
+          />
+        </section>
+      )}
+
+      {/* Work they handed out that is now waiting on their decision. The
+          same list renders the approve / send-back controls for a reviewer. */}
+      {taskReviews.length > 0 && (
+        <section id="task-reviews" className="scroll-mt-6">
+          <h2 className="font-heading text-lg font-semibold mb-3">
+            Tasks awaiting your approval
+          </h2>
+          <DomainTaskList
+            tasks={taskReviews}
+            canManage={false}
+            viewerId={current?.id}
+            viewerRole={current?.role}
+            onChanged={load}
+          />
+        </section>
+      )}
     </div>
   );
 }
@@ -865,17 +905,9 @@ function WorkerHome({ secondary = false }: { secondary?: boolean }) {
           whole point is that it takes no navigation to say "done". */}
       {tasks.length > 0 && (
         <section>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-heading text-lg font-semibold">
-              Tasks assigned to me
-            </h2>
-            <Link
-              href="/engineering/task-log"
-              className="text-sm text-brand-blue inline-flex items-center gap-1"
-            >
-              Open Task log <ArrowRight size={14} />
-            </Link>
-          </div>
+          <h2 className="font-heading text-lg font-semibold mb-3">
+            Tasks assigned to me
+          </h2>
           <DomainTaskList
             tasks={tasks}
             canManage={false}

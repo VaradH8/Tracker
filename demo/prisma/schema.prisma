@@ -365,6 +365,10 @@ model DomainUser {
   updatedAt     DateTime @updatedAt
 
   sessions      DomainSession[]
+  /// The employee record for this person, where HR has made one. Optional
+  /// in both directions: most employees never get a login, and an account
+  /// can exist before HR files the paperwork.
+  employee      DomainEmployee? @relation("DomainEmployeeAccount")
   projectsOwned DomainProject[] @relation("DomainProjectOwner")
   tasksAssigned DomainTask[]    @relation("DomainTaskAssignee")
   tasksCreated  DomainTask[]    @relation("DomainTaskCreator")
@@ -383,6 +387,35 @@ model DomainUser {
   leaveRecords   DomainLeave[] @relation("DomainLeaveSubject")
   leavesAuthored DomainLeave[] @relation("DomainLeaveAuthor")
   leavesDecided  DomainLeave[] @relation("DomainLeaveDecider")
+}
+
+/// A person on the payroll, kept by HR. Deliberately NOT a login: most of
+/// the people on this list never sign in, and an account is a separate
+/// thing that can be attached later through `userId`. Keeping them apart
+/// means HR can onboard somebody on their first day without minting
+/// credentials, and deactivating an account never erases the person.
+model DomainEmployee {
+  id          Int       @id @default(autoincrement())
+  /// Staff number. Unique, and the handle HR actually uses day to day.
+  code        String    @unique
+  name        String
+  designation String?
+  department  String?
+  email       String?
+  phone       String?
+  location    String?
+  joinedOn    DateTime?
+  isActive    Boolean   @default(true)
+
+  /// Optional link to a login account. SetNull, not Cascade: deleting an
+  /// account must never delete the employee record behind it.
+  userId String?     @unique
+  user   DomainUser? @relation("DomainEmployeeAccount", fields: [userId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
 }
 
 model DomainSession {
