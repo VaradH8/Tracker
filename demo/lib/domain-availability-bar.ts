@@ -283,3 +283,139 @@ export function projectsOnBar(
     projectName,
   }));
 }
+
+/* ------------------------------------------------------------------ */
+/* One lane per project                                                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The working days of the window, in order.
+ *
+ * Shared by every lane on a person's row so they all divide the same
+ * total. Computing it per lane would give each one its own denominator —
+ * a six-day project counts its Saturdays and a five-day one does not — and
+ * bars meant to be read against each other would not line up.
+ */
+export function workingDayList(
+  from: number,
+  to: number,
+  bookings: Booking[],
+): number[] {
+  const days: number[] = [];
+  for (let day = from; day <= to; day++) {
+    const covering = coveringOn(day, bookings);
+    const perWeek =
+      covering.length > 0
+        ? Math.max(
+            ...covering.map((b) => b.workingDaysPerWeek ?? DEFAULT_WORK_WEEK),
+          )
+        : DEFAULT_WORK_WEEK;
+    if (isWorkingDay(day, perWeek)) days.push(day);
+  }
+  return days;
+}
+
+export type LaneSegment = {
+  from: number;
+  to: number;
+  workingDays: number;
+  /** Committed to this lane's project over this stretch. */
+  covered: boolean;
+};
+
+export type Lane = {
+  projectId: number;
+  projectName: string;
+  /** Carried tags rather than a booking — drawn hatched, like the bar. */
+  implied: boolean;
+  segments: LaneSegment[];
+  /** Working days this project actually occupies, for the tooltip. */
+  workingDays: number;
+  /** First committed day, so lanes can be ordered by when they start. */
+  startsOn: number | null;
+};
+
+/**
+ * A person's commitments as one lane per project.
+ *
+ * Stacked lanes were the original design here, and dropping them for a
+ * single merged rectangle made "how much of this person is spoken for"
+ * legible at the cost of "what are they actually on" — two projects became
+ * two thin bands inside one bar, which at 16px tall is not something you
+ * can read across a list of thirty people.
+ *
+ * So both: a lane per project, showing each job on the shared axis, above
+ * the merged bar that still answers the capacity question. Lanes only earn
+ * their height when there is more than one project; a single booking is
+ * already unambiguous in the merged bar alone.
+ *
+ * A project booked for one stretch and carried for another gets a lane
+ * each, because "booked until March" and "holding tags until June" are
+ * different commitments and merging them would hide the handover.
+ */
+export function projectLanes(
+  from: number,
+  to: number,
+  bookings: Booking[],
+): Lane[] {
+  const days = workingDayList(from, to, bookings);
+  if (days.length === 0) return [];
+
+  const groups = new Map<
+    string,
+    { projectId: number; projectName: string; implied: boolean; items: Booking[] }
+  >();
+  for (const b of bookings) {
+    const implied = b.implied === true;
+    const key = `${b.projectId}:${implied ? "carried" : "booked"}`;
+    const g = groups.get(key);
+    if (g) g.items.push(b);
+    else
+      groups.set(key, {
+        projectId: b.projectId,
+        projectName: b.projectName,
+        implied,
+        items: [b],
+      });
+  }
+
+  const lanes: Lane[] = [];
+  for (const g of groups.values()) {
+    const segments: LaneSegment[] = [];
+    let workingDays = 0;
+    let startsOn: number | null = null;
+
+    for (const day of days) {
+      const covered = g.items.some((b) => {
+        const s = dayNumber(b.startDate);
+        const e = dayNumber(b.releasedAt ?? b.endDate);
+        return day >= s && day <= e;
+      });
+      if (covered) {
+        workingDays += 1;
+        if (startsOn === null) startsOn = day;
+      }
+      const last = segments[segments.length - 1];
+      if (last && last.covered === covered) {
+        last.to = day;
+        last.workingDays += 1;
+      } else {
+        segments.push({ from: day, to: day, workingDays: 1, covered });
+      }
+    }
+
+    // A lane nothing lands on is a lane worth nothing: it happens when a
+    // booking sits entirely outside the window the axis covers.
+    if (workingDays > 0) {
+      lanes.push({ ...g, segments, workingDays, startsOn });
+    }
+  }
+
+  // Earliest first, then by name — so the row reads left-to-right in the
+  // order the work actually arrives, and ties stay stable between renders.
+  return lanes.sort(
+    (a, b) =>
+      (a.startsOn ?? Infinity) - (b.startsOn ?? Infinity) ||
+      a.projectName.localeCompare(b.projectName),
+  );
+}

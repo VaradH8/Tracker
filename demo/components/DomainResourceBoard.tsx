@@ -9,6 +9,7 @@ import {
   buildSegments,
   colourIndexes,
   impliedBookings,
+  projectLanes,
   undatedCarriedWork,
   freeWorkingDays,
   isoFromDay,
@@ -331,13 +332,22 @@ export function DomainResourceBoard({
              * rectangle and two rows can be compared by eye.
              */
             const carried = r.openTagProjects ?? [];
-            const segments = buildSegments(axis.from, axis.to, [
+            const bookings = [
               ...r.projects,
               // Tags held with no booking behind them. Without this the bar
               // showed only the formal allocations, so somebody on two
               // projects with one of them unbooked was drawn half free.
               ...impliedBookings(carried, axis.from),
-            ]);
+            ];
+            const segments = buildSegments(axis.from, axis.to, bookings);
+            /**
+             * One lane per project, above the merged bar. Two projects as
+             * two bands inside a 16px bar is not readable down a list of
+             * thirty people; as two stacked bars on the same axis it is.
+             * Only worth the height when there is more than one.
+             */
+            const lanes = projectLanes(axis.from, axis.to, bookings);
+            const showLanes = lanes.length > 1;
             const workingDays = totalWorkingDays(segments);
             const freeDays = freeWorkingDays(segments);
             const doubled = segments.some((sg) => sg.projects.length > 1);
@@ -387,53 +397,88 @@ export function DomainResourceBoard({
                   thing a floating bar per booking never showed. Green
                   gaps are what the screen is for.
                 */}
-                <div
-                  className="flex h-4 rounded-pill overflow-hidden bg-ink-100"
-                  role="img"
-                  aria-label={
-                    freeDays > 0
-                      ? `${freeDays} working days free before ${fmtDate(isoFromDay(axis.to))}`
-                      : "fully booked in this window"
-                  }
-                >
-                  {segments.map((sg) => {
-                    // Working days only, so the bar is a straight run of
-                    // project blocks rather than a week-by-week stripe.
-                    const width = (sg.workingDays / workingDays) * 100;
-                    const dates = `${fmtDate(isoFromDay(sg.from))} – ${fmtDate(isoFromDay(sg.to))}`;
-                    const days = `${sg.workingDays} working day${sg.workingDays === 1 ? "" : "s"}`;
-                    const title =
-                      sg.kind === "busy"
-                        ? `${sg.projects
-                            .map(
-                              (x) =>
-                                `${x.projectName}${x.implied ? " (tags carried, not booked)" : ""}`,
-                            )
-                            .join(" + ")} · ${dates} · ${days}`
-                        : `Free · ${dates} · ${days}`;
+                <div className="flex flex-col gap-[3px]">
+                  {/*
+                    A lane per project, on the same axis and the same
+                    working-day scale as the bar below — so a stretch that
+                    looks half the row on one lane is half the row on the
+                    next, and the two can be read against each other.
+                  */}
+                  {showLanes &&
+                    lanes.map((lane) => {
+                      const laneDays = `${lane.workingDays} working day${lane.workingDays === 1 ? "" : "s"}`;
+                      return (
+                        <div
+                          key={`${lane.projectId}-${lane.implied ? "c" : "b"}`}
+                          className="flex h-1.5 rounded-pill overflow-hidden bg-ink-100"
+                          title={`${lane.projectName}${lane.implied ? " (tags carried, not booked)" : ""} · ${laneDays}`}
+                        >
+                          {lane.segments.map((sg) => (
+                            <span
+                              key={`${sg.from}-${sg.covered}`}
+                              style={{
+                                width: `${(sg.workingDays / workingDays) * 100}%`,
+                                ...(sg.covered && lane.implied
+                                  ? CARRIED_HATCH
+                                  : {}),
+                              }}
+                              className={
+                                sg.covered ? colourOf.colour(lane.projectId) : ""
+                              }
+                            />
+                          ))}
+                        </div>
+                      );
+                    })}
 
-                    // Two projects on the same day still has to be visible
-                    // in a single bar, so the block splits into bands
-                    // rather than picking a winner.
-                    return (
-                      <div
-                        key={`${sg.from}-${sg.kind}`}
-                        title={title}
-                        style={{ width: `${width}%` }}
-                        className={`h-full flex flex-col ${
-                          sg.kind === "free" ? FREE_COLOUR : ""
-                        }`}
-                      >
-                        {sg.projects.map((pr) => (
-                          <span
-                            key={pr.projectId}
-                            className={`flex-1 ${colourOf.colour(pr.projectId)}`}
-                            style={pr.implied ? CARRIED_HATCH : undefined}
-                          />
-                        ))}
-                      </div>
-                    );
-                  })}
+                  <div
+                    className="flex h-4 rounded-pill overflow-hidden bg-ink-100"
+                    role="img"
+                    aria-label={
+                      freeDays > 0
+                        ? `${freeDays} working days free before ${fmtDate(isoFromDay(axis.to))}`
+                        : "fully booked in this window"
+                    }
+                  >
+                    {segments.map((sg) => {
+                      // Working days only, so the bar is a straight run of
+                      // project blocks rather than a week-by-week stripe.
+                      const width = (sg.workingDays / workingDays) * 100;
+                      const dates = `${fmtDate(isoFromDay(sg.from))} – ${fmtDate(isoFromDay(sg.to))}`;
+                      const days = `${sg.workingDays} working day${sg.workingDays === 1 ? "" : "s"}`;
+                      const title =
+                        sg.kind === "busy"
+                          ? `${sg.projects
+                              .map(
+                                (x) =>
+                                  `${x.projectName}${x.implied ? " (tags carried, not booked)" : ""}`,
+                              )
+                              .join(" + ")} · ${dates} · ${days}`
+                          : `Free · ${dates} · ${days}`;
+
+                      // Two projects on the same day still has to be visible
+                      // in a single bar, so the block splits into bands
+                      // rather than picking a winner.
+                      return (
+                        <div
+                          key={`${sg.from}-${sg.kind}`}
+                          title={title}
+                          style={{ width: `${width}%` }}
+                          className={`h-full flex flex-col ${
+                            sg.kind === "free" ? FREE_COLOUR : ""
+                          }`}
+                        >
+                          {sg.projects.map((pr) => (
+                            <span
+                              key={pr.projectId}
+                              className={`flex-1 ${colourOf.colour(pr.projectId)}`}
+                              style={pr.implied ? CARRIED_HATCH : undefined}
+                            />
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {/* when they come free */}
@@ -469,8 +514,9 @@ export function DomainResourceBoard({
         One bar per person, from today onwards: coloured where they are
         committed, green where they are free. Only working days are drawn,
         following each project&apos;s own working week, so the width of a
-        block is the working time it covers. A block split into bands is
-        two projects at once.{" "}
+        block is the working time it covers. Somebody on more than one
+        project gets a thin lane per project above their bar, on the same
+        axis, so you can see which job is which and where they overlap.{" "}
         <span
           className="inline-block align-middle w-3 h-3 rounded-sm bg-ink-400"
           style={CARRIED_HATCH}
