@@ -45,6 +45,9 @@ export type TaskCardTask = {
   createdById: string;
   startDate: string | null;
   targetDate: string | null;
+  /** When the task was raised. The fallback for `startDate`, which older
+   *  tasks predate — see the closed row. */
+  createdAt?: string | null;
   estimatedHours: number | null;
   hoursSpent?: number | null;
   submittedOn: string | null;
@@ -200,6 +203,24 @@ export function DomainTaskCard({
    * assigner opening their own submitted task from History saw the work
    * and no way to accept it.
    */
+  /**
+   * Late, or wanted today.
+   *
+   * Only worth saying while the task is still open — a due date on
+   * finished work is history, and colouring it red would have people
+   * chasing something that already came back.
+   */
+  const dueTone = (() => {
+    if (!t.targetDate || t.status === "Approved" || t.status === "Submitted") {
+      return "";
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    const due = t.targetDate.slice(0, 10);
+    if (due < today) return "text-brand-redText font-medium";
+    if (due === today) return "text-brand-yellowText font-medium";
+    return "";
+  })();
+
   const canDecideThis =
     t.status === "Submitted" &&
     !!viewerId &&
@@ -269,7 +290,27 @@ export function DomainTaskCard({
               ) : (
                 <> · from {t.selfCreated ? "yourself" : t.createdBy}</>
               )}
-              {t.targetDate && <> · due {fmtDate(t.targetDate)}</>}
+              {/*
+                When it was handed over, and when it is wanted.
+
+                Both on the closed row, because a To do list where the
+                dates only appear once you open each card makes you open
+                every card to work out what to do first. Assigned falls
+                back to when the task was raised: startDate has only been
+                filled in since the assign form started defaulting it, so
+                older tasks have none and would otherwise show nothing.
+              */}
+              {" · assigned "}
+              {/* createdAt is a full timestamp and startDate is a plain
+                  day; fmtDate wants the day, so trim before handing it
+                  over rather than getting an em dash for a date we have. */}
+              {fmtDate(t.startDate ?? t.createdAt?.slice(0, 10))}
+              {t.targetDate && (
+                <>
+                  {" · "}
+                  <span className={dueTone}>due {fmtDate(t.targetDate)}</span>
+                </>
+              )}
             </span>
           </span>
         </button>
