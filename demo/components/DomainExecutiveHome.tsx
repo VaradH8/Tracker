@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { DomainTasksCard } from "@/components/DomainTasksCard";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -78,6 +79,11 @@ export function DomainExecutiveHome() {
   const [resources, setResources] = useState<Resource[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  /** Work that has been handed to the CEO personally, and anything named
+   *  them as reviewer. Usually nothing, which is why the card below only
+   *  appears when there is something in it. */
+  const [tasks, setTasks] = useState(0);
+  const [reviews, setReviews] = useState(0);
 
   const load = useCallback(() => {
     return Promise.all([
@@ -87,10 +93,19 @@ export function DomainExecutiveHome() {
       fetch("/api/domain/resources/availability", { cache: "no-store" }).then((r) =>
         r.ok ? r.json() : Promise.reject(new Error("Couldn't load resources.")),
       ),
+      // Not fatal if these fail — the portfolio is the point of this page.
+      fetch("/api/domain/tasks?mine=true&open=true", { cache: "no-store" }).then(
+        (r) => (r.ok ? r.json() : { tasks: [] }),
+      ),
+      fetch("/api/domain/tasks?review=true", { cache: "no-store" }).then((r) =>
+        r.ok ? r.json() : { tasks: [] },
+      ),
     ])
-      .then(([f, a]) => {
+      .then(([f, a, t, rv]) => {
         setProjects(f.projects ?? []);
         setResources(a.resources ?? []);
+        setTasks((t.tasks ?? []).length);
+        setReviews((rv.tasks ?? []).length);
         setError(null);
       })
       .catch((e: Error) => setError(e.message))
@@ -172,6 +187,19 @@ export function DomainExecutiveHome() {
 
   return (
     <div className="grid gap-5">
+      {/*
+        Only when there is something on them.
+
+        This dashboard is oversight — the portfolio, and who is free. A
+        Tasks card reading "nothing assigned to you" every day is furniture
+        on a page whose whole value is that everything on it is worth
+        looking at. But a CEO can be handed work like anyone else, and when
+        they have been, it should not take navigating to find out.
+      */}
+      {tasks + reviews > 0 && (
+        <DomainTasksCard assigned={tasks} toApprove={reviews} />
+      )}
+
       {/* ---- 1. is the portfolio on track ------------------------- */}
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Headline

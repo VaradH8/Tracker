@@ -2,13 +2,16 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
 import {
+  DOMAIN_TASK_STATUSES,
   SUPERVISOR_ROLES,
   canAssignTasks,
   parseEstimatedHours,
   taskIsOpen,
   type DomainRole,
+  type DomainTaskStatus,
 } from "@/lib/domain";
 import { TASK_INCLUDE as INCLUDE, serializeTask as serialize } from "@/lib/domain-task";
+import { cleanReviewerIds } from "@/lib/domain-task-review";
 
 
 export async function GET(req: Request) {
@@ -19,17 +22,32 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const projectId = url.searchParams.get("projectId");
   const mine = url.searchParams.get("mine") === "true";
-  /** Tasks this person handed out that are now waiting on their decision. */
+  /** Tasks waiting on THIS person's decision — the approval queue. */
   const review = url.searchParams.get("review") === "true";
+  /** Tasks this person handed out, whatever state they are in. */
+  const assignedByMe = url.searchParams.get("assignedByMe") === "true";
   const open = url.searchParams.get("open") === "true";
 
   const assigneeId = url.searchParams.get("assigneeId");
+  const createdById = url.searchParams.get("createdById");
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");
+  const status = url.searchParams.get("status");
+  /**
+   * History asks a different question from the three tabs: not "what is on
+   * me" but "what happened". `scope` is how it asks — byMe, toMe, or both
+   * — because the two booleans it replaces could not express "both"
+   * without meaning "tasks I assigned to myself".
+   */
+  const scope = url.searchParams.get("scope");
 
   const where: Record<string, unknown> = {};
   if (projectId) where.projectId = Number(projectId);
   if (assigneeId) where.assigneeId = assigneeId;
+  if (createdById) where.createdById = createdById;
+  if (status && DOMAIN_TASK_STATUSES.includes(status as DomainTaskStatus)) {
+    where.status = status;
+  }
 
   /**
    * Dates filter on when the task was assigned. Every task has that,
@@ -43,16 +61,91 @@ export async function GET(req: Request) {
     if (to) range.lte = new Date(to + "T23:59:59.999Z");
     where.createdAt = range;
   }
-  // Actionees and SMEs never see anyone else's tasks; ?mine=true forces
-  // "assigned to me" for everyone else.
-  if (mine || user.role === "Actionee" || user.role === "SME") {
+  if (mine) {
     where.assigneeId = user.id;
   }
-  // The review queue belongs to whoever assigned the task, so that a Lead
-  // is not asked to sign off work a Team Lead handed out.
-  if (review) {
+  if (scope === "byMe") {
+    where.createdById = user.id;
+  } else if (scope === "toMe") {
+    where.assigneeId = user.id;
+  } else if (scope === "both") {
+    // Being named a reviewer is the third way a task is your business, and
+    // leaving it out meant a reviewer could not find, anywhere in the app,
+    // the work they had been put on the hook for.
+    where.OR = [
+      { assigneeId: user.id },
+      { createdById: user.id },
+      { reviewers: { some: { userId: user.id } } },
+    ];
+  }
+
+  /**
+   * Tasks naming me a reviewer, whatever state they are in.
+   *
+   * Distinct from `review=true`, which is the actionable queue and is
+   * Submitted-only. This is the answer to "what am I on the hook for" —
+   * asked the moment somebody names you, not weeks later when the work
+   * finally lands. Without it, being made a reviewer was invisible until
+   * the task arrived to be decided.
+   */
+  if (url.searchParams.get("reviewing") === "true") {
+    where.reviewers = { some: { userId: user.id } };
+  }
+
+  /**
+   * Work I handed out that has come back.
+   *
+   * The assigner drops out of the flow entirely once they name somebody
+   * else to review — which is right for the decision, and wrong for
+   * knowing. This is how they stay told: submitted, on a task they
+   * raised, whoever ends up deciding it.
+   */
+  if (url.searchParams.get("submittedToMe") === "true") {
     where.createdById = user.id;
     where.status = "Submitted";
+  }
+
+  /**
+   * What an Actionee or SME is allowed to see.
+   *
+   * This used to be a flat `assigneeId = me`, which was right when those
+   * roles only ever received work. They can assign it now — to a
+   * colleague, or to themselves — and the flat rule meant somebody could
+   * hand out a task and then have nowhere to find it, because the one
+   * filter that would have shown it was overwritten by their own role.
+   *
+   * The fence is still real; it is just drawn around the right set.
+   * Assigned to me, raised by me, or waiting on my review — the three
+   * ways a task can be my business. Anything else stays invisible.
+   */
+  if (user.role === "Actionee" || user.role === "SME") {
+    const visible = [
+      { assigneeId: user.id },
+      { createdById: user.id },
+      { reviewers: { some: { userId: user.id } } },
+    ];
+    // AND, so it narrows whatever the caller asked for rather than
+    // replacing it — a scope filter must never widen what you can see.
+    where.AND = [...((where.AND as unknown[]) ?? []), { OR: visible }];
+  }
+  /**
+   * The approval queue is whoever was NAMED as a reviewer, not whoever
+   * assigned the task.
+   *
+   * Those used to be the same person and are not any more: an assigner
+   * who names somebody else has handed the decision over, and a reviewer
+   * may have had nothing to do with giving the work out.
+   *
+   * Submitted only. A task still being worked on is not waiting on a
+   * reviewer, and listing it would fill the queue with rows nobody can
+   * act on until the count stopped meaning anything.
+   */
+  if (review) {
+    where.reviewers = { some: { userId: user.id } };
+    where.status = "Submitted";
+  }
+  if (assignedByMe) {
+    where.createdById = user.id;
   }
 
   const tasks = await prisma.domainTask.findMany({
@@ -183,6 +276,40 @@ export async function POST(req: Request) {
       ? body.description.trim()
       : null;
 
+  /**
+   * Who is being asked to sign this off.
+   *
+   * Not the assignment ladder: an Actionee cannot hand work to their Lead
+   * but should certainly be able to ask them to check it, so anyone active
+   * may be named. The assignee is stripped out — approving your own work
+   * is not review, and allowing it would make "assign to yourself, name
+   * yourself" a way to close anything instantly while looking checked.
+   */
+  const reviewerIds = cleanReviewerIds(body.reviewerIds, assigneeId);
+  if (reviewerIds.length > 0) {
+    const found = await prisma.domainUser.findMany({
+      where: { id: { in: reviewerIds }, isActive: true },
+      select: { id: true },
+    });
+    if (found.length !== reviewerIds.length) {
+      return NextResponse.json(
+        { error: "One of those reviewers no longer has an active account." },
+        { status: 400 },
+      );
+    }
+  }
+
+  /**
+   * An assign date that was not given is today.
+   *
+   * Left null it read as "no date", and a task handed over on Tuesday
+   * showed nothing at all where every other task showed a date — so the
+   * list could not be ordered or filtered by when work went out.
+   */
+  const startDate = body.startDate
+    ? new Date(String(body.startDate))
+    : new Date();
+
   const created = await prisma.domainTask.create({
     data: {
       title,
@@ -192,9 +319,16 @@ export async function POST(req: Request) {
       assigneeId,
       createdById: user.id,
       status: "Assigned",
-      startDate: body.startDate ? new Date(String(body.startDate)) : null,
+      reviewers: {
+        create: reviewerIds.map((userId) => ({ userId })),
+      },
+      startDate,
       targetDate: body.targetDate ? new Date(String(body.targetDate)) : null,
       estimatedHours: parseEstimatedHours(body.estimatedHours),
+      // Recorded as given. The hours themselves are already whatever the
+      // assigner typed; this is the note that says which calendar they
+      // were counting, so a 45h week-long task reads as deliberate.
+      includesWeekends: body.includesWeekends === true,
       // The first entry in the history: the brief, recorded as it was
       // given. Everything after this is appended, never edited.
       events: {

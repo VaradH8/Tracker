@@ -12,6 +12,7 @@ import {
 import { useDomain } from "@/lib/domain-store";
 import { SUPERVISOR_ROLES } from "@/lib/domain";
 import { DomainTaskList, type DomainTask } from "@/components/DomainTaskList";
+import { DomainTasksCard } from "@/components/DomainTasksCard";
 import { DomainPage, PageHeader } from "@/components/DomainPage";
 import { DomainExecutiveHome } from "@/components/DomainExecutiveHome";
 import { fmtDate } from "@/lib/domain-format";
@@ -284,7 +285,7 @@ function ManagerHome() {
                 further down this page, where it can be acted on. */}
             {myTasks.length > 0 && (
               <AttentionRow
-                href="#my-tasks"
+                href="/engineering/task-log"
                 tone="blue"
                 icon={<CheckSquare size={15} />}
                 count={myTasks.length}
@@ -303,7 +304,7 @@ function ManagerHome() {
 
             {taskReviews.length > 0 && (
               <AttentionRow
-                href="#task-reviews"
+                href="/engineering/task-log?tab=approve"
                 tone="blue"
                 icon={<CheckSquare size={15} />}
                 count={taskReviews.length}
@@ -489,40 +490,10 @@ function ManagerHome() {
         )}
       </section>
 
-      {/* Work assigned to this supervisor. The Task log page is gone, so the
-          list lives where its summary row already pointed — DomainTaskList
-          carries the submit control inline, so nothing needs navigating to. */}
-      {myTasks.length > 0 && (
-        <section id="my-tasks" className="scroll-mt-6">
-          <h2 className="font-heading text-lg font-semibold mb-3">
-            Tasks assigned to me
-          </h2>
-          <DomainTaskList
-            tasks={myTasks}
-            canManage={false}
-            viewerId={current?.id}
-            viewerRole={current?.role}
-            onChanged={load}
-          />
-        </section>
-      )}
-
-      {/* Work they handed out that is now waiting on their decision. The
-          same list renders the approve / send-back controls for a reviewer. */}
-      {taskReviews.length > 0 && (
-        <section id="task-reviews" className="scroll-mt-6">
-          <h2 className="font-heading text-lg font-semibold mb-3">
-            Tasks awaiting your approval
-          </h2>
-          <DomainTaskList
-            tasks={taskReviews}
-            canManage={false}
-            viewerId={current?.id}
-            viewerRole={current?.role}
-            onChanged={load}
-          />
-        </section>
-      )}
+      <DomainTasksCard
+        assigned={myTasks.length}
+        toApprove={taskReviews.length}
+      />
     </div>
   );
 }
@@ -727,6 +698,9 @@ function WorkerHome({ secondary = false }: { secondary?: boolean }) {
   const [allocs, setAllocs] = useState<MyAllocation[]>([]);
   const [subs, setSubs] = useState<MySubmission[]>([]);
   const [tasks, setTasks] = useState<DomainTask[]>([]);
+  /** An Actionee or SME can be named a reviewer now, so they get an
+   *  approval queue like anybody else. It is usually empty. */
+  const [reviews, setReviews] = useState<DomainTask[]>([]);
 
   const load = useCallback(() => {
     Promise.all([
@@ -744,12 +718,16 @@ function WorkerHome({ secondary = false }: { secondary?: boolean }) {
       fetch("/api/domain/tasks?mine=true&open=true", { cache: "no-store" }).then(
         (r) => (r.ok ? r.json() : { tasks: [] }),
       ),
+      fetch("/api/domain/tasks?review=true", { cache: "no-store" }).then((r) =>
+        r.ok ? r.json() : { tasks: [] },
+      ),
     ])
-      .then(([a, al, s, t]) => {
+      .then(([a, al, s, t, rv]) => {
         setRows(a.assignments ?? []);
         setAllocs(al.allocations ?? []);
         setSubs(s.submissions ?? []);
         setTasks(t.tasks ?? []);
+        setReviews(rv.tasks ?? []);
       })
       .catch(() => setRows([]));
   }, []);
@@ -761,7 +739,14 @@ function WorkerHome({ secondary = false }: { secondary?: boolean }) {
   }
 
   const groups = groupByProject(allocs, rows);
-  if (secondary && groups.length === 0 && tasks.length === 0) return null;
+  if (
+    secondary &&
+    groups.length === 0 &&
+    tasks.length === 0 &&
+    reviews.length === 0
+  ) {
+    return null;
+  }
 
   const assigned = rows.reduce((s, r) => s + r.assignedCount, 0);
   const delivered = rows.reduce((s, r) => s + r.deliveredCount, 0);
@@ -901,21 +886,11 @@ function WorkerHome({ secondary = false }: { secondary?: boolean }) {
         </section>
       )}
 
-      {/* Tasks handed to this person. Submitting happens right here — the
-          whole point is that it takes no navigation to say "done". */}
-      {tasks.length > 0 && (
-        <section>
-          <h2 className="font-heading text-lg font-semibold mb-3">
-            Tasks assigned to me
-          </h2>
-          <DomainTaskList
-            tasks={tasks}
-            canManage={false}
-            viewerId={current?.id}
-            viewerRole={current?.role}
-            onChanged={load}
-          />
-        </section>
+      {/* Not when embedded under a supervisor's dashboard — that view has
+          already shown this card, and two of them a screen apart invites
+          the reader to think they are counting different things. */}
+      {!secondary && (
+        <DomainTasksCard assigned={tasks.length} toApprove={reviews.length} />
       )}
     </div>
   );

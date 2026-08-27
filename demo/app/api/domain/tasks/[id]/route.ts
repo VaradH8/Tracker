@@ -10,6 +10,14 @@ import {
   type DomainTaskStatus,
 } from "@/lib/domain";
 import { TASK_INCLUDE as INCLUDE, serializeTask as serialize } from "@/lib/domain-task";
+import {
+  isReviewer,
+  resetsOtherReviewers,
+  statusOnDecision,
+  statusOnSubmit,
+  type ReviewDecision,
+} from "@/lib/domain-task-review";
+import { hoursSpentIssue, parseHoursSpent } from "@/lib/domain-task-hours";
 
 
 const MANAGER_ROLES: DomainRole[] = ["Admin", "Lead", "TeamLead"];
@@ -85,7 +93,22 @@ export async function PATCH(
   const isManager =
     user.role === "Admin" || user.role === "Lead" || user.role === "TeamLead";
   const isAssignee = task.assigneeId === user.id;
-  if (!isManager && !isAssignee) {
+  /**
+   * A named reviewer has to get through the door.
+   *
+   * This gate was written when the only person who could sign a task off
+   * was the manager who handed it out, so manager-or-assignee covered
+   * everyone. Naming reviewers broke that: an SME asked to check a
+   * drawing is neither, and was refused before the approve branch could
+   * even look at them. Being named lets you in; whether you may actually
+   * decide is still settled below.
+   */
+  const namedReviewer =
+    (await prisma.domainTaskReviewer.count({
+      where: { taskId: id, userId: user.id },
+    })) > 0;
+  const isCreatorOfTask = task.createdById === user.id;
+  if (!isManager && !isAssignee && !namedReviewer && !isCreatorOfTask) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -146,26 +169,55 @@ export async function PATCH(
         { status: 400 },
       );
     }
+    const hoursIssue = hoursSpentIssue(body.hoursSpent);
+    if (hoursIssue) {
+      return NextResponse.json({ error: hoursIssue }, { status: 400 });
+    }
+
     /**
-     * Work you gave yourself has nobody to approve it, so submitting
-     * records it as done rather than parking it in a queue that would
-     * never be looked at. reviewedById stays null — nobody reviewed it,
-     * and naming the author as their own approver would be a lie.
+     * Nobody to ask means nobody to wait for.
+     *
+     * This used to turn on whether you created the task yourself, which
+     * was a near-enough proxy while the only reviewer was the assigner.
+     * It is the wrong question now: somebody can hand you work and name no
+     * reviewer, and you can give yourself work and ask your Lead to check
+     * it. What decides is whether anybody was actually asked.
      */
-    const selfCreated = task.createdById === user.id;
+    const reviewers = await prisma.domainTaskReviewer.findMany({
+      where: { taskId: id },
+      select: { userId: true, decision: true },
+    });
+    const nextStatus = statusOnSubmit(
+      reviewers.map((r) => ({
+        userId: r.userId,
+        decision: r.decision as ReviewDecision,
+      })),
+    );
+    const closedOnSubmit = nextStatus === "Approved";
 
     const submitted = await prisma.domainTask.update({
       where: { id },
       data: {
-        status: selfCreated ? "Approved" : "Submitted",
+        status: nextStatus,
         submittedOn: new Date(raw + "T00:00:00.000Z"),
         submittedNote: note,
         submittedAt: new Date(),
+        hoursSpent: parseHoursSpent(body.hoursSpent),
         // A resubmission after a rejection starts a clean decision. The
         // decision it replaces is not lost — it is already in the history.
         reviewedById: null,
-        reviewedAt: selfCreated ? new Date() : null,
+        reviewedAt: closedOnSubmit ? new Date() : null,
         reviewNote: null,
+        // Every reviewer starts again. What comes back after a correction
+        // is not the work anybody looked at, and with any-one-approves a
+        // single stale approval would close the task on resubmission
+        // without anybody reading the fix.
+        reviewers: {
+          updateMany: {
+            where: { taskId: id },
+            data: { decision: "Pending", decidedAt: null, note: null },
+          },
+        },
         events: {
           create: {
             actorId: user.id,
@@ -181,14 +233,34 @@ export async function PATCH(
     });
     return NextResponse.json({
       task: serialize(submitted, MANAGER_ROLES.includes(user.role)),
-      selfCompleted: selfCreated,
+      selfCompleted: closedOnSubmit,
     });
   }
 
   if (action === "approve" || action === "reject") {
-    if (task.createdById !== user.id && user.role !== "Admin") {
+    /**
+     * Any named reviewer, and nobody else.
+     *
+     * It used to be whoever assigned it. That is no longer the same
+     * person: a task can name reviewers who had nothing to do with
+     * handing it out, and an assigner who named somebody else has
+     * delegated the decision rather than kept it.
+     *
+     * An Admin is not exempt. Approving work you were not asked to check
+     * would put a name against a review that never happened, which is
+     * precisely what the reviewer list exists to prevent.
+     */
+    const reviewerRows = await prisma.domainTaskReviewer.findMany({
+      where: { taskId: id },
+      select: { userId: true, decision: true },
+    });
+    const reviewers = reviewerRows.map((r) => ({
+      userId: r.userId,
+      decision: r.decision as ReviewDecision,
+    }));
+    if (!isReviewer(reviewers, user.id)) {
       return NextResponse.json(
-        { error: "Only the person who assigned this task can review it." },
+        { error: "You weren't asked to review this task." },
         { status: 403 },
       );
     }
@@ -202,15 +274,47 @@ export async function PATCH(
       typeof body.reviewNote === "string" && body.reviewNote.trim()
         ? body.reviewNote.trim()
         : null;
+    const decision: ReviewDecision =
+      action === "approve" ? "Approved" : "Rejected";
+
     const reviewed = await prisma.domainTask.update({
       where: { id },
       data: {
-        // A rejection goes back to the assignee to redo, rather than
-        // becoming a dead end.
-        status: action === "approve" ? "Approved" : "Rejected",
+        /**
+         * Approving closes it outright — any one reviewer is enough.
+         * Sending it back returns it to the assignee to redo rather than
+         * becoming a dead end: work that came back wrong is still work
+         * somebody wants, and a terminal state would mean raising the
+         * whole task again to say "fix the one sheet".
+         */
+        status: statusOnDecision(decision),
         reviewedById: user.id,
         reviewedAt: new Date(),
         reviewNote,
+        reviewers: {
+          // This reviewer's own decision, recorded against their name.
+          updateMany: [
+            {
+              where: { taskId: id, userId: user.id },
+              data: { decision, decidedAt: new Date(), note: reviewNote },
+            },
+            // A send-back wipes everybody else's, so the corrected work
+            // is genuinely re-reviewed rather than inheriting an opinion
+            // about a different submission.
+            ...(resetsOtherReviewers(decision)
+              ? [
+                  {
+                    where: { taskId: id, userId: { not: user.id } },
+                    data: {
+                      decision: "Pending",
+                      decidedAt: null,
+                      note: null,
+                    },
+                  },
+                ]
+              : []),
+          ],
+        },
         events: {
           create: {
             actorId: user.id,
@@ -232,16 +336,65 @@ export async function PATCH(
   if (DOMAIN_TASK_STATUSES.includes(body.status as DomainTaskStatus)) {
     data.status = body.status;
   }
-  // Reassignment / retitling / scheduling is a manager action only.
-  if (isManager) {
+  /**
+   * Changing the brief is the assigner's to do, or a manager's.
+   *
+   * It used to be managers only, which locked out the one person who most
+   * obviously owns a task: whoever wrote it. An Actionee who gave
+   * themselves work could not correct their own title, and a Team Lead
+   * could edit a task they had never seen.
+   *
+   * The assignee is not included. They act on the brief; rewriting the
+   * thing you were asked to do, and then reporting it done, is not an
+   * edit anybody wants to discover afterwards.
+   */
+  const isCreator = isCreatorOfTask;
+
+  /**
+   * Say no out loud.
+   *
+   * Without this the brief block is simply skipped for an assignee, `data`
+   * comes out empty and they get "Nothing to update" — a 400 that reads
+   * like their request was malformed when in fact it was refused. Anyone
+   * debugging it, or any client deciding whether to show an Edit button,
+   * would draw the wrong conclusion.
+   */
+  const BRIEF_FIELDS = [
+    "title",
+    "description",
+    "startDate",
+    "targetDate",
+    "estimatedHours",
+    "includesWeekends",
+    "divisionId",
+    "assigneeId",
+  ];
+  if (!isManager && !isCreator && BRIEF_FIELDS.some((f) => f in body)) {
+    return NextResponse.json(
+      { error: "Only the person who assigned this task, or a manager, can change it." },
+      { status: 403 },
+    );
+  }
+
+  if (isManager || isCreator) {
     if (typeof body.title === "string" && body.title.trim()) {
       data.title = body.title.trim();
+    }
+    // The note carries the actual instruction, so it has to be correctable
+    // — a typo in the title is cosmetic, a wrong sheet number is not.
+    if (typeof body.description === "string" || body.description === null) {
+      data.description = body.description
+        ? String(body.description).trim()
+        : null;
     }
     if (typeof body.startDate === "string" || body.startDate === null) {
       data.startDate = body.startDate ? new Date(body.startDate) : null;
     }
     if (typeof body.targetDate === "string" || body.targetDate === null) {
       data.targetDate = body.targetDate ? new Date(body.targetDate) : null;
+    }
+    if (typeof body.includesWeekends === "boolean") {
+      data.includesWeekends = body.includesWeekends;
     }
     if (body.estimatedHours === null) {
       data.estimatedHours = null;
@@ -281,10 +434,23 @@ export async function PATCH(
     return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
   }
 
+  /**
+   * Only a change to the brief counts as an edit.
+   *
+   * Moving the status is the task being worked, not rewritten, and
+   * stamping "edited" on every submission would make the chip meaningless
+   * within a week — which is the usual fate of a marker that fires on
+   * everything.
+   */
+  const changedBrief = BRIEF_FIELDS.some((f) => f in data);
+
   const updated = await prisma.domainTask.update({
     where: { id },
     data: {
       ...data,
+      ...(changedBrief
+        ? { editedAt: new Date(), editedById: user.id }
+        : {}),
       ...(reassignedTo
         ? {
             events: {

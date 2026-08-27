@@ -3,6 +3,7 @@ import {
   fmtDate,
   fmtWeekday,
   fmtStamp,
+  fmtEditedStamp,
   submissionStatusCls,
 } from "@/lib/domain-format";
 
@@ -86,5 +87,44 @@ describe("submission status colours", () => {
     // falling through to a colour that implies a decision.
     expect(submissionStatusCls("Pending")).toContain("yellow");
     expect(submissionStatusCls("Whatever")).toContain("yellow");
+  });
+});
+
+describe("the edited-on chip", () => {
+  /**
+   * A deliberately different shape from fmtStamp: DD-MM-YY and a 12-hour
+   * clock, because this one is read as a sentence — "edited 27-08-26 at
+   * 1.00 PM" — rather than scanned in a column.
+   */
+  it("renders as DD-MM-YY at H.MM AM/PM", () => {
+    expect(fmtEditedStamp(new Date(2026, 7, 27, 13, 0).toISOString())).toBe(
+      "27-08-26 at 1.00 PM",
+    );
+  });
+
+  it("pads the date but not the hour", () => {
+    // 09-03, not 9-3; but 9.05, not 09.05 — that is how a clock is read
+    // aloud, and the chip is prose.
+    expect(fmtEditedStamp(new Date(2026, 2, 9, 9, 5).toISOString())).toBe(
+      "09-03-26 at 9.05 AM",
+    );
+  });
+
+  it("gets the two hours everybody gets wrong", () => {
+    // Midnight is 12 AM and noon is 12 PM. A naive h % 12 gives 0.
+    expect(fmtEditedStamp(new Date(2026, 7, 27, 0, 5).toISOString())).toBe(
+      "27-08-26 at 12.05 AM",
+    );
+    expect(fmtEditedStamp(new Date(2026, 7, 27, 12, 0).toISOString())).toBe(
+      "27-08-26 at 12.00 PM",
+    );
+  });
+
+  it("says nothing when there is nothing to say", () => {
+    // A task nobody has edited must render no chip at all, so this has to
+    // come back empty rather than "Invalid Date" or "NaN".
+    expect(fmtEditedStamp(null)).toBe("");
+    expect(fmtEditedStamp(undefined)).toBe("");
+    expect(fmtEditedStamp("not a date")).toBe("");
   });
 });

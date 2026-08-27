@@ -103,3 +103,26 @@ export function fmtStamp(isoDateTime: string | null | undefined): string {
   if (Number.isNaN(d.getTime())) return "—";
   return `${dmy(d, false)} ${hm(d)}`;
 }
+
+/**
+ * "27-08-26 at 1.00 PM" — a moment, said the way people say it.
+ *
+ * Dashes rather than the slashes fmtDate uses, and a dot rather than a
+ * colon in the time, because this is the format the edited-on chip was
+ * specified in. Twelve hour with a plain AM/PM: a task edited at 13:00
+ * means nothing to somebody reading a chip out of the corner of their eye.
+ *
+ * Rendered from the browser's own clock, like every other timestamp here,
+ * so it reads in whatever zone the person is actually sitting in.
+ */
+export function fmtEditedStamp(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const p2 = (n: number) => String(n).padStart(2, "0");
+  const date = `${p2(d.getDate())}-${p2(d.getMonth() + 1)}-${p2(d.getFullYear() % 100)}`;
+  const h24 = d.getHours();
+  // Midnight and noon are 12, not 0 — the one case a modulo gets wrong.
+  const h = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${date} at ${h}.${p2(d.getMinutes())} ${h24 < 12 ? "AM" : "PM"}`;
+}

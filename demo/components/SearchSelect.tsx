@@ -296,7 +296,9 @@ export function SearchSelect({
         // Same box as every other control on the page — see domain-ui.
         // A picker that looks different from the select beside it reads as
         // a different kind of thing.
-        className={`${selectClass(size, "w-full text-left")} flex items-center gap-2 pr-2`}
+        className={`${selectClass(size, "w-full text-left")} flex items-center gap-2 pr-2 ${
+          open ? "border-brand-blue ring-2 ring-brand-blue/20" : ""
+        }`}
       >
         <span
           className={`flex-1 truncate ${selected ? "text-ink-900" : "text-ink-400"}`}
@@ -321,10 +323,14 @@ export function SearchSelect({
               width: box.width,
               maxWidth: "min(32rem, calc(100vw - 16px))",
             }}
-            className="z-50 rounded-card border border-ink-200 bg-white shadow-lg"
+            /* Lifted off the page rather than outlined onto it: a heavier
+               shadow and a hairline ring read as "floating above", which
+               is what a menu is, where a flat 1px border read as another
+               panel that happened to be in the way. */
+            className="z-50 rounded-card border border-ink-200 bg-white shadow-xl ring-1 ring-ink-900/5 overflow-hidden"
           >
           {showSearch && (
-            <div className="p-2 border-b border-ink-100">
+            <div className="p-2 border-b border-ink-100 bg-ink-50/60">
               <div className="relative">
                 <Search
                   size={14}
@@ -339,7 +345,7 @@ export function SearchSelect({
                   }}
                   onKeyDown={onKeyDown}
                   placeholder={searchPlaceholder}
-                  className="w-full pl-8 pr-2.5 h-8 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue/30 focus:border-brand-blue"
+                  className="w-full pl-8 pr-2.5 h-9 rounded-md border border-ink-200 bg-white text-sm placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-blue/25 focus:border-brand-blue"
                 />
               </div>
             </div>
@@ -349,15 +355,32 @@ export function SearchSelect({
             id={listId}
             role="listbox"
             style={{ maxHeight: box.maxHeight }}
-            className="overflow-y-auto py-1"
+            className="overflow-y-auto p-1"
           >
             {shown.length === 0 ? (
-              <li className="px-3 py-2 text-sm text-ink-400 italic">
-                Nothing matches &ldquo;{query}&rdquo;
+              <li className="px-3 py-6 text-center">
+                <p className="text-sm text-ink-500">
+                  Nothing matches &ldquo;{query}&rdquo;
+                </p>
+                <p className="text-xs text-ink-400 mt-0.5">
+                  Try a shorter search.
+                </p>
               </li>
             ) : (
               shown.map((o, i) => (
                 <li key={o.value}>
+                  {/*
+                    A rule under the pinned block.
+
+                    "Myself", "Anyone", "All projects" are not members of
+                    the list they sit above, and running them straight into
+                    the alphabetical names made the first real option look
+                    like one of them. One hairline, only where the two
+                    groups actually meet.
+                  */}
+                  {i > 0 && isPinned(shown[i - 1]) && !isPinned(o) && (
+                    <div className="my-1 border-t border-ink-100" />
+                  )}
                   <button
                     type="button"
                     role="option"
@@ -365,8 +388,19 @@ export function SearchSelect({
                     disabled={o.disabled}
                     onMouseEnter={() => setActive(i)}
                     onClick={() => pick(o)}
-                    className={`w-full text-left px-3 py-1.5 flex items-start gap-2 text-sm disabled:opacity-40 ${
-                      i === active ? "bg-ink-50" : ""
+                    /*
+                      Three states worth telling apart: the one that is
+                      chosen, the one the keyboard is on, and the rest. The
+                      tick alone carried "chosen", which is a 14px mark at
+                      the far left of a wide row — easy to miss on a list of
+                      forty. Selected now tints the whole row.
+                    */
+                    className={`w-full text-left px-2.5 py-2 rounded-md flex items-start gap-2 text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                      o.value === value
+                        ? "bg-brand-blueBg text-brand-blue font-medium"
+                        : i === active
+                          ? "bg-ink-100 text-ink-900"
+                          : "text-ink-900"
                     }`}
                   >
                     <Check
@@ -381,11 +415,15 @@ export function SearchSelect({
                         divisions all showing "MRJN 162/169_BATC…" are not
                         a choice. */}
                     <span className="min-w-0">
-                      <span className="block text-ink-900 break-words">
-                        {o.label}
-                      </span>
+                      <span className="block break-words">{o.label}</span>
                       {o.hint && (
-                        <span className="block text-xs text-ink-500 break-words">
+                        <span
+                          className={`block text-xs break-words ${
+                            o.value === value
+                              ? "text-brand-blue/70 font-normal"
+                              : "text-ink-500"
+                          }`}
+                        >
                           {o.hint}
                         </span>
                       )}

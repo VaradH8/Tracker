@@ -384,6 +384,9 @@ model DomainUser {
   deliveryCorrections DomainDeliveryCorrection[] @relation("DomainDeliveryCorrector")
   tagAssignmentsRemoved DomainTagAssignment[] @relation("DomainTagAssignmentRemover")
   tagReviews          DomainTagSubmission[] @relation("DomainTagReviewer")
+  taskReviews         DomainTaskReviewer[]  @relation("DomainTaskReviewerUser")
+  tasksEdited         DomainTask[]          @relation("DomainTaskEditor")
+  taskFilesUploaded   DomainTaskAttachment[] @relation("DomainTaskAttachmentUploader")
   leaveRecords   DomainLeave[] @relation("DomainLeaveSubject")
   leavesAuthored DomainLeave[] @relation("DomainLeaveAuthor")
   leavesDecided  DomainLeave[] @relation("DomainLeaveDecider")
@@ -669,7 +672,33 @@ model DomainTask {
   createdBy      DomainUser    @relation("DomainTaskCreator", fields: [createdById], references: [id])
   startDate      DateTime?
   targetDate     DateTime? // the deadline
-  estimatedHours Float? // hours the actionee should take to complete it
+  /// What the assigner budgeted. Filled in from the dates at nine hours a
+  /// working day (see lib/domain-task-hours) and editable — plenty of
+  /// tasks are two hours inside a week-long window.
+  estimatedHours Float?
+  /// Whether the estimate counted the Saturdays and Sundays in the span.
+  ///
+  /// Stored rather than recomputed because it is the assigner's decision,
+  /// not a property of the dates: the same Friday-to-Monday task is 9h for
+  /// one team and 27h for another, and without this the reader of a 27h
+  /// weekend task cannot tell whether somebody meant it or fat-fingered
+  /// the number.
+  includesWeekends Boolean @default(false)
+  /// When the brief was last changed after it went out, and by whom.
+  ///
+  /// Recorded because the person doing the work read something, and an
+  /// edit means what they read is no longer what they were asked for. The
+  /// task says so on its face rather than changing under them silently.
+  ///
+  /// Null on a task nobody has touched since assigning it, which is most
+  /// of them — the chip only appears when there is something to say.
+  editedAt       DateTime?
+  editedById     String?
+  editedBy       DomainUser? @relation("DomainTaskEditor", fields: [editedById], references: [id], onDelete: SetNull)
+  /// What the assignee reported having spent, given on submission.
+  /// Optional: work gets done without anybody timing it, and refusing a
+  /// submission for want of a number only teaches people to invent one.
+  hoursSpent     Float?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
@@ -687,11 +716,70 @@ model DomainTask {
   reviewedAt   DateTime?
   reviewNote   String?
 
-  workLogs DomainWorkLog[]
-  events   DomainTaskEvent[]
+  workLogs    DomainWorkLog[]
+  events      DomainTaskEvent[]
+  reviewers   DomainTaskReviewer[]
+  attachments DomainTaskAttachment[]
 
   @@index([projectId])
   @@index([assigneeId])
+  @@index([status])
+}
+
+/// Somebody asked to sign a task off.
+///
+/// A task can name several, and any one of them approving closes it —
+/// they are a pool, not a chain. Which means the ones who never acted have
+/// to stay visible: "three reviewers" reads as three opinions when it was
+/// one, so every screen lists the whole set and marks who actually
+/// decided.
+///
+/// Their decisions all reset to Pending when a task is sent back, because
+/// the work that comes back is not the work anybody looked at.
+///
+/// Reviewing is deliberately not the assignment ladder. An Actionee cannot
+/// hand work to their Lead, but should certainly be able to ask them to
+/// check it, so anyone active can be named here.
+model DomainTaskReviewer {
+  id        Int        @id @default(autoincrement())
+  taskId    Int
+  task      DomainTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      DomainUser @relation("DomainTaskReviewerUser", fields: [userId], references: [id], onDelete: Cascade)
+  /// Pending | Approved | Rejected
+  decision  String     @default("Pending")
+  decidedAt DateTime?
+  note      String?
+  createdAt DateTime   @default(now())
+
+  @@unique([taskId, userId])
+  @@index([userId, decision])
+}
+
+/// A file on a task — the brief when it was handed over, or the work when
+/// it came back.
+///
+/// `side` is what keeps those apart on screen: a reviewer opening a task
+/// needs to know which of five files is the spec and which is the answer.
+///
+/// Bytes live on disk under UPLOAD_DIR, exactly as the tracker's
+/// attachments do, so both modules share one volume and one backup story.
+/// Only the path is kept here.
+model DomainTaskAttachment {
+  id           Int         @id @default(autoincrement())
+  taskId       Int
+  task         DomainTask  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  /// Brief | Submission
+  side         String      @default("Brief")
+  name         String
+  size         String
+  kind         String      @default("other")
+  storageKey   String?
+  uploadedById String?
+  uploadedBy   DomainUser? @relation("DomainTaskAttachmentUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime    @default(now())
+
+  @@index([taskId])
 }
 
 /// One entry in a task's history: who did what to it, when, and what they

@@ -14,6 +14,7 @@ import {
   TrendingUp,
   Tags,
   CheckSquare,
+  ClipboardList,
   Menu,
   X,
 } from "lucide-react";
@@ -65,6 +66,9 @@ const NAV: NavItem[] = [
   // can now hand themselves a batch. Without this they had nowhere to
   // submit against it.
   { href: "/engineering/my-tags", label: "My tags", icon: Tags, roles: TAG_HOLDERS, group: "Work" },
+  // Everybody: an Actionee has tasks of their own to do and can be named
+  // a reviewer on somebody else's, so the log is not a supervisor screen.
+  { href: "/engineering/task-log", label: "Task log", icon: ClipboardList, roles: EVERYONE, group: "Work" },
   { href: "/engineering/approvals", label: "Approvals", icon: CheckSquare, roles: SUPERVISORS, group: "Manage" },
   { href: "/engineering/forecast", label: "Forecast", icon: TrendingUp, roles: OVERSEERS, group: "Manage" },
   { href: "/engineering/availability", label: "Resource availability", icon: Gauge, roles: OVERSEERS, group: "Manage" },

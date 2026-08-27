@@ -14,6 +14,17 @@ export const TASK_INCLUDE = {
   assignee: { select: { id: true, name: true, role: true } },
   createdBy: { select: { id: true, name: true } },
   reviewedBy: { select: { id: true, name: true } },
+  editedBy: { select: { id: true, name: true } },
+  /** Named in the order they were asked, so the list reads the way the
+   *  assigner wrote it rather than by id. */
+  reviewers: {
+    include: { user: { select: { id: true, name: true, role: true } } },
+    orderBy: { id: "asc" },
+  },
+  attachments: {
+    include: { uploadedBy: { select: { id: true, name: true } } },
+    orderBy: { id: "asc" },
+  },
   events: {
     include: { actor: { select: { id: true, name: true, role: true } } },
     orderBy: { at: "asc" },
@@ -51,6 +62,7 @@ export type TaskRow = {
   startDate: Date | null;
   targetDate: Date | null;
   estimatedHours: number | null;
+  hoursSpent: number | null;
   createdAt: Date;
   submittedOn: Date | null;
   submittedNote: string | null;
@@ -62,6 +74,25 @@ export type TaskRow = {
   assignee: { id: string; name: string; role: string } | null;
   createdBy: { id: string; name: string };
   reviewedBy: { id: string; name: string } | null;
+  includesWeekends: boolean;
+  editedAt: Date | null;
+  editedBy: { id: string; name: string } | null;
+  reviewers?: {
+    userId: string;
+    decision: string;
+    decidedAt: Date | null;
+    note: string | null;
+    user: { id: string; name: string; role: string };
+  }[];
+  attachments?: {
+    id: number;
+    side: string;
+    name: string;
+    size: string;
+    kind: string;
+    createdAt: Date;
+    uploadedBy: { id: string; name: string } | null;
+  }[];
   events?: TaskEventRow[];
 };
 
@@ -97,7 +128,10 @@ export function serializeTask(t: TaskRow, withHistory = false) {
     status: t.status,
     startDate: day(t.startDate),
     targetDate: day(t.targetDate),
+    /** What the assigner budgeted, and what it actually took. Both
+     *  travel: one without the other is half a sentence. */
     estimatedHours: t.estimatedHours,
+    hoursSpent: t.hoursSpent,
     /** Null on an ad-hoc task — work that belongs to no project. */
     projectId: t.project?.id ?? null,
     projectName: t.project?.name ?? null,
@@ -106,7 +140,7 @@ export function serializeTask(t: TaskRow, withHistory = false) {
     assignee: t.assignee?.name ?? null,
     assigneeId: t.assignee?.id ?? null,
     assigneeRole: t.assignee?.role ?? null,
-    /** Who handed it out — the only person who may review it. */
+    /** Who handed it out. Reviewing is a separate list — see reviewers. */
     createdBy: t.createdBy.name,
     createdById: t.createdBy.id,
     createdAt: t.createdAt.toISOString(),
@@ -116,6 +150,36 @@ export function serializeTask(t: TaskRow, withHistory = false) {
     reviewedBy: t.reviewedBy?.name ?? null,
     reviewedAt: t.reviewedAt ? t.reviewedAt.toISOString() : null,
     reviewNote: t.reviewNote,
+    includesWeekends: t.includesWeekends,
+    /** Set only when the brief changed after it went out — see the route. */
+    editedAt: t.editedAt ? t.editedAt.toISOString() : null,
+    editedBy: t.editedBy?.name ?? null,
+    /**
+     * Everyone asked, whether or not they acted.
+     *
+     * The whole set travels, not a count and not just the one who
+     * decided: any single approval closes a task, so a closed one can
+     * have been read by one person out of three. Only the names make
+     * that visible.
+     */
+    reviewers: (t.reviewers ?? []).map((r) => ({
+      id: r.userId,
+      name: r.user.name,
+      role: r.user.role,
+      decision: r.decision,
+      decidedAt: r.decidedAt ? r.decidedAt.toISOString() : null,
+      note: r.note,
+    })),
+    /** Split by side so a reviewer can tell the brief from the answer. */
+    attachments: (t.attachments ?? []).map((a) => ({
+      id: a.id,
+      side: a.side,
+      name: a.name,
+      size: a.size,
+      kind: a.kind,
+      uploadedBy: a.uploadedBy?.name ?? null,
+      at: a.createdAt.toISOString(),
+    })),
     selfCreated: isSelfCreated(t),
   };
 }
