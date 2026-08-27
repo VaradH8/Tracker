@@ -155,3 +155,44 @@ describe("cleaning up who was named", () => {
     expect(cleanReviewerIds([" me ", "other"], "me")).toEqual(["other"]);
   });
 });
+
+describe("the assigner can sign off too", () => {
+  const CREATOR = "u-creator";
+  const REVIEWER = "u-reviewer";
+  const named = [{ userId: REVIEWER, decision: "Pending" as const }];
+
+  it("lets whoever assigned it approve, alongside the reviewer", () => {
+    // The point of the change: naming a reviewer ADDS somebody who can
+    // close the task. It does not hand the job over and lock the assigner
+    // out, which stranded tasks whenever the named reviewer was away.
+    expect(canDecide(named, REVIEWER, "Submitted", CREATOR)).toBe(true);
+    expect(canDecide(named, CREATOR, "Submitted", CREATOR)).toBe(true);
+  });
+
+  it("still shuts out everybody else", () => {
+    // Including an Admin. A name against a review that never happened is
+    // exactly what the reviewer list exists to prevent.
+    expect(canDecide(named, "u-passerby", "Submitted", CREATOR)).toBe(false);
+  });
+
+  it("holds the status rule for the assigner as well as the reviewer", () => {
+    // Otherwise a creator pressing approve on an already-closed task would
+    // move the "decided by" name to whoever was slowest.
+    expect(canDecide(named, CREATOR, "Approved", CREATOR)).toBe(false);
+    expect(canDecide(named, CREATOR, "Assigned", CREATOR)).toBe(false);
+    expect(canDecide(named, CREATOR, "Rejected", CREATOR)).toBe(false);
+  });
+
+  it("does not treat a missing creator as a match", () => {
+    // A null createdById must never satisfy the check by accident.
+    expect(canDecide(named, "", "Submitted", null)).toBe(false);
+    expect(canDecide(named, "u-anyone", "Submitted", undefined)).toBe(false);
+  });
+
+  it("leaves the no-reviewer case alone", () => {
+    // Nobody named still means the task closes on submission, so there is
+    // no decision for anyone to make — see statusOnSubmit.
+    expect(statusOnSubmit([])).toBe("Approved");
+    expect(statusOnSubmit(named)).toBe("Submitted");
+  });
+});

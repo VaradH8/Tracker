@@ -239,16 +239,11 @@ export async function PATCH(
 
   if (action === "approve" || action === "reject") {
     /**
-     * Any named reviewer, and nobody else.
+     * A named reviewer, or whoever assigned it. See canDecide.
      *
-     * It used to be whoever assigned it. That is no longer the same
-     * person: a task can name reviewers who had nothing to do with
-     * handing it out, and an assigner who named somebody else has
-     * delegated the decision rather than kept it.
-     *
-     * An Admin is not exempt. Approving work you were not asked to check
-     * would put a name against a review that never happened, which is
-     * precisely what the reviewer list exists to prevent.
+     * An Admin who is neither is not exempt: approving work you were not
+     * asked to check, on a task you did not raise, puts a name against a
+     * review that never happened.
      */
     const reviewerRows = await prisma.domainTaskReviewer.findMany({
       where: { taskId: id },
@@ -258,7 +253,7 @@ export async function PATCH(
       userId: r.userId,
       decision: r.decision as ReviewDecision,
     }));
-    if (!isReviewer(reviewers, user.id)) {
+    if (!isReviewer(reviewers, user.id) && task.createdById !== user.id) {
       return NextResponse.json(
         { error: "You weren't asked to review this task." },
         { status: 403 },
@@ -373,6 +368,28 @@ export async function PATCH(
     return NextResponse.json(
       { error: "Only the person who assigned this task, or a manager, can change it." },
       { status: 403 },
+    );
+  }
+
+  /**
+   * The brief is fixed once the task is signed off.
+   *
+   * The card has hidden its Edit button on an approved task from the
+   * start, on the reasoning that rewriting the question afterwards leaves
+   * a signature sitting beneath something nobody agreed to. The server
+   * never checked, so the rule held only as long as everybody used the
+   * button — which is not a rule, it is an honour system with a UI.
+   *
+   * Deleting is still allowed, and is not the same thing: it takes the
+   * approval away with the words, so nothing is left to be misread.
+   */
+  if (task.status === "Approved" && BRIEF_FIELDS.some((f) => f in body)) {
+    return NextResponse.json(
+      {
+        error:
+          "This task has been approved, so its brief is fixed. You can delete it if it shouldn't stand.",
+      },
+      { status: 409 },
     );
   }
 

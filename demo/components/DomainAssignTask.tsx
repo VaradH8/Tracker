@@ -255,7 +255,20 @@ export function DomainAssignTask({
             }}
             placeholder="Ad hoc — no project"
             searchPlaceholder="Search projects"
-            options={projects.map((p) => ({ value: String(p.id), label: p.name }))}
+            /*
+              Ad hoc is a real option, not just the empty placeholder.
+
+              It read as one until you picked a project, at which point
+              there was no way back to it: the only thing offering "no
+              project" was the text shown when nothing was chosen. Plenty
+              of work genuinely belongs to no project, and changing your
+              mind about which project is the common case, so it is pinned
+              to the top rather than filed under A.
+            */
+            options={[
+              { value: "", label: "Ad hoc — no project", pinned: true },
+              ...projects.map((p) => ({ value: String(p.id), label: p.name })),
+            ]}
           />
         </label>
 
@@ -531,10 +544,8 @@ export function DomainAssignTask({
                     )
                   ) : (
                     <>
-                      {done.reviewers.join(", ")}{" "}
-                      {done.reviewers.length > 1
-                        ? "can approve it — any one of them closes it."
-                        : "has to approve it."}
+                      {done.reviewers.join(", ")} can approve it — and so
+                      can you. Any one of you closes it.
                     </>
                   )}
                 </li>

@@ -8,6 +8,7 @@ import { DomainRefreshButton } from "@/components/DomainRefreshButton";
 import { DomainAssignTask } from "@/components/DomainAssignTask";
 import { DomainTaskCard, type TaskCardTask } from "@/components/DomainTaskCard";
 import { DomainTaskHistory } from "@/components/DomainTaskHistory";
+import { DomainSortToggle, type TaskSort } from "@/components/DomainSortToggle";
 import { useDomain } from "@/lib/domain-store";
 
 /**
@@ -41,33 +42,30 @@ export default function DomainTaskLogPage() {
     return t === "assign" || t === "approve" || t === "history" ? t : "mine";
   });
   const [highlightId, setHighlightId] = useState<number | undefined>();
+  /** One sort for every list on this page — see DomainSortToggle. */
+  const [sort, setSort] = useState<TaskSort>("new");
   const [mine, setMine] = useState<TaskCardTask[] | null>(null);
   const [toReview, setToReview] = useState<TaskCardTask[]>([]);
   /** Named me a reviewer but not submitted yet — so being put on the hook
    *  is visible from the moment it happens, not weeks later. */
   const [coming, setComing] = useState<TaskCardTask[]>([]);
-  /** Work I handed out that has come back, whoever decides it. */
-  const [backToMe, setBackToMe] = useState<TaskCardTask[]>([]);
   const [error, setError] = useState<string | null>(null);
   /** Finished work, folded away — see the toggle below. */
   const [showDone, setShowDone] = useState(false);
 
   const load = useCallback(() => {
     return Promise.all([
-      fetch("/api/domain/tasks?mine=true", { cache: "no-store" }).then((r) =>
+      fetch(`/api/domain/tasks?mine=true&sort=${sort}`, { cache: "no-store" }).then((r) =>
         r.ok ? r.json() : Promise.reject(new Error("Couldn't load your tasks.")),
       ),
-      fetch("/api/domain/tasks?review=true", { cache: "no-store" }).then((r) =>
-        r.ok ? r.json() : { tasks: [] },
+      fetch(`/api/domain/tasks?review=true&sort=${sort}`, { cache: "no-store" }).then(
+        (r) => (r.ok ? r.json() : { tasks: [] }),
       ),
-      fetch("/api/domain/tasks?reviewing=true", { cache: "no-store" }).then((r) =>
-        r.ok ? r.json() : { tasks: [] },
-      ),
-      fetch("/api/domain/tasks?submittedToMe=true", { cache: "no-store" }).then(
+      fetch(`/api/domain/tasks?reviewing=true&sort=${sort}`, { cache: "no-store" }).then(
         (r) => (r.ok ? r.json() : { tasks: [] }),
       ),
     ])
-      .then(([m, r, rv, back]) => {
+      .then(([m, r, rv]) => {
         setMine(m.tasks ?? []);
         setToReview(r.tasks ?? []);
         // Everything naming me, minus the ones already in the queue above.
@@ -76,17 +74,10 @@ export default function DomainTaskLogPage() {
             (t: TaskCardTask) => t.status === "Assigned" || t.status === "Rejected",
           ),
         );
-        // Only where somebody else decides — otherwise it is the queue.
-        setBackToMe(
-          (back.tasks ?? []).filter(
-            (t: TaskCardTask) =>
-              !(t.reviewers ?? []).some((x) => x.id === current?.id),
-          ),
-        );
         setError(null);
       })
       .catch((e: Error) => setError(e.message));
-  }, [current?.id]);
+  }, [sort]);
 
   useEffect(() => {
     void load();
@@ -112,7 +103,7 @@ export default function DomainTaskLogPage() {
       key: "approve",
       label: "Task approval",
       count: toReview.length,
-      quiet: toReview.length === 0 && coming.length + backToMe.length > 0,
+      quiet: toReview.length === 0 && coming.length > 0,
     },
     { key: "history", label: "History" },
   ];
@@ -155,6 +146,12 @@ export default function DomainTaskLogPage() {
         ))}
       </div>
 
+      {tab !== "assign" && (
+        <div className="mb-4">
+          <DomainSortToggle value={sort} onChange={setSort} />
+        </div>
+      )}
+
       {error && (
         <div className="card p-3 border-l-4 border-brand-red mb-4">
           <p className="text-sm text-brand-redText">{error}</p>
@@ -171,7 +168,9 @@ export default function DomainTaskLogPage() {
         />
       )}
 
-      {tab === "history" && <DomainTaskHistory highlightId={highlightId} />}
+      {tab === "history" && (
+        <DomainTaskHistory highlightId={highlightId} sort={sort} />
+      )}
 
       {tab === "mine" &&
         (mine === null ? (
@@ -226,7 +225,7 @@ export default function DomainTaskLogPage() {
         ))}
 
       {tab === "approve" &&
-        (toReview.length === 0 && coming.length === 0 && backToMe.length === 0 ? (
+        (toReview.length === 0 && coming.length === 0 ? (
           <Empty
             icon={<CheckSquare size={20} className="text-ink-300" />}
             title="Nothing waiting on you"
@@ -244,8 +243,9 @@ export default function DomainTaskLogPage() {
                   </span>
                 </h2>
                 <p className="text-sm text-ink-500 mb-3">
-                  Approving closes the task; sending it back returns it to be
-                  redone.
+                  Work you were named to review, and work you assigned —
+                  either way it&apos;s yours to close. Approving closes the
+                  task; sending it back returns it to be redone.
                 </p>
                 <div className="grid gap-2">
                   {toReview.map((t) => (
@@ -299,39 +299,6 @@ export default function DomainTaskLogPage() {
               </section>
             )}
 
-            {/*
-              Work you handed out that has come back, where somebody else
-              decides. Naming a reviewer hands over the decision, not the
-              interest — before this, an assigner had no way of learning
-              their task had even been submitted.
-            */}
-            {backToMe.length > 0 && (
-              <section>
-                <h2 className="font-heading text-lg font-semibold mb-1">
-                  Submitted on tasks you assigned
-                  <span className="text-ink-400 font-normal text-sm">
-                    {" "}
-                    ({backToMe.length})
-                  </span>
-                </h2>
-                <p className="text-sm text-ink-500 mb-3">
-                  For your information — these are somebody else&apos;s to
-                  approve.
-                </p>
-                <div className="grid gap-2">
-                  {backToMe.map((t) => (
-                    <DomainTaskCard
-                      key={t.id}
-                      t={t}
-                      mode="review"
-                      viewerId={current?.id}
-                      readOnly
-                      onChanged={load}
-                    />
-                  ))}
-                </div>
-              </section>
-            )}
           </div>
         ))}
     </DomainPage>

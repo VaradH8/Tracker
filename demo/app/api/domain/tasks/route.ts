@@ -93,16 +93,32 @@ export async function GET(req: Request) {
   }
 
   /**
-   * Work I handed out that has come back.
+   * The approval queue: everything I can actually close.
    *
-   * The assigner drops out of the flow entirely once they name somebody
-   * else to review — which is right for the decision, and wrong for
-   * knowing. This is how they stay told: submitted, on a task they
-   * raised, whoever ends up deciding it.
+   * Named reviewers, plus whoever assigned it. Naming a reviewer adds
+   * people who may sign off rather than removing the assigner, so the
+   * queue holds both — otherwise it would hide work the API would happily
+   * let them approve.
+   *
+   * Submitted only. A task still being worked on is not waiting on a
+   * decision, and listing it would fill the queue with rows nobody can act
+   * on until the count stopped meaning anything.
    */
-  if (url.searchParams.get("submittedToMe") === "true") {
-    where.createdById = user.id;
+  if (review) {
+    where.AND = [
+      ...((where.AND as unknown[]) ?? []),
+      {
+        OR: [
+          { reviewers: { some: { userId: user.id } } },
+          { createdById: user.id },
+        ],
+      },
+    ];
     where.status = "Submitted";
+  }
+
+  if (assignedByMe) {
+    where.createdById = user.id;
   }
 
   /**
@@ -117,41 +133,44 @@ export async function GET(req: Request) {
    * The fence is still real; it is just drawn around the right set.
    * Assigned to me, raised by me, or waiting on my review — the three
    * ways a task can be my business. Anything else stays invisible.
+   *
+   * Last, and ANDed, so it narrows whatever the caller asked for rather
+   * than replacing it. A scope filter must never widen what you can see.
    */
   if (user.role === "Actionee" || user.role === "SME") {
-    const visible = [
-      { assigneeId: user.id },
-      { createdById: user.id },
-      { reviewers: { some: { userId: user.id } } },
+    where.AND = [
+      ...((where.AND as unknown[]) ?? []),
+      {
+        OR: [
+          { assigneeId: user.id },
+          { createdById: user.id },
+          { reviewers: { some: { userId: user.id } } },
+        ],
+      },
     ];
-    // AND, so it narrows whatever the caller asked for rather than
-    // replacing it — a scope filter must never widen what you can see.
-    where.AND = [...((where.AND as unknown[]) ?? []), { OR: visible }];
   }
+
   /**
-   * The approval queue is whoever was NAMED as a reviewer, not whoever
-   * assigned the task.
+   * Newest first by default; oldest first on request.
    *
-   * Those used to be the same person and are not any more: an assigner
-   * who names somebody else has handed the decision over, and a reviewer
-   * may have had nothing to do with giving the work out.
-   *
-   * Submitted only. A task still being worked on is not waiting on a
-   * reviewer, and listing it would fill the queue with rows nobody can
-   * act on until the count stopped meaning anything.
+   * The status grouping comes off when a sort is asked for. Ordering by
+   * status and then by date means "oldest" returns the oldest Approved
+   * task rather than the oldest task, which is not what anybody asking
+   * for oldest means — and on a history screen the date is the axis
+   * people are actually sorting on.
    */
-  if (review) {
-    where.reviewers = { some: { userId: user.id } };
-    where.status = "Submitted";
-  }
-  if (assignedByMe) {
-    where.createdById = user.id;
-  }
+  const sort = url.searchParams.get("sort");
+  const orderBy =
+    sort === "old"
+      ? [{ createdAt: "asc" as const }]
+      : sort === "new"
+        ? [{ createdAt: "desc" as const }]
+        : [{ status: "asc" as const }, { createdAt: "desc" as const }];
 
   const tasks = await prisma.domainTask.findMany({
     where,
     include: INCLUDE,
-    orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+    orderBy,
     take: 500,
   });
   // Supervisors get the trail; everyone else gets the task alone.

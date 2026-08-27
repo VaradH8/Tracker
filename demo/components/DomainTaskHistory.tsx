@@ -8,6 +8,7 @@ import { DateInput } from "@/components/DateInput";
 import { SearchSelect } from "@/components/SearchSelect";
 import { DomainTaskCard, type TaskCardTask } from "@/components/DomainTaskCard";
 import { useDomain } from "@/lib/domain-store";
+import type { TaskSort } from "@/components/DomainSortToggle";
 
 /**
  * Everything that has been assigned, and a way to find one of them.
@@ -59,7 +60,14 @@ function standing(
   return { mode: "review", readOnly: true };
 }
 
-export function DomainTaskHistory({ highlightId }: { highlightId?: number }) {
+export function DomainTaskHistory({
+  highlightId,
+  sort,
+}: {
+  highlightId?: number;
+  /** Owned by the page so History, My tasks and Task approval all agree. */
+  sort: TaskSort;
+}) {
   const { current } = useDomain();
   const [scope, setScope] = useState<Scope>("byMe");
   const [status, setStatus] = useState<DomainTaskStatus | "">("");
@@ -80,7 +88,7 @@ export function DomainTaskHistory({ highlightId }: { highlightId?: number }) {
   }, []);
 
   const load = useCallback(() => {
-    const q = new URLSearchParams({ scope });
+    const q = new URLSearchParams({ scope, sort });
     if (status) q.set("status", status);
     if (from) q.set("from", from);
     if (to) q.set("to", to);
@@ -102,7 +110,7 @@ export function DomainTaskHistory({ highlightId }: { highlightId?: number }) {
         setError(null);
       })
       .catch((e: Error) => setError(e.message));
-  }, [scope, status, from, to, personId]);
+  }, [scope, status, from, to, personId, sort]);
 
   useEffect(() => {
     void load();

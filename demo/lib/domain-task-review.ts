@@ -79,18 +79,35 @@ export function isReviewer(reviewers: Reviewer[], userId: string): boolean {
 /**
  * Whether this person may decide on this task right now.
  *
- * Three things have to hold, and each has bitten a comparable flow here
- * before: they have to be a named reviewer, the task has to be waiting on
- * a decision, and it must not already be closed — otherwise a second
- * reviewer pressing approve on an already-approved task would move the
- * "decided by" name to whoever was slowest.
+ * A named reviewer, or the person who assigned it.
+ *
+ * The assigner used to be shut out the moment they named somebody else,
+ * on the reasoning that naming a reviewer delegates the decision. In
+ * practice it strands the task: the one person who knows whether the work
+ * is what they asked for is the one who asked for it, and if their
+ * reviewer is away, nobody can close it at all.
+ *
+ * So naming a reviewer adds people who may sign off; it does not remove
+ * the assigner. Any one of them closes it, which is already how multiple
+ * reviewers behave — this just puts the assigner in that set.
+ *
+ * Still not open house. Someone neither asked to review nor responsible
+ * for the task cannot decide it, whatever their role, because a name
+ * against a review that never happened is exactly what the reviewer list
+ * exists to prevent.
+ *
+ * The status check matters as much as the identity one: without it a
+ * second approver pressing the button on an already-closed task would
+ * move the "decided by" name to whoever was slowest.
  */
 export function canDecide(
   reviewers: Reviewer[],
   userId: string,
   status: DomainTaskStatus,
+  createdById?: string | null,
 ): boolean {
-  return status === "Submitted" && isReviewer(reviewers, userId);
+  if (status !== "Submitted") return false;
+  return isReviewer(reviewers, userId) || (!!createdById && createdById === userId);
 }
 
 /**

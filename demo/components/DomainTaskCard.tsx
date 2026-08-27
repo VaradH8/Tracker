@@ -169,16 +169,41 @@ export function DomainTaskCard({
   }
 
   const canSubmit = t.status === "Assigned" || t.status === "Rejected";
-  /**
-   * The person who wrote it may rewrite it, until it is signed off.
-   *
-   * Not after: an approved task is the record of what was asked and what
-   * came back, and editing the question afterwards would leave an
-   * approval sitting under something nobody agreed to.
-   */
   const isCreator = !!viewerId && t.createdById === viewerId;
   const isAssignee = !!viewerId && t.assigneeId === viewerId;
+
+  /**
+   * Editing stops at approval; deleting does not.
+   *
+   * These used to share one gate, which was wrong in a way that only
+   * showed up after a task closed: the Delete button vanished the moment
+   * somebody approved the work, leaving no way to clear a task you
+   * raised in error.
+   *
+   * They are different acts. Rewriting the brief under an approval leaves
+   * a signature sitting beneath something nobody agreed to — the words
+   * change and the approval does not, so it now attests to the wrong
+   * thing. Deleting takes the whole record away, approval included, and
+   * leaves nothing to be misread. The first is quiet falsification; the
+   * second is a decision the creator is entitled to make.
+   */
   const canEdit = isCreator && t.status !== "Approved";
+  const canDelete = isCreator;
+
+  /**
+   * Whoever assigned it may sign it off, alongside anyone they named.
+   *
+   * Naming a reviewer adds people who can close the task; it does not
+   * hand the job over and lock the assigner out. The card used to gate
+   * these controls on `mode === "review"`, which is about which list you
+   * are looking at rather than what you are allowed to do — so an
+   * assigner opening their own submitted task from History saw the work
+   * and no way to accept it.
+   */
+  const canDecideThis =
+    t.status === "Submitted" &&
+    !!viewerId &&
+    (isCreator || reviewers.some((r) => r.id === viewerId));
 
   async function saveEdit() {
     setActing(true);
@@ -355,24 +380,37 @@ export function DomainTaskCard({
 
       {open && !editing && (
         <div className="mt-3 pt-3 border-t border-ink-100 grid gap-3">
-          {canEdit && (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setEditing(true)}
-                className="btn-ghost text-xs border border-ink-200"
-              >
-                <Pencil size={12} className="mr-1.5" /> Edit
-              </button>
-              <ConfirmButton
-                onConfirm={remove}
-                title={`Delete "${t.title}"`}
-                confirmLabel="Delete for good?"
-                className="btn-ghost text-xs border border-ink-200 text-brand-redText"
-              >
-                <Trash2 size={12} className="mr-1.5" /> Delete
-              </ConfirmButton>
+          {(canEdit || canDelete) && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {canEdit && (
+                <button
+                  onClick={() => setEditing(true)}
+                  className="btn-ghost text-xs border border-ink-200"
+                >
+                  <Pencil size={12} className="mr-1.5" /> Edit
+                </button>
+              )}
+              {canDelete && (
+                <ConfirmButton
+                  onConfirm={remove}
+                  title={`Delete "${t.title}"`}
+                  /* An approved task takes its submission and its sign-off
+                     with it, so the second press says so rather than
+                     asking the same mild question as an untouched one. */
+                  confirmLabel={
+                    t.status === "Approved"
+                      ? "Delete the record too?"
+                      : "Delete for good?"
+                  }
+                  className="btn-ghost text-xs border border-ink-200 text-brand-redText"
+                >
+                  <Trash2 size={12} className="mr-1.5" /> Delete
+                </ConfirmButton>
+              )}
               <span className="text-[11px] text-ink-400">
-                Yours to change — you assigned it.
+                {canEdit
+                  ? "Yours to change — you assigned it."
+                  : "Approved, so the brief is fixed — but it's still yours to remove."}
               </span>
             </div>
           )}
@@ -469,6 +507,17 @@ export function DomainTaskCard({
               <p className="text-[11px] text-ink-400 mt-1">
                 {decided?.name} decided it — {untouched.map((r) => r.name).join(", ")}{" "}
                 did not review it.
+              </p>
+            )}
+            {/* The assigner is not in the chip list — they were not named,
+                they are the one who did the naming — so who can actually
+                close this has to be spelt out or it looks like the
+                reviewers alone. */}
+            {reviewers.length > 0 && t.status !== "Approved" && (
+              <p className="text-[11px] text-ink-400 mt-1">
+                {isCreator ? "You" : t.createdBy} assigned it, so
+                {isCreator ? " you" : " they"} can approve it too — any one
+                of them is enough.
               </p>
             )}
           </div>
@@ -576,7 +625,7 @@ export function DomainTaskCard({
             </div>
           )}
 
-          {mode === "review" && t.status === "Submitted" && !readOnly && (
+          {canDecideThis && !readOnly && (
             <div className="grid gap-2 pt-1">
               <label className="text-xs">
                 <span className="block text-ink-700 font-medium mb-1">
