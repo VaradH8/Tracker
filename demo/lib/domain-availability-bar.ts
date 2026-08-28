@@ -318,109 +318,172 @@ export function workingDayList(
 /**
  * One column of the engagement grid.
  *
- * A continuous bar answers "how loaded is this person" and refuses to
- * answer "who is free the week after next" — there is nothing to read down.
- * Columns give the chart a second axis you can scan vertically, which is
- * the question a resourcing conversation actually starts from.
+ * A continuous bar answers "how loaded is this person" and cannot answer
+ * "who is free in week 33" — there is nothing to read down. Columns give
+ * the chart a second axis, which is where a resourcing conversation
+ * actually starts.
  */
 export type GridColumn = {
   /** Stable key for React, and for tests to name a column. */
   key: string;
-  /** What the header shows, e.g. "1 Sep" or "Sep 26". */
+  /** The column's own label — a week number, a month, or a year. */
   label: string;
+  /** The band this column sits under: its month, or its year. Consecutive
+   *  columns sharing a group are spanned by one header above them. */
+  group: string;
   from: number;
   to: number;
-  /** Working days in this column — its width, and never zero (see below). */
+  /** Working days in the column. Drives how much of a cell fills, so a
+   *  week booked Monday to Wednesday is visibly not a full week. */
   workingDays: number;
 };
 
-export type Granularity = "week" | "month";
-
-/**
- * Weeks while the window is short enough to read, months once it isn't.
- *
- * Fourteen columns is about what fits before the labels collide and each
- * cell is too narrow to show a split. Past that, weeks stop being legible
- * and months start being the useful unit anyway.
- */
-export function pickGranularity(from: number, to: number): Granularity {
-  const weeks = Math.ceil((to - from + 1) / 7);
-  return weeks <= 14 ? "week" : "month";
-}
-
-/** Monday of the week containing `day`. */
-function startOfWeek(day: number): number {
-  const d = weekday(day);
-  // Sunday counts as the end of the previous week, not the start of one.
-  const back = d === 0 ? 6 : d - 1;
-  return day - back;
-}
-
-function startOfMonth(day: number): number {
-  const d = new Date(day * DAY_MS);
-  return dayNumber(
-    `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-01`,
-  );
-}
-
-function addMonth(day: number): number {
-  const d = new Date(day * DAY_MS);
-  const y = d.getUTCFullYear();
-  const m = d.getUTCMonth();
-  const nextY = m === 11 ? y + 1 : y;
-  const nextM = m === 11 ? 0 : m + 1;
-  return dayNumber(`${nextY}-${String(nextM + 1).padStart(2, "0")}-01`);
-}
+export type Granularity = "week" | "month" | "year";
 
 const MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
-function labelFor(day: number, mode: Granularity): string {
-  const d = new Date(day * DAY_MS);
-  const month = MONTHS[d.getUTCMonth()];
-  return mode === "month" ? `${month} ${String(d.getUTCFullYear()).slice(2)}` : `${d.getUTCDate()} ${month}`;
+/**
+ * The first of a month, where `month` is 0-based and may overflow.
+ *
+ * December's end is asked for as month 12, which built "2026-13-01" and
+ * came back an invalid date — so the last column of every yearly view had
+ * a NaN end and rendered nothing. Rolling the overflow into the next year
+ * keeps the callers free to say "the month after this one".
+ */
+function firstOfMonth(year: number, month: number): number {
+  const y = year + Math.floor(month / 12);
+  const m = ((month % 12) + 12) % 12;
+  return dayNumber(`${y}-${String(m + 1).padStart(2, "0")}-01`);
+}
+
+/** Monday of the week containing `day`. Sunday closes a week, never opens one. */
+function startOfWeek(day: number): number {
+  const d = weekday(day);
+  return day - (d === 0 ? 6 : d - 1);
+}
+
+function monthOf(day: number): number {
+  return new Date(day * DAY_MS).getUTCMonth();
+}
+
+/** Working days inside a range, given the whole window's day set. */
+function countDays(from: number, to: number, days: Set<number>): number {
+  let n = 0;
+  for (let d = from; d <= to; d++) if (days.has(d)) n += 1;
+  return n;
 }
 
 /**
- * Chop the window into columns.
+ * A year of weekly columns, each clipped to the year.
  *
- * The first and last are clipped to the window, so a chart starting on a
- * Thursday gets a short first column rather than pretending the week began
- * on Monday. Width follows working days, which keeps a stub column visibly
- * smaller than a full one instead of overstating it.
+ * Weeks are Monday-based and the first and last are stubs where the year
+ * does not start or end on one — drawn as they are rather than padded out,
+ * so a column's width never claims days outside the year.
  *
- * A column with no working days at all — a single Sunday at the end of a
- * window — is dropped. It would be a zero-width cell with a header.
+ * Labels are the week's ordinal within the year. The caller thins them out
+ * for display; every column still carries its own so a tooltip can name it.
  */
-export function buildColumns(
-  from: number,
-  to: number,
+export function weekColumnsForYear(
+  year: number,
   bookings: Booking[],
-  mode: Granularity = pickGranularity(from, to),
 ): GridColumn[] {
-  if (to < from) return [];
+  const from = firstOfMonth(year, 0);
+  const to = firstOfMonth(year + 1, 0) - 1;
   const days = new Set(workingDayList(from, to, bookings));
   const out: GridColumn[] = [];
 
   let cursor = from;
+  let index = 1;
   while (cursor <= to) {
-    const next =
-      mode === "week" ? startOfWeek(cursor) + 7 : addMonth(startOfMonth(cursor));
-    const end = Math.min(to, next - 1);
-    let workingDays = 0;
-    for (let d = cursor; d <= end; d++) if (days.has(d)) workingDays += 1;
-    if (workingDays > 0) {
-      out.push({
-        key: `${mode}-${cursor}`,
-        label: labelFor(cursor, mode),
-        from: cursor,
-        to: end,
-        workingDays,
-      });
-    }
+    const end = Math.min(to, startOfWeek(cursor) + 6);
+    out.push({
+      key: `w-${year}-${index}`,
+      label: String(index),
+      group: MONTHS[monthOf(cursor)],
+      from: cursor,
+      to: end,
+      workingDays: countDays(cursor, end, days),
+    });
     cursor = end + 1;
+    index += 1;
+  }
+  return out;
+}
+
+/** Twelve columns, one per calendar month. */
+export function monthColumnsForYear(
+  year: number,
+  bookings: Booking[],
+): GridColumn[] {
+  const from = firstOfMonth(year, 0);
+  const to = firstOfMonth(year + 1, 0) - 1;
+  const days = new Set(workingDayList(from, to, bookings));
+  return MONTHS.map((label, m) => {
+    const start = firstOfMonth(year, m);
+    const end = firstOfMonth(year, m + 1) - 1;
+    return {
+      key: `m-${year}-${m}`,
+      label,
+      group: String(year),
+      from: start,
+      to: end,
+      workingDays: countDays(start, end, days),
+    };
+  });
+}
+
+/** One column per year across the span given. */
+export function yearColumns(
+  years: number[],
+  bookings: Booking[],
+): GridColumn[] {
+  if (years.length === 0) return [];
+  const from = firstOfMonth(Math.min(...years), 0);
+  const to = firstOfMonth(Math.max(...years) + 1, 0) - 1;
+  const days = new Set(workingDayList(from, to, bookings));
+  return years.map((y) => {
+    const start = firstOfMonth(y, 0);
+    const end = firstOfMonth(y + 1, 0) - 1;
+    return {
+      key: `y-${y}`,
+      label: String(y),
+      group: "Year",
+      from: start,
+      to: end,
+      workingDays: countDays(start, end, days),
+    };
+  });
+}
+
+/** Columns for a view, whichever way it is sliced. */
+export function buildColumns(
+  mode: Granularity,
+  year: number,
+  bookings: Booking[],
+  years: number[] = [year],
+): GridColumn[] {
+  if (mode === "month") return monthColumnsForYear(year, bookings);
+  if (mode === "year") return yearColumns(years, bookings);
+  return weekColumnsForYear(year, bookings);
+}
+
+/**
+ * Consecutive columns sharing a group, for the header band above them.
+ *
+ * Returned as spans rather than a label per column so "Sep" is drawn once
+ * across its weeks instead of five times over.
+ */
+export function groupSpans(
+  columns: GridColumn[],
+): { group: string; span: number; key: string }[] {
+  const out: { group: string; span: number; key: string }[] = [];
+  for (const c of columns) {
+    const last = out[out.length - 1];
+    if (last && last.group === c.group) last.span += 1;
+    else out.push({ group: c.group, span: 1, key: c.key });
   }
   return out;
 }
@@ -429,9 +492,9 @@ export function buildColumns(
  * One person's row: the segments falling inside each column.
  *
  * Segments are rebuilt per column rather than sliced out of a whole-window
- * run, because a stretch crossing a column boundary has to end at the
- * boundary and start again after it — otherwise a cell would draw work
- * belonging to its neighbour.
+ * run, because a stretch crossing a boundary has to end at the boundary and
+ * start again after it — otherwise a cell would draw work belonging to its
+ * neighbour.
  */
 export function buildGrid(
   columns: GridColumn[],
@@ -441,4 +504,32 @@ export function buildGrid(
     column,
     segments: buildSegments(column.from, column.to, bookings),
   }));
+}
+
+/**
+ * How much of a column is committed, 0–1.
+ *
+ * A week booked Monday to Wednesday fills three fifths of its cell. Filling
+ * the whole thing would say somebody is unavailable all week when they are
+ * free for two days of it — on a screen whose only job is finding those
+ * days.
+ */
+export function committedShare(segments: Segment[], column: GridColumn): number {
+  if (column.workingDays <= 0) return 0;
+  const busy = segments
+    .filter((s) => s.kind === "busy")
+    .reduce((n, s) => n + s.workingDays, 0);
+  return Math.min(1, busy / column.workingDays);
+}
+
+/** The years any of these bookings touch, ascending, today's included. */
+export function yearsCovered(bookings: Booking[], today: number): number[] {
+  const yearOf = (day: number) => new Date(day * DAY_MS).getUTCFullYear();
+  const seen = new Set<number>([yearOf(today)]);
+  for (const b of bookings) {
+    const from = yearOf(dayNumber(b.startDate));
+    const to = yearOf(dayNumber(b.releasedAt ?? b.endDate));
+    for (let y = from; y <= to; y++) seen.add(y);
+  }
+  return Array.from(seen).sort((a, b) => a - b);
 }

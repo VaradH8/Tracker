@@ -9,9 +9,12 @@ import {
   buildColumns,
   buildGrid,
   colourIndexes,
+  committedShare,
+  groupSpans,
   impliedBookings,
   undatedCarriedWork,
-  freeWorkingDays,
+  yearsCovered,
+  type Granularity,
 } from "@/lib/domain-availability-bar";
 
 /**
@@ -131,16 +134,45 @@ export function DomainResourceBoard({
 }) {
   const [query, setQuery] = useState("");
   const [role, setRole] = useState<string>("");
+  const [project, setProject] = useState<string>("");
   const [only, setOnly] = useState<"all" | "free" | "booked">("all");
+  const [mode, setMode] = useState<Granularity>("week");
+  const [year, setYear] = useState<number>(() =>
+    new Date().getUTCFullYear(),
+  );
+
+  /** Every booking on the board, carried work folded in. */
+  const allBookings = useMemo(
+    () =>
+      resources.flatMap((r) => [
+        ...r.projects,
+        ...impliedBookings(r.openTagProjects ?? [], todays()),
+      ]),
+    [resources],
+  );
+
+  /** The years the data actually touches — the year picker offers no more. */
+  const years = useMemo(
+    () => yearsCovered(allBookings, todays()),
+    [allBookings],
+  );
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const wanted = project ? Number(project) : null;
     return resources
       .filter((r) => {
         if (only === "free" && r.status !== "Free") return false;
         if (only === "booked" && r.status === "Free") return false;
         if (role && r.role !== role) return false;
         if (q && !r.name.toLowerCase().includes(q)) return false;
+        if (wanted !== null) {
+          const on = [
+            ...r.projects.map((p) => p.projectId),
+            ...(r.openTagProjects ?? []).map((p) => p.projectId),
+          ];
+          if (!on.includes(wanted)) return false;
+        }
         return true;
       })
       // Free people first, then whoever frees up soonest: the order you
@@ -151,60 +183,33 @@ export function DomainResourceBoard({
         if (af !== bf) return af - bf;
         return (a.availableFrom ?? "").localeCompare(b.availableFrom ?? "");
       });
-  }, [resources, query, role, only]);
+  }, [resources, query, role, project, only]);
 
   /**
-   * One axis for everyone, spanning every booking on screen.
-   *
-   * Per-row scaling would make a two-week booking and a six-month one
-   * look identical, which is precisely the comparison this screen exists
-   * to make.
-   */
-  const axis = useMemo(() => {
-    const today = todays();
-    const ends = shown.flatMap((r) => [
-      ...r.projects.map((b) => days(b.releasedAt ?? b.endDate)),
-      // Carried work counts: if the only thing keeping somebody busy is
-      // tags with no booking, the axis still has to reach its handover or
-      // the stretch is clipped off the right-hand edge.
-      ...(r.openTagProjects ?? [])
-        .filter((c) => c.handoverDate)
-        .map((c) => days(c.handoverDate as string)),
-    ]);
-    // Today forward. The axis used to stretch back over every finished
-    // booking, so on a busy portfolio a third of the chart was history —
-    // on a screen whose only question is who is free from when. A booking
-    // that started earlier simply begins at the left edge.
-    const to = Math.max(today + 30, ...(ends.length ? ends : [today + 30]));
-    return { from: today, to, span: Math.max(1, to - today) };
-  }, [shown]);
-
-  /**
-   * The columns, derived once from every booking on screen.
+   * The columns, derived once for the whole chart.
    *
    * Shared by the header and every row: a column is only a column if it
    * means the same thing on each line, and per-row columns would each get
    * their own working-day total.
    */
-  const columns = useMemo(() => {
-    const all = shown.flatMap((r) => [
-      ...r.projects,
-      ...impliedBookings(r.openTagProjects ?? [], axis.from),
-    ]);
-    return buildColumns(axis.from, axis.to, all);
-  }, [shown, axis.from, axis.to]);
-
-  /** The chart's total width in working days — what each column divides. */
-  const gridWorkingDays = useMemo(
-    () => Math.max(1, columns.reduce((n, c) => n + c.workingDays, 0)),
-    [columns],
+  const columns = useMemo(
+    () => buildColumns(mode, year, allBookings, years),
+    [mode, year, allBookings, years],
   );
+  const groups = useMemo(() => groupSpans(columns), [columns]);
+
+  /**
+   * Which week numbers get printed. Every column carries its own label, but
+   * fifty-two of them collide into a grey smear — so one in four is drawn
+   * and the rest are reachable by hovering the cell.
+   */
+  const labelEvery = mode === "week" ? 4 : 1;
 
   /** One colour per project across the whole chart, so the same job reads
    *  the same on every row. */
   const colourOf = useMemo(() => {
     // Carried work included, or a project somebody holds tags on without a
-    // booking would be drawn on the bar and missing from the key.
+    // booking would be drawn on the grid and missing from the key.
     const bookings = resources.flatMap((r) => [
       ...r.projects,
       ...(r.openTagProjects ?? []),
@@ -221,22 +226,15 @@ export function DomainResourceBoard({
     };
   }, [resources]);
 
-  const pct = (iso: string) => ((days(iso) - axis.from) / axis.span) * 100;
-  const todayPct = Math.min(
-    100,
-    Math.max(0, ((todays() - axis.from) / axis.span) * 100),
-  );
-
   /**
    * "Free" means no booking AND nothing outstanding — the definition the
    * API and this page's summary cards already use. Counting only open
-   * tags would call someone available while a booking bar runs straight
+   * tags would call someone available while a booking runs straight
    * through today, and put a different number in the filter than in the
    * card above it.
    */
   const freeCount = resources.filter((r) => r.status === "Free").length;
 
-  /** projectId -> colour, assigned once in a stable order. */
   const roles = useMemo(
     () =>
       TAG_HOLDER_ROLES.filter((r) => resources.some((x) => x.role === r)),
@@ -246,7 +244,7 @@ export function DomainResourceBoard({
   return (
     <div className="card p-5">
       {/* ---- filters ------------------------------------------------ */}
-      <div className="flex items-center gap-2 flex-wrap mb-4">
+      <div className="flex items-center gap-2 flex-wrap mb-3">
         <div className="flex items-center gap-1">
           {(
             [
@@ -270,6 +268,20 @@ export function DomainResourceBoard({
         </div>
 
         <select
+          value={project}
+          onChange={(e) => setProject(e.target.value)}
+          className={selectClass("sm")}
+          aria-label="Project"
+        >
+          <option value="">All projects</option>
+          {colourOf.list.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+
+        <select
           value={role}
           onChange={(e) => setRole(e.target.value)}
           className={selectClass("sm")}
@@ -282,6 +294,45 @@ export function DomainResourceBoard({
             </option>
           ))}
         </select>
+
+        {/* Weekly reads a delivery window; yearly reads a portfolio. Same
+            data, and no single slice answers both. */}
+        <div className="flex items-center gap-1">
+          {(
+            [
+              ["week", "Weekly"],
+              ["month", "Monthly"],
+              ["year", "Yearly"],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setMode(key)}
+              className={`px-2.5 py-1 rounded-pill text-xs font-medium border ${
+                mode === key
+                  ? "bg-brand-blueBg text-brand-blue border-brand-blue"
+                  : "bg-white text-ink-600 border-ink-200"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {mode !== "year" && (
+          <select
+            value={year}
+            onChange={(e) => setYear(Number(e.target.value))}
+            className={selectClass("sm")}
+            aria-label="Year"
+          >
+            {years.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+        )}
 
         <label className="relative ml-auto">
           <Search
@@ -297,15 +348,20 @@ export function DomainResourceBoard({
         </label>
       </div>
 
-      {/* ---- which colour is which ----------------------------------
-          Not optional: nine hues wrap, so past the ninth project the
-          colour narrows it down and this settles it.                   */}
-      <div className="flex items-center gap-x-4 gap-y-1 flex-wrap mb-3 text-[11px] text-ink-600">
+      <p className="text-sm text-ink-600 mb-3">
+        Today:{" "}
+        <span className="font-semibold text-ink-900">
+          {resources.length - freeCount} engaged
+        </span>{" "}
+        · <span className="font-semibold text-ink-900">{freeCount} available</span>
+      </p>
+
+      {/* ---- which colour is which ---------------------------------- */}
+      <div className="flex items-center gap-3 flex-wrap text-[11px] text-ink-600 mb-3">
         <span className="inline-flex items-center gap-1.5">
           <span className={`w-2.5 h-2.5 rounded-sm ${FREE_COLOUR}`} />
           Free
         </span>
-
         {colourOf.list.map((pr) => (
           <span key={pr.id} className="inline-flex items-center gap-1.5">
             <span className={`w-2.5 h-2.5 rounded-sm ${colourOf.colour(pr.id)}`} />
@@ -314,188 +370,158 @@ export function DomainResourceBoard({
         ))}
       </div>
 
-      {/* ---- the columns, stated once ------------------------------- */}
-      <div className="hidden sm:grid grid-cols-[200px_1fr_92px] gap-3 items-end pb-1.5 border-b border-ink-200 text-[11px] text-ink-500">
-        <span className="font-semibold uppercase tracking-wide">Person</span>
-        <span className="flex">
-          {columns.map((c) => (
-            <span
-              key={c.key}
-              style={{ width: `${(c.workingDays / gridWorkingDays) * 100}%` }}
-              className="border-l border-ink-200 pl-1 truncate first:border-l-0 first:pl-0"
-              title={`${fmtDate(isoOf(c.from))} – ${fmtDate(isoOf(c.to))} · ${c.workingDays} working days`}
-            >
-              {c.label}
-            </span>
-          ))}
-        </span>
-        <span className="font-semibold uppercase tracking-wide text-right">
-          Free from
-        </span>
-      </div>
-
       {shown.length === 0 ? (
         <p className="text-sm text-ink-400 italic py-6">Nobody matches that.</p>
       ) : (
-        <ul className="divide-y divide-ink-100">
-          {shown.map((r) => {
-            const free = r.status === "Free";
-            const carried = r.openTagProjects ?? [];
-            const bookings = [
-              ...r.projects,
-              // Tags held with no booking behind them. Without this the grid
-              // showed only formal allocations, so somebody on two projects
-              // with one of them unbooked read as half free.
-              ...impliedBookings(carried, axis.from),
-            ];
-            /**
-             * The row, column by column. Each cell is rebuilt from the
-             * bookings rather than sliced out of a whole-window run, so a
-             * stretch crossing a boundary stops at it instead of drawing
-             * into its neighbour.
-             */
-            const cells = buildGrid(columns, bookings);
-            const allSegments = cells.flatMap((c) => c.segments);
-            const freeDays = freeWorkingDays(allSegments);
-            const doubled = allSegments.some((sg) => sg.projects.length > 1);
-            // Carried work whose project never set a handover date. There is
-            // no honest column to put it in, so it is named on the row.
-            const undated = undatedCarriedWork(carried, axis.from);
-            return (
-              <li
-                key={r.id}
-                className="grid sm:grid-cols-[200px_1fr_92px] gap-2 sm:gap-3 items-center py-2.5"
-              >
-                {/* who */}
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-ink-900 truncate">
-                    {r.name}
-                  </div>
-                  <div className="text-[11px] text-ink-500 truncate">
-                    {DOMAIN_ROLE_LABELS[r.role as DomainRole] ?? r.role}
-                    {r.openTags > 0 && <> · {r.openTags} tags open</>}
-                    {doubled && (
-                      <span className="text-brand-yellowText font-medium">
-                        {" "}
-                        · double-booked
-                      </span>
-                    )}
-                    {undated.length > 0 && (
-                      <span
-                        className="text-brand-yellowText font-medium"
-                        title={`${undated
-                          .map((c) => `${c.projectName} (${c.openTags} open)`)
-                          .join(", ")} — no handover date set, so it cannot be placed on the grid.`}
-                      >
-                        {" "}
-                        · {undated.length} undated
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/*
-                  One cell per column, divided by a rule you can follow down
-                  the page. Reading across is still "how loaded is this
-                  person"; reading down a column — the thing a single bar
-                  could never answer — is "who is free that week".
-                */}
-                <div
-                  className="flex h-5"
-                  role="img"
-                  aria-label={
-                    freeDays > 0
-                      ? `${freeDays} working days free before ${fmtDate(isoOf(axis.to))}`
-                      : "fully booked in this window"
-                  }
+        <div className="overflow-x-auto">
+          {/*
+            A real table, not a row of flex bars. Uniform columns and a rule
+            between them are what let you read DOWN — "who is free in week
+            33" — which is the question a bar could never answer.
+          */}
+          <table className="w-full table-fixed border-collapse text-[11px]">
+            <thead>
+              <tr>
+                <th
+                  rowSpan={2}
+                  className="w-40 border border-ink-200 bg-ink-50 px-3 py-2 text-left text-xs font-semibold text-ink-700"
                 >
-                  {cells.map(({ column, segments }) => (
-                    <div
-                      key={column.key}
-                      style={{
-                        width: `${(column.workingDays / gridWorkingDays) * 100}%`,
-                      }}
-                      className="flex border-l border-ink-200 first:border-l-0"
-                    >
-                      {segments.map((sg) => {
-                        const dates = `${fmtDate(isoOf(sg.from))} – ${fmtDate(isoOf(sg.to))}`;
-                        const days = `${sg.workingDays} working day${sg.workingDays === 1 ? "" : "s"}`;
-                        const title =
-                          sg.kind === "busy"
-                            ? `${sg.projects
-                                .map(
-                                  (x) =>
-                                    `${x.projectName}${x.implied ? " (tags carried, not booked)" : ""}`,
-                                )
-                                .join(" + ")} · ${dates} · ${days}`
-                            : `Free · ${dates} · ${days}`;
-                        return (
-                          <div
-                            key={`${sg.from}-${sg.kind}`}
-                            title={title}
-                            style={{
-                              width: `${(sg.workingDays / column.workingDays) * 100}%`,
-                            }}
-                            className={`h-full flex flex-col ${sg.kind === "free" ? FREE_COLOUR : ""}`}
+                  Employee
+                </th>
+                {groups.map((g) => (
+                  <th
+                    key={g.key}
+                    colSpan={g.span}
+                    className="border border-ink-200 bg-ink-50 px-1 py-1 text-center font-semibold text-ink-700"
+                  >
+                    {g.group}
+                  </th>
+                ))}
+              </tr>
+              <tr>
+                {columns.map((c, i) => (
+                  <th
+                    key={c.key}
+                    className="border border-ink-200 bg-ink-50 px-0 py-1 text-center font-normal text-ink-500"
+                    title={`${fmtDate(isoOf(c.from))} – ${fmtDate(isoOf(c.to))} · ${c.workingDays} working days`}
+                  >
+                    {i % labelEvery === 0 ? c.label : ""}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((r) => {
+                const carried = r.openTagProjects ?? [];
+                const bookings = [
+                  ...r.projects,
+                  // Tags held with no booking behind them. Without this the
+                  // grid showed only formal allocations, so somebody on two
+                  // projects with one unbooked read as half free.
+                  ...impliedBookings(carried, todays()),
+                ];
+                const cells = buildGrid(columns, bookings);
+                const doubled = cells
+                  .flatMap((c) => c.segments)
+                  .some((sg) => sg.projects.length > 1);
+                const undated = undatedCarriedWork(carried, todays());
+                return (
+                  <tr key={r.id} className="odd:bg-white even:bg-ink-50/40">
+                    <td className="border border-ink-200 px-3 py-2 align-middle">
+                      <div className="truncate text-sm font-medium text-ink-900">
+                        {r.name}
+                      </div>
+                      <div className="truncate text-[11px] text-ink-500">
+                        {DOMAIN_ROLE_LABELS[r.role as DomainRole] ?? r.role}
+                        {doubled && (
+                          <span className="font-medium text-brand-yellowText">
+                            {" "}
+                            · double-booked
+                          </span>
+                        )}
+                        {undated.length > 0 && (
+                          <span
+                            className="font-medium text-brand-yellowText"
+                            title={`${undated
+                              .map((c) => `${c.projectName} (${c.openTags} open)`)
+                              .join(", ")} — no handover date set, so it cannot be placed on the grid.`}
                           >
-                            {/* Two projects on the same day splits the cell
-                                into bands rather than picking a winner. */}
-                            {sg.projects.map((pr) => (
-                              <span
-                                key={pr.projectId}
-                                className={`flex-1 ${colourOf.colour(pr.projectId)}`}
-                                style={pr.implied ? CARRIED_HATCH : undefined}
-                              />
+                            {" "}
+                            · {undated.length} undated
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    {cells.map(({ column, segments }) => {
+                      const share = committedShare(segments, column);
+                      const busy = segments.filter((s) => s.kind === "busy");
+                      const names = Array.from(
+                        new Set(
+                          busy.flatMap((s) =>
+                            s.projects.map(
+                              (p) =>
+                                `${p.projectName}${p.implied ? " (carried)" : ""}`,
+                            ),
+                          ),
+                        ),
+                      );
+                      const title =
+                        share > 0
+                          ? `${names.join(" + ")} · ${Math.round(share * column.workingDays)} of ${column.workingDays} working days`
+                          : column.workingDays > 0
+                            ? `Free · ${fmtDate(isoOf(column.from))} – ${fmtDate(isoOf(column.to))}`
+                            : "No working days";
+                      return (
+                        <td
+                          key={column.key}
+                          title={title}
+                          className="border border-ink-200 p-0 align-middle"
+                        >
+                          {/* The cell fills by how much of the column is
+                              actually committed: a week booked Mon–Wed is
+                              three fifths, not all of it. */}
+                          <div className="flex h-8 w-full">
+                            {segments.map((sg) => (
+                              <div
+                                key={`${sg.from}-${sg.kind}`}
+                                style={{
+                                  width: `${(sg.workingDays / Math.max(1, column.workingDays)) * 100}%`,
+                                }}
+                                className={`flex h-full flex-col ${sg.kind === "free" ? "" : ""}`}
+                              >
+                                {sg.projects.map((pr) => (
+                                  <span
+                                    key={pr.projectId}
+                                    className={`flex-1 ${colourOf.colour(pr.projectId)}`}
+                                    style={pr.implied ? CARRIED_HATCH : undefined}
+                                  />
+                                ))}
+                              </div>
                             ))}
                           </div>
-                        );
-                      })}
-                    </div>
-                  ))}
-                </div>
-
-                {/* when they come free */}
-                <div className="text-right">
-                  {free ? (
-                    <span className="inline-block px-2 py-0.5 rounded-pill text-[11px] font-semibold bg-brand-greenBg text-brand-greenText">
-                      Free
-                    </span>
-                  ) : (
-                    <>
-                      <span className="block text-xs font-medium text-ink-900 tabular-nums">
-                        {r.availableFrom ? fmtDate(r.availableFrom) : "—"}
-                      </span>
-                      {/* Free time inside the window, not just the day the
-                          last booking ends — somebody booked in March with
-                          a clear February is available now, and the date
-                          alone hides that. */}
-                      {freeDays > 0 && (
-                        <span className="block text-[11px] text-brand-greenText">
-                          {freeDays}d free
-                        </span>
-                      )}
-                    </>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
 
       <p className="text-xs text-ink-400 mt-3">
-        One row per person, from today onwards, split into columns you can
-        read down: coloured where they are committed, green where they are
-        free. Only working days are counted, following each project&apos;s own
-        working week, so a column&apos;s width is the working time it covers. A
-        cell split into bands is two projects at once.{" "}
+        One row per person, one column per {mode === "week" ? "week" : mode === "month" ? "month" : "year"}.
+        A filled cell is committed time, an empty one is free. Only working
+        days count, following each project&apos;s own working week, so a week
+        booked Monday to Wednesday fills three fifths of its cell. A cell
+        split into bands is two projects at once.{" "}
         <span
           className="inline-block align-middle w-3 h-3 rounded-sm bg-ink-400"
           style={CARRIED_HATCH}
         />{" "}
-        Hatched means tags carried on a project with no booking behind them —
-        real work, placed over the project&apos;s own dates. Hover any cell for
-        its dates.
+        Hatched means tags carried on a project with no booking behind them.
+        Hover any cell for its dates.
       </p>
     </div>
   );

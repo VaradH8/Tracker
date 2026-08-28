@@ -2,11 +2,16 @@ import { describe, it, expect } from "vitest";
 import {
   buildColumns,
   buildGrid,
+  committedShare,
   dayNumber,
+  groupSpans,
   impliedBookings,
   isoFromDay,
-  pickGranularity,
+  monthColumnsForYear,
+  weekColumnsForYear,
   workingDayList,
+  yearColumns,
+  yearsCovered,
   type Booking,
 } from "@/lib/domain-availability-bar";
 
@@ -14,12 +19,13 @@ import {
  * The engagement grid.
  *
  * A continuous bar answers "how loaded is this person" and cannot answer
- * "who is free the week after next" — there is nothing to read down. Columns
- * add the second axis. These are the rules that keep them honest.
+ * "who is free in week 33" — there is nothing to read down. Columns add the
+ * second axis. These are the rules that keep them honest.
  */
 
-const FROM = dayNumber("2026-09-01"); // Tuesday
-const TO = dayNumber("2026-09-30");
+const YEAR = 2026;
+const JAN1 = dayNumber("2026-01-01");
+const DEC31 = dayNumber("2026-12-31");
 
 const alpha: Booking = {
   projectId: 1,
@@ -36,94 +42,127 @@ const beta: Booking = {
   workingDaysPerWeek: 5,
 };
 
-describe("pickGranularity", () => {
-  it("weeks while the window is short enough to read", () => {
-    expect(pickGranularity(FROM, TO)).toBe("week");
-  });
+describe("weekColumnsForYear", () => {
+  const cols = weekColumnsForYear(YEAR, [alpha, beta]);
 
-  it("months once weekly columns would be unreadable", () => {
-    expect(pickGranularity(FROM, dayNumber("2027-06-30"))).toBe("month");
-  });
-
-  it("switches at fourteen weeks, not before", () => {
-    expect(pickGranularity(FROM, FROM + 14 * 7 - 1)).toBe("week");
-    expect(pickGranularity(FROM, FROM + 15 * 7)).toBe("month");
-  });
-});
-
-describe("buildColumns", () => {
-  it("covers the window with no gap and no overlap", () => {
-    const cols = buildColumns(FROM, TO, [alpha, beta], "week");
-    expect(cols.length).toBeGreaterThan(1);
-    expect(cols[0].from).toBe(FROM);
-    expect(cols[cols.length - 1].to).toBe(TO);
+  it("covers the whole year with no gap and no overlap", () => {
+    expect(cols[0].from).toBe(JAN1);
+    expect(cols[cols.length - 1].to).toBe(DEC31);
     for (let i = 1; i < cols.length; i++) {
       expect(cols[i].from).toBe(cols[i - 1].to + 1);
     }
   });
 
-  it("the columns divide exactly the window's working days", () => {
-    const cols = buildColumns(FROM, TO, [alpha, beta], "week");
+  it("is about a year of weeks", () => {
+    expect(cols.length).toBeGreaterThanOrEqual(52);
+    expect(cols.length).toBeLessThanOrEqual(54);
+  });
+
+  it("numbers them from one", () => {
+    expect(cols[0].label).toBe("1");
+    expect(cols[4].label).toBe("5");
+  });
+
+  it("groups each column under its month", () => {
+    expect(cols[0].group).toBe("Jan");
+    expect(cols[cols.length - 1].group).toBe("Dec");
+  });
+
+  it("the columns divide exactly the year's working days", () => {
     const total = cols.reduce((n, c) => n + c.workingDays, 0);
-    expect(total).toBe(workingDayList(FROM, TO, [alpha, beta]).length);
+    expect(total).toBe(workingDayList(JAN1, DEC31, [alpha, beta]).length);
   });
 
-  it("clips the first column instead of pretending the week began earlier", () => {
-    // 1 Sep 2026 is a Tuesday, so the opening column is Tue–Fri: 4 days.
-    const [first] = buildColumns(FROM, TO, [alpha, beta], "week");
-    expect(isoFromDay(first.from)).toBe("2026-09-01");
-    expect(isoFromDay(first.to)).toBe("2026-09-06");
-    expect(first.workingDays).toBe(4);
-  });
-
-  it("drops a column with no working days in it at all", () => {
-    // A window that is a single Sunday.
-    const sunday = dayNumber("2026-09-06");
-    expect(buildColumns(sunday, sunday, [], "week")).toEqual([]);
+  it("clips the opening stub rather than reaching before the year", () => {
+    // 1 Jan 2026 is a Thursday, so week one is Thu–Sun: two working days.
+    expect(isoFromDay(cols[0].from)).toBe("2026-01-01");
+    expect(isoFromDay(cols[0].to)).toBe("2026-01-04");
+    expect(cols[0].workingDays).toBe(2);
   });
 
   it("counts a six-day project's Saturdays", () => {
-    const six: Booking = { ...alpha, workingDaysPerWeek: 6, endDate: "2026-09-30" };
-    const five = buildColumns(FROM, TO, [alpha], "week");
-    const sixCols = buildColumns(FROM, TO, [six], "week");
-    const fiveTotal = five.reduce((n, c) => n + c.workingDays, 0);
-    const sixTotal = sixCols.reduce((n, c) => n + c.workingDays, 0);
-    expect(sixTotal).toBeGreaterThan(fiveTotal);
+    const six: Booking = { ...alpha, workingDaysPerWeek: 6 };
+    const five = weekColumnsForYear(YEAR, [alpha]);
+    const sixCols = weekColumnsForYear(YEAR, [six]);
+    const sum = (cs: typeof five) => cs.reduce((n, c) => n + c.workingDays, 0);
+    expect(sum(sixCols)).toBeGreaterThan(sum(five));
+  });
+});
+
+describe("monthColumnsForYear", () => {
+  const cols = monthColumnsForYear(YEAR, []);
+
+  it("is twelve columns, Jan to Dec", () => {
+    expect(cols).toHaveLength(12);
+    expect(cols.map((c) => c.label)).toEqual([
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ]);
   });
 
-  it("months are whole months, clipped at the ends", () => {
-    const cols = buildColumns(FROM, dayNumber("2026-11-15"), [], "month");
-    expect(cols.map((c) => c.label)).toEqual(["Sep 26", "Oct 26", "Nov 26"]);
-    expect(isoFromDay(cols[1].from)).toBe("2026-10-01");
-    expect(isoFromDay(cols[2].to)).toBe("2026-11-15");
+  it("each column is exactly its month", () => {
+    expect(isoFromDay(cols[1].from)).toBe("2026-02-01");
+    expect(isoFromDay(cols[1].to)).toBe("2026-02-28");
+    expect(isoFromDay(cols[11].to)).toBe("2026-12-31");
   });
 
-  it("labels weekly columns by their first day", () => {
-    const cols = buildColumns(FROM, TO, [], "week");
-    expect(cols[0].label).toBe("1 Sep");
-    expect(cols[1].label).toBe("7 Sep");
+  it("groups under the year", () => {
+    expect(new Set(cols.map((c) => c.group))).toEqual(new Set(["2026"]));
+  });
+});
+
+describe("yearColumns", () => {
+  it("one column per year, each a whole year", () => {
+    const cols = yearColumns([2026, 2027], []);
+    expect(cols.map((c) => c.label)).toEqual(["2026", "2027"]);
+    expect(isoFromDay(cols[0].from)).toBe("2026-01-01");
+    expect(isoFromDay(cols[1].to)).toBe("2027-12-31");
   });
 
-  it("an empty window produces no columns", () => {
-    expect(buildColumns(TO, FROM, [])).toEqual([]);
+  it("no years, no columns", () => {
+    expect(yearColumns([], [])).toEqual([]);
+  });
+});
+
+describe("buildColumns dispatches on the view", () => {
+  it("weekly by default", () => {
+    expect(buildColumns("week", YEAR, []).length).toBeGreaterThan(50);
+  });
+  it("monthly is twelve", () => {
+    expect(buildColumns("month", YEAR, [])).toHaveLength(12);
+  });
+  it("yearly follows the years given", () => {
+    expect(buildColumns("year", YEAR, [], [2025, 2026])).toHaveLength(2);
+  });
+});
+
+describe("groupSpans", () => {
+  it("draws each month once across its weeks", () => {
+    const spans = groupSpans(weekColumnsForYear(YEAR, []));
+    expect(spans.map((s) => s.group).slice(0, 3)).toEqual(["Jan", "Feb", "Mar"]);
+    expect(spans).toHaveLength(12);
+    // The spans account for every column, none counted twice.
+    const total = spans.reduce((n, s) => n + s.span, 0);
+    expect(total).toBe(weekColumnsForYear(YEAR, []).length);
+  });
+
+  it("nothing in, nothing out", () => {
+    expect(groupSpans([])).toEqual([]);
   });
 });
 
 describe("buildGrid", () => {
-  it("gives every column its own segments", () => {
-    const cols = buildColumns(FROM, TO, [alpha, beta], "week");
-    const grid = buildGrid(cols, [alpha, beta]);
-    expect(grid).toHaveLength(cols.length);
-    for (const cell of grid) {
+  const cols = weekColumnsForYear(YEAR, [alpha, beta]);
+
+  it("gives every column its own segments, summing to that column", () => {
+    for (const cell of buildGrid(cols, [alpha, beta])) {
       const inCell = cell.segments.reduce((n, s) => n + s.workingDays, 0);
       expect(inCell).toBe(cell.column.workingDays);
     }
   });
 
   it("work never bleeds into a neighbouring column", () => {
-    const cols = buildColumns(FROM, TO, [alpha], "week");
-    const grid = buildGrid(cols, [alpha]);
-    for (const cell of grid) {
+    for (const cell of buildGrid(cols, [alpha])) {
       for (const seg of cell.segments) {
         expect(seg.from).toBeGreaterThanOrEqual(cell.column.from);
         expect(seg.to).toBeLessThanOrEqual(cell.column.to);
@@ -131,27 +170,10 @@ describe("buildGrid", () => {
     }
   });
 
-  it("a week split between a project and nothing shows both", () => {
-    // Alpha ends Friday 11 Sep; that column runs 7–13 Sep.
-    const cols = buildColumns(FROM, TO, [alpha], "week");
-    const grid = buildGrid(cols, [alpha]);
-    const week = grid.find((g) => isoFromDay(g.column.from) === "2026-09-07")!;
-    expect(week.segments.some((s) => s.kind === "busy")).toBe(true);
-    // 11 Sep is the Friday, so this column is busy throughout.
-    expect(week.column.workingDays).toBe(5);
-  });
-
-  it("a fully free column is one free segment", () => {
-    const cols = buildColumns(FROM, TO, [alpha], "week");
-    const grid = buildGrid(cols, [alpha]);
-    const last = grid[grid.length - 1];
-    expect(last.segments.every((s) => s.kind === "free")).toBe(true);
-  });
-
   it("two projects in one column read as two projects", () => {
-    const cols = buildColumns(FROM, TO, [alpha, beta], "week");
-    const grid = buildGrid(cols, [alpha, beta]);
-    const overlap = grid.flatMap((g) => g.segments).filter((s) => s.projects.length > 1);
+    const overlap = buildGrid(cols, [alpha, beta])
+      .flatMap((g) => g.segments)
+      .filter((s) => s.projects.length > 1);
     expect(overlap.length).toBeGreaterThan(0);
     expect(overlap[0].projects.map((p) => p.projectName).sort()).toEqual([
       "Alpha",
@@ -171,24 +193,106 @@ describe("buildGrid", () => {
           workingDaysPerWeek: 5,
         },
       ],
-      FROM,
+      dayNumber("2026-09-01"),
     );
-    const cols = buildColumns(FROM, TO, carried, "week");
-    const grid = buildGrid(cols, carried);
-    const gamma = grid
+    const marks = buildGrid(weekColumnsForYear(YEAR, carried), carried)
       .flatMap((g) => g.segments)
       .flatMap((s) => s.projects)
       .filter((p) => p.projectName === "Gamma");
-    expect(gamma.length).toBeGreaterThan(0);
-    expect(gamma.every((p) => p.implied)).toBe(true);
+    expect(marks.length).toBeGreaterThan(0);
+    expect(marks.every((p) => p.implied)).toBe(true);
   });
 
   it("nobody booked means every column is free", () => {
-    const cols = buildColumns(FROM, TO, [], "week");
-    const grid = buildGrid(cols, []);
-    expect(grid.length).toBeGreaterThan(0);
-    for (const cell of grid) {
+    for (const cell of buildGrid(weekColumnsForYear(YEAR, []), [])) {
       expect(cell.segments.every((s) => s.kind === "free")).toBe(true);
     }
+  });
+});
+
+describe("committedShare — a part-booked week is not a full one", () => {
+  const cols = weekColumnsForYear(YEAR, [alpha]);
+  const grid = buildGrid(cols, [alpha]);
+
+  it("a fully booked column is 1", () => {
+    const full = grid.find(
+      (g) =>
+        g.column.workingDays > 0 &&
+        g.segments.every((s) => s.kind === "busy"),
+    )!;
+    expect(committedShare(full.segments, full.column)).toBe(1);
+  });
+
+  it("an untouched column is 0", () => {
+    const empty = grid.find((g) =>
+      g.segments.every((s) => s.kind === "free"),
+    )!;
+    expect(committedShare(empty.segments, empty.column)).toBe(0);
+  });
+
+  it("a week booked Monday to Wednesday is three fifths", () => {
+    const midweek: Booking = {
+      projectId: 9,
+      projectName: "Short",
+      startDate: "2026-09-07", // Monday
+      endDate: "2026-09-09", // Wednesday
+      workingDaysPerWeek: 5,
+    };
+    const cs = weekColumnsForYear(YEAR, [midweek]);
+    const cell = buildGrid(cs, [midweek]).find((g) =>
+      g.segments.some((s) => s.kind === "busy"),
+    )!;
+    expect(committedShare(cell.segments, cell.column)).toBeCloseTo(0.6, 5);
+  });
+
+  it("never exceeds 1, however many projects overlap", () => {
+    for (const cell of buildGrid(cols, [alpha, beta, { ...alpha, projectId: 7 }])) {
+      expect(committedShare(cell.segments, cell.column)).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
+describe("yearsCovered", () => {
+  const today = dayNumber("2026-05-01");
+
+  it("always offers the current year", () => {
+    expect(yearsCovered([], today)).toEqual([2026]);
+  });
+
+  it("spans a booking that crosses a year end", () => {
+    expect(
+      yearsCovered(
+        [{ ...alpha, startDate: "2026-12-01", endDate: "2027-02-01" }],
+        today,
+      ),
+    ).toEqual([2026, 2027]);
+  });
+
+  it("stops at an early release rather than the original end", () => {
+    expect(
+      yearsCovered(
+        [
+          {
+            ...alpha,
+            startDate: "2026-01-01",
+            endDate: "2028-01-01",
+            releasedAt: "2026-06-01",
+          },
+        ],
+        today,
+      ),
+    ).toEqual([2026]);
+  });
+
+  it("comes back sorted, with no repeats", () => {
+    const ys = yearsCovered(
+      [
+        { ...alpha, startDate: "2028-01-01", endDate: "2028-02-01" },
+        { ...beta, startDate: "2024-01-01", endDate: "2024-02-01" },
+      ],
+      today,
+    );
+    expect(ys).toEqual([...ys].sort((a, b) => a - b));
+    expect(new Set(ys).size).toBe(ys.length);
   });
 });
