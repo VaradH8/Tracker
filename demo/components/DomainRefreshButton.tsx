@@ -7,7 +7,7 @@ import { fmtTime } from "@/lib/domain-format";
 /**
  * A Refresh button that shows it did something.
  *
- * The three of these across Forecast, KPIs and Resource availability all
+ * The three of these across Forecast, KPIs and Resource engagement all
  * fired their request correctly and then gave no sign of it: no spinner,
  * no disabled state, and — because the data is usually unchanged — nothing
  * visibly different on screen. A button that works and looks broken is

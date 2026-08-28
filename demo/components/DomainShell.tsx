@@ -71,7 +71,7 @@ const NAV: NavItem[] = [
   { href: "/engineering/task-log", label: "Task log", icon: ClipboardList, roles: EVERYONE, group: "Work" },
   { href: "/engineering/approvals", label: "Approvals", icon: CheckSquare, roles: SUPERVISORS, group: "Manage" },
   { href: "/engineering/forecast", label: "Forecast", icon: TrendingUp, roles: OVERSEERS, group: "Manage" },
-  { href: "/engineering/availability", label: "Resource availability", icon: Gauge, roles: OVERSEERS, group: "Manage" },
+  { href: "/engineering/availability", label: "Resource engagement", icon: Gauge, roles: OVERSEERS, group: "Manage" },
   { href: "/engineering/kpis", label: "KPIs", icon: BarChart3, roles: ["Admin"], group: "Manage" },
   // Everyone who supervises manages people here, but not equally: Admins
   // and Leads add and remove accounts, while a Team Lead only edits the

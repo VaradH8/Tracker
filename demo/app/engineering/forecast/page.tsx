@@ -352,10 +352,10 @@ export default function ForecastPage() {
       </section>
 
       <p className="text-xs text-ink-400">
-        Looking for who&apos;s free? Resource availability moved to its own page
+        Looking for who&apos;s free? Resource engagement moved to its own page
         — see{" "}
         <a href="/engineering/availability" className="text-brand-blue">
-          Resource availability
+          Resource engagement
         </a>
         .
       </p>

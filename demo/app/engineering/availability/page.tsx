@@ -12,7 +12,7 @@ import { DomainRefreshButton } from "@/components/DomainRefreshButton";
 import { fmtDate } from "@/lib/domain-format";
 
 /**
- * Resource availability — who is free, who is booked, until when, and how
+ * Resource engagement — who is free, who is booked, until when, and how
  * fast they deliver.
  *
  * This page used to show an hours-based capacity read (weekly hours vs
@@ -33,7 +33,7 @@ export default function AvailabilityPage() {
     return fetch("/api/domain/forecast", { cache: "no-store" })
       .then(async (r) => {
         if (r.status === 403) {
-          throw new Error("Resource availability is for Leads and Admins.");
+          throw new Error("Resource engagement is for Leads and Admins.");
         }
         if (!r.ok) throw new Error("Couldn't load resource availability.");
         return r.json();
@@ -67,7 +67,7 @@ export default function AvailabilityPage() {
   return (
     <DomainPage width="wide">
       <PageHeader
-        title="Resource availability"
+        title="Resource engagement"
         description="Who is free to take work and who is committed — with what they're on, how far it has got, and the day they come free. Filter by role to plan one group at a time."
         actions={<DomainRefreshButton onRefresh={load} />}
       />

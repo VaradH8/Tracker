@@ -134,7 +134,7 @@ function rateText(a: Availability): string | null {
  * No rate here by design. Picking someone is a question of whether they
  * are free, and a throughput figure in a dropdown invited comparison
  * against a number that, for anyone new, was never real. Measured rates
- * live in Resource availability, where they can be shown with the history
+ * live in Resource engagement, where they can be shown with the history
  * behind them.
  */
 function availabilityLabel(name: string, a?: Availability): string {
