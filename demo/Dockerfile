@@ -52,6 +52,21 @@ COPY --from=build /app/public ./public
 COPY --from=build /app/scripts ./scripts
 
 RUN chown -R app:app /app
+
+# Create the upload directory IN THE IMAGE, owned by the app user.
+#
+# compose.yml mounts the named volume tracker_uploads at /uploads, and the
+# container runs as `app`, not root. Docker creates a mount point that does
+# not exist in the image as root:root 0755 — so `app` could not write to
+# it, every attachment upload failed with EACCES, and the route answered
+# with an opaque 500.
+#
+# Docker copies the image directory's ownership onto a named volume the
+# first time it mounts one that is empty, so creating and chowning it here
+# is what makes the volume writable. An ALREADY-POPULATED volume keeps the
+# ownership it has and needs a one-off chown on the host — see DEPLOY.md.
+RUN mkdir -p /uploads && chown -R app:app /uploads
+
 USER app
 
 EXPOSE 3000

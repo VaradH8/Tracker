@@ -253,6 +253,33 @@ export type DomainTaskStatus =
   | "Approved"
   | "Rejected";
 
+/**
+ * How urgent a task is.
+ *
+ * Three levels, not five. People do not reliably distinguish "high" from
+ * "critical" and a scale with more rungs than that just gets used as two
+ * — everything at the top, everything else ignored.
+ *
+ * Ordered most urgent first, so the array itself is the sort order and
+ * nothing has to keep a second list of ranks in step with this one.
+ */
+export const DOMAIN_TASK_PRIORITIES = ["High", "Medium", "Low"] as const;
+export type DomainTaskPriority = (typeof DOMAIN_TASK_PRIORITIES)[number];
+
+export const DEFAULT_TASK_PRIORITY: DomainTaskPriority = "Medium";
+
+export function normaliseTaskPriority(raw: unknown): DomainTaskPriority {
+  const v = String(raw ?? "").trim().toLowerCase();
+  const hit = DOMAIN_TASK_PRIORITIES.find((p) => p.toLowerCase() === v);
+  return hit ?? DEFAULT_TASK_PRIORITY;
+}
+
+/** Most urgent first. Ties keep whatever order they arrived in. */
+export function taskPriorityRank(p: unknown): number {
+  const i = DOMAIN_TASK_PRIORITIES.indexOf(normaliseTaskPriority(p));
+  return i < 0 ? DOMAIN_TASK_PRIORITIES.length : i;
+}
+
 export const DOMAIN_TASK_STATUSES: DomainTaskStatus[] = [
   "Assigned",
   "Submitted",

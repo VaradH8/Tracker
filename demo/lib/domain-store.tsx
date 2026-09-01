@@ -15,6 +15,8 @@ export type DomainMe = {
   email: string;
   name: string;
   role: DomainRole;
+  /** Show only the Task log in the sidebar. See DomainShell. */
+  taskLogOnly?: boolean;
 };
 
 type Ctx = {

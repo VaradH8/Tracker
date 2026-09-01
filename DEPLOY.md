@@ -149,6 +149,32 @@ gunzip -c backup.sql.gz | docker exec -i tracker-postgres-1 \
 - **"That account is deactivated" on first login** — `RUN_SEED` didn't
   run. Set `RUN_SEED=1` and redeploy once.
 - **Forgot a password** — Admin → Users → key icon next to the row.
+- **Task-log attachments fail with "couldn't be saved to storage"** —
+  the `/uploads` volume isn't writable by the app user. The container
+  runs as `app`, and Docker creates a mount point that doesn't exist in
+  the image as `root:root`, so the process can't write to it.
+
+  The image now creates and chowns `/uploads` itself, which fixes any
+  volume created from this version onward. A volume that already exists
+  keeps the ownership it had, so fix it once on the host:
+
+  ```
+  docker exec -u 0 tracker-app-1 chown -R app:app /uploads
+  ```
+
+  Run it as root (`-u 0`) inside the app container, and chown **by name**.
+  Don't guess a numeric uid: the image creates the user with
+  `adduser -S`, so on Alpine it gets a system uid (around 100), not 1000.
+
+  Check it worked — this must print OK:
+
+  ```
+  docker exec tracker-app-1 sh -c 'touch /uploads/.probe && echo OK && rm /uploads/.probe'
+  ```
+
+  The app logs the failing path and the `UPLOAD_DIR` value on every
+  refusal, so `docker logs tracker-app-1` will name the directory if the
+  cause is something else.
 - **Need to wipe and reseed** — `docker volume rm tracker_tracker_pgdata`
   then redeploy with `RUN_SEED=1`. This nukes everything; back up first
   if there's real data.
@@ -194,11 +220,16 @@ Before you hand the URL to teammates:
    Settings → General don't actually send anything outbound. Plan to
    add nodemailer + the SMTP creds you put in Settings before users
    rely on email reminders.
-2. **File attachments are metadata-only.** Uploading a file on a task
-   records its name, size, and uploader, but the actual bytes aren't
-   stored anywhere — there's no S3/blob backing yet. Tell the team to
-   keep using their existing file share for now; attachments are an
+2. **Tracker-side file attachments are metadata-only.** Uploading a file
+   on a *Tracker* task records its name, size, and uploader, but the
+   bytes aren't stored — there's no S3/blob backing yet. Tell that team
+   to keep using their existing file share; those attachments are an
    index, not storage.
+
+   Engineering **task-log** attachments are different: they do store the
+   bytes, on the `tracker_uploads` volume under `domain/<taskId>/`. That
+   volume is included in nothing that backs up Postgres, so add it to the
+   backup story before people put anything they can't lose there.
 3. **Forgot-password is admin-only.** A user who forgets their password
    has to ask the admin to reset it from Users → key icon. There's no
    self-serve "Forgot password" email flow yet.

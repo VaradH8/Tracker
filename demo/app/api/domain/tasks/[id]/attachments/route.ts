@@ -96,8 +96,38 @@ export async function POST(
   const name = safeFileName(file.name);
   const storageKey = storageKeyFor(taskId, name);
   const absPath = join(UPLOAD_ROOT, storageKey);
-  await mkdir(dirname(absPath), { recursive: true });
-  await writeFile(absPath, Buffer.from(await file.arrayBuffer()));
+
+  /**
+   * Say what went wrong with the disk.
+   *
+   * These two calls were unguarded, so a missing volume or a directory the
+   * process cannot write to threw out of the handler and Next answered
+   * with a 500 and an HTML error page. The client could tell the upload
+   * had failed and nothing whatever about why, which is the worst possible
+   * split: the one place that knows the cause is the one place that
+   * discards it.
+   *
+   * The message names UPLOAD_DIR because that is nearly always the fault —
+   * unset in an environment that has no /uploads, or mounted read-only.
+   */
+  try {
+    await mkdir(dirname(absPath), { recursive: true });
+    await writeFile(absPath, Buffer.from(await file.arrayBuffer()));
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : String(e);
+    console.error(
+      `[domain attachments] cannot write ${absPath} (UPLOAD_DIR=${UPLOAD_ROOT}):`,
+      reason,
+    );
+    return NextResponse.json(
+      {
+        error:
+          "The file couldn't be saved to storage. The task is fine — an admin needs to check that UPLOAD_DIR is mounted and writable.",
+        detail: reason,
+      },
+      { status: 500 },
+    );
+  }
 
   const created = await prisma.domainTaskAttachment.create({
     data: {

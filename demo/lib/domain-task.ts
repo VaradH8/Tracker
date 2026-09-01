@@ -8,6 +8,8 @@
  * the question.
  */
 
+import { normaliseTaskPriority } from "@/lib/domain";
+
 export const TASK_INCLUDE = {
   project: { select: { id: true, name: true } },
   division: { select: { id: true, name: true } },
@@ -74,6 +76,7 @@ export type TaskRow = {
   assignee: { id: string; name: string; role: string } | null;
   createdBy: { id: string; name: string };
   reviewedBy: { id: string; name: string } | null;
+  priority: string;
   includesWeekends: boolean;
   editedAt: Date | null;
   editedBy: { id: string; name: string } | null;
@@ -150,6 +153,7 @@ export function serializeTask(t: TaskRow, withHistory = false) {
     reviewedBy: t.reviewedBy?.name ?? null,
     reviewedAt: t.reviewedAt ? t.reviewedAt.toISOString() : null,
     reviewNote: t.reviewNote,
+    priority: normaliseTaskPriority(t.priority),
     includesWeekends: t.includesWeekends,
     /** Set only when the brief changed after it went out — see the route. */
     editedAt: t.editedAt ? t.editedAt.toISOString() : null,

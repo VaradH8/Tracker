@@ -384,6 +384,21 @@ model DomainUser {
   deliveryCorrections DomainDeliveryCorrection[] @relation("DomainDeliveryCorrector")
   tagAssignmentsRemoved DomainTagAssignment[] @relation("DomainTagAssignmentRemover")
   tagReviews          DomainTagSubmission[] @relation("DomainTagReviewer")
+  /// Hide everything but the Task log for this person.
+  ///
+  /// A display preference, stored on the user rather than in the browser
+  /// so it follows them to a second machine — somebody who only ever uses
+  /// this app for tasks should not have to set that up again on the site
+  /// office PC. It hides nav entries and nothing else: every permission
+  /// check is unchanged, because a preference must never be load-bearing
+  /// for access.
+  taskLogOnly         Boolean               @default(false)
+  /// People this person names as reviewers by default when raising a task.
+  defaultReviewers    DomainDefaultReviewer[] @relation("DefaultReviewerOwner")
+  /// The other side: tasks where somebody else has named THEM a default.
+  /// Present so deleting an account takes its standing nominations with
+  /// it rather than leaving ids that pre-fill a person who is gone.
+  defaultReviewerFor  DomainDefaultReviewer[] @relation("DefaultReviewerPerson")
   taskReviews         DomainTaskReviewer[]  @relation("DomainTaskReviewerUser")
   tasksEdited         DomainTask[]          @relation("DomainTaskEditor")
   taskFilesUploaded   DomainTaskAttachment[] @relation("DomainTaskAttachmentUploader")
@@ -676,6 +691,13 @@ model DomainTask {
   /// working day (see lib/domain-task-hours) and editable — plenty of
   /// tasks are two hours inside a week-long window.
   estimatedHours Float?
+  /// How urgent this is: Low, Medium or High.
+  ///
+  /// Medium by default rather than null, so every task sorts against every
+  /// other one. A nullable priority splits a list into "ranked" and
+  /// "unranked" the first time somebody sorts by it, and the unranked pile
+  /// is always the older half.
+  priority       String   @default("Medium")
   /// Whether the estimate counted the Saturdays and Sundays in the span.
   ///
   /// Stored rather than recomputed because it is the assigner's decision,
@@ -740,6 +762,26 @@ model DomainTask {
 /// Reviewing is deliberately not the assignment ladder. An Actionee cannot
 /// hand work to their Lead, but should certainly be able to ask them to
 /// check it, so anyone active can be named here.
+/// Somebody's standing choice of reviewer.
+///
+/// A table rather than a list of ids on DomainUser, so a deleted account
+/// cannot linger as a stale id that silently pre-fills a person who has
+/// left — the cascade removes the nomination with the account.
+///
+/// Owner and reviewer are separate relations to the same table: "who set
+/// this" and "who gets named".
+model DomainDefaultReviewer {
+  id         Int        @id @default(autoincrement())
+  ownerId    String
+  owner      DomainUser @relation("DefaultReviewerOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  reviewerId String
+  reviewer   DomainUser @relation("DefaultReviewerPerson", fields: [reviewerId], references: [id], onDelete: Cascade)
+  createdAt  DateTime   @default(now())
+
+  @@unique([ownerId, reviewerId])
+  @@index([ownerId])
+}
+
 model DomainTaskReviewer {
   id        Int        @id @default(autoincrement())
   taskId    Int

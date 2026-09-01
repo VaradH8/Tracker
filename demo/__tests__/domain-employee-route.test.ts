@@ -39,7 +39,16 @@ import {
 } from "@/app/api/domain/employees/[id]/route";
 
 function actor(role: DomainRole) {
-  return { id: `u-${role}`, name: role, email: `${role}@x.com`, role };
+  // taskLogOnly is a sidebar preference, never a permission — see
+  // api/domain/me/preferences. It is on the session user, so it has to be
+  // here, and false is what every route under test should see.
+  return {
+    id: `u-${role}`,
+    name: role,
+    email: `${role}@x.com`,
+    role,
+    taskLogOnly: false,
+  };
 }
 
 function params(id: string) {

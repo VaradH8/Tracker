@@ -10,6 +10,11 @@ import {
   statusOnSubmit,
   type Reviewer,
 } from "@/lib/domain-task-review";
+import {
+  DOMAIN_TASK_PRIORITIES,
+  normaliseTaskPriority,
+  taskPriorityRank,
+} from "@/lib/domain";
 
 /**
  * Any one reviewer approving closes a task.
@@ -194,5 +199,36 @@ describe("the assigner can sign off too", () => {
     // no decision for anyone to make — see statusOnSubmit.
     expect(statusOnSubmit([])).toBe("Approved");
     expect(statusOnSubmit(named)).toBe("Submitted");
+  });
+});
+
+describe("priority", () => {
+  it("has three levels, most urgent first", () => {
+    // The array IS the sort order, so nothing has to keep a second list of
+    // ranks in step with this one.
+    expect([...DOMAIN_TASK_PRIORITIES]).toEqual(["High", "Medium", "Low"]);
+    expect(taskPriorityRank("High")).toBeLessThan(taskPriorityRank("Medium"));
+    expect(taskPriorityRank("Medium")).toBeLessThan(taskPriorityRank("Low"));
+  });
+
+  it("lands anything unrecognised on Medium rather than refusing it", () => {
+    // A bad priority is not a reason to reject somebody's task, and null
+    // would split every sorted list into ranked and unranked halves.
+    expect(normaliseTaskPriority("Critical")).toBe("Medium");
+    expect(normaliseTaskPriority(null)).toBe("Medium");
+    expect(normaliseTaskPriority(undefined)).toBe("Medium");
+    expect(normaliseTaskPriority("")).toBe("Medium");
+    expect(normaliseTaskPriority(7)).toBe("Medium");
+  });
+
+  it("takes whatever case and spacing it is given", () => {
+    // The value arrives from a request body, not only from our own buttons.
+    expect(normaliseTaskPriority("high")).toBe("High");
+    expect(normaliseTaskPriority("  LOW  ")).toBe("Low");
+  });
+
+  it("ranks an unknown priority last, not first", () => {
+    // Sorting must never float junk to the top of a list of urgent work.
+    expect(taskPriorityRank("nonsense")).toBe(taskPriorityRank("Medium"));
   });
 });

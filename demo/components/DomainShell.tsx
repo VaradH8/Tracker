@@ -98,7 +98,7 @@ function isActive(pathname: string, href: string): boolean {
  * screens keep their full width for content.
  */
 export function DomainShell({ children }: { children: ReactNode }) {
-  const { current, signOut } = useDomain();
+  const { current, signOut, refresh } = useDomain();
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -108,7 +108,27 @@ export function DomainShell({ children }: { children: ReactNode }) {
 
   if (!current) return null;
 
-  const items = NAV.filter((n) => n.roles.includes(current.role));
+  /**
+   * Task log mode.
+   *
+   * For the people whose whole use of this app is tasks — an Actionee who
+   * never opens the forecast, a Team Lead on a site PC — the other eight
+   * entries are permanent noise. Turning it on hides them.
+   *
+   * Hides, and only hides. Every permission check elsewhere is untouched,
+   * and the pages still answer if somebody types the URL: a display
+   * preference that quietly became an access control would be a very bad
+   * surprise the first time somebody bookmarked a page.
+   *
+   * Stored on the user rather than in the browser, so it follows them to
+   * a second machine.
+   */
+  const taskLogOnly = current.taskLogOnly === true;
+  const items = NAV.filter(
+    (n) =>
+      n.roles.includes(current.role) &&
+      (!taskLogOnly || n.href === "/engineering/task-log"),
+  );
 
   const rail = (
     <>
@@ -122,6 +142,12 @@ export function DomainShell({ children }: { children: ReactNode }) {
       >
         <BrandPanel label="Engineering" className="px-5 h-16" height={30} />
       </Link>
+
+      <ModeToggle
+        taskLogOnly={taskLogOnly}
+        onChanged={refresh}
+        goToTasks={() => router.push("/engineering/task-log")}
+      />
 
       <nav className="flex-1 overflow-y-auto py-4 px-3">
         {GROUPS.map((group) => {
@@ -249,6 +275,89 @@ export function DomainShell({ children }: { children: ReactNode }) {
       <main className="lg:pl-60">
         <div className="max-w-[1280px] mx-auto px-6 py-8">{children}</div>
       </main>
+    </div>
+  );
+}
+
+/**
+ * Task log mode / Normal mode.
+ *
+ * A switch, not a nav entry: it changes what the nav IS, so putting it in
+ * the list it edits would be the one item that behaves unlike the rest.
+ * It sits above the nav and stays visible in both modes — a toggle you can
+ * turn on and then not find again is a trap, and hiding this one would
+ * leave somebody with a one-item sidebar and no way back.
+ */
+function ModeToggle({
+  taskLogOnly,
+  onChanged,
+  goToTasks,
+}: {
+  taskLogOnly: boolean;
+  onChanged: () => Promise<void>;
+  goToTasks: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  async function flip() {
+    const next = !taskLogOnly;
+    setBusy(true);
+    setFailed(false);
+    const res = await fetch("/api/domain/me/preferences", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ taskLogOnly: next }),
+    }).catch(() => null);
+    setBusy(false);
+    if (!res || !res.ok) {
+      // Say so rather than flipping the switch back with no explanation,
+      // which reads as the click not having registered.
+      setFailed(true);
+      return;
+    }
+    await onChanged();
+    // Turning it on from a page that is about to leave the nav would
+    // strand the reader on a screen with no way back to anything.
+    if (next) goToTasks();
+  }
+
+  return (
+    <div className="px-3 pt-3">
+      <button
+        type="button"
+        onClick={flip}
+        disabled={busy}
+        role="switch"
+        aria-checked={taskLogOnly}
+        className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded border border-ink-200 hover:bg-ink-50 text-left disabled:opacity-50"
+      >
+        <span
+          aria-hidden
+          className={`shrink-0 w-8 h-[18px] rounded-pill p-0.5 transition-colors ${
+            taskLogOnly ? "bg-brand-blue" : "bg-ink-200"
+          }`}
+        >
+          <span
+            className={`block w-[14px] h-[14px] rounded-full bg-white transition-transform ${
+              taskLogOnly ? "translate-x-[14px]" : ""
+            }`}
+          />
+        </span>
+        <span className="min-w-0">
+          <span className="block text-xs font-medium text-ink-800">
+            {taskLogOnly ? "Task log mode" : "Normal mode"}
+          </span>
+          <span className="block text-[11px] text-ink-500">
+            {taskLogOnly ? "Tasks only" : "Everything shown"}
+          </span>
+        </span>
+      </button>
+      {failed && (
+        <p className="text-[11px] text-brand-redText mt-1">
+          Couldn&apos;t save that. Try again.
+        </p>
+      )}
     </div>
   );
 }

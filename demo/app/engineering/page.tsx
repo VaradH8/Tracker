@@ -109,12 +109,20 @@ function AttentionRow({
         : "text-brand-blue";
   return (
     <li>
+      {/*
+        min-w-0 on the row and the count.
+
+        `truncate` on the detail below did nothing without it: a flex item
+        will not shrink below its content's intrinsic width unless told it
+        may, so the row grew to fit the longest task title and pushed the
+        whole dashboard sideways — 396px of horizontal scroll on a phone.
+      */}
       <Link
         href={href}
-        className="flex items-center gap-3 py-3 -mx-2 px-2 rounded hover:bg-ink-50 group"
+        className="flex items-center gap-3 py-3 -mx-2 px-2 rounded hover:bg-ink-50 group min-w-0"
       >
         <span className={`shrink-0 ${colour}`}>{icon}</span>
-        <span className="shrink-0">
+        <span className="shrink-0 min-w-0">
           <strong className="font-heading text-xl font-semibold text-ink-900">
             {count}
           </strong>{" "}
@@ -123,7 +131,7 @@ function AttentionRow({
           </span>
         </span>
         {detail && (
-          <span className="text-xs text-ink-500 truncate min-w-0">
+          <span className="text-xs text-ink-500 truncate min-w-0 flex-1">
             {detail}
             {more > 0 && ` · +${more} more`}
           </span>
@@ -257,7 +265,13 @@ function ManagerHome() {
     myTasks.length === 0;
 
   return (
-    <div className="grid gap-6">
+    // [&>*]:min-w-0 releases the grid children. A grid item defaults to
+    // min-width:auto and refuses to shrink below its content, so the
+    // section wrapping the projects table sized the whole single-column
+    // track to the table's 760px, and every other section stretched to
+    // match — 396px of horizontal scroll on a phone. This is what lets the
+    // card's own overflow-x-auto finally do its job.
+    <div className="grid gap-6 [&>*]:min-w-0">
       {/* ---- needs your attention ----------------------------------
           One row per thing, not three large cards.
 
@@ -402,7 +416,14 @@ function ManagerHome() {
             </p>
           </div>
         ) : (
-          <div className="card overflow-x-auto">
+          // min-w-0 is what makes overflow-x-auto do anything here. This
+          // card is a grid item, and a grid item defaults to
+          // min-width:auto — it refuses to shrink below its content. So
+          // the table's min-w-[760px] pushed the CARD out to 760 instead
+          // of scrolling inside it, and the whole dashboard scrolled
+          // sideways on a phone. The overflow rule was always right; it
+          // never got the chance to apply.
+          <div className="card overflow-x-auto min-w-0">
             <table className="w-full text-sm min-w-[760px]">
               <thead className="bg-ink-50 text-ink-500 text-xs uppercase tracking-wide">
                 <tr>
@@ -773,7 +794,13 @@ function WorkerHome({ secondary = false }: { secondary?: boolean }) {
     .slice(0, 4);
 
   return (
-    <div className="grid gap-6">
+    // [&>*]:min-w-0 releases the grid children. A grid item defaults to
+    // min-width:auto and refuses to shrink below its content, so the
+    // section wrapping the projects table sized the whole single-column
+    // track to the table's 760px, and every other section stretched to
+    // match — 396px of horizontal scroll on a phone. This is what lets the
+    // card's own overflow-x-auto finally do its job.
+    <div className="grid gap-6 [&>*]:min-w-0">
       <section>
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <h2 className="font-heading text-lg font-semibold">

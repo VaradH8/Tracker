@@ -43,7 +43,14 @@ import { POST as divisionsPOST } from "@/app/api/domain/divisions/route";
 import { POST as usersPOST } from "@/app/api/domain/users/route";
 
 function actor(role: DomainRole) {
-  return { id: `u-${role}`, email: `${role}@x.com`, name: role, role };
+  // taskLogOnly is a sidebar preference, never a permission.
+  return {
+    id: `u-${role}`,
+    email: `${role}@x.com`,
+    name: role,
+    role,
+    taskLogOnly: false,
+  };
 }
 const params = (id: string) => ({ params: Promise.resolve({ id }) });
 const req = (body: unknown = {}, url = "http://test/x") =>

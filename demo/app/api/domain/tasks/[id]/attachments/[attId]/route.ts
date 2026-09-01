@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { prisma } from "@/lib/db";
 import { requireDomainUser } from "@/lib/domain-auth";
 import { UPLOAD_ROOT } from "@/lib/domain-task-files";
+import { inlineContentType } from "@/lib/domain-task-view";
 
 /**
  * Download or remove one file on a task.
@@ -36,7 +37,7 @@ async function reachable(taskId: number, userId: string) {
 }
 
 export async function GET(
-  _req: Request,
+  req: Request,
   context: { params: Promise<{ id: string; attId: string }> },
 ) {
   const userOrResp = await requireDomainUser();
@@ -81,13 +82,35 @@ export async function GET(
     );
   }
 
+  /**
+   * Save it, or show it.
+   *
+   * `?view=1` asks for the file in the browser instead of the downloads
+   * folder, and is honoured ONLY for types on the allowlist in
+   * domain-task-files — images and PDFs. Everything else is served exactly
+   * as before, whatever the query string says: a stray .html or .svg
+   * rendered inline runs in this app's origin, and a caller does not get
+   * to choose that by adding a parameter.
+   *
+   * The two guards below matter as much as the allowlist:
+   *   nosniff  — stops the browser second-guessing the type we set and
+   *              rendering a mislabelled file as something executable.
+   *   sandbox  — a PDF or image needs no script, same origin, or forms,
+   *              so it is served without any of them.
+   */
+  const wantsInline = new URL(req.url).searchParams.get("view") === "1";
+  const inlineType = wantsInline ? inlineContentType(att.name) : null;
+  const filename = att.name.replace(/"/g, "");
+
   return new NextResponse(new Uint8Array(bytes), {
     headers: {
-      "Content-Type": "application/octet-stream",
-      // `attachment` so a stray .html or .svg is saved rather than run in
-      // the app's own origin.
-      "Content-Disposition": `attachment; filename="${att.name.replace(/"/g, "")}"`,
+      "Content-Type": inlineType ?? "application/octet-stream",
+      "Content-Disposition": `${
+        inlineType ? "inline" : "attachment"
+      }; filename="${filename}"`,
       "Content-Length": String(bytes.byteLength),
+      "X-Content-Type-Options": "nosniff",
+      "Content-Security-Policy": "sandbox; default-src 'none'; img-src 'self' data:; object-src 'self'",
     },
   });
 }

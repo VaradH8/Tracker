@@ -2,7 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, CalendarDays, Check, Paperclip, Plus, X } from "lucide-react";
-import { DOMAIN_ROLE_LABELS, type DomainRole } from "@/lib/domain";
+import {
+  DOMAIN_ROLE_LABELS,
+  DOMAIN_TASK_PRIORITIES,
+  type DomainRole,
+} from "@/lib/domain";
 import {
   budgetedHours,
   daySpan,
@@ -38,10 +42,13 @@ type Assigned = {
   toSelf: boolean;
   due: string | null;
   hours: number | null;
+  priority: string;
   weekends: boolean;
   reviewers: string[];
   attached: number;
   failed: string[];
+  /** Why the upload was refused, when the server said. */
+  failedWhy: string | null;
 };
 type Project = { id: number; name: string; divisions?: { id: number; name: string }[] };
 
@@ -68,10 +75,23 @@ export function DomainAssignTask({
   /** Whether the hours box has been typed in. Once it has, the dates stop
    *  overwriting it — the figure they suggest is a starting point. */
   const [hoursTouched, setHoursTouched] = useState(false);
+  /** Medium unless somebody says otherwise — see the chip on the card. */
+  const [priority, setPriority] = useState("Medium");
   /** Whether the Saturdays and Sundays in the span are being worked. Off
    *  by default: counting them silently would promise somebody's weekend. */
   const [includeWeekends, setIncludeWeekends] = useState(false);
   const [reviewerIds, setReviewerIds] = useState<string[]>([]);
+  /**
+   * The people this person names on nearly every task.
+   *
+   * Kept apart from `reviewerIds` so the form can tell "this is your
+   * standing choice" from "you picked this for this task" — that is what
+   * lets the Save control know whether there is anything to save, and
+   * lets a per-task change not quietly rewrite the default.
+   */
+  const [defaultReviewers, setDefaultReviewers] = useState<Person[]>([]);
+  const [savingDefaults, setSavingDefaults] = useState(false);
+  const [defaultsNote, setDefaultsNote] = useState<string | null>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,6 +106,24 @@ export function DomainAssignTask({
     fetch("/api/domain/projects", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : { projects: [] }))
       .then((b) => setProjects(b.projects ?? []))
+      .catch(() => null);
+    // Standing reviewers, and the form starts with them already filled in.
+    fetch("/api/domain/me/preferences", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : { defaultReviewers: [] }))
+      .then((b) => {
+        const list: Person[] = b.defaultReviewers ?? [];
+        setDefaultReviewers(list);
+        /**
+         * Only fill in if nothing has been picked yet.
+         *
+         * This request races the person using the form. Somebody who adds
+         * a reviewer in the second before it lands would otherwise watch
+         * their choice be silently replaced by the default — the one
+         * failure mode that would make the feature worse than not having
+         * it.
+         */
+        setReviewerIds((ids) => (ids.length === 0 ? list.map((p) => p.id) : ids));
+      })
       .catch(() => null);
   }, []);
 
@@ -123,14 +161,48 @@ export function DomainAssignTask({
     .map((id) => people.find((p) => p.id === id))
     .filter((p): p is Person => !!p);
 
+  /** Whether the picked set differs from what is saved as the default. */
+  const defaultsDiffer =
+    [...reviewerIds].sort().join() !==
+    [...defaultReviewers.map((p) => p.id)].sort().join();
+
+  async function saveDefaults() {
+    setSavingDefaults(true);
+    setDefaultsNote(null);
+    const res = await fetch("/api/domain/me/preferences", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ defaultReviewerIds: reviewerIds }),
+    }).catch(() => null);
+    setSavingDefaults(false);
+    if (!res || !res.ok) {
+      const b = res ? await res.json().catch(() => ({})) : {};
+      setError(b?.error ?? "Couldn't save those as your default.");
+      return;
+    }
+    const fresh = await fetch("/api/domain/me/preferences", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : { defaultReviewers: [] }))
+      .catch(() => ({ defaultReviewers: [] }));
+    setDefaultReviewers(fresh.defaultReviewers ?? []);
+    setDefaultsNote(
+      reviewerIds.length === 0
+        ? "Cleared — new tasks will start with no reviewer."
+        : "Saved. New tasks will start with these.",
+    );
+  }
+
   function reset() {
     setTitle("");
     setNote("");
     setDueDate("");
     setHours("");
     setHoursTouched(false);
+    setPriority("Medium");
     setIncludeWeekends(false);
-    setReviewerIds([]);
+    // Back to the standing choice, not to empty. Clearing it after every
+    // task would undo the whole point of having a default.
+    setReviewerIds(defaultReviewers.map((p) => p.id));
+    setDefaultsNote(null);
     setFiles([]);
     setDivisionId("");
   }
@@ -152,6 +224,7 @@ export function DomainAssignTask({
         targetDate: dueDate || null,
         estimatedHours: hours || null,
         includesWeekends: includeWeekends,
+        priority,
         reviewerIds,
       }),
     });
@@ -168,6 +241,7 @@ export function DomainAssignTask({
      * did not, and saying so would have somebody assign it twice.
      */
     const failed: string[] = [];
+    let failedWhy: string | null = null;
     for (const f of files) {
       const fd = new FormData();
       fd.append("file", f);
@@ -176,7 +250,13 @@ export function DomainAssignTask({
         method: "POST",
         body: fd,
       });
-      if (!up.ok) failed.push(f.name);
+      if (!up.ok) {
+        // Carry the server's reason back. Reporting only the filename left
+        // people with "it didn't attach" and nowhere to go next.
+        const why = await up.json().catch(() => ({}));
+        failed.push(f.name);
+        if (why?.error) failedWhy = why.error;
+      }
     }
     setBusy(false);
     setDone({
@@ -186,10 +266,12 @@ export function DomainAssignTask({
       toSelf: body.task.assigneeId === current?.id,
       due: body.task.targetDate ?? null,
       hours: body.task.estimatedHours ?? null,
+      priority: body.task.priority ?? "Medium",
       weekends: includeWeekends && (span?.weekend.length ?? 0) > 0,
       reviewers: chosenReviewers.map((r) => r.name),
       attached: files.length - failed.length,
       failed,
+      failedWhy,
     });
     reset();
     onCreated();
@@ -306,6 +388,40 @@ export function DomainAssignTask({
             className={dateClass("md")}
           />
         </label>
+
+        {/*
+          A fieldset, not a label.
+
+          A <label> wrapping buttons hands its own text to whatever is
+          inside it, so each button announced itself as "Priority High
+          Medium Low" to a screen reader instead of its own word. Buttons
+          are not labellable controls; a group with a legend is the right
+          shape for one-of-three.
+        */}
+        <div className="text-xs" role="group" aria-label="Priority">
+          <span className="block text-ink-700 font-medium mb-1">Priority</span>
+          {/* Three buttons rather than a dropdown: three options, and the
+              one that is on should be readable without a click. */}
+          <span className="flex items-center gap-1 flex-wrap">
+            {DOMAIN_TASK_PRIORITIES.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setPriority(p)}
+                className={`px-2.5 py-1.5 rounded-pill text-xs font-medium border ${
+                  priority === p
+                    ? p === "High"
+                      ? "bg-brand-redBg text-brand-redText border-brand-red"
+                      : "bg-brand-blueBg text-brand-blue border-brand-blue"
+                    : "bg-white text-ink-600 border-ink-200 hover:bg-ink-50"
+                }`}
+                aria-pressed={priority === p}
+              >
+                {p}
+              </button>
+            ))}
+          </span>
+        </div>
 
         <label className="text-xs">
           <span className="block text-ink-700 font-medium mb-1">Hours</span>
@@ -451,13 +567,52 @@ export function DomainAssignTask({
               options={reviewerOptions.filter((o) => !reviewerIds.includes(o.value))}
             />
           </div>
-          <p className="text-[11px] text-ink-500">
-            {reviewerIds.length === 0
-              ? "Nobody yet — the task will be done the moment it's submitted."
-              : reviewerIds.length === 1
-                ? "They approve it once it's submitted."
-                : `Any one of the ${reviewerIds.length} can approve it — it doesn't wait for all of them.`}
-          </p>
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <p className="text-[11px] text-ink-500">
+              {reviewerIds.length === 0
+                ? "Nobody yet — the task will be done the moment it's submitted."
+                : reviewerIds.length === 1
+                  ? "They approve it once it's submitted."
+                  : `Any one of the ${reviewerIds.length} can approve it — it doesn't wait for all of them.`}
+            </p>
+
+            {/*
+              Standing reviewers.
+
+              Most people send work to the same one or two checkers every
+              time, and picking them out of a list of forty on every task
+              is the sort of small repeated cost nobody reports as a bug.
+              Set once here; the form starts with them filled in and you
+              can still take them off for a task that is different.
+
+              Only offered when the current selection differs from what is
+              saved — a button that does nothing is worse than no button.
+            */}
+            {defaultsDiffer && (
+              <button
+                type="button"
+                onClick={saveDefaults}
+                disabled={savingDefaults}
+                className="text-[11px] text-brand-blue hover:underline disabled:opacity-50 shrink-0"
+              >
+                {savingDefaults
+                  ? "Saving…"
+                  : reviewerIds.length === 0
+                    ? "Clear my standing reviewers"
+                    : "Always use these reviewers"}
+              </button>
+            )}
+          </div>
+
+          {defaultsNote && (
+            <p className="text-[11px] text-brand-greenText mt-1">{defaultsNote}</p>
+          )}
+          {defaultReviewers.length > 0 && !defaultsDiffer && (
+            <p className="text-[11px] text-ink-400 mt-1">
+              Your standing reviewers, filled in for you. Change them here for
+              this task only.
+            </p>
+          )}
         </div>
 
         {/* ---- files ----------------------------------------------- */}
@@ -530,6 +685,7 @@ export function DomainAssignTask({
                     ? `Due ${fmtDate(done.due)}`
                     : "No deadline set"}
                   {done.hours != null && ` · ${done.hours}h budgeted`}
+                  {done.priority !== "Medium" && ` · ${done.priority} priority`}
                   {done.weekends && " · weekend included"}
                 </li>
                 <li>
@@ -557,11 +713,20 @@ export function DomainAssignTask({
               </ul>
 
               {done.failed.length > 0 && (
-                <p className="text-sm text-brand-redText mt-2">
-                  The task went out, but {done.failed.join(", ")} didn&apos;t
-                  attach. Add {done.failed.length === 1 ? "it" : "them"} from
-                  the task itself.
-                </p>
+                <div className="text-sm text-brand-redText mt-2">
+                  <p>
+                    The task went out, but {done.failed.join(", ")} didn&apos;t
+                    attach.
+                  </p>
+                  {done.failedWhy ? (
+                    <p className="mt-0.5">{done.failedWhy}</p>
+                  ) : (
+                    <p className="mt-0.5">
+                      Open the task and add{" "}
+                      {done.failed.length === 1 ? "it" : "them"} there.
+                    </p>
+                  )}
+                </div>
               )}
 
               <div className="flex items-center gap-2 mt-3 flex-wrap">

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireDomainUser } from "@/lib/domain-auth";
 import {
   DOMAIN_TASK_STATUSES,
+  normaliseTaskPriority,
   backdateFloorISO,
   backdateWindowLabel,
   istParts,
@@ -357,9 +358,11 @@ export async function PATCH(
   const BRIEF_FIELDS = [
     "title",
     "description",
+    "priority",
     "startDate",
     "targetDate",
     "estimatedHours",
+    "priority",
     "includesWeekends",
     "divisionId",
     "assigneeId",
@@ -409,6 +412,9 @@ export async function PATCH(
     }
     if (typeof body.targetDate === "string" || body.targetDate === null) {
       data.targetDate = body.targetDate ? new Date(body.targetDate) : null;
+    }
+    if (body.priority !== undefined) {
+      data.priority = normaliseTaskPriority(body.priority);
     }
     if (typeof body.includesWeekends === "boolean") {
       data.includesWeekends = body.includesWeekends;

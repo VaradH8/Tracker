@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { History, Search, X } from "lucide-react";
-import { DOMAIN_TASK_STATUSES, type DomainTaskStatus } from "@/lib/domain";
+import {
+  DOMAIN_TASK_PRIORITIES,
+  DOMAIN_TASK_STATUSES,
+  type DomainTaskStatus,
+} from "@/lib/domain";
 import { dateClass, inputClass } from "@/lib/domain-ui";
 import { DateInput } from "@/components/DateInput";
 import { SearchSelect } from "@/components/SearchSelect";
@@ -74,6 +78,7 @@ export function DomainTaskHistory({
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [personId, setPersonId] = useState("");
+  const [priority, setPriority] = useState("");
   const [text, setText] = useState("");
 
   const [rows, setRows] = useState<TaskCardTask[] | null>(null);
@@ -90,6 +95,7 @@ export function DomainTaskHistory({
   const load = useCallback(() => {
     const q = new URLSearchParams({ scope, sort });
     if (status) q.set("status", status);
+    if (priority) q.set("priority", priority);
     if (from) q.set("from", from);
     if (to) q.set("to", to);
     /**
@@ -110,7 +116,7 @@ export function DomainTaskHistory({
         setError(null);
       })
       .catch((e: Error) => setError(e.message));
-  }, [scope, status, from, to, personId, sort]);
+  }, [scope, status, priority, from, to, personId, sort]);
 
   useEffect(() => {
     void load();
@@ -129,11 +135,12 @@ export function DomainTaskHistory({
     );
   }, [rows, text]);
 
-  const filtered = !!(status || from || to || personId || text.trim());
+  const filtered = !!(status || priority || from || to || personId || text.trim());
   const peopleLabel = scope === "toMe" ? "From" : "To";
 
   function clearAll() {
     setStatus("");
+    setPriority("");
     setFrom("");
     setTo("");
     setPersonId("");
@@ -172,6 +179,19 @@ export function DomainTaskHistory({
                   value: s,
                   label: s === "Rejected" ? "Sent back" : s,
                 })),
+              ]}
+            />
+          </label>
+
+          <label className="text-xs">
+            <span className="block text-ink-700 font-medium mb-1">Priority</span>
+            <SearchSelect
+              value={priority}
+              onChange={setPriority}
+              placeholder="Any priority"
+              options={[
+                { value: "", label: "Any priority" },
+                ...DOMAIN_TASK_PRIORITIES.map((p) => ({ value: p, label: p })),
               ]}
             />
           </label>

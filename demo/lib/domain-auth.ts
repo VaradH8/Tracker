@@ -20,6 +20,8 @@ export type DomainSessionUser = {
   email: string;
   name: string;
   role: DomainRole;
+  /** Sidebar preference — see api/domain/me/preferences. Never a permission. */
+  taskLogOnly: boolean;
 };
 
 function toSessionUser(u: {
@@ -27,8 +29,15 @@ function toSessionUser(u: {
   email: string;
   name: string;
   role: string;
+  taskLogOnly?: boolean;
 }): DomainSessionUser {
-  return { id: u.id, email: u.email, name: u.name, role: u.role as DomainRole };
+  return {
+    id: u.id,
+    email: u.email,
+    name: u.name,
+    role: u.role as DomainRole,
+    taskLogOnly: u.taskLogOnly ?? false,
+  };
 }
 
 function cookieSecure(): boolean {

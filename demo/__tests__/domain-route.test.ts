@@ -42,7 +42,14 @@ function delReq() {
 const params = (id: string) => ({ params: Promise.resolve({ id }) });
 
 function actor(role: DomainRole) {
-  return { id: `u-${role}`, email: `${role}@x.com`, name: role, role };
+  // taskLogOnly is a sidebar preference, never a permission.
+  return {
+    id: `u-${role}`,
+    email: `${role}@x.com`,
+    name: role,
+    role,
+    taskLogOnly: false,
+  };
 }
 
 describe("domain route role gates", () => {

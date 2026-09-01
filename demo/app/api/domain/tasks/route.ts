@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireDomainUser, requireDomainRole } from "@/lib/domain-auth";
 import {
+  DOMAIN_TASK_PRIORITIES,
   DOMAIN_TASK_STATUSES,
   SUPERVISOR_ROLES,
   canAssignTasks,
+  normaliseTaskPriority,
   parseEstimatedHours,
   taskIsOpen,
   type DomainRole,
@@ -47,6 +49,10 @@ export async function GET(req: Request) {
   if (createdById) where.createdById = createdById;
   if (status && DOMAIN_TASK_STATUSES.includes(status as DomainTaskStatus)) {
     where.status = status;
+  }
+  const priority = url.searchParams.get("priority");
+  if (priority && (DOMAIN_TASK_PRIORITIES as readonly string[]).includes(priority)) {
+    where.priority = priority;
   }
 
   /**
@@ -348,6 +354,9 @@ export async function POST(req: Request) {
       // assigner typed; this is the note that says which calendar they
       // were counting, so a 45h week-long task reads as deliberate.
       includesWeekends: body.includesWeekends === true,
+      // Anything unrecognised lands on Medium rather than being rejected:
+      // a bad priority is not a reason to refuse somebody's task.
+      priority: normaliseTaskPriority(body.priority),
       // The first entry in the history: the brief, recorded as it was
       // given. Everything after this is appended, never edited.
       events: {
