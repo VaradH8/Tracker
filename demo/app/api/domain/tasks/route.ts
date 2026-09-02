@@ -65,7 +65,32 @@ export async function GET(req: Request) {
     const range: Record<string, Date> = {};
     if (from) range.gte = new Date(from + "T00:00:00.000Z");
     if (to) range.lte = new Date(to + "T23:59:59.999Z");
-    where.createdAt = range;
+    /**
+     * Match the date the card CALLS the assign date.
+     *
+     * This used to filter on createdAt alone, which is when the row was
+     * written — not when the work was handed over. The card shows
+     * `startDate ?? createdAt`, so a task assigned on the 20th and
+     * entered on the 31st displayed "Assigned 20/08/26" and then
+     * vanished from a filter for the 20th. A filter that disagrees with
+     * the column it filters is worse than no filter: it looks like the
+     * data is missing.
+     *
+     * The fallback arm is what keeps older tasks reachable — startDate
+     * has only been set since the assign form started defaulting it.
+     *
+     * ANDed rather than assigned, so it composes with the scope, the
+     * approval queue and the Actionee fence instead of replacing them.
+     */
+    where.AND = [
+      ...((where.AND as unknown[]) ?? []),
+      {
+        OR: [
+          { startDate: range },
+          { startDate: null, createdAt: range },
+        ],
+      },
+    ];
   }
   if (mine) {
     where.assigneeId = user.id;
