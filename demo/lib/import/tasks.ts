@@ -172,6 +172,7 @@ type Columns = {
   status?: number;
   startDate?: number;
   targetDate?: number;
+  doneDate?: number;
   hours?: number;
   assignees?: number;
   responsible?: number;
@@ -197,6 +198,11 @@ function detectColumns(row: string[]): Columns | null {
       idx.startDate = i;
     } else if (idx.targetDate == null && /^(target ?date|due ?date|end ?date|deadline)$/.test(c)) {
       idx.targetDate = i;
+    } else if (
+      idx.doneDate == null &&
+      /^(done ?date|done ?on|completed|completed ?on|completed ?date|completion ?date)$/.test(c)
+    ) {
+      idx.doneDate = i;
     } else if (idx.hours == null && /^(effort|efforts|estimated hours|est\.? ?hours|hours|estimate)/.test(c)) {
       idx.hours = i;
     } else if (idx.assignees == null && /^(assignees?|assigned to|person accountable|accountable)/.test(c)) {
@@ -223,6 +229,10 @@ export type ParsedTaskRow = {
   status: string;
   startDate: Date | null;
   targetDate: Date | null;
+  /** When the work actually finished, where the sheet says so. Distinct
+   *  from targetDate, which is the deadline — a task delivered late has
+   *  two different dates and recording only one loses that. */
+  completedAt: Date | null;
   estimatedHours: number | null;
   assigneeNames: string[];
   responsibleName: string | null;
@@ -276,6 +286,7 @@ export function parseTaskRows(rows: string[][]): ParseTasksResult {
       status: mapStatus(get("status")),
       startDate: parseDateCell(get("startDate")),
       targetDate: parseDateCell(get("targetDate")),
+      completedAt: parseDateCell(get("doneDate")),
       estimatedHours: parseHoursCell(get("hours")),
       assigneeNames: splitNames(get("assignees")),
       responsibleName: splitNames(get("responsible"))[0] ?? null,
@@ -360,6 +371,13 @@ export async function commitTaskRows(
 
     const targetDate = t.targetDate ?? t.startDate ?? new Date();
 
+    // Falls back to the target date rather than "now": filing historic work
+    // in the current week is worse than filing it on its deadline, and an
+    // import is almost always after the fact. Cleared when a task comes
+    // back from Done, mirroring completedAtUpdate() on the API path.
+    const completedAt =
+      t.status === "Done" ? (t.completedAt ?? targetDate) : null;
+
     const existing = await prisma.task.findFirst({
       where: { projectId, title: t.title },
       select: { id: true },
@@ -384,6 +402,7 @@ export async function commitTaskRows(
           startDate: t.startDate,
           targetDate,
           estimatedHours: t.estimatedHours,
+          completedAt,
           important: t.priority === "Critical",
           responsibleId: responsibleId ?? undefined,
         },
@@ -401,6 +420,7 @@ export async function commitTaskRows(
           startDate: t.startDate,
           targetDate,
           estimatedHours: t.estimatedHours,
+          completedAt,
           important: t.priority === "Critical",
           responsibleId: responsibleId ?? actorId,
         },
