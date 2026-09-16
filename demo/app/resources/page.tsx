@@ -29,6 +29,7 @@ import {
   type TimeEntry,
 } from "@/lib/mock";
 import { useTasks } from "@/lib/tasks-store";
+import { estimateAccuracyFor, type AuditEntry } from "@/lib/mock";
 import { useProjects } from "@/lib/projects-store";
 import { ROLE_LABELS, type Role } from "@/lib/role";
 import { useAccounts, type Account } from "@/lib/account-store";
@@ -43,8 +44,9 @@ import { useTaskDrawer } from "@/components/TaskDrawerProvider";
  */
 function deriveResource(
   a: Account,
-  tasks: { assignees: string[]; status: string; overdueDays?: number }[],
+  tasks: Task[],
   timeEntries: TimeEntry[],
+  auditLog: AuditEntry[],
 ): Resource {
   const first = firstNameOf(a.name);
   const myEntries = timeEntries.filter((e) => e.person === first);
@@ -70,6 +72,35 @@ function deriveResource(
   ).length;
   const tasksDone30 = myTasks.filter((t) => t.status === "Done").length;
 
+  // Nothing logged is not the same as nothing to do. When the timer has not
+  // been used, show what the task creators estimated for the open work
+  // instead — and say which it is, so a planned figure is never read as a
+  // measured one.
+  const estimatedOpen = myTasks
+    .filter((t) => t.status !== "Done")
+    .reduce((s, t) => s + (t.estimatedHours ?? 0), 0);
+  const hoursSource: "logged" | "estimated" =
+    hoursLast7 > 0 || estimatedOpen === 0 ? "logged" : "estimated";
+  const shownHours7 = hoursSource === "logged" ? hoursLast7 : estimatedOpen;
+
+  // A real accuracy or none. The helper returns null until the person has
+  // finished work that carried an estimate; that is shown as "—", not 100%.
+  const accuracy = estimateAccuracyFor(first, tasks, timeEntries);
+
+  // "Last edit" is the most recent thing this person did, from the audit
+  // log — not a constant.
+  const latest = auditLog
+    .filter((e) => e.actor === first || e.actor.startsWith(first + " "))
+    .reduce<AuditEntry | null>(
+      (m, e) => (!m || e.whenExact > m.whenExact ? e : m),
+      null,
+    );
+
+  // The status pill and the On track / Watch / Idle filters above the list
+  // read this. Constant "On track" made every one of them meaningless.
+  const performance: PerformanceFlag =
+    tasksOpen === 0 ? "Idle" : tasksOverdue > 0 ? "Watch" : "On track";
+
   return {
     // Resource.id is a number in the type; we cast the cuid through — it's
     // only used as a React key + lookup, never arithmetic.
@@ -84,15 +115,16 @@ function deriveResource(
     isAdmin: !!a.isAdmin,
     status: a.active ? "Active" : "Deactivated",
     lastLogin: a.lastLogin ?? "never",
-    hoursLast7,
+    hoursLast7: shownHours7,
+    hoursSource,
     hoursLast30,
     capacityPerWeek: 40,
     tasksDone30,
     tasksOpen,
     tasksOverdue,
-    estimateAccuracy: 100,
-    lastStatusChange: "—",
-    performance: "On track",
+    estimateAccuracy: accuracy,
+    lastStatusChange: latest ? latest.when : "—",
+    performance,
     flags: [],
     hourlyRate: 0,
   };
@@ -154,7 +186,7 @@ export default function ResourcesPage() {
   const [active, setActive] = useState<ActiveFilter>(null);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Resource | null>(null);
-  const { tasks, timeEntries } = useTasks();
+  const { tasks, timeEntries, auditLog } = useTasks();
   const { accounts } = useAccounts();
 
   // Honour deep-links like /resources?filter=flagged from the dashboard.
@@ -169,7 +201,7 @@ export default function ResourcesPage() {
   // Build the resource list from the real accounts table, augmenting
   // each with computed task / time-log stats.
   const resources: Resource[] = accounts.map((a) =>
-    deriveResource(a, tasks, timeEntries),
+    deriveResource(a, tasks, timeEntries, auditLog),
   );
 
   const visible = resources
@@ -400,7 +432,7 @@ function ResourceCard({
         <Metric
           label="Hours / 5d"
           value={fmtHM(r.hoursLast7)}
-          sub={`${utilization}% capacity`}
+          sub={`${utilization}% capacity · ${r.hoursSource === "estimated" ? "estimated" : "logged"}`}
           subTone={utilizationTone}
         />
         <Metric
@@ -411,7 +443,7 @@ function ResourceCard({
         />
         <Metric
           label="Estimate acc."
-          value={`${r.estimateAccuracy}%`}
+          value={r.estimateAccuracy == null ? "—" : `${r.estimateAccuracy}%`}
           sub="last 30d"
         />
       </div>
@@ -591,7 +623,7 @@ function ResourceDrawer({
               />
               <SignalCard
                 label="Estimate accuracy"
-                value={`${r.estimateAccuracy}%`}
+                value={r.estimateAccuracy == null ? "—" : `${r.estimateAccuracy}%`}
                 Icon={TrendingUp}
               />
             </div>

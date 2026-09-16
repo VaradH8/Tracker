@@ -195,7 +195,10 @@ export async function DELETE(
   if (!existing) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  if (!(await canManageProjectTasks(user, existing.projectId))) {
+  // Managers may delete anything on the project. Everyone else only what
+  // they themselves raised — being assigned a task is not owning it.
+  const isCreator = existing.responsibleId === user.id;
+  if (!isCreator && !(await canManageProjectTasks(user, existing.projectId))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   await prisma.task.delete({ where: { id: taskId } });

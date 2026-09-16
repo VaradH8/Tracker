@@ -17,6 +17,8 @@ import {
 import { AppShell } from "@/components/AppShell";
 import { EmptyState } from "@/components/EmptyState";
 import { useNotifications } from "@/lib/notifications-store";
+import { useTasks } from "@/lib/tasks-store";
+import { useProjects } from "@/lib/projects-store";
 import { useTaskDrawer } from "@/components/TaskDrawerProvider";
 import { useMyFirstName } from "@/lib/account-store";
 import type { NotificationKind } from "@/lib/mock";
@@ -74,6 +76,9 @@ export default function NotificationsPage() {
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [query, setQuery] = useState("");
 
+  const { byId } = useTasks();
+  const { projects } = useProjects();
+
   const all = forPerson(me);
   const visible = all
     .filter((n) => kind === "All" || n.kind === kind)
@@ -81,9 +86,26 @@ export default function NotificationsPage() {
     .filter((n) => {
       if (!query.trim()) return true;
       const q = query.toLowerCase();
-      return (
-        n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q)
-      );
+      // Everything about the notification, plus the task and project it
+      // refers to. The body is usually just the task title, so without the
+      // join a search for the project — or for "assigned" — found nothing.
+      const task = n.taskId != null ? byId(n.taskId) : undefined;
+      const project = task
+        ? projects.find((pr) => pr.id === task.projectId)
+        : undefined;
+      const hay = [
+        n.title,
+        n.body,
+        KIND_LABEL[n.kind],
+        n.kind,
+        n.when,
+        task?.title ?? "",
+        task?.status ?? "",
+        project?.name ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
     });
 
   const unread = unreadCount(me);

@@ -8,6 +8,7 @@ import { AccountsProvider } from "@/lib/account-store";
 import { ProjectsProvider } from "@/lib/projects-store";
 import { Providers } from "@/components/Providers";
 import { ToastProvider } from "@/components/Toast";
+import { NewAssignmentToaster } from "@/components/NewAssignmentToaster";
 import { ConfirmDialogProvider } from "@/components/ConfirmDialog";
 import { BlockDialogProvider } from "@/components/BlockDialogProvider";
 
@@ -86,7 +87,10 @@ export default function RootLayout({
                   <NotificationsProvider>
                     <TasksProvider>
                       <BlockDialogProvider>
-                        <TaskDrawerProvider>{children}</TaskDrawerProvider>
+                        <TaskDrawerProvider>
+                          <NewAssignmentToaster />
+                          {children}
+                        </TaskDrawerProvider>
                       </BlockDialogProvider>
                     </TasksProvider>
                   </NotificationsProvider>

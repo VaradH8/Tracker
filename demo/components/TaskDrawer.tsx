@@ -88,6 +88,9 @@ export function TaskDrawer({
 
   const isAssignee = task.assignees.includes(me);
   const canEdit = role === "Admin" || role === "Coordinator";
+  // Deleting is separate from editing: a developer can remove a task they
+  // raised without gaining the right to edit every field on it.
+  const canDelete = canEdit || me === task.responsible;
   const canLogTime = isAssignee || canEdit;
   const project = projectById(task.projectId);
   // Sign-off is the Person Responsible (assigner), any project Lead, or
@@ -226,7 +229,7 @@ export function TaskDrawer({
               onChange={() => store.toggleImportant(task.id)}
               readOnly={!canEdit}
             />
-            {canEdit && (
+            {canDelete && (
               <button
                 onClick={async () => {
                   const ok = await confirm({

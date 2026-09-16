@@ -137,7 +137,14 @@ export type Resource = {
   tasksDone30: number;
   tasksOpen: number;
   tasksOverdue: number;
-  estimateAccuracy: number;
+  /** 100 = estimates matched actuals, <100 = overran. Null until the
+   *  person has completed work that carried an estimate — a real number
+   *  or nothing, never a placeholder dressed as a measurement. */
+  estimateAccuracy: number | null;
+  /** Where Hours / 5d came from: time actually logged, or — when nothing
+   *  has been logged — the creators' estimates on open tasks. Optional so
+   *  literal fixtures elsewhere need not supply it. */
+  hoursSource?: "logged" | "estimated";
   lastStatusChange: string;
   performance: PerformanceFlag;
   flags: string[];
