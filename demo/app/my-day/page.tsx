@@ -21,6 +21,7 @@ import { TaskCard } from "@/components/TaskCard";
 import {
   RECENT_ACTIVITY,
   RESOURCES,
+  byTargetDate,
   daysSince,
   firstNameOf,
   formatTodayLong,
@@ -37,8 +38,8 @@ import { toCsv, downloadCsv } from "@/lib/csv";
 // Always recompute on each call so we don't lock to the date the
 // bundle was built. Used by the date filters below — cheap enough to
 // invoke per task.
-const isOverdue = (d: string) => d < todayISO();
-const isDueToday = (d: string) => d === todayISO();
+const isOverdue = (d: string | null) => !!d && d < todayISO();
+const isDueToday = (d: string | null) => !!d && d === todayISO();
 
 const PRIO_ORDER = { Critical: 0, High: 1, Medium: 2, Low: 3 } as const;
 
@@ -73,7 +74,7 @@ function CoordinatorMyDay() {
 
   const overdue = teamTasks
     .filter((t) => isOverdue(t.targetDate) && t.status !== "Done")
-    .sort((a, b) => a.targetDate.localeCompare(b.targetDate));
+    .sort(byTargetDate);
 
   const blocked = teamTasks.filter((t) => t.status === "Blocked");
 
@@ -93,7 +94,7 @@ function CoordinatorMyDay() {
         t.status,
         t.priority,
         t.assignees.join("; "),
-        t.targetDate,
+        t.targetDate ?? "",
       ]),
     );
     downloadCsv("team-tasks.csv", csv);
@@ -538,7 +539,7 @@ function DeveloperMyDay() {
   const importantMine = myTasks.filter((t) => t.important);
 
   const myDay = myTasks
-    .filter((t) => t.targetDate <= todayISO())
+    .filter((t) => !!t.targetDate && t.targetDate <= todayISO())
     .sort((a, b) => {
       const aOver = isOverdue(a.targetDate);
       const bOver = isOverdue(b.targetDate);
@@ -547,8 +548,8 @@ function DeveloperMyDay() {
     });
 
   const upNext = myTasks
-    .filter((t) => t.targetDate > todayISO())
-    .sort((a, b) => a.targetDate.localeCompare(b.targetDate))
+    .filter((t) => !t.targetDate || t.targetDate > todayISO())
+    .sort(byTargetDate)
     .slice(0, 5);
 
   return (

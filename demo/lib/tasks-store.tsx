@@ -58,6 +58,7 @@ type Ctx = {
   entriesForTask: (taskId: number) => TimeEntry[];
   setStatus: (id: number, status: Status) => Promise<void>;
   setPriority: (id: number, priority: Priority) => Promise<void>;
+  /** Pass "" to clear the deadline back to none. */
   setTargetDate: (id: number, date: string) => Promise<void>;
   setStartDate: (id: number, date: string) => Promise<void>;
   setDescription: (id: number, description: string) => Promise<void>;
@@ -168,7 +169,8 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     [],
   );
   const setTargetDate = useCallback(
-    (id: number, date: string) => patchTask(id, { targetDate: date }),
+    (id: number, date: string) =>
+      patchTask(id, { targetDate: date || null }),
     [],
   );
   const setStartDate = useCallback(
@@ -395,12 +397,6 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     // clicks Create. The real id arrives a moment later when the server
     // responds; if it fails, we roll the optimistic row back out.
     const tempId = -Date.now();
-    const today = new Date();
-    const defaultTarget = new Date(
-      today.getTime() + 7 * 24 * 60 * 60 * 1000,
-    )
-      .toISOString()
-      .slice(0, 10);
     const optimistic: Task = {
       id: tempId,
       title: input.title,
@@ -410,7 +406,8 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       status: input.status,
       responsible: input.responsible ?? "",
       assignees: input.assignees ?? [],
-      targetDate: input.targetDate ?? defaultTarget,
+      // Mirror the server: no date in, no date stored.
+      targetDate: input.targetDate ?? null,
       estimatedHours: input.estimatedHours ?? null,
       important: false,
     };
@@ -589,7 +586,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   );
 
   const bulkSetTargetDate = useCallback(async (ids: number[], date: string) => {
-    for (const id of ids) await patchTask(id, { targetDate: date });
+    for (const id of ids) await patchTask(id, { targetDate: date || null });
   }, []);
 
   return (

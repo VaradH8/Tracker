@@ -369,7 +369,9 @@ export async function commitTaskRows(
       ? await resolve(t.responsibleName)
       : null;
 
-    const targetDate = t.targetDate ?? t.startDate ?? new Date();
+    // No deadline in the sheet means no deadline on the task — we fall
+    // back to the start date if there is one, but never to "today".
+    const targetDate = t.targetDate ?? t.startDate ?? null;
 
     // Falls back to the target date rather than "now": filing historic work
     // in the current week is worse than filing it on its deadline, and an

@@ -56,6 +56,7 @@ export default function OrgDashboardPage() {
   const doneThisWeek = tasks.filter(
     (t) =>
       t.status === "Done" &&
+      !!t.targetDate &&
       t.targetDate >= sevenDaysAgo &&
       t.targetDate <= todayStr,
   );
@@ -175,7 +176,7 @@ export default function OrgDashboardPage() {
                           </span>
                         </td>
                         <td className="py-3 pr-4 text-ink-700">
-                          {formatDateLong(t.targetDate)}
+                          {t.targetDate ? formatDateLong(t.targetDate) : "—"}
                           {t.overdueDays && (
                             <span className="ml-2 pill-red text-[10px] py-0">
                               +{t.overdueDays}d

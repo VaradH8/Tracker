@@ -64,7 +64,11 @@ export async function GET(req: Request) {
   const tasks = await prisma.task.findMany({
     where,
     include: TASK_INCLUDE,
-    orderBy: [{ important: "desc" }, { targetDate: "asc" }],
+    orderBy: [
+      { important: "desc" },
+      // Undated tasks carry no deadline, so they queue behind dated work.
+      { targetDate: { sort: "asc", nulls: "last" } },
+    ],
   });
 
   return NextResponse.json({ tasks: tasks.map(serializeTask) });
@@ -136,9 +140,11 @@ export async function POST(req: Request) {
       projectId,
       status: String(body.status ?? "To Do"),
       priority: String(body.priority ?? "Medium"),
+      // No date supplied means the task genuinely has no deadline yet.
+      // Never invent one — it stays null until a user sets it.
       targetDate: body.targetDate
         ? new Date(String(body.targetDate))
-        : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        : null,
       startDate: body.startDate ? new Date(String(body.startDate)) : null,
       estimatedHours:
         typeof body.estimatedHours === "number"

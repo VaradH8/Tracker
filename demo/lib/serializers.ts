@@ -99,7 +99,7 @@ type PrismaTask = {
   priority: string;
   status: string;
   startDate: Date | null;
-  targetDate: Date;
+  targetDate: Date | null;
   estimatedHours: number | null;
   actualHours: number | null;
   important: boolean;
@@ -132,7 +132,9 @@ export function serializeTask(t: PrismaTask): Task {
     responsible: t.responsible?.name.split(" ")[0] ?? "",
     assignees: (t.assignees ?? []).map((a) => a.user.name.split(" ")[0]),
     startDate: t.startDate ? t.startDate.toISOString().slice(0, 10) : undefined,
-    targetDate: t.targetDate.toISOString().slice(0, 10),
+    targetDate: t.targetDate
+      ? t.targetDate.toISOString().slice(0, 10)
+      : null,
     estimatedHours: t.estimatedHours,
     actualHours: t.actualHours ?? undefined,
     important: t.important,
@@ -350,9 +352,11 @@ export function serializePipeline(d: PrismaPipeline): PipelineDeal {
 /* ------------------------------------------------------------------ */
 
 export function overdueDaysFor(
-  targetDate: Date,
+  targetDate: Date | null,
   status: string,
 ): number | undefined {
+  // No deadline, nothing to be late for.
+  if (!targetDate) return undefined;
   if (status === "Done") return undefined;
   const today = new Date();
   today.setHours(0, 0, 0, 0);

@@ -248,7 +248,7 @@ export default function ProjectDetailPage({
                       t.priority,
                       t.responsible,
                       t.assignees.join("; "),
-                      t.targetDate,
+                      t.targetDate ?? "",
                     ]),
                   );
                   downloadCsv(
@@ -410,7 +410,8 @@ export default function ProjectDetailPage({
                   new Set(tasks.map((t) => weekAnchorOf(t))),
                 )
                   .filter(
-                    (w) =>
+                    (w): w is number =>
+                      w != null &&
                       w !== thisWeek &&
                       w !== thisWeek - 1 &&
                       w !== thisWeek + 1,
