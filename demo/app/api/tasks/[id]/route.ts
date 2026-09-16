@@ -82,12 +82,40 @@ export async function PATCH(
   // on this task's project. A BD who created the project is an
   // editor here; a global Developer who is just an assignee is not.
   const editor = await canManageProjectTasks(user, existing.projectId);
-  // Assignees may flip status / log time / post remarks; broader edits
-  // (title, description, priority, target date, responsible, important,
-  // estimate, approve) need Admin/Coordinator.
+  // Assignees may flip status / log time / post remarks and move the
+  // target date; broader edits (title, description, priority, responsible,
+  // important, approve) need an editor; the estimate needs a Lead.
   const body = await req.json().catch(() => ({}));
 
   const data: Record<string, unknown> = {};
+
+  // The target date belongs to the people on the task as much as to its
+  // editors: they are the ones who know when it will actually land.
+  // "" or null clears the deadline; a date string sets it.
+  if (typeof body.targetDate === "string" || body.targetDate === null) {
+    if (!editor && !isAssignee) {
+      return NextResponse.json(
+        { error: "Only people on the task or its co-ordinators can move the target date." },
+        { status: 403 },
+      );
+    }
+    data.targetDate = body.targetDate ? new Date(body.targetDate) : null;
+  }
+  // The estimate is a planning commitment and stays with whoever owns the
+  // plan: Lead (or Admin). A Coordinator may edit everything else about
+  // the task, but not this.
+  if (
+    typeof body.estimatedHours === "number" ||
+    body.estimatedHours === null
+  ) {
+    if (user.role !== "Lead" && !user.isAdmin) {
+      return NextResponse.json(
+        { error: "Only a Lead can change the estimate." },
+        { status: 403 },
+      );
+    }
+    data.estimatedHours = body.estimatedHours;
+  }
 
   if (typeof body.status === "string") {
     if (!editor && !isAssignee) {
@@ -110,20 +138,10 @@ export async function PATCH(
       data.description = body.description;
     }
     if (typeof body.priority === "string") data.priority = body.priority;
-    // "" or null clears the deadline; a date string sets it.
-    if (typeof body.targetDate === "string" || body.targetDate === null) {
-      data.targetDate = body.targetDate ? new Date(body.targetDate) : null;
-    }
     if (typeof body.startDate === "string" || body.startDate === null) {
       data.startDate = body.startDate ? new Date(body.startDate) : null;
     }
     if (typeof body.important === "boolean") data.important = body.important;
-    if (
-      typeof body.estimatedHours === "number" ||
-      body.estimatedHours === null
-    ) {
-      data.estimatedHours = body.estimatedHours;
-    }
     if (typeof body.actualHours === "number") {
       data.actualHours = body.actualHours;
     }

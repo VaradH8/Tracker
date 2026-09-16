@@ -72,7 +72,7 @@ export async function POST(req: Request) {
   await Promise.all(
     approvers.map((a) =>
       notifyUser(a.id, {
-        kind: "leave",
+        kind: "leave_requested",
         title: `${user.name} requested ${type} leave`,
         body:
           day(start) === day(end)

@@ -18,7 +18,6 @@ import {
   PriorityPicker,
   QuickActions,
   StatusPicker,
-  TimerControls,
 } from "./InlineActions";
 
 export function TaskCard({
@@ -89,12 +88,6 @@ export function TaskCard({
   const canEdit = role === "Admin" || role === "Coordinator";
   const overdue = !!task.overdueDays && task.status !== "Done";
   const project = projectById(task.projectId);
-  // Cumulative logged time = the task's server-tracked actualHours. This
-  // is incremented atomically every time a timer interval is closed, so
-  // it's the reliable source for the timer's running total (summing the
-  // client-side time-entry list went stale across start/stop cycles).
-  const loggedHours = task.actualHours ?? 0;
-  const canRunTimer = isAssignee;
 
   const cls = [
     "card p-3 text-left w-full transition-shadow hover:shadow-md",
@@ -167,24 +160,6 @@ export function TaskCard({
           readOnly={!isAssignee && !canEdit}
         />
         <div className="flex items-center gap-2 flex-wrap">
-          <TimerControls
-            task={task}
-            canRun={canRunTimer}
-            loggedHours={loggedHours}
-            active={store.activeTimer}
-            onStart={() => {
-              void store.startTimer(task.id);
-              toast.show(`Timer started on "${task.title}".`);
-            }}
-            onStop={() => {
-              void store.stopTimer(task.id);
-              toast.show(`Timer paused — resume any time with Start.`);
-            }}
-            onDone={() => {
-              void store.doneTimer(task.id);
-              toast.show(`"${task.title}" marked Done.`);
-            }}
-          />
           <QuickActions
             task={task}
             isAssignee={isAssignee}

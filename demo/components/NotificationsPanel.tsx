@@ -10,6 +10,7 @@ import {
   Check,
   CalendarCheck,
   CalendarX,
+  CalendarClock,
 } from "lucide-react";
 import { useTaskDrawer } from "./TaskDrawerProvider";
 import { useNotifications } from "@/lib/notifications-store";
@@ -24,6 +25,7 @@ const ICON: Record<NotificationKind, typeof UserPlus> = {
   overdue: AlertTriangle,
   leave_approved: CalendarCheck,
   leave_denied: CalendarX,
+  leave_requested: CalendarClock,
 };
 
 const TONE: Record<NotificationKind, string> = {
@@ -35,6 +37,7 @@ const TONE: Record<NotificationKind, string> = {
   overdue: "bg-brand-redBg text-brand-redText",
   leave_approved: "bg-brand-greenBg text-brand-greenText",
   leave_denied: "bg-brand-redBg text-brand-redText",
+  leave_requested: "bg-brand-yellowBg text-brand-yellowText",
 };
 
 export function NotificationsPanel({

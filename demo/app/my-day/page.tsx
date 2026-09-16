@@ -15,6 +15,7 @@ import {
   UserMinus,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { StatCard } from "@/components/StatCard";
 import { TaskCard } from "@/components/TaskCard";
@@ -61,6 +62,7 @@ function CoordinatorMyDay() {
   const shows = (k: CoordPick) => !pick || pick === k;
   const { tasks } = useTasks();
   const { projects, projectById } = useProjects();
+  const router = useRouter();
   const toast = useToast();
   const me = useMyFirstName();
   const [idleDays, setIdleDays] = useState(3);
@@ -275,12 +277,34 @@ function CoordinatorMyDay() {
                 Quick actions
               </h2>
               <div className="space-y-2">
-                <Link
-                  href="/projects"
-                  className="btn-primary w-full justify-start"
-                >
-                  <Plus size={16} className="mr-2" /> Plan a task
-                </Link>
+                {projects.length === 1 ? (
+                  <Link
+                    href={`/projects/${projects[0].id}?new=task`}
+                    className="btn-primary w-full justify-start"
+                  >
+                    <Plus size={16} className="mr-2" /> Plan a task
+                  </Link>
+                ) : (
+                  // More than one project: choose which, then go straight
+                  // to its New-task dialog. Never a stop at the list.
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        router.push(`/projects/${e.target.value}?new=task`);
+                      }
+                    }}
+                    className="btn-primary w-full justify-start appearance-none cursor-pointer"
+                    aria-label="Plan a task on a project"
+                  >
+                    <option value="">＋ Plan a task on…</option>
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <button
                   onClick={exportTeam}
                   className="btn-ghost w-full justify-start border border-ink-200"

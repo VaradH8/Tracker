@@ -7,7 +7,6 @@ import {
   ListTodo,
   AlertTriangle,
   Lock,
-  Gauge,
   TrendingUp,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -20,7 +19,6 @@ import {
   formatINR,
   todayISO,
   projectProgress,
-  loggedHours,
   type Task,
 } from "@/lib/mock";
 
@@ -47,7 +45,7 @@ function round1(n: number): number {
 export default function AnalyticsPage() {
   const [role] = useRole();
   const { projects, clients } = useProjects();
-  const { tasks, timeEntries } = useTasks();
+  const { tasks } = useTasks();
   const { accounts } = useAccounts();
   const [deals, setDeals] = useState<Deal[]>([]);
   const [leaves, setLeaves] = useState<
@@ -72,18 +70,6 @@ export default function AnalyticsPage() {
     const blocked = tasks.filter((t) => t.status === "Blocked");
     const activeProjects = projects.filter((p) => p.status === "Active");
 
-    // Team utilization: hours logged in the last 7 days vs weekly capacity
-    // across active, non-admin people.
-    const workers = accounts.filter((a) => a.active && !a.isAdmin);
-    let hours7 = 0;
-    let capacity = 0;
-    for (const a of workers) {
-      const first = a.name.split(" ")[0];
-      hours7 += loggedHours(first, timeEntries, 7);
-      capacity += a.capacityPerWeek ?? 40;
-    }
-    const utilization = capacity > 0 ? Math.round((hours7 / capacity) * 100) : 0;
-
     const weightedPipeline = deals
       .filter((d) => d.stage !== "Kicked off")
       .reduce((s, d) => s + (d.estimatedValue * d.probability) / 100, 0);
@@ -94,12 +80,9 @@ export default function AnalyticsPage() {
       overdue,
       blocked,
       activeProjects,
-      utilization,
-      hours7,
-      capacity,
       weightedPipeline,
     };
-  }, [tasks, projects, accounts, timeEntries, deals]);
+  }, [tasks, projects, accounts, deals]);
 
   // Projects at risk: red health, over budget, or past target and not delivered.
   const atRisk = useMemo(() => {
@@ -125,21 +108,6 @@ export default function AnalyticsPage() {
   );
 
   // Per-week hours, last 6 weeks (oldest → newest).
-  const weekly = useMemo(() => {
-    const buckets = Array.from({ length: 6 }, (_, i) => {
-      const wksAgo = 5 - i;
-      const lo = wksAgo * 7;
-      const hi = lo + 7;
-      const hours = timeEntries
-        .filter((e) => {
-          const d = daysAgo(e.date);
-          return d >= lo && d < hi;
-        })
-        .reduce((s, e) => s + e.hours, 0);
-      return { label: wksAgo === 0 ? "This wk" : `${wksAgo}w`, hours: round1(hours) };
-    });
-    return buckets;
-  }, [timeEntries]);
 
   const byStatus = useMemo(
     () => STATUSES.map((s) => ({ label: s, n: tasks.filter((t) => t.status === s).length })),
@@ -161,30 +129,6 @@ export default function AnalyticsPage() {
     }),
     [projects],
   );
-
-  const utilRows = useMemo(() => {
-    return accounts
-      .filter((a) => a.active && !a.isAdmin)
-      .map((a) => {
-        const first = a.name.split(" ")[0];
-        const h7 = loggedHours(first, timeEntries, 7);
-        const cap = a.capacityPerWeek ?? 40;
-        const open = tasks.filter(
-          (t) => t.assignees.includes(first) && t.status !== "Done",
-        );
-        const od = open.filter((t) => !!t.overdueDays).length;
-        return {
-          id: a.id,
-          name: a.name,
-          util: cap > 0 ? Math.round((h7 / cap) * 100) : 0,
-          h7: round1(h7),
-          cap,
-          open: open.length,
-          overdue: od,
-        };
-      })
-      .sort((a, b) => b.util - a.util);
-  }, [accounts, timeEntries, tasks]);
 
   const topClients = useMemo(() => {
     const byClient = new Map<number, number>();
@@ -273,13 +217,6 @@ export default function AnalyticsPage() {
             variant="yellow"
           />
           <StatCard
-            label="Utilization (7d)"
-            value={`${stats.utilization}%`}
-            Icon={Gauge}
-            variant={stats.utilization > 100 ? "red" : "green"}
-            hint={`${round1(stats.hours7)}/${stats.capacity}h`}
-          />
-          <StatCard
             label="Pipeline (weighted)"
             value={formatINR(stats.weightedPipeline)}
             Icon={TrendingUp}
@@ -297,11 +234,6 @@ export default function AnalyticsPage() {
                 { label: "At risk", n: health.red, cls: "bg-brand-red" },
               ]}
             />
-          </Section>
-
-          {/* Weekly hours */}
-          <Section title="Hours logged · last 6 weeks">
-            <WeekTrend data={weekly} />
           </Section>
 
           {/* Tasks by status */}
@@ -360,49 +292,6 @@ export default function AnalyticsPage() {
                         </span>
                       ))}
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </Table>
-          )}
-        </Section>
-
-        {/* Team utilization */}
-        <Section title="Team utilization (last 7 days)" className="mb-6">
-          {utilRows.length === 0 ? (
-            <Empty text="No people yet." />
-          ) : (
-            <Table head={["Person", "Hours / cap", "Utilization", "Open", "Overdue"]}>
-              {utilRows.map((r) => (
-                <tr key={r.id} className="border-b border-ink-100">
-                  <td className="py-2 pr-4 text-ink-900 font-medium">{r.name}</td>
-                  <td className="py-2 pr-4 text-ink-700">
-                    {r.h7}/{r.cap}h
-                  </td>
-                  <td className="py-2 pr-4 w-48">
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-1.5 bg-ink-100 rounded-full overflow-hidden">
-                        <div
-                          className={
-                            r.util > 100
-                              ? "h-full bg-brand-red"
-                              : r.util < 40
-                                ? "h-full bg-brand-yellow"
-                                : "h-full bg-brand-green"
-                          }
-                          style={{ width: `${Math.min(100, r.util)}%` }}
-                        />
-                      </div>
-                      <span className="text-xs text-ink-600 w-10 text-right">
-                        {r.util}%
-                      </span>
-                    </div>
-                  </td>
-                  <td className="py-2 pr-4 text-ink-700">{r.open}</td>
-                  <td
-                    className={`py-2 pr-4 ${r.overdue > 0 ? "text-brand-redText font-medium" : "text-ink-500"}`}
-                  >
-                    {r.overdue}
                   </td>
                 </tr>
               ))}
@@ -550,27 +439,6 @@ function Bars({
         </li>
       ))}
     </ul>
-  );
-}
-
-function WeekTrend({ data }: { data: { label: string; hours: number }[] }) {
-  const max = Math.max(1, ...data.map((d) => d.hours));
-  return (
-    <div className="flex items-end gap-3 h-32">
-      {data.map((d) => (
-        <div key={d.label} className="flex-1 flex flex-col items-center gap-1">
-          <span className="text-[10px] text-ink-500">{d.hours}</span>
-          <div className="w-full flex items-end" style={{ height: "80px" }}>
-            <div
-              className="w-full bg-brand-blue rounded-t"
-              style={{ height: `${(d.hours / max) * 100}%` }}
-              title={`${d.hours}h`}
-            />
-          </div>
-          <span className="text-[10px] text-ink-500">{d.label}</span>
-        </div>
-      ))}
-    </div>
   );
 }
 

@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   CalendarCheck,
   CalendarX,
+  CalendarClock,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { EmptyState } from "@/components/EmptyState";
@@ -32,6 +33,7 @@ const KIND_ICON: Record<NotificationKind, typeof UserPlus> = {
   overdue: AlertTriangle,
   leave_approved: CalendarCheck,
   leave_denied: CalendarX,
+  leave_requested: CalendarClock,
 };
 
 const KIND_TONE: Record<NotificationKind, string> = {
@@ -43,6 +45,7 @@ const KIND_TONE: Record<NotificationKind, string> = {
   overdue: "bg-brand-redBg text-brand-redText",
   leave_approved: "bg-brand-greenBg text-brand-greenText",
   leave_denied: "bg-brand-redBg text-brand-redText",
+  leave_requested: "bg-brand-yellowBg text-brand-yellowText",
 };
 
 const KIND_LABEL: Record<NotificationKind, string> = {
@@ -54,6 +57,7 @@ const KIND_LABEL: Record<NotificationKind, string> = {
   overdue: "Overdue",
   leave_approved: "Leave approved",
   leave_denied: "Leave denied",
+  leave_requested: "Leave request",
 };
 
 const KINDS: ("All" | NotificationKind)[] = [
@@ -66,6 +70,7 @@ const KINDS: ("All" | NotificationKind)[] = [
   "overdue",
   "leave_approved",
   "leave_denied",
+  "leave_requested",
 ];
 
 export default function NotificationsPage() {

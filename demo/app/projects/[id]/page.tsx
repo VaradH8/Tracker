@@ -153,6 +153,17 @@ export default function ProjectDetailPage({
     canManageTeam ||
     role === "BusinessDeveloper" ||
     (role === "Developer" && isOnRoster);
+
+  // Arriving via "Plan a task" on My Day: open the dialog straight away.
+  // Read from the URL directly rather than useSearchParams, which would
+  // want a Suspense boundary for no benefit here. Only for someone who may
+  // create tasks — otherwise the flag is ignored, not honoured.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const wantsNew =
+      new URLSearchParams(window.location.search).get("new") === "task";
+    if (wantsNew && canCreateTasks) setCreateOpen(true);
+  }, [canCreateTasks]);
   // "Import Tasks" is Admin/Coordinator only (the server enforces the same
   // gate, and scopes Coordinators to projects they coordinate).
   const canImportTasks = role === "Admin" || role === "Coordinator";

@@ -20,16 +20,14 @@ import { AppShell } from "@/components/AppShell";
 import { EmptyState } from "@/components/EmptyState";
 import {
   performancePill,
-  loggedHours,
   firstNameOf,
   type Project,
   type Resource,
   type PerformanceFlag,
   type Task,
-  type TimeEntry,
 } from "@/lib/mock";
 import { useTasks } from "@/lib/tasks-store";
-import { estimateAccuracyFor, type AuditEntry } from "@/lib/mock";
+import { type AuditEntry } from "@/lib/mock";
 import { useProjects } from "@/lib/projects-store";
 import { ROLE_LABELS, type Role } from "@/lib/role";
 import { useAccounts, type Account } from "@/lib/account-store";
@@ -45,47 +43,15 @@ import { useTaskDrawer } from "@/components/TaskDrawerProvider";
 function deriveResource(
   a: Account,
   tasks: Task[],
-  timeEntries: TimeEntry[],
   auditLog: AuditEntry[],
 ): Resource {
   const first = firstNameOf(a.name);
-  const myEntries = timeEntries.filter((e) => e.person === first);
-  const today = new Date();
-  const daysAgo = (iso: string) =>
-    Math.round(
-      (today.getTime() - new Date(iso + "T00:00:00").getTime()) /
-        (1000 * 60 * 60 * 24),
-    );
-  // "Hours / 5d" = hours logged across the last working week. We look back
-  // over the past 7 calendar days but only count weekday (Mon–Fri) entries,
-  // so weekends don't dilute the figure.
-  const hoursLast7 = myEntries
-    .filter((e) => daysAgo(e.date) < 7 && isWeekday(e.date))
-    .reduce((s, e) => s + e.hours, 0);
-  const hoursLast30 = myEntries
-    .filter((e) => daysAgo(e.date) < 30)
-    .reduce((s, e) => s + e.hours, 0);
   const myTasks = tasks.filter((t) => t.assignees.includes(first));
   const tasksOpen = myTasks.filter((t) => t.status !== "Done").length;
   const tasksOverdue = myTasks.filter(
     (t) => !!t.overdueDays && t.status !== "Done",
   ).length;
   const tasksDone30 = myTasks.filter((t) => t.status === "Done").length;
-
-  // Nothing logged is not the same as nothing to do. When the timer has not
-  // been used, show what the task creators estimated for the open work
-  // instead — and say which it is, so a planned figure is never read as a
-  // measured one.
-  const estimatedOpen = myTasks
-    .filter((t) => t.status !== "Done")
-    .reduce((s, t) => s + (t.estimatedHours ?? 0), 0);
-  const hoursSource: "logged" | "estimated" =
-    hoursLast7 > 0 || estimatedOpen === 0 ? "logged" : "estimated";
-  const shownHours7 = hoursSource === "logged" ? hoursLast7 : estimatedOpen;
-
-  // A real accuracy or none. The helper returns null until the person has
-  // finished work that carried an estimate; that is shown as "—", not 100%.
-  const accuracy = estimateAccuracyFor(first, tasks, timeEntries);
 
   // "Last edit" is the most recent thing this person did, from the audit
   // log — not a constant.
@@ -115,14 +81,15 @@ function deriveResource(
     isAdmin: !!a.isAdmin,
     status: a.active ? "Active" : "Deactivated",
     lastLogin: a.lastLogin ?? "never",
-    hoursLast7: shownHours7,
-    hoursSource,
-    hoursLast30,
+    // Hour logging has no UI any more. The type keeps these fields for
+    // the fixtures that still build Resources by hand.
+    hoursLast7: 0,
+    hoursLast30: 0,
     capacityPerWeek: 40,
     tasksDone30,
     tasksOpen,
     tasksOverdue,
-    estimateAccuracy: accuracy,
+    estimateAccuracy: null,
     lastStatusChange: latest ? latest.when : "—",
     performance,
     flags: [],
@@ -130,22 +97,8 @@ function deriveResource(
   };
 }
 
-/** True if an ISO date (YYYY-MM-DD) falls on Mon–Fri. */
-function isWeekday(iso: string): boolean {
-  const day = new Date(iso + "T00:00:00").getDay();
-  return day >= 1 && day <= 5;
-}
-
 /** Format a fractional hours value as "Xh Ym" (or "Ym" under an hour).
  *  Rounds to the nearest minute so the UI never shows 1.716666h. */
-function fmtHM(hours: number): string {
-  const totalMin = Math.round(Math.max(0, hours) * 60);
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
-  return `${m}m`;
-}
-
 /** A person's tasks bucketed under the project they belong to. */
 type ProjectGroup = { id: number; name: string; tasks: Task[] };
 
@@ -186,7 +139,7 @@ export default function ResourcesPage() {
   const [active, setActive] = useState<ActiveFilter>(null);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Resource | null>(null);
-  const { tasks, timeEntries, auditLog } = useTasks();
+  const { tasks, auditLog } = useTasks();
   const { accounts } = useAccounts();
 
   // Honour deep-links like /resources?filter=flagged from the dashboard.
@@ -201,7 +154,7 @@ export default function ResourcesPage() {
   // Build the resource list from the real accounts table, augmenting
   // each with computed task / time-log stats.
   const resources: Resource[] = accounts.map((a) =>
-    deriveResource(a, tasks, timeEntries, auditLog),
+    deriveResource(a, tasks, auditLog),
   );
 
   const visible = resources
@@ -393,13 +346,6 @@ function ResourceCard({
   onOpen: () => void;
 }) {
   const perf = performancePill(r.performance);
-  const utilization = Math.round((r.hoursLast7 / r.capacityPerWeek) * 100);
-  const utilizationTone =
-    utilization < 60
-      ? "text-brand-redText"
-      : utilization < 85
-        ? "text-brand-yellowText"
-        : "text-brand-greenText";
   const initials = r.name
     .split(" ")
     .map((p) => p[0])
@@ -428,23 +374,12 @@ function ResourceCard({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mb-4">
-        <Metric
-          label="Hours / 5d"
-          value={fmtHM(r.hoursLast7)}
-          sub={`${utilization}% capacity · ${r.hoursSource === "estimated" ? "estimated" : "logged"}`}
-          subTone={utilizationTone}
-        />
+      <div className="grid grid-cols-1 gap-3 mb-4">
         <Metric
           label="Open tasks"
           value={openTasks}
           sub={r.tasksOverdue > 0 ? `${r.tasksOverdue} overdue` : "0 overdue"}
           subTone={r.tasksOverdue > 0 ? "text-brand-redText" : "text-ink-500"}
-        />
-        <Metric
-          label="Estimate acc."
-          value={r.estimateAccuracy == null ? "—" : `${r.estimateAccuracy}%`}
-          sub="last 30d"
         />
       </div>
 
@@ -505,7 +440,7 @@ function ResourceDrawer({
   resource: Resource;
   onClose: () => void;
 }) {
-  const { tasks, timeEntries } = useTasks();
+  const { tasks } = useTasks();
   const { projectById } = useProjects();
   const drawer = useTaskDrawer();
   // Which project's task list is currently expanded. Null = all collapsed.
@@ -513,9 +448,6 @@ function ResourceDrawer({
   const person = firstNameOf(r.name);
   const myTasks = tasks.filter((t) => t.assignees.includes(person));
   const projectGroups = groupTasksByProject(myTasks, projectById);
-  const hours7 = loggedHours(person, timeEntries, 7);
-  const hours30 = loggedHours(person, timeEntries, 30);
-  const utilization = Math.round((hours7 / r.capacityPerWeek) * 100);
   const perf = performancePill(r.performance);
   const initials = r.name
     .split(" ")
@@ -573,35 +505,6 @@ function ResourceDrawer({
 
           <section>
             <h4 className="text-xs font-semibold text-ink-700 uppercase tracking-wide mb-2">
-              Workload (this week)
-            </h4>
-            <div className="card p-4">
-              <div className="flex items-baseline justify-between mb-2">
-                <span className="text-sm text-ink-700">Hours logged</span>
-                <span className="font-heading text-lg font-semibold">
-                  {fmtHM(hours7)} / {r.capacityPerWeek}h
-                </span>
-              </div>
-              <div className="h-2 bg-ink-100 rounded-full overflow-hidden">
-                <div
-                  className={`h-full ${
-                    utilization < 60
-                      ? "bg-brand-red"
-                      : utilization < 85
-                        ? "bg-brand-yellow"
-                        : "bg-brand-green"
-                  }`}
-                  style={{ width: `${Math.min(utilization, 100)}%` }}
-                />
-              </div>
-              <p className="text-xs text-ink-500 mt-2">
-                {utilization}% capacity · {hours30}h logged in the last 30 days
-              </p>
-            </div>
-          </section>
-
-          <section>
-            <h4 className="text-xs font-semibold text-ink-700 uppercase tracking-wide mb-2">
               Performance signals
             </h4>
             <div className="grid grid-cols-2 gap-3">
@@ -620,11 +523,6 @@ function ResourceDrawer({
                 value={r.tasksOverdue}
                 Icon={AlertTriangle}
                 tone={r.tasksOverdue > 0 ? "red" : "default"}
-              />
-              <SignalCard
-                label="Estimate accuracy"
-                value={r.estimateAccuracy == null ? "—" : `${r.estimateAccuracy}%`}
-                Icon={TrendingUp}
               />
             </div>
             {r.flags.length > 0 && (

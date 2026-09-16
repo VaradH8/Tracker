@@ -174,7 +174,8 @@ export type NotificationKind =
   | "important"
   | "overdue"
   | "leave_approved"
-  | "leave_denied";
+  | "leave_denied"
+  | "leave_requested";
 
 export type AppNotification = {
   id: number;
