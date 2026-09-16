@@ -55,7 +55,12 @@ export default function ProjectsPage() {
     }
   }, [hydrated, role, tabTouched]);
 
-  const showPipeline = role !== "Developer";
+  // Pipeline is deal flow — a Business Developer, Lead and Admin concern.
+  // A Coordinator runs delivery on projects that already exist, so the tab
+  // was noise on their login. Hidden rather than deleted: the board still
+  // matters to the roles that sell, and when this is false the tab strip
+  // disappears and the page lands on Active on its own.
+  const showPipeline = role !== "Developer" && role !== "Coordinator";
   const activeTab = showPipeline ? tab : "active";
 
   return (
