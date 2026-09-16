@@ -28,7 +28,7 @@ const COLUMNS: { id: Status; title: string; accent: string }[] = [
 const FOCUS_KEY = "tracker-mytasks-focus";
 
 /** Which slice of the calendar the board is showing. */
-type RangeMode = "this" | "last" | "custom";
+type RangeMode = "all" | "this" | "last" | "custom";
 
 /** "15 – 21 Sep" — the actual days behind "This week", so the label says
  *  something concrete instead of an ISO week number nobody counts in. */
@@ -79,6 +79,9 @@ export default function MyTasksPage() {
   // A half-filled custom range reads as open-ended rather than as "no
   // results" — pick a start with no end and you get everything from then on.
   const range = useMemo(() => {
+    // Unbounded: every task the person is on, dated or not. taskInRange
+    // already places an undated open task in any window reaching today.
+    if (rangeMode === "all") return { from: "0000-01-01", to: "9999-12-31" };
     if (rangeMode === "this") return thisWeekRange;
     if (rangeMode === "last") return lastWeekRange;
     return {
@@ -90,7 +93,11 @@ export default function MyTasksPage() {
   // The window shows work dated inside it plus anything unfinished that
   // carried forward into it (see taskInRange).
   const inWindow = mine.filter((t) => taskInRange(t, range.from, range.to));
-  const shown = focus ? inWindow.filter(inFocus) : inWindow;
+  // Focus means "what needs attention now". That only reads sensibly
+  // against the current week; applied to a window the user chose, it hid
+  // everything not due today and made a custom range look empty.
+  const focusApplies = rangeMode === "this";
+  const shown = focus && focusApplies ? inWindow.filter(inFocus) : inWindow;
 
   return (
     <AppShell>
@@ -99,9 +106,11 @@ export default function MyTasksPage() {
           <div>
             <h1 className="font-heading text-2xl font-semibold">My Tasks</h1>
             <p className="text-sm text-ink-500 mt-1">
-              {focus
+              {focus && focusApplies
                 ? "Focused on what needs attention today — due, overdue, in progress."
-                : "Your full backlog across all projects, grouped by status."}
+                : rangeMode === "all"
+                  ? "Every task you're on, across all projects, grouped by status."
+                  : "Your tasks in this window, grouped by status."}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -111,6 +120,7 @@ export default function MyTasksPage() {
               title="Filter by date range"
               className="text-sm rounded border border-ink-200 px-2 py-1.5 bg-white"
             >
+              <option value="all">All tasks</option>
               <option value="this">
                 This week ({formatRange(thisWeekRange.from, thisWeekRange.to)})
               </option>
