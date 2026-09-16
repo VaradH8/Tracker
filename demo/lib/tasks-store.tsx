@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useAccounts } from "./account-store";
 import type {
   AuditEntry,
   Priority,
@@ -128,9 +129,23 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Re-pull whenever the signed-in user changes — same reason as
+  // lib/projects-store.tsx: the provider mounts before sign-in, and
+  // sign-in navigates client-side without a reload.
+  const { current, hydrated: accountsHydrated } = useAccounts();
+  const userId = current?.id ?? null;
   useEffect(() => {
+    if (!accountsHydrated) return;
+    if (!userId) {
+      setTasks([]);
+      setTimeEntries([]);
+      setAuditLog([]);
+      setActiveTimer(null);
+      setHydrated(true);
+      return;
+    }
     void refresh().finally(() => setHydrated(true));
-  }, [refresh]);
+  }, [accountsHydrated, userId, refresh]);
 
   function applyUpdatedTask(t: Task) {
     setTasks((prev) => prev.map((x) => (x.id === t.id ? t : x)));

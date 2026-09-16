@@ -124,9 +124,17 @@ function ActiveProjects({ role }: { role: Role }) {
   const [createOpen, setCreateOpen] = useState(false);
   const showFinancials = canSeeProjectFinancials(role);
   const { tasks } = useTasks();
-  const { projects, clients, createProject, createClient } = useProjects();
+  const { projects, clients, createProject, createClient, refresh } =
+    useProjects();
   const me = useMyFirstName();
   const toast = useToast();
+
+  // Fresh list every time the page opens: somebody may have put you on a
+  // project since the store last loaded, and nobody should need a
+  // browser reload to see it.
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
   const myProjects = visibleProjects(role, projects, tasks, me);
 

@@ -1,3 +1,4 @@
+import type { Role } from "./role";
 import type {
   AppNotification,
   Client,
@@ -301,7 +302,7 @@ export function serializeEmail(e: PrismaEmail): EmailLogEntry {
 type PrismaLeave = {
   id: number;
   userId: string;
-  user?: { name: string } | null;
+  user?: { name: string; primaryRole?: string } | null;
   start: Date;
   end: Date;
   type: string;
@@ -312,6 +313,8 @@ type PrismaLeave = {
 export function serializeLeave(l: PrismaLeave): LeaveEntry {
   return {
     id: l.id,
+    userId: l.userId,
+    role: (l.user?.primaryRole ?? "Developer") as Role,
     resourceName: l.user?.name ?? "—",
     start: l.start.toISOString().slice(0, 10),
     end: l.end.toISOString().slice(0, 10),

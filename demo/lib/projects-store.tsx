@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import type { Client, Project } from "./mock";
+import { useAccounts } from "./account-store";
 
 type CreateProjectInput = {
   name: string;
@@ -117,9 +118,24 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Re-pull whenever the signed-in user changes. This provider mounts on
+  // the login page, before there is a session, so a fetch-once-on-mount
+  // got a 401, kept an empty list and never tried again — sign-in
+  // navigates client-side, so the only way to see projects was a browser
+  // reload. Keyed on the user id, it also swaps the list when one person
+  // signs out and another signs in.
+  const { current, hydrated: accountsHydrated } = useAccounts();
+  const userId = current?.id ?? null;
   useEffect(() => {
+    if (!accountsHydrated) return;
+    if (!userId) {
+      setProjects([]);
+      setClients([]);
+      setHydrated(true);
+      return;
+    }
     void refresh().finally(() => setHydrated(true));
-  }, [refresh]);
+  }, [accountsHydrated, userId, refresh]);
 
   const createProject = useCallback(
     async (input: CreateProjectInput) => {

@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { canEditTasks, notifyUser, requireUser, writeAudit } from "@/lib/server-access";
+import { notifyUser, requireUser, writeAudit } from "@/lib/server-access";
+import { canApproveLeave, leaveApprovalRefusal } from "@/lib/leave-access";
+import type { Role } from "@/lib/role";
 
-/** Owner can cancel their own leave; Coord/Admin can delete any.
- *  When a coord/admin deletes a *pending* request belonging to someone
- *  else, that's a denial — notify the requester. */
+/** Owner can cancel their own leave. Removing somebody else's needs the
+ *  same authority as approving it (lib/leave-access.ts): a Coordinator
+ *  can remove a Developer's entry but not a peer Coordinator's. When the
+ *  entry is a *pending* request belonging to someone else, that's a
+ *  denial — notify the requester. */
 export async function DELETE(
   _req: Request,
   context: { params: Promise<{ id: string }> },
@@ -18,12 +22,19 @@ export async function DELETE(
   if (!Number.isFinite(id)) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
-  const leave = await prisma.leave.findUnique({ where: { id } });
+  const leave = await prisma.leave.findUnique({
+    where: { id },
+    include: { user: true },
+  });
   if (!leave) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  if (leave.userId !== user.id && !canEditTasks(user.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const requester = { id: leave.userId, role: leave.user.primaryRole as Role };
+  if (leave.userId !== user.id && !canApproveLeave(user, requester)) {
+    return NextResponse.json(
+      { error: leaveApprovalRefusal(user, requester) },
+      { status: 403 },
+    );
   }
 
   const isDenial = leave.userId !== user.id && !leave.approved;

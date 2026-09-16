@@ -1,3 +1,5 @@
+import type { Role } from "./role";
+
 export type Priority = "Critical" | "High" | "Medium" | "Low";
 export type Status =
   | "To Do"
@@ -191,6 +193,10 @@ export type EmailLogEntry = {
 
 export type LeaveEntry = {
   id: number;
+  /** Who the leave belongs to — the UI uses these with
+   *  lib/leave-access.ts to decide whether to offer Approve / Deny. */
+  userId: string;
+  role: Role;
   resourceName: string;
   start: string;
   end: string;

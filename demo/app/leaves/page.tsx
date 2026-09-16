@@ -4,8 +4,13 @@ import { useEffect, useState } from "react";
 import { Plus, Calendar, Clock, Lock } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { todayISO, type LeaveEntry } from "@/lib/mock";
-import { useRole, ROLE_LABELS } from "@/lib/role";
+import { useRole, ROLE_LABELS, type Role } from "@/lib/role";
 import { useMyFirstName, useAccounts } from "@/lib/account-store";
+import {
+  canApproveLeave,
+  leaveApproverLabel,
+  type LeaveParty,
+} from "@/lib/leave-access";
 import { useToast } from "@/components/Toast";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { Modal } from "@/components/Modal";
@@ -78,9 +83,17 @@ export default function LeavesPage() {
   const [open, setOpen] = useState(false);
   const [leaves, setLeaves] = useState<LeaveEntry[]>([]);
   const [settings, setSettings] = useState<LeaveSettings | null>(null);
-  const fullVisibility = role === "Admin" || role === "Coordinator";
+  // Leads approve leave for their team. The API has always permitted it
+  // (canEditTasks covers Admin, Lead and Coordinator); only this line
+  // withheld the controls, so the request sat unactioned with nobody able
+  // to see it but an Admin.
+  const fullVisibility =
+    role === "Admin" || role === "Coordinator" || role === "Lead";
   const me = useMyFirstName();
-  const { accounts } = useAccounts();
+  const { accounts, current } = useAccounts();
+  const approver: LeaveParty | null = current
+    ? { id: current.id, role: current.role }
+    : null;
 
   async function refresh() {
     const res = await fetch("/api/leaves", { cache: "no-store" });
@@ -118,6 +131,8 @@ export default function LeavesPage() {
         quota={quota}
         workingDays={workingDays}
         leaveTypes={leaveTypes}
+        approver={approver}
+        requesterRole={role}
       />
     );
   }
@@ -234,6 +249,7 @@ export default function LeavesPage() {
         <RequestLeaveModal
           onClose={() => setOpen(false)}
           requesterFirstName={myFirstName}
+          requesterRole={role}
           onSubmitted={refresh}
           leaveTypes={leaveTypes}
         />
@@ -277,6 +293,8 @@ function FullLeavesView({
   quota,
   workingDays,
   leaveTypes,
+  approver,
+  requesterRole,
 }: {
   sorted: LeaveEntry[];
   open: boolean;
@@ -285,9 +303,22 @@ function FullLeavesView({
   quota: number;
   workingDays: string[];
   leaveTypes: string[];
+  approver: LeaveParty | null;
+  requesterRole: Role;
 }) {
+  // Mirrors the server gate in /api/leaves: never your own request, never
+  // a peer's. Approve / Deny only appear where the server would say yes.
+  const canDecide = (l: LeaveEntry) =>
+    approver != null &&
+    canApproveLeave(approver, { id: l.userId, role: l.role });
+  const canRemove = (l: LeaveEntry) =>
+    approver != null && (l.userId === approver.id || canDecide(l));
+
   const upcoming = sorted.filter((l) => l.start >= todayISO());
-  const pending = sorted.filter((l) => !l.approved);
+  const pending = sorted.filter((l) => !l.approved && canDecide(l));
+  // Pending requests this person can't decide — their own, or a peer's.
+  // They still show under Upcoming / All entries with a Pending pill.
+  const awaitingOthers = sorted.filter((l) => !l.approved && !canDecide(l));
   // Per-person balances across everyone who has any leave on record.
   const names = Array.from(new Set(sorted.map((l) => l.resourceName))).sort();
   const balances = names.map((n) => ({
@@ -328,7 +359,7 @@ function FullLeavesView({
                   <LeaveRow
                     key={l.id}
                     l={l}
-                    canDelete
+                    canDelete={canRemove(l)}
                     onDelete={onChanged}
                   />
                 ))}
@@ -346,7 +377,7 @@ function FullLeavesView({
             </h2>
             {pending.length === 0 ? (
               <p className="text-sm text-ink-500 italic">
-                All caught up. No requests waiting.
+                All caught up. No requests waiting for you.
               </p>
             ) : (
               <ul className="space-y-2">
@@ -360,6 +391,15 @@ function FullLeavesView({
                   />
                 ))}
               </ul>
+            )}
+            {awaitingOthers.length > 0 && (
+              <p className="text-xs text-ink-500 mt-3 flex items-center gap-1.5">
+                <Lock size={11} />
+                {awaitingOthers.length === 1
+                  ? "1 other request"
+                  : `${awaitingOthers.length} other requests`}{" "}
+                (your own, or a peer&apos;s) await a lead or admin.
+              </p>
             )}
           </div>
         </section>
@@ -453,6 +493,7 @@ function FullLeavesView({
       {open && (
         <RequestLeaveModal
           onClose={() => setOpen(false)}
+          requesterRole={requesterRole}
           onSubmitted={onChanged}
           leaveTypes={leaveTypes}
         />
@@ -488,7 +529,8 @@ function LeaveRow({
       body: JSON.stringify({ id: l.id, approved: true }),
     });
     if (!res.ok) {
-      toast.show("Couldn't approve.", "error");
+      const body = await res.json().catch(() => ({}));
+      toast.show(body.error ?? "Couldn't approve.", "error");
       return;
     }
     toast.show(`${l.resourceName}'s ${l.type} leave approved.`);
@@ -505,7 +547,8 @@ function LeaveRow({
     if (!ok) return;
     const res = await fetch(`/api/leaves/${l.id}`, { method: "DELETE" });
     if (!res.ok) {
-      toast.show("Couldn't deny.", "error");
+      const body = await res.json().catch(() => ({}));
+      toast.show(body.error ?? "Couldn't deny.", "error");
       return;
     }
     toast.show(`${l.resourceName}'s ${l.type} leave denied.`, "info");
@@ -591,11 +634,13 @@ function LeaveRow({
 function RequestLeaveModal({
   onClose,
   requesterFirstName,
+  requesterRole,
   onSubmitted,
   leaveTypes,
 }: {
   onClose: () => void;
   requesterFirstName?: string;
+  requesterRole: Role;
   onSubmitted?: () => void;
   leaveTypes: string[];
 }) {
@@ -622,7 +667,7 @@ function RequestLeaveModal({
       return;
     }
     toast.show(
-      `${type} leave requested. Your co-ordinator will see it for approval.`,
+      `${type} leave requested. ${leaveApproverLabel(requesterRole)} will see it for approval.`,
     );
     onSubmitted?.();
     onClose();
@@ -664,13 +709,13 @@ function RequestLeaveModal({
       </div>
 
       <label className="block text-xs font-medium text-ink-700 mb-1.5">
-        Note (optional · visible to your co-ordinator only)
+        Note (optional · visible only to whoever approves it)
       </label>
       <textarea
         value={note}
         onChange={(e) => setNote(e.target.value)}
         rows={2}
-        placeholder="Anything your co-ordinator should know"
+        placeholder="Anything your approver should know"
         className="w-full px-3 py-2 mb-6 rounded border border-ink-200 text-sm"
       />
 

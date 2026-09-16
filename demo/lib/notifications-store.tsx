@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useAccounts } from "./account-store";
 import type {
   AppNotification,
   EmailLogEntry,
@@ -59,7 +60,17 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Keyed on the signed-in user so the first fetch happens after sign-in
+  // (the provider mounts on the login page) and the list is dropped on
+  // sign-out — same reason as lib/projects-store.tsx.
+  const { current } = useAccounts();
+  const userId = current?.id ?? null;
   useEffect(() => {
+    if (!userId) {
+      setAll([]);
+      setEmails([]);
+      return;
+    }
     void refresh();
     // Poll every 60s so the bell badge and notifications page reflect
     // new mentions / assignments / leave decisions without requiring a
@@ -67,7 +78,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     // server-side and capped at 500 rows per user.
     const id = setInterval(() => void refresh(), 60_000);
     return () => clearInterval(id);
-  }, [refresh]);
+  }, [userId, refresh]);
 
   const forPerson = useCallback(
     (person: string) => all.filter((n) => n.recipient === person),
