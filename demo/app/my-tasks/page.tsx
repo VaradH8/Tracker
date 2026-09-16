@@ -7,10 +7,9 @@ import { TaskCard } from "@/components/TaskCard";
 import { EmptyState } from "@/components/EmptyState";
 import { ForkableTasks } from "@/components/ForkableTasks";
 import {
-  currentWeek,
-  taskInWeek,
+  isoWeekRange,
+  taskInRange,
   todayISO,
-  weekAnchorOf,
   type Status,
   type Task,
 } from "@/lib/mock";
@@ -28,17 +27,39 @@ const COLUMNS: { id: Status; title: string; accent: string }[] = [
 
 const FOCUS_KEY = "tracker-mytasks-focus";
 
+/** Which slice of the calendar the board is showing. */
+type RangeMode = "this" | "last" | "custom";
+
+/** "15 – 21 Sep" — the actual days behind "This week", so the label says
+ *  something concrete instead of an ISO week number nobody counts in. */
+function formatRange(from: string, to: string): string {
+  const fmt = (iso: string, withMonth: boolean) =>
+    new Date(iso + "T00:00:00").toLocaleDateString(
+      "en-IN",
+      withMonth ? { day: "numeric", month: "short" } : { day: "numeric" },
+    );
+  const sameMonth = from.slice(0, 7) === to.slice(0, 7);
+  return `${fmt(from, !sameMonth)} – ${fmt(to, true)}`;
+}
+
 /** Focus = what needs attention now: due today, overdue, or in progress. */
 function inFocus(t: Task): boolean {
   if (t.status === "Done") return false;
-  return t.status === "In Progress" || t.targetDate <= todayISO();
+  // An undated task has no deadline pressure — only its status can pull
+  // it into focus.
+  return (
+    t.status === "In Progress" ||
+    (!!t.targetDate && t.targetDate <= todayISO())
+  );
 }
 
 export default function MyTasksPage() {
   const [role] = useRole();
   const { tasks } = useTasks();
   const [focus, setFocus] = useState(true);
-  const [weekFilter, setWeekFilter] = useState<"all" | number>("all");
+  const [rangeMode, setRangeMode] = useState<RangeMode>("this");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
 
   useEffect(() => {
     if (localStorage.getItem(FOCUS_KEY) === "all") setFocus(false);
@@ -52,24 +73,24 @@ export default function MyTasksPage() {
   const me = useMyFirstName();
   const mine = tasks.filter((t) => t.assignees.includes(me));
 
-  // Build the week dropdown from the weeks the user's tasks actually
-  // touch, so the Excel-style "Week 19/20/21..." picker only ever shows
-  // weeks that mean something.
-  const thisWeek = currentWeek();
-  const weeksWithMine = useMemo(() => {
-    const set = new Set<number>();
-    for (const t of mine) set.add(weekAnchorOf(t));
-    set.add(thisWeek);
-    return Array.from(set).sort((a, b) => a - b);
-  }, [mine, thisWeek]);
+  const thisWeekRange = useMemo(() => isoWeekRange(0), []);
+  const lastWeekRange = useMemo(() => isoWeekRange(1), []);
 
-  // A specific week shows its own tasks plus any still In Progress / In
-  // review that were carried forward from an earlier week (see taskInWeek).
-  const afterWeek =
-    weekFilter === "all"
-      ? mine
-      : mine.filter((t) => taskInWeek(t, weekFilter));
-  const shown = focus ? afterWeek.filter(inFocus) : afterWeek;
+  // A half-filled custom range reads as open-ended rather than as "no
+  // results" — pick a start with no end and you get everything from then on.
+  const range = useMemo(() => {
+    if (rangeMode === "this") return thisWeekRange;
+    if (rangeMode === "last") return lastWeekRange;
+    return {
+      from: customFrom || "0000-01-01",
+      to: customTo || "9999-12-31",
+    };
+  }, [rangeMode, customFrom, customTo, thisWeekRange, lastWeekRange]);
+
+  // The window shows work dated inside it plus anything unfinished that
+  // carried forward into it (see taskInRange).
+  const inWindow = mine.filter((t) => taskInRange(t, range.from, range.to));
+  const shown = focus ? inWindow.filter(inFocus) : inWindow;
 
   return (
     <AppShell>
@@ -85,36 +106,40 @@ export default function MyTasksPage() {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <select
-              value={weekFilter === "all" ? "all" : String(weekFilter)}
-              onChange={(e) =>
-                setWeekFilter(
-                  e.target.value === "all" ? "all" : Number(e.target.value),
-                )
-              }
-              title="Filter by ISO week number"
+              value={rangeMode}
+              onChange={(e) => setRangeMode(e.target.value as RangeMode)}
+              title="Filter by date range"
               className="text-sm rounded border border-ink-200 px-2 py-1.5 bg-white"
             >
-              <option value="all">All weeks</option>
-              <option value={thisWeek}>This week (W{thisWeek})</option>
-              <option value={thisWeek - 1}>
-                Last week (W{thisWeek - 1})
+              <option value="this">
+                This week ({formatRange(thisWeekRange.from, thisWeekRange.to)})
               </option>
-              <option value={thisWeek + 1}>
-                Next week (W{thisWeek + 1})
+              <option value="last">
+                Last week ({formatRange(lastWeekRange.from, lastWeekRange.to)})
               </option>
-              {weeksWithMine
-                .filter(
-                  (w) =>
-                    w !== thisWeek &&
-                    w !== thisWeek - 1 &&
-                    w !== thisWeek + 1,
-                )
-                .map((w) => (
-                  <option key={w} value={w}>
-                    Week {w}
-                  </option>
-                ))}
+              <option value="custom">Custom dates</option>
             </select>
+            {rangeMode === "custom" && (
+              <div className="inline-flex items-center gap-1.5">
+                <input
+                  type="date"
+                  value={customFrom}
+                  max={customTo || undefined}
+                  onChange={(e) => setCustomFrom(e.target.value)}
+                  aria-label="From date"
+                  className="text-sm rounded border border-ink-200 px-2 py-1.5 bg-white"
+                />
+                <span className="text-xs text-ink-500">to</span>
+                <input
+                  type="date"
+                  value={customTo}
+                  min={customFrom || undefined}
+                  onChange={(e) => setCustomTo(e.target.value)}
+                  aria-label="To date"
+                  className="text-sm rounded border border-ink-200 px-2 py-1.5 bg-white"
+                />
+              </div>
+            )}
             <div className="inline-flex rounded-card border border-ink-200 overflow-hidden text-sm">
               <button
                 onClick={() => setFocusMode(true)}

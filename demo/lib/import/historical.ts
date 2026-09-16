@@ -831,7 +831,9 @@ export async function commitParsed(
     const fullDesc = task.description.replace(/\s+/g, " ").trim();
     const title = fullDesc.length > 180 ? fullDesc.slice(0, 177) + "..." : fullDesc;
     const description = fullDesc.length > 180 ? fullDesc : null;
-    const targetDate = task.targetDate ?? task.startDate ?? new Date();
+    // No deadline in the sheet means no deadline on the task — we fall
+    // back to the start date if there is one, but never to "today".
+    const targetDate = task.targetDate ?? task.startDate ?? null;
 
     if (dryRun || projectId < 0) {
       stats.tasksCreated += 1;

@@ -135,7 +135,9 @@ model Task {
   priority       String
   status         String    @default("To Do")
   startDate      DateTime?
-  targetDate     DateTime
+  // Optional: a task has no deadline until someone sets one. Never
+  // auto-filled — see the task create/update routes.
+  targetDate     DateTime?
   estimatedHours Float?
   actualHours    Float?
   important      Boolean   @default(false)

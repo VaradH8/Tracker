@@ -56,6 +56,8 @@ export default function CalendarPage() {
   const byDate = useMemo(() => {
     const m = new Map<string, Task[]>();
     for (const t of visibleTasks) {
+      // Undated tasks have no day to land on — they're not on the calendar.
+      if (!t.targetDate) continue;
       const arr = m.get(t.targetDate) ?? [];
       arr.push(t);
       m.set(t.targetDate, arr);

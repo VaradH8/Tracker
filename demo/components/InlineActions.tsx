@@ -152,14 +152,29 @@ export function DateField({
   readOnly,
   label,
 }: {
-  value: string;
+  /** null when no date is set — rendered as a prompt to pick one, never
+   *  as a stand-in date. */
+  value: string | null;
   onChange: (d: string) => void;
   readOnly?: boolean;
   label?: string;
 }) {
   const ref = useRef<HTMLInputElement>(null);
-  const formatted = formatRelativeDate(value);
-  const tone = relativeTone(value);
+  const formatted = value ? formatRelativeDate(value) : "Set date";
+  const tone = value
+    ? relativeTone(value)
+    : { text: "text-ink-400 italic" };
+  const title = value
+    ? label
+      ? `${label}: ${value}`
+      : value
+    : `No ${(label ?? "target date").toLowerCase()} set`;
+
+  // Nothing to show and nothing to click — an undated read-only field
+  // stays blank rather than displaying a date that doesn't exist.
+  if (readOnly && !value) {
+    return <span className="text-xs text-ink-400">—</span>;
+  }
 
   return (
     <span
@@ -168,7 +183,7 @@ export function DateField({
           ? `inline-flex items-center gap-1 text-xs ${tone.text}`
           : `inline-flex items-center gap-1 text-xs ${tone.text} hover:underline cursor-pointer`
       }
-      title={label ? `${label}: ${value}` : value}
+      title={title}
     >
       <button
         type="button"
@@ -186,7 +201,7 @@ export function DateField({
       <input
         ref={ref}
         type="date"
-        value={value}
+        value={value ?? ""}
         disabled={readOnly}
         onChange={(e) => onChange(e.target.value)}
         onClick={(e) => e.stopPropagation()}

@@ -110,8 +110,9 @@ export async function PATCH(
       data.description = body.description;
     }
     if (typeof body.priority === "string") data.priority = body.priority;
-    if (typeof body.targetDate === "string") {
-      data.targetDate = new Date(body.targetDate);
+    // "" or null clears the deadline; a date string sets it.
+    if (typeof body.targetDate === "string" || body.targetDate === null) {
+      data.targetDate = body.targetDate ? new Date(body.targetDate) : null;
     }
     if (typeof body.startDate === "string" || body.startDate === null) {
       data.startDate = body.startDate ? new Date(body.startDate) : null;

@@ -57,7 +57,9 @@ export type Task = {
   /** Person Accountable — the doer(s), by first name */
   assignees: string[];
   startDate?: string;
-  targetDate: string;
+  /** The deadline, or null when nobody has set one. Never auto-filled —
+   *  an undated task stays undated until a user picks a date. */
+  targetDate: string | null;
   estimatedHours: number | null;
   actualHours?: number | null;
   important: boolean;
@@ -467,7 +469,12 @@ export function isCarriedForward(status: Status): boolean {
  */
 export function taskInWeek(task: Task, week: number): boolean {
   if (task.status === "Done") return weekAnchorOf(task) === week;
-  const native = weekNumberOf(task.targetDate);
+  const native = weekAnchorOf(task);
+  // No target date — unscheduled work is native to no week at all, so it
+  // rides along with the current week and every week after, exactly the
+  // way unfinished dated work carries forward. Without this it would be
+  // invisible in every week view and reachable only via "All weeks".
+  if (native == null) return week >= currentWeek();
   if (native === week) return true;
   return native < week && isCarriedForward(task.status);
 }
@@ -476,11 +483,61 @@ export function taskInWeek(task: Task, week: number): boolean {
  *  completion week once Done (falling back to the target week for legacy
  *  rows with no completedAt), otherwise its target week. Use this to
  *  populate a week picker so every task's week is selectable. */
-export function weekAnchorOf(task: Task): number {
+export function weekAnchorOf(task: Task): number | null {
+  const anchor =
+    task.status === "Done"
+      ? (task.completedAt ?? task.targetDate)
+      : task.targetDate;
+  return anchor ? weekNumberOf(anchor) : null;
+}
+
+/** Monday-to-Sunday window of an ISO week, as YYYY-MM-DD bounds.
+ *  `weeksAgo` counts back from the current week: 0 = this week,
+ *  1 = last week. Local-time based, so the window matches the user's
+ *  wall clock the same way todayISO() does. */
+export function isoWeekRange(weeksAgo: number): { from: string; to: string } {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  // getDay() is Sunday-first; ISO weeks start Monday.
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7) - weeksAgo * 7);
+  const from = localISO(d);
+  d.setDate(d.getDate() + 6);
+  return { from, to: localISO(d) };
+}
+
+function localISO(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** Does a task belong in a date window (inclusive bounds)?
+ *
+ *  Carries the weekly board's rule over to arbitrary ranges: a task lands
+ *  in the window when its target date falls inside it, and unfinished
+ *  work dated before the window carries forward into it — so nothing
+ *  overdue is ever hidden. Completed work is filed under the day it was
+ *  finished. An unscheduled task has no day of its own, so it rides along
+ *  with any window that reaches the present. */
+export function taskInRange(task: Task, from: string, to: string): boolean {
   if (task.status === "Done") {
-    return weekNumberOf(task.completedAt ?? task.targetDate);
+    const done = task.completedAt ?? task.targetDate;
+    return !!done && done >= from && done <= to;
   }
-  return weekNumberOf(task.targetDate);
+  if (!task.targetDate) return to >= todayISO();
+  // Still in the future relative to this window; everything else is either
+  // inside it or overdue into it.
+  return task.targetDate <= to;
+}
+
+/** Sort comparator for target dates that keeps undated tasks last —
+ *  they carry no deadline, so they never outrank dated work. */
+export function byTargetDate(a: Task, b: Task): number {
+  if (!a.targetDate && !b.targetDate) return 0;
+  if (!a.targetDate) return 1;
+  if (!b.targetDate) return -1;
+  return a.targetDate.localeCompare(b.targetDate);
 }
 
 /**
