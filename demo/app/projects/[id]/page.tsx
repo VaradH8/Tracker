@@ -1186,16 +1186,14 @@ function CreateTaskModal({
         </div>
         <div>
           <label className="block text-xs font-medium text-ink-700 mb-1.5">
-            Target date{" "}
-            <span className="text-ink-400 font-normal">(optional)</span>
+            Target date <span className="text-brand-redText">*</span>
           </label>
           <DateInput value={targetDate} min={startDate || undefined} onChange={(iso: string) => setTargetDate(iso)} className="w-full px-3 py-2 rounded border border-ink-200 text-sm" />
         </div>
       </div>
 
       <label className="block text-xs font-medium text-ink-700 mb-1.5">
-        Estimated hours{" "}
-        <span className="text-ink-400 font-normal">(optional)</span>
+        Estimated hours <span className="text-brand-redText">*</span>
       </label>
       <input
         type="number"
@@ -1210,9 +1208,9 @@ function CreateTaskModal({
       {canAssign ? (
         <>
           <label className="block text-xs font-medium text-ink-700 mb-1.5">
-            Assign to{" "}
+            Assign to <span className="text-brand-redText">*</span>{" "}
             <span className="text-ink-400 font-normal">
-              (developers, co-ordinators &amp; leads — optional)
+              (developers, co-ordinators &amp; leads)
             </span>
           </label>
           <div className="mb-6 rounded border border-ink-200 bg-ink-50">
@@ -1302,7 +1300,12 @@ function CreateTaskModal({
         </button>
         <button
           onClick={submit}
-          disabled={!title.trim()}
+          disabled={
+            !title.trim() ||
+            !targetDate ||
+            !estHours.trim() ||
+            (canAssign && assignees.length === 0)
+          }
           className="btn-primary"
         >
           Create task

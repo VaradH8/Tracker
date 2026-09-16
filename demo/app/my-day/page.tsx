@@ -53,7 +53,12 @@ export default function MyDayPage() {
 /* Co-ordinator — a TEAM view: what does my team need from me today.  */
 /* ------------------------------------------------------------------ */
 
+type CoordPick = "due" | "overdue" | "blocked" | "idle";
+
 function CoordinatorMyDay() {
+  const [pick, setPick] = useState<CoordPick | null>(null);
+  const toggle = (k: CoordPick) => setPick((p) => (p === k ? null : k));
+  const shows = (k: CoordPick) => !pick || pick === k;
   const { tasks } = useTasks();
   const { projects, projectById } = useProjects();
   const toast = useToast();
@@ -120,6 +125,8 @@ function CoordinatorMyDay() {
             Icon={CalendarClock}
             variant="blue"
             hint="team deliveries"
+            onClick={() => toggle("due")}
+            active={pick === "due"}
           />
           <StatCard
             label="Overdue"
@@ -127,6 +134,8 @@ function CoordinatorMyDay() {
             Icon={AlertTriangle}
             variant="red"
             hint="across your projects"
+            onClick={() => toggle("overdue")}
+            active={pick === "overdue"}
           />
           <StatCard
             label="Blocked"
@@ -134,6 +143,8 @@ function CoordinatorMyDay() {
             Icon={Lock}
             variant="red"
             hint="need unblocking"
+            onClick={() => toggle("blocked")}
+            active={pick === "blocked"}
           />
           <StatCard
             label="Idle resources"
@@ -141,32 +152,40 @@ function CoordinatorMyDay() {
             Icon={UserMinus}
             variant="yellow"
             hint={`no update in ${idleDays}+ days`}
+            onClick={() => toggle("idle")}
+            active={pick === "idle"}
           />
         </section>
 
         <div className="grid lg:grid-cols-3 gap-6">
           <section className="lg:col-span-2 space-y-6">
-            <PlainTaskSection
-              title="Today's deliveries"
-              Icon={Truck}
-              tasks={deliveries}
-              emptyText="Nothing due today across your projects."
-            />
+            {shows("due") && (
+              <PlainTaskSection
+                title="Today's deliveries"
+                Icon={Truck}
+                tasks={deliveries}
+                emptyText="Nothing due today across your projects."
+              />
+            )}
 
-            <BulkTaskSection
-              title="Overdue"
-              Icon={AlertTriangle}
-              tasks={overdue}
-              emptyText="Nothing overdue — your team is current."
-              projects={projects}
-            />
+            {shows("overdue") && (
+              <BulkTaskSection
+                title="Overdue"
+                Icon={AlertTriangle}
+                tasks={overdue}
+                emptyText="Nothing overdue — your team is current."
+                projects={projects}
+              />
+            )}
 
-            <BulkTaskSection
-              title="Blocked — needs unblocking today"
-              Icon={Lock}
-              tasks={blocked}
-              emptyText="No blocked tasks. Nothing waiting on you."
-            />
+            {shows("blocked") && (
+              <BulkTaskSection
+                title="Blocked — needs unblocking today"
+                Icon={Lock}
+                tasks={blocked}
+                emptyText="No blocked tasks. Nothing waiting on you."
+              />
+            )}
           </section>
 
           <aside className="space-y-6">
@@ -523,7 +542,11 @@ function prettyAuditAction(action: string): string {
   }
 }
 
+type DevPick = "due" | "overdue" | "important";
+
 function DeveloperMyDay() {
+  const [pick, setPick] = useState<DevPick | null>(null);
+  const toggle = (k: DevPick) => setPick((p) => (p === k ? null : k));
   const { tasks, auditLog } = useTasks();
   const me = useMyFirstName();
   const myTasks = tasks.filter(
@@ -552,6 +575,15 @@ function DeveloperMyDay() {
     .sort(byTargetDate)
     .slice(0, 5);
 
+  const pickedTasks =
+    pick === "due"
+      ? dueToday
+      : pick === "overdue"
+        ? overdue
+        : pick === "important"
+          ? importantMine
+          : myDay;
+
   return (
     <AppShell>
       <div className="max-w-[1400px] mx-auto px-6 py-8">
@@ -570,18 +602,24 @@ function DeveloperMyDay() {
             value={dueToday.length}
             Icon={CalendarClock}
             variant="blue"
+            onClick={() => toggle("due")}
+            active={pick === "due"}
           />
           <StatCard
             label="Overdue"
             value={overdue.length}
             Icon={AlertTriangle}
             variant="red"
+            onClick={() => toggle("overdue")}
+            active={pick === "overdue"}
           />
           <StatCard
             label="Important — mine"
             value={importantMine.length}
             Icon={Star}
             variant="yellow"
+            onClick={() => toggle("important")}
+            active={pick === "important"}
           />
         </section>
 
@@ -595,10 +633,10 @@ function DeveloperMyDay() {
                 </span>
               </div>
               <div className="space-y-2">
-                {myDay.length === 0 ? (
+                {pickedTasks.length === 0 ? (
                   <InboxZero />
                 ) : (
-                  myDay.map((t) => <TaskCard key={t.id} task={t} />)
+                  pickedTasks.map((t) => <TaskCard key={t.id} task={t} />)
                 )}
               </div>
             </div>
