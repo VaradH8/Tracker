@@ -2,6 +2,7 @@
 
 import {
   X,
+  ArrowLeft,
   Calendar,
   Clock,
   Users,
@@ -58,9 +59,14 @@ function initials(name: string) {
 
 export function TaskDrawer({
   taskId,
+  backLabel,
   onClose,
 }: {
   taskId: number;
+  /** Set when the drawer was opened from inside another drawer that is
+   *  still mounted underneath — swaps the close X for a labelled Back
+   *  control that names where closing returns you to. */
+  backLabel?: string;
   onClose: () => void;
 }) {
   const store = useTasks();
@@ -193,6 +199,14 @@ export function TaskDrawer({
       />
       <aside className="w-full max-w-[480px] bg-white shadow-2xl flex flex-col h-full overflow-hidden">
         <div className="px-5 py-4 border-b border-ink-200 flex items-center gap-3">
+          {backLabel && (
+            <button
+              onClick={onClose}
+              className="inline-flex items-center gap-1 -ml-1 pl-1 pr-2 py-1 rounded text-xs font-medium text-brand-blue hover:bg-brand-blueBg shrink-0"
+            >
+              <ArrowLeft size={14} /> {backLabel}
+            </button>
+          )}
           <PriorityPicker
             value={task.priority}
             onChange={(p) => store.setPriority(task.id, p)}
@@ -232,13 +246,15 @@ export function TaskDrawer({
                 <Trash2 size={16} />
               </button>
             )}
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded hover:bg-ink-100"
-              aria-label="Close"
-            >
-              <X size={18} />
-            </button>
+            {!backLabel && (
+              <button
+                onClick={onClose}
+                className="p-1.5 rounded hover:bg-ink-100"
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            )}
           </div>
         </div>
 

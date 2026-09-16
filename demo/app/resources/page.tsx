@@ -12,6 +12,8 @@ import {
   X,
   Activity,
   Briefcase,
+  ChevronDown,
+  ChevronRight,
   Users as UsersIcon,
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -20,11 +22,14 @@ import {
   performancePill,
   loggedHours,
   firstNameOf,
+  type Project,
   type Resource,
   type PerformanceFlag,
+  type Task,
   type TimeEntry,
 } from "@/lib/mock";
 import { useTasks } from "@/lib/tasks-store";
+import { useProjects } from "@/lib/projects-store";
 import { ROLE_LABELS, type Role } from "@/lib/role";
 import { useAccounts, type Account } from "@/lib/account-store";
 import { useTaskDrawer } from "@/components/TaskDrawerProvider";
@@ -107,6 +112,38 @@ function fmtHM(hours: number): string {
   const m = totalMin % 60;
   if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
   return `${m}m`;
+}
+
+/** A person's tasks bucketed under the project they belong to. */
+type ProjectGroup = { id: number; name: string; tasks: Task[] };
+
+/** Bucket key for tasks whose project no longer resolves. Real project ids
+ *  are positive, so this can never collide with one. */
+const NO_PROJECT = -1;
+
+/** Group a person's assignments by project, heaviest project first so the
+ *  drawer opens on where their time actually goes. Tasks whose project no
+ *  longer resolves collect in a single "No project" bucket, pinned last. */
+function groupTasksByProject(
+  tasks: Task[],
+  projectById: (id: number) => Project | undefined,
+): ProjectGroup[] {
+  const groups = new Map<number, ProjectGroup>();
+  for (const t of tasks) {
+    const project = projectById(t.projectId);
+    const key = project ? t.projectId : NO_PROJECT;
+    let g = groups.get(key);
+    if (!g) {
+      g = { id: key, name: project?.name ?? "No project", tasks: [] };
+      groups.set(key, g);
+    }
+    g.tasks.push(t);
+  }
+  return [...groups.values()].sort((a, b) => {
+    if (a.id === NO_PROJECT) return 1;
+    if (b.id === NO_PROJECT) return -1;
+    return b.tasks.length - a.tasks.length || a.name.localeCompare(b.name);
+  });
 }
 
 const FILTERS: PerformanceFlag[] = ["On track", "Watch", "Idle"];
@@ -437,9 +474,13 @@ function ResourceDrawer({
   onClose: () => void;
 }) {
   const { tasks, timeEntries } = useTasks();
+  const { projectById } = useProjects();
   const drawer = useTaskDrawer();
+  // Which project's task list is currently expanded. Null = all collapsed.
+  const [openProject, setOpenProject] = useState<number | null>(null);
   const person = firstNameOf(r.name);
   const myTasks = tasks.filter((t) => t.assignees.includes(person));
+  const projectGroups = groupTasksByProject(myTasks, projectById);
   const hours7 = loggedHours(person, timeEntries, 7);
   const hours30 = loggedHours(person, timeEntries, 30);
   const utilization = Math.round((hours7 / r.capacityPerWeek) * 100);
@@ -585,31 +626,71 @@ function ResourceDrawer({
 
           <section>
             <h4 className="text-xs font-semibold text-ink-700 uppercase tracking-wide mb-2">
-              Assignments ({myTasks.length})
+              Assignments ({myTasks.length}) ·{" "}
+              {projectGroups.length}{" "}
+              {projectGroups.length === 1 ? "project" : "projects"}
             </h4>
             <ul className="space-y-2">
-              {myTasks.length === 0 ? (
+              {projectGroups.length === 0 ? (
                 <li className="text-xs text-ink-500 italic">
                   No tasks assigned.
                 </li>
               ) : (
-                myTasks.map((t) => (
-                  <li key={t.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onClose();
-                        drawer.open(t.id);
-                      }}
-                      className="card p-3 text-sm flex items-center gap-2 w-full text-left hover:shadow-md hover:border-brand-blue transition"
-                    >
-                      <span className="flex-1 truncate">{t.title}</span>
-                      <span className={`pill-grey text-[10px] py-0`}>
-                        {t.status}
-                      </span>
-                    </button>
-                  </li>
-                ))
+                projectGroups.map((g) => {
+                  const expanded = openProject === g.id;
+                  return (
+                    <li key={g.id}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setOpenProject(expanded ? null : g.id)
+                        }
+                        aria-expanded={expanded}
+                        className="card p-3 text-sm flex items-center gap-2 w-full text-left hover:shadow-md hover:border-brand-blue transition"
+                      >
+                        <span className="text-ink-400 shrink-0">
+                          {expanded ? (
+                            <ChevronDown size={14} />
+                          ) : (
+                            <ChevronRight size={14} />
+                          )}
+                        </span>
+                        <span className="flex-1 truncate font-medium text-ink-900">
+                          {g.name}
+                        </span>
+                        <span className="pill-grey text-[10px] py-0">
+                          {g.tasks.length}{" "}
+                          {g.tasks.length === 1 ? "task" : "tasks"}
+                        </span>
+                      </button>
+                      {expanded && (
+                        <ul className="mt-2 ml-2 pl-3 border-l border-ink-200 space-y-2">
+                          {g.tasks.map((t) => (
+                            <li key={t.id}>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  // Leave this drawer mounted underneath so
+                                  // the task drawer's Back control returns to
+                                  // the project list, not to bare Resources.
+                                  drawer.open(t.id, { backLabel: "Back" })
+                                }
+                                className="card p-3 text-sm flex items-center gap-2 w-full text-left hover:shadow-md hover:border-brand-blue transition"
+                              >
+                                <span className="flex-1 truncate">
+                                  {t.title}
+                                </span>
+                                <span className="pill-grey text-[10px] py-0">
+                                  {t.status}
+                                </span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  );
+                })
               )}
             </ul>
           </section>
