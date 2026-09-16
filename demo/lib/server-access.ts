@@ -246,21 +246,52 @@ export function forkableTasksFilter(userId: string) {
   };
 }
 
-/** Look up a User by first name (case-insensitive). Internal tool: we
- *  assume first names are unique enough; returns the first match. */
-export async function userByFirstName(firstName: string) {
+/** Resolve a first name (what the client sends for people) to an account.
+ *
+ *  First names are not unique. When several accounts share one, `prefer`
+ *  breaks the tie: the signed-in user themselves first (a Developer
+ *  self-assigning must land on their own account), then someone rostered
+ *  on `projectId` (the picker only offers the project's roster, so that is
+ *  who the client meant), then any active account. Without this, the
+ *  first row the database happened to return won — which could be a
+ *  namesake who is not on the project, and the roster check then rejected
+ *  a perfectly valid self-assignment. */
+export async function userByFirstName(
+  firstName: string,
+  prefer: { projectId?: number; userId?: string } = {},
+) {
   const q = firstName.trim().toLowerCase();
   if (!q) return null;
   // Matched in JS rather than with Prisma's `mode: "insensitive"`, which
   // is Postgres-only and throws against the SQLite dev database — the same
   // reason lib/auth.ts and lib/domain-auth.ts compare names this way.
   const everyone = await prisma.user.findMany();
-  return (
-    everyone.find((u) => {
-      const name = u.name.trim().toLowerCase();
-      return name === q || name.startsWith(q + " ");
-    }) ?? null
-  );
+  const matches = everyone.filter((u) => {
+    const name = u.name.trim().toLowerCase();
+    return name === q || name.startsWith(q + " ");
+  });
+  if (matches.length === 0) return null;
+  if (matches.length === 1) return matches[0];
+
+  if (prefer.userId) {
+    const self = matches.find((u) => u.id === prefer.userId);
+    if (self) return self;
+  }
+  if (prefer.projectId !== undefined) {
+    const rostered = await prisma.projectMember.findMany({
+      where: {
+        projectId: prefer.projectId,
+        userId: { in: matches.map((u) => u.id) },
+      },
+      select: { userId: true },
+    });
+    const onProject = new Set(rostered.map((r) => r.userId));
+    const member =
+      matches.find((u) => onProject.has(u.id) && u.isActive) ??
+      matches.find((u) => onProject.has(u.id));
+    if (member) return member;
+  }
+  return matches.find((u) => u.isActive) ?? matches[0];
 }
 
 /** Write a Notification + the matching EmailLog row in one shot, and

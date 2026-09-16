@@ -134,7 +134,10 @@ export async function PATCH(
       if (body.responsible === null) {
         data.responsibleId = null;
       } else {
-        const u = await userByFirstName(body.responsible);
+        const u = await userByFirstName(body.responsible, {
+          projectId: existing.projectId,
+          userId: user.id,
+        });
         if (u) data.responsibleId = u.id;
       }
     }

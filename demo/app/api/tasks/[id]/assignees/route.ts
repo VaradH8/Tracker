@@ -39,7 +39,10 @@ export async function POST(
   const name = String(body.name ?? "");
   const action: "add" | "remove" | "toggle" = body.action ?? "toggle";
 
-  const target = await userByFirstName(name);
+  const target = await userByFirstName(name, {
+    projectId: task.projectId,
+    userId: user.id,
+  });
   if (!target) {
     return NextResponse.json({ error: "User not found." }, { status: 404 });
   }

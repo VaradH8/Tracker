@@ -101,8 +101,11 @@ export async function POST(req: Request) {
   const assigneeNames: string[] = Array.isArray(body.assignees)
     ? body.assignees
     : [];
+  // Resolve against this project's roster (and the requester themselves)
+  // so a namesake elsewhere in the company can't hijack the pick.
+  const resolveHint = { projectId, userId: user.id };
   const assigneeUsers = await Promise.all(
-    assigneeNames.map((n) => userByFirstName(String(n))),
+    assigneeNames.map((n) => userByFirstName(String(n), resolveHint)),
   );
   const validAssignees = assigneeUsers.filter(
     (u): u is NonNullable<typeof u> => u !== null,
@@ -130,7 +133,7 @@ export async function POST(req: Request) {
     user.role === "Developer"
       ? null
       : responsibleFirst
-        ? await userByFirstName(responsibleFirst)
+        ? await userByFirstName(responsibleFirst, resolveHint)
         : null;
 
   const task = await prisma.task.create({
