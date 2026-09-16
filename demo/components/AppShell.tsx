@@ -21,6 +21,7 @@ import {
   CalendarClock,
   Users2,
   BarChart3,
+  MessagesSquare,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Logo } from "./Logo";
@@ -41,6 +42,7 @@ type NavItem = {
 const NAV: Record<Role, NavItem[]> = {
   Admin: [
     { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
+    { href: "/ask", label: "Ask Tracker", Icon: MessagesSquare },
     { href: "/analytics", label: "Analytics", Icon: BarChart3 },
     { href: "/projects", label: "Projects", Icon: FolderKanban },
     { href: "/calendar", label: "Calendar", Icon: CalendarClock },
@@ -53,6 +55,7 @@ const NAV: Record<Role, NavItem[]> = {
   ],
   Lead: [
     { href: "/my-day", label: "My Day", Icon: Sun },
+    { href: "/ask", label: "Ask Tracker", Icon: MessagesSquare },
     { href: "/projects", label: "Projects", Icon: FolderKanban },
     { href: "/my-tasks", label: "My Tasks", Icon: ListTodo },
     { href: "/team", label: "My team", Icon: Users2 },
@@ -63,6 +66,7 @@ const NAV: Record<Role, NavItem[]> = {
   ],
   Coordinator: [
     { href: "/my-day", label: "My Day", Icon: Sun },
+    { href: "/ask", label: "Ask Tracker", Icon: MessagesSquare },
     { href: "/projects", label: "Projects", Icon: FolderKanban },
     { href: "/my-tasks", label: "My Tasks", Icon: ListTodo },
     { href: "/team", label: "My team", Icon: Users2 },
