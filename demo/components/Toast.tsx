@@ -38,7 +38,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const show = useCallback(
     (message: string, kind: ToastKind = "success", action?: ToastAction) => {
       const id = Date.now() + Math.random();
-      setToasts((prev) => [...prev, { id, kind, message, action }]);
+      // At most four on screen; the oldest makes room. A burst of toasts
+      // should never wall off the page.
+      setToasts((prev) => [...prev, { id, kind, message, action }].slice(-4));
       setTimeout(
         () => {
           setToasts((prev) => prev.filter((t) => t.id !== id));

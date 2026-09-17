@@ -26,6 +26,9 @@ type NewNotification = {
 type Ctx = {
   all: AppNotification[];
   emails: EmailLogEntry[];
+  /** True once the signed-in user's list has been fetched at least once.
+   *  Until then an empty list means "not loaded", not "no notifications". */
+  loaded: boolean;
   forPerson: (person: string) => AppNotification[];
   unreadCount: (person: string) => number;
   markRead: (id: number) => Promise<void>;
@@ -40,6 +43,7 @@ const NotifCtx = createContext<Ctx | null>(null);
 export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [all, setAll] = useState<AppNotification[]>([]);
   const [emails, setEmails] = useState<EmailLogEntry[]>([]);
+  const [loaded, setLoaded] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -51,6 +55,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         const b = (await nRes.json()) as { notifications: AppNotification[] };
         setAll(b.notifications ?? []);
       } else setAll([]);
+      setLoaded(true);
       if (eRes.ok) {
         const b = (await eRes.json()) as { emails: EmailLogEntry[] };
         setEmails(b.emails ?? []);
@@ -69,6 +74,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     if (!userId) {
       setAll([]);
       setEmails([]);
+      setLoaded(false);
       return;
     }
     void refresh();
@@ -127,6 +133,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       value={{
         all,
         emails,
+        loaded,
         forPerson,
         unreadCount,
         markRead,
