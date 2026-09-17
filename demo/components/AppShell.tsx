@@ -20,7 +20,6 @@ import {
   X,
   CalendarClock,
   Users2,
-  BarChart3,
   MessagesSquare,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
@@ -40,17 +39,16 @@ type NavItem = {
 };
 
 const NAV: Record<Role, NavItem[]> = {
+  // Ask Tracker, Analytics and Leaves are off the Admin sidebar but still
+  // reachable by URL (lib/access.ts is unchanged). Notifications is
+  // reached from the bell pop-up's "View all notifications" link.
   Admin: [
     { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
-    { href: "/ask", label: "Ask Tracker", Icon: MessagesSquare },
-    { href: "/analytics", label: "Analytics", Icon: BarChart3 },
     { href: "/projects", label: "Projects", Icon: FolderKanban },
     { href: "/calendar", label: "Calendar", Icon: CalendarClock },
     { href: "/resources", label: "Resources", Icon: Users },
     { href: "/users", label: "Users", Icon: Users },
-    { href: "/notifications", label: "Notifications", Icon: Bell },
     { href: "/audit", label: "Audit log", Icon: ScrollText },
-    { href: "/leaves", label: "Leaves", Icon: CalendarCheck },
     { href: "/settings", label: "Settings", Icon: Settings },
   ],
   Lead: [

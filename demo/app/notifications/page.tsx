@@ -60,6 +60,23 @@ const KIND_LABEL: Record<NotificationKind, string> = {
   leave_requested: "Leave request",
 };
 
+/** `kind` is a free-form String column, so a row can carry a kind these
+ *  maps don't list — e.g. "leave", written by the leave route before it
+ *  became "leave_requested". Rendering `undefined` as a component throws,
+ *  and the error boundary takes the whole page with it. Fall back instead. */
+function iconFor(kind: string): typeof UserPlus {
+  return (
+    (KIND_ICON as Record<string, typeof UserPlus | undefined>)[kind] ?? Bell
+  );
+}
+
+function toneFor(kind: string): string {
+  return (
+    (KIND_TONE as Record<string, string | undefined>)[kind] ??
+    "bg-ink-100 text-ink-700"
+  );
+}
+
 const KINDS: ("All" | NotificationKind)[] = [
   "All",
   "assigned",
@@ -200,7 +217,7 @@ export default function NotificationsPage() {
         ) : (
           <ul className="card divide-y divide-ink-100 overflow-hidden">
             {visible.map((n) => {
-              const Icon = KIND_ICON[n.kind];
+              const Icon = iconFor(n.kind);
               return (
                 <li key={n.id}>
                   <button
@@ -213,7 +230,7 @@ export default function NotificationsPage() {
                     }`}
                   >
                     <div
-                      className={`w-9 h-9 rounded-full grid place-items-center shrink-0 ${KIND_TONE[n.kind]}`}
+                      className={`w-9 h-9 rounded-full grid place-items-center shrink-0 ${toneFor(n.kind)}`}
                     >
                       <Icon size={16} />
                     </div>

@@ -11,7 +11,9 @@ import {
   CalendarCheck,
   CalendarX,
   CalendarClock,
+  Bell,
 } from "lucide-react";
+import Link from "next/link";
 import { useTaskDrawer } from "./TaskDrawerProvider";
 import { useNotifications } from "@/lib/notifications-store";
 import type { NotificationKind } from "@/lib/mock";
@@ -39,6 +41,21 @@ const TONE: Record<NotificationKind, string> = {
   leave_denied: "bg-brand-redBg text-brand-redText",
   leave_requested: "bg-brand-yellowBg text-brand-yellowText",
 };
+
+/** `kind` is a free-form String column, so a row can carry a kind these
+ *  maps don't list — e.g. "leave", written by the leave route before it
+ *  became "leave_requested". Rendering `undefined` as a component throws,
+ *  and the error boundary takes the whole page with it. Fall back instead. */
+function iconFor(kind: string): typeof UserPlus {
+  return (ICON as Record<string, typeof UserPlus | undefined>)[kind] ?? Bell;
+}
+
+function toneFor(kind: string): string {
+  return (
+    (TONE as Record<string, string | undefined>)[kind] ??
+    "bg-ink-100 text-ink-700"
+  );
+}
 
 export function NotificationsPanel({
   person,
@@ -79,7 +96,7 @@ export function NotificationsPanel({
         ) : (
           <ul>
             {items.map((n) => {
-              const Icon = ICON[n.kind];
+              const Icon = iconFor(n.kind);
               return (
                 <li key={n.id}>
                   <button
@@ -95,7 +112,7 @@ export function NotificationsPanel({
                     }`}
                   >
                     <div
-                      className={`w-7 h-7 rounded-full grid place-items-center shrink-0 ${TONE[n.kind]}`}
+                      className={`w-7 h-7 rounded-full grid place-items-center shrink-0 ${toneFor(n.kind)}`}
                     >
                       <Icon size={14} />
                     </div>
@@ -122,6 +139,14 @@ export function NotificationsPanel({
           </ul>
         )}
       </div>
+
+      <Link
+        href="/notifications"
+        onClick={onClose}
+        className="block px-4 py-2.5 border-t border-ink-200 text-center text-sm font-medium text-brand-blue hover:bg-ink-50"
+      >
+        View all notifications
+      </Link>
     </div>
   );
 }
