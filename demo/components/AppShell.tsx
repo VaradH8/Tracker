@@ -40,8 +40,9 @@ type NavItem = {
 
 const NAV: Record<Role, NavItem[]> = {
   // Ask Tracker, Analytics and Leaves are off the Admin sidebar but still
-  // reachable by URL (lib/access.ts is unchanged). Notifications is
-  // reached from the bell pop-up's "View all notifications" link.
+  // reachable by URL (lib/access.ts is unchanged). Notifications isn't in
+  // any role's sidebar: everyone reaches it from the top-bar bell, whose
+  // pop-up links to the full page ("View all notifications").
   Admin: [
     { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
     { href: "/projects", label: "Projects", Icon: FolderKanban },
@@ -59,7 +60,6 @@ const NAV: Record<Role, NavItem[]> = {
     { href: "/team", label: "My team", Icon: Users2 },
     { href: "/calendar", label: "Calendar", Icon: CalendarClock },
     { href: "/resources", label: "Resources", Icon: Users },
-    { href: "/notifications", label: "Notifications", Icon: Bell },
     { href: "/leaves", label: "Leaves", Icon: CalendarCheck },
   ],
   Coordinator: [
@@ -70,21 +70,18 @@ const NAV: Record<Role, NavItem[]> = {
     { href: "/team", label: "My team", Icon: Users2 },
     { href: "/calendar", label: "Calendar", Icon: CalendarClock },
     { href: "/resources", label: "Resources", Icon: Users },
-    { href: "/notifications", label: "Notifications", Icon: Bell },
     { href: "/leaves", label: "Leaves", Icon: CalendarCheck },
   ],
   BusinessDeveloper: [
     { href: "/projects", label: "Projects", Icon: FolderKanban },
     { href: "/clients", label: "Clients", Icon: Briefcase },
     { href: "/calendar", label: "Calendar", Icon: CalendarClock },
-    { href: "/notifications", label: "Notifications", Icon: Bell },
     { href: "/leaves", label: "Leaves", Icon: CalendarCheck },
   ],
   Developer: [
     { href: "/my-tasks", label: "My Tasks", Icon: ListTodo },
     { href: "/projects", label: "Projects", Icon: FolderKanban },
     { href: "/calendar", label: "Calendar", Icon: CalendarClock },
-    { href: "/notifications", label: "Notifications", Icon: Bell },
     { href: "/leaves", label: "Leaves", Icon: CalendarCheck },
   ],
 };

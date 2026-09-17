@@ -97,6 +97,7 @@ export default function ProjectDetailPage({
     tasks: allTasks,
     auditLog,
     refresh: refreshTasks,
+    hydrated: tasksHydrated,
   } = useTasks();
 
   const me = useMyFirstName();
@@ -116,11 +117,14 @@ export default function ProjectDetailPage({
   const [histDate, setHistDate] = useState("");
   const thisWeek = currentWeek();
 
+  // Wait for projects + tasks before judging access: on a direct link or
+  // a refresh both stores are still empty on the first renders, which
+  // reads as "not on this project" and bounced people to their landing.
   useEffect(() => {
-    if (hydrated && !allowed) {
+    if (hydrated && projectsHydrated && tasksHydrated && !allowed) {
       router.replace(landingFor(role));
     }
-  }, [hydrated, allowed, role, router]);
+  }, [hydrated, projectsHydrated, tasksHydrated, allowed, role, router]);
 
   const client = clients.find((c) => c.id === project?.clientId);
   const tasks = forProject(projectId);
