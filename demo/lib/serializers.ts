@@ -257,11 +257,19 @@ type PrismaNotification = {
   createdAt: Date;
 };
 
+/** Kinds renamed after rows were already stored under the old name. The
+ *  leave route briefly wrote approver notifications as "leave"; read them
+ *  back under the name the client knows. Stored rows are left as they are. */
+const LEGACY_NOTIFICATION_KINDS: Record<string, AppNotification["kind"]> = {
+  leave: "leave_requested",
+};
+
 export function serializeNotification(n: PrismaNotification): AppNotification {
   return {
     id: n.id,
     recipient: n.user?.name.split(" ")[0] ?? "—",
-    kind: n.kind as AppNotification["kind"],
+    kind:
+      LEGACY_NOTIFICATION_KINDS[n.kind] ?? (n.kind as AppNotification["kind"]),
     title: n.title,
     body: n.body,
     taskId: n.taskId ?? undefined,
