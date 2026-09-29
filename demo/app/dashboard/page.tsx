@@ -53,11 +53,12 @@ export default function OrgDashboardPage() {
 
   // Logged hours per person per day, from the time log. The dashboard is
   // Admin-only and admins receive every entry, so these are team totals.
+  // Keyed by the entry's user id: matching back by first name credited
+  // everyone who shares a first name to a single account.
   const hourDays = useMemo<HourDay[]>(() => {
-    const idByFirst = new Map(accounts.map((a) => [a.name.split(" ")[0], a.id]));
     const byKey = new Map<string, HourDay>();
     for (const e of timeEntries) {
-      const userId = idByFirst.get(e.person);
+      const userId = e.userId;
       if (!userId) continue;
       const key = `${userId}|${e.date}`;
       const cur = byKey.get(key) ?? { userId, date: e.date, hours: 0 };
@@ -65,7 +66,7 @@ export default function OrgDashboardPage() {
       byKey.set(key, cur);
     }
     return Array.from(byKey.values());
-  }, [timeEntries, accounts]);
+  }, [timeEntries]);
   const [leaves, setLeaves] = useState<LeaveEntry[]>([]);
   const today = todayISO();
 
@@ -252,7 +253,9 @@ export default function OrgDashboardPage() {
             subtitle={
               util.length === 0
                 ? "No active team members."
-                : overloaded > 0
+                : teamHours === 0
+                  ? "Nobody has logged time in the last 5 working days — hours come from the task timer and manual time entries."
+                  : overloaded > 0
                   ? `${overloaded} ${overloaded === 1 ? "person" : "people"} over weekly capacity`
                   : "Hours logged against each person's weekly capacity"
             }

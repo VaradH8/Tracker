@@ -3,6 +3,8 @@ import { requireUser, canManageUsers } from "@/lib/server-access";
 import { createAccount } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import type { Role } from "@/lib/role";
+import { shortName } from "@/lib/short-name";
+import { refreshShortNames } from "@/lib/server-names";
 
 const ROLES: Role[] = [
   "Admin",
@@ -47,6 +49,8 @@ export async function POST(req: Request) {
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 400 });
   }
+  // A new namesake changes both people's labels — pick it up now.
+  await refreshShortNames(true);
   const created = await prisma.user.findUnique({
     where: { id: result.user.id },
   });
@@ -72,6 +76,7 @@ function serialize(u: {
     id: u.id,
     email: u.email,
     name: u.name,
+    shortName: shortName(u.name),
     role: u.primaryRole as Role,
     isAdmin: u.isAdmin,
     active: u.isActive,
@@ -104,6 +109,7 @@ function serializeRoster(u: {
     id: u.id,
     email: u.email,
     name: u.name,
+    shortName: shortName(u.name),
     role: u.primaryRole as Role,
     isAdmin: u.isAdmin,
     active: u.isActive,

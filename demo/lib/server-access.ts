@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, type SessionUser } from "./auth";
 import { prisma } from "./db";
+import { refreshShortNames } from "./server-names";
 
 export type { SessionUser } from "./auth";
 
@@ -9,6 +10,9 @@ export async function requireUser(): Promise<SessionUser | NextResponse> {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  // Every route serializes people by shortName(); make sure it knows who
+  // shares a first name before any of that happens.
+  await refreshShortNames();
   return user;
 }
 
@@ -272,6 +276,14 @@ export async function userByFirstName(
   });
   if (matches.length === 0) return null;
   if (matches.length === 1) return matches[0];
+
+  // Where two people share a first name the UI names them in full
+  // ("Pushpalata Patil" vs "Pushpalata" — see lib/short-name.ts), so a
+  // full-name hit is the person meant; only fall through to the
+  // self/roster/active preferences when the name itself is ambiguous.
+  const tidy = (n: string) => n.trim().replace(/\s+/g, " ").toLowerCase();
+  const exact = matches.filter((u) => tidy(u.name) === tidy(q));
+  if (exact.length === 1) return exact[0];
 
   if (prefer.userId) {
     const self = matches.find((u) => u.id === prefer.userId);

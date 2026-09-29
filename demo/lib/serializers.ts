@@ -14,6 +14,7 @@ import type {
   TimeEntry,
   AuditEntry,
 } from "./mock";
+import { shortName } from "./short-name";
 
 /**
  * Reshape Prisma rows into the client-side types the UI already speaks
@@ -46,7 +47,7 @@ export function serializeProject(p: PrismaProject): Project {
       new Set(
         (p.members ?? [])
           .filter((m) => m.role === role)
-          .map((m) => m.user.name.split(" ")[0]),
+          .map((m) => shortName(m.user.name)),
       ),
     );
   return {
@@ -111,7 +112,7 @@ type PrismaTask = {
   approvedById: string | null;
   approvedBy?: { name: string } | null;
   approvedAt: Date | null;
-  assignees?: { user: { name: string } }[];
+  assignees?: { userId: string; user: { name: string } }[];
   remarks?: PrismaRemark[];
   attachments?: PrismaAttachment[];
   blockedBy?: { blockerTaskId: number }[];
@@ -130,8 +131,9 @@ export function serializeTask(t: PrismaTask): Task {
     projectId: t.projectId,
     priority: t.priority as Priority,
     status: t.status as Status,
-    responsible: t.responsible?.name.split(" ")[0] ?? "",
-    assignees: (t.assignees ?? []).map((a) => a.user.name.split(" ")[0]),
+    responsible: t.responsible ? shortName(t.responsible.name) : "",
+    assignees: (t.assignees ?? []).map((a) => shortName(a.user.name)),
+    assigneeIds: (t.assignees ?? []).map((a) => a.userId),
     startDate: t.startDate ? t.startDate.toISOString().slice(0, 10) : undefined,
     targetDate: t.targetDate
       ? t.targetDate.toISOString().slice(0, 10)
@@ -144,10 +146,12 @@ export function serializeTask(t: PrismaTask): Task {
     remarks: (t.remarks ?? []).map(serializeRemark),
     attachments: (t.attachments ?? []).map(serializeAttachment),
     dependsOn: (t.blockedBy ?? []).map((d) => d.blockerTaskId),
-    approvedBy: t.approvedBy?.name.split(" ")[0],
+    approvedBy: t.approvedBy ? shortName(t.approvedBy.name) : undefined,
     approvedAt: t.approvedAt ? relativeWhen(t.approvedAt) : undefined,
     forkedFromId: t.forkedFromId ?? null,
-    forkedFromOwner: t.forkedFrom?.responsible?.name.split(" ")[0],
+    forkedFromOwner: t.forkedFrom?.responsible
+      ? shortName(t.forkedFrom.responsible.name)
+      : undefined,
     forkedAt: t.forkedAt ? t.forkedAt.toISOString().slice(0, 10) : null,
   };
 }
@@ -163,7 +167,7 @@ type PrismaRemark = {
 export function serializeRemark(r: PrismaRemark): Remark {
   return {
     id: r.id,
-    author: r.author?.name.split(" ")[0] ?? "—",
+    author: r.author ? shortName(r.author.name) : "—",
     body: r.body,
     when: relativeWhen(r.createdAt),
   };
@@ -187,7 +191,7 @@ export function serializeAttachment(a: PrismaAttachment): TaskAttachment {
     kind: (["pdf", "image", "doc", "sheet"].includes(a.kind)
       ? a.kind
       : "other") as TaskAttachment["kind"],
-    uploadedBy: a.uploadedBy?.name.split(" ")[0] ?? "—",
+    uploadedBy: a.uploadedBy ? shortName(a.uploadedBy.name) : "—",
     when: relativeWhen(a.createdAt),
   };
 }
@@ -208,7 +212,8 @@ export function serializeTimeEntry(t: PrismaTimeEntry): TimeEntry {
   return {
     id: t.id,
     taskId: t.taskId,
-    person: t.user?.name.split(" ")[0] ?? "—",
+    person: t.user ? shortName(t.user.name) : "—",
+    userId: t.userId,
     date: t.date.toISOString().slice(0, 10),
     hours: t.hours ?? 0,
     note: t.note ?? undefined,
@@ -234,7 +239,7 @@ type PrismaAudit = {
 export function serializeAudit(a: PrismaAudit): AuditEntry {
   return {
     id: a.id,
-    actor: a.actor?.name.split(" ")[0] ?? "(removed user)",
+    actor: a.actor ? shortName(a.actor.name) : "(removed user)",
     action: a.action,
     scope: a.scope ?? "—",
     taskTitle: a.taskTitle ?? undefined,
@@ -267,7 +272,7 @@ const LEGACY_NOTIFICATION_KINDS: Record<string, AppNotification["kind"]> = {
 export function serializeNotification(n: PrismaNotification): AppNotification {
   return {
     id: n.id,
-    recipient: n.user?.name.split(" ")[0] ?? "—",
+    recipient: n.user ? shortName(n.user.name) : "—",
     kind:
       LEGACY_NOTIFICATION_KINDS[n.kind] ?? (n.kind as AppNotification["kind"]),
     title: n.title,
@@ -293,7 +298,7 @@ type PrismaEmail = {
 export function serializeEmail(e: PrismaEmail): EmailLogEntry {
   return {
     id: e.id,
-    to: e.recipient?.name.split(" ")[0] ?? e.toEmail.split("@")[0],
+    to: e.recipient ? shortName(e.recipient.name) : e.toEmail.split("@")[0],
     toEmail: e.toEmail,
     subject: e.subject,
     body: e.body,

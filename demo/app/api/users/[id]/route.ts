@@ -4,6 +4,8 @@ import { requireUser, canManageUsers } from "@/lib/server-access";
 import { passwordIssue } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import type { Role } from "@/lib/role";
+import { shortName } from "@/lib/short-name";
+import { refreshShortNames } from "@/lib/server-names";
 
 export async function DELETE(
   _req: Request,
@@ -162,11 +164,14 @@ export async function PATCH(
     where: { id },
     data,
   });
+  // A rename can create or end a first-name clash — relabel now.
+  if (data.name !== undefined) await refreshShortNames(true);
 
   return NextResponse.json({
     user: {
       id: updated.id,
       name: updated.name,
+      shortName: shortName(updated.name),
       email: updated.email,
       role: updated.primaryRole as Role,
       isAdmin: updated.isAdmin,

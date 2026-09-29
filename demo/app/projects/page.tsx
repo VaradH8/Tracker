@@ -19,7 +19,7 @@ import {
   useRole,
   type Role,
 } from "@/lib/role";
-import { useAccounts, useMyFirstName } from "@/lib/account-store";
+import { labelOf, useAccounts, useMyFirstName } from "@/lib/account-store";
 import { visibleProjects } from "@/lib/access";
 import { useToast } from "@/components/Toast";
 import { Modal } from "@/components/Modal";
@@ -70,7 +70,7 @@ function ActiveProjects({ role }: { role: Role }) {
 
   // Project rosters carry first names; show the full name when it resolves.
   function fullNameOf(first: string): string {
-    return accounts.find((a) => a.name.split(" ")[0] === first)?.name ?? first;
+    return accounts.find((a) => labelOf(a) === first)?.name ?? first;
   }
 
   // Fresh list every time the page opens: somebody may have put you on a

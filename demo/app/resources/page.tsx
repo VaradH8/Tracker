@@ -20,7 +20,7 @@ import { AppShell } from "@/components/AppShell";
 import { EmptyState } from "@/components/EmptyState";
 import {
   performancePill,
-  firstNameOf,
+  isAssignedTo,
   type Project,
   type Resource,
   type PerformanceFlag,
@@ -30,7 +30,7 @@ import { useTasks } from "@/lib/tasks-store";
 import { type AuditEntry } from "@/lib/mock";
 import { useProjects } from "@/lib/projects-store";
 import { ROLE_LABELS, type Role } from "@/lib/role";
-import { useAccounts, type Account } from "@/lib/account-store";
+import { labelOf, useAccounts, type Account } from "@/lib/account-store";
 import { useTaskDrawer } from "@/components/TaskDrawerProvider";
 
 /**
@@ -45,18 +45,28 @@ function deriveResource(
   tasks: Task[],
   auditLog: AuditEntry[],
 ): Resource {
-  const first = firstNameOf(a.name);
-  const myTasks = tasks.filter((t) => t.assignees.includes(first));
+  const label = labelOf(a);
+  const myTasks = tasks.filter((t) => isAssignedTo(t, a));
   const tasksOpen = myTasks.filter((t) => t.status !== "Done").length;
   const tasksOverdue = myTasks.filter(
     (t) => !!t.overdueDays && t.status !== "Done",
   ).length;
-  const tasksDone30 = myTasks.filter((t) => t.status === "Done").length;
+  // Honour the "(30d)" label: only work finished in the last 30 days.
+  // Older imports have no completedAt, so fall back to the target date.
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+  const tasksDone30 = myTasks.filter((t) => {
+    if (t.status !== "Done") return false;
+    const done = t.completedAt ?? t.targetDate;
+    return !!done && done >= since;
+  }).length;
 
   // "Last edit" is the most recent thing this person did, from the audit
-  // log — not a constant.
+  // log — not a constant. Actors carry the same label as everyone else,
+  // so an exact match keeps "Pushpalata" off "Pushpalata Patil"'s edits.
   const latest = auditLog
-    .filter((e) => e.actor === first || e.actor.startsWith(first + " "))
+    .filter((e) => e.actor === label)
     .reduce<AuditEntry | null>(
       (m, e) => (!m || e.whenExact > m.whenExact ? e : m),
       null,
@@ -280,7 +290,7 @@ export default function ResourcesPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {visible.map((r) => {
               const myTasks = tasks.filter((t) =>
-                t.assignees.includes(r.name.split(" ")[0]),
+                isAssignedTo(t, { id: r.id as unknown as string, name: r.name }),
               );
               const open = myTasks.filter((t) => t.status !== "Done").length;
               return (
@@ -445,8 +455,9 @@ function ResourceDrawer({
   const drawer = useTaskDrawer();
   // Which project's task list is currently expanded. Null = all collapsed.
   const [openProject, setOpenProject] = useState<number | null>(null);
-  const person = firstNameOf(r.name);
-  const myTasks = tasks.filter((t) => t.assignees.includes(person));
+  const myTasks = tasks.filter((t) =>
+    isAssignedTo(t, { id: r.id as unknown as string, name: r.name }),
+  );
   const projectGroups = groupTasksByProject(myTasks, projectById);
   const perf = performancePill(r.performance);
   const initials = r.name

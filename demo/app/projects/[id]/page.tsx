@@ -36,7 +36,7 @@ import {
   type ProjectMemberRole,
 } from "@/lib/projects-store";
 import { useRole, landingFor, candidatesForProjectRole } from "@/lib/role";
-import { useAccounts, useMyFirstName, type Account } from "@/lib/account-store";
+import { labelOf, useAccounts, useMyFirstName, type Account } from "@/lib/account-store";
 import {
   canAccessProject,
   canExportData,
@@ -1082,7 +1082,7 @@ function CreateTaskModal({
   const eligible = (pick: (a: Account) => boolean) =>
     accounts
       .filter((a) => a.active && pick(a))
-      .map((a) => a.name.split(" ")[0])
+      .map((a) => labelOf(a))
       .filter((n) => !allowed || allowed.has(n));
   const devCandidates = eligible((a) => a.role === "Developer");
   const coordCandidates = eligible((a) => a.role === "Coordinator");

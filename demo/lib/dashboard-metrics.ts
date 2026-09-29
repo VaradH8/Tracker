@@ -1,5 +1,5 @@
 import type { Account } from "./account-store";
-import type { Client, LeaveEntry, Project, ProjectStatus, Task } from "./mock";
+import { isAssignedTo, type Client, type LeaveEntry, type Project, type ProjectStatus, type Task } from "./mock";
 import type { Role } from "./role";
 
 /**
@@ -179,7 +179,7 @@ export function utilization(accounts: Account[], days: HourDay[], today: string)
     .map((a) => {
       const hours = lastWorkWeekHours(days, a.id, today);
       const capacity = a.capacityPerWeek ?? 40;
-      return { id: a.id, name: firstName(a.name), hours, capacity, ratio: capacity > 0 ? hours / capacity : 0 };
+      return { id: a.id, name: a.shortName ?? firstName(a.name), hours, capacity, ratio: capacity > 0 ? hours / capacity : 0 };
     })
     .sort((a, b) => b.ratio - a.ratio || a.name.localeCompare(b.name));
 }
@@ -204,8 +204,8 @@ export function openTasksByPerson(accounts: Account[], tasks: Task[]): WorkloadR
   return accounts
     .filter((a) => a.active)
     .map((a) => {
-      const first = firstName(a.name);
-      const open = tasks.filter((t) => t.status !== "Done" && t.assignees.includes(first));
+      const first = a.shortName ?? firstName(a.name);
+      const open = tasks.filter((t) => t.status !== "Done" && isAssignedTo(t, a));
       const overdue = open.filter((t) => (t.overdueDays ?? 0) > 0).length;
       return { name: first, onTime: open.length - overdue, overdue };
     })

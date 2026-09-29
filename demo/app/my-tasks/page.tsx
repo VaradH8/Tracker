@@ -7,6 +7,7 @@ import { TaskCard } from "@/components/TaskCard";
 import { EmptyState } from "@/components/EmptyState";
 import { ForkableTasks } from "@/components/ForkableTasks";
 import {
+  isAssignedTo,
   isoWeekRange,
   taskInRange,
   todayISO,
@@ -14,7 +15,7 @@ import {
   type Task,
 } from "@/lib/mock";
 import { useRole } from "@/lib/role";
-import { useMyFirstName } from "@/lib/account-store";
+import { useAccounts } from "@/lib/account-store";
 import { useTasks } from "@/lib/tasks-store";
 
 const COLUMNS: { id: Status; title: string; accent: string }[] = [
@@ -70,8 +71,8 @@ export default function MyTasksPage() {
     localStorage.setItem(FOCUS_KEY, f ? "focus" : "all");
   }
 
-  const me = useMyFirstName();
-  const mine = tasks.filter((t) => t.assignees.includes(me));
+  const { current } = useAccounts();
+  const mine = current ? tasks.filter((t) => isAssignedTo(t, current)) : [];
 
   const thisWeekRange = useMemo(() => isoWeekRange(0), []);
   const lastWeekRange = useMemo(() => isoWeekRange(1), []);
