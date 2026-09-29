@@ -18,6 +18,7 @@ import {
   PriorityPicker,
   QuickActions,
   StatusPicker,
+  TimerControls,
 } from "./InlineActions";
 
 export function TaskCard({
@@ -160,6 +161,28 @@ export function TaskCard({
           readOnly={!isAssignee && !canEdit}
         />
         <div className="flex items-center gap-2 flex-wrap">
+          <TimerControls
+            task={task}
+            canRun={isAssignee}
+            // Cumulative logged time is the task's server-tracked
+            // actualHours: it's incremented atomically as each interval
+            // closes, so it survives start/stop cycles that a summed
+            // client-side entry list does not.
+            loggedHours={task.actualHours ?? 0}
+            active={store.activeTimer}
+            onStart={() => {
+              void store.startTimer(task.id);
+              toast.show(`Timer started on "${task.title}".`);
+            }}
+            onStop={() => {
+              void store.stopTimer(task.id);
+              toast.show("Timer paused — resume any time with Start.");
+            }}
+            onDone={() => {
+              void store.doneTimer(task.id);
+              toast.show(`"${task.title}" marked Done.`);
+            }}
+          />
           <QuickActions
             task={task}
             isAssignee={isAssignee}
