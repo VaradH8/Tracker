@@ -28,7 +28,7 @@ import { BRAND_NAVY, BrandPanel } from "./InventiveBrand";
 import { NotificationsPanel } from "./NotificationsPanel";
 import { CommandPalette } from "./CommandPalette";
 import { useRole, type Role, ROLE_LABELS, landingFor } from "@/lib/role";
-import { useAccounts, type Account } from "@/lib/account-store";
+import { labelOf, useAccounts, type Account } from "@/lib/account-store";
 import { canAccess } from "@/lib/access";
 import { useNotifications } from "@/lib/notifications-store";
 
@@ -316,7 +316,7 @@ function TopBar({
   const { signOut } = useAccounts();
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const person = account.name.split(" ")[0];
+  const person = labelOf(account);
   const initials = initialsFor(account.name);
   const avatarColor = ROLE_COLOR[account.role];
   const { unreadCount } = useNotifications();

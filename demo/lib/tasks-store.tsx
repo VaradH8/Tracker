@@ -222,7 +222,15 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       if (Array.isArray(body.assignees)) {
         setTasks((prev) =>
           prev.map((t) =>
-            t.id === id ? { ...t, assignees: body.assignees } : t,
+            t.id === id
+              ? {
+                  ...t,
+                  assignees: body.assignees,
+                  assigneeIds: Array.isArray(body.assigneeIds)
+                    ? body.assigneeIds
+                    : undefined,
+                }
+              : t,
           ),
         );
       }

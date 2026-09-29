@@ -8,7 +8,7 @@ import {
 } from "react";
 import { Lock } from "lucide-react";
 import { useTasks } from "@/lib/tasks-store";
-import { useAccounts, useMyFirstName } from "@/lib/account-store";
+import { labelOf, useAccounts, useMyFirstName } from "@/lib/account-store";
 import { useToast } from "./Toast";
 import { useNotifications } from "@/lib/notifications-store";
 import { Modal } from "./Modal";
@@ -31,7 +31,7 @@ export function BlockDialogProvider({ children }: { children: ReactNode }) {
   // co-ordinators to pick from (not BDs/Leads/Admins).
   const people = accounts
     .filter((a) => a.active && (a.role === "Developer" || a.role === "Coordinator"))
-    .map((a) => a.name.split(" ")[0]);
+    .map((a) => labelOf(a));
   const [taskId, setTaskId] = useState<number | null>(null);
 
   const task = taskId != null ? store.byId(taskId) : undefined;

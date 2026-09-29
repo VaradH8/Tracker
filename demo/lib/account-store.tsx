@@ -20,6 +20,10 @@ import type { Role } from "./role";
 export type Account = {
   id: string;
   name: string;
+  /** How the app names this person on tasks, projects and pickers — the
+   *  first name, or the full name when someone shares it. Set by the
+   *  server (lib/short-name.ts); read it through labelOf(). */
+  shortName?: string;
   email: string;
   role: Role;
   active: boolean;
@@ -105,6 +109,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
         const me = (await meRes.json()) as {
           id: string;
           name: string;
+          shortName?: string;
           email: string;
           role: Role;
           isAdmin: boolean;
@@ -112,6 +117,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
         const acc: Account = {
           id: me.id,
           name: me.name,
+          shortName: me.shortName,
           email: me.email,
           role: me.role,
           active: true,
@@ -314,7 +320,16 @@ export function useAccounts(): Ctx {
 }
 
 /** The signed-in user's first name. Empty string when no session. */
+/** The name this account goes by on tasks, rosters and pickers — what
+ *  task.assignees / project.developers etc. contain. Never derive it from
+ *  `name` directly: two people can share a first name. */
+export function labelOf(a: Pick<Account, "name" | "shortName">): string {
+  return a.shortName ?? firstNameOf(a.name);
+}
+
+/** The signed-in person's label (see labelOf). Kept under its old name —
+ *  it's the first name unless someone else shares it. */
 export function useMyFirstName(): string {
   const { current } = useAccounts();
-  return current ? firstNameOf(current.name) : "";
+  return current ? labelOf(current) : "";
 }

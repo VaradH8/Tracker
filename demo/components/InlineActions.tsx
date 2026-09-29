@@ -21,7 +21,7 @@ import {
   type Status,
   type Task,
 } from "@/lib/mock";
-import { useAccounts } from "@/lib/account-store";
+import { labelOf, useAccounts } from "@/lib/account-store";
 
 const STATUSES: Status[] = [
   "To Do",
@@ -377,7 +377,7 @@ function AssigneeMenu({
           </li>
         )}
         {people.map((a, i) => {
-          const first = a.name.split(" ")[0];
+          const first = labelOf(a);
           const checked = selected.includes(first);
           return (
             <li key={a.id}>

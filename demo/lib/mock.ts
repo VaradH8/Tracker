@@ -58,6 +58,10 @@ export type Task = {
   responsible: string;
   /** Person Accountable — the doer(s), by first name */
   assignees: string[];
+  /** User ids of the assignees, parallel to `assignees`. Names can repeat
+   *  across people, so "is this person on the task?" must use these.
+   *  Absent on mock/demo data, where names are the only identity. */
+  assigneeIds?: string[];
   startDate?: string;
   /** The deadline, or null when nobody has set one. Never auto-filled —
    *  an undated task stays undated until a user picks a date. */
@@ -160,7 +164,8 @@ export type Resource = {
 export type TimeEntry = {
   id: number;
   taskId: number;
-  person: string; // first name
+  person: string; // short name — see lib/short-name.ts
+  userId?: string;
   date: string; // YYYY-MM-DD
   hours: number;
   note?: string;
@@ -562,6 +567,17 @@ export const CURRENT_WEEK = weekNumberOf(TODAY_ISO);
 
 export function firstNameOf(fullName: string): string {
   return fullName.trim().split(/\s+/)[0];
+}
+
+/** True if this person is an assignee. Matches on user id when the task
+ *  carries ids — two people sharing a first name would otherwise pool
+ *  each other's tasks — and falls back to first name for mock data. */
+export function isAssignedTo(
+  task: Pick<Task, "assignees" | "assigneeIds">,
+  person: { id: string; name: string },
+): boolean {
+  if (task.assigneeIds) return task.assigneeIds.includes(person.id);
+  return task.assignees.includes(firstNameOf(person.name));
 }
 
 export function formatINR(n: number): string {

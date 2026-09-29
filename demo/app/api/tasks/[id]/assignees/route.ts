@@ -6,6 +6,7 @@ import {
   requireUser,
   userByFirstName,
 } from "@/lib/server-access";
+import { shortName } from "@/lib/short-name";
 
 /**
  * POST { name, action: "add" | "remove" | "toggle" }
@@ -73,6 +74,7 @@ export async function POST(
   });
   return NextResponse.json({
     assignees:
-      updated?.assignees.map((a) => a.user.name.split(" ")[0]) ?? [],
+      updated?.assignees.map((a) => shortName(a.user.name)) ?? [],
+    assigneeIds: updated?.assignees.map((a) => a.userId) ?? [],
   });
 }

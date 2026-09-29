@@ -24,14 +24,13 @@ import {
   RESOURCES,
   byTargetDate,
   daysSince,
-  firstNameOf,
   formatTodayLong,
   todayISO,
   type Task,
 } from "@/lib/mock";
 import { useProjects } from "@/lib/projects-store";
 import { useRole } from "@/lib/role";
-import { useAccounts, useMyFirstName } from "@/lib/account-store";
+import { labelOf, useAccounts, useMyFirstName } from "@/lib/account-store";
 import { useTasks } from "@/lib/tasks-store";
 import { useToast } from "@/components/Toast";
 import { toCsv, downloadCsv } from "@/lib/csv";
@@ -412,7 +411,7 @@ function BulkTaskSection({
   const requiredRoles = new Set<string>();
   for (const t of selectedTasks) {
     for (const name of t.assignees) {
-      const acc = accounts.find((a) => firstNameOf(a.name) === name);
+      const acc = accounts.find((a) => labelOf(a) === name);
       if (acc) requiredRoles.add(acc.role);
     }
   }
@@ -425,7 +424,7 @@ function BulkTaskSection({
             !a.isAdmin &&
             (requiredRoles.size === 0 || requiredRoles.has(a.role)),
         )
-        .map((a) => firstNameOf(a.name)),
+        .map((a) => labelOf(a)),
     ),
   ).sort();
 

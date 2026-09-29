@@ -1,6 +1,6 @@
 "use client";
 
-import { useAccounts, type Account } from "./account-store";
+import { labelOf, useAccounts, type Account } from "./account-store";
 
 export type Role =
   | "Admin"
@@ -40,7 +40,7 @@ export function candidatesForProjectRole(
         a.id !== excludeId &&
         (a.role === want || (adminEligible && (a.role === "Admin" || a.isAdmin))),
     )
-    .map((a) => a.name.split(" ")[0]);
+    .map((a) => labelOf(a));
 }
 
 export const ROLE_LABELS: Record<Role, string> = {

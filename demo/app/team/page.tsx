@@ -4,8 +4,8 @@ import Link from "next/link";
 import { Users2, ArrowRight, FolderKanban } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { useTasks } from "@/lib/tasks-store";
-import { useAccounts, useMyFirstName } from "@/lib/account-store";
-import { firstNameOf, type Task } from "@/lib/mock";
+import { labelOf, useAccounts, useMyFirstName } from "@/lib/account-store";
+import type { Task } from "@/lib/mock";
 import { ROLE_LABELS } from "@/lib/role";
 import { useProjects } from "@/lib/projects-store";
 
@@ -35,7 +35,7 @@ export default function TeamPage() {
     ].filter((n) => n !== me),
   );
   const teamPeople = accounts.filter(
-    (a) => a.active && teamFirstNames.has(firstNameOf(a.name)),
+    (a) => a.active && teamFirstNames.has(labelOf(a)),
   );
 
   function tasksFor(person: string): Task[] {
@@ -106,7 +106,7 @@ export default function TeamPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {teamPeople.map((r) => {
-              const person = firstNameOf(r.name);
+              const person = labelOf(r);
               const open = tasksFor(person);
               const overdue = overdueFor(person);
               return (

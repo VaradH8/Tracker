@@ -26,6 +26,7 @@ import {
   type ParsedAsk,
   type WindowKind,
 } from "./parse";
+import { shortName } from "@/lib/short-name";
 
 /* ------------------------------------------------------------------ */
 /* Answer shape                                                        */
@@ -235,7 +236,7 @@ function toTaskRow(t: TaskWithRels): AskTaskRow {
     projectName: t.project?.name ?? "",
     targetDate: t.targetDate ? t.targetDate.toISOString().slice(0, 10) : null,
     overdueDays: overdueDaysFor(t.targetDate, t.status),
-    assignees: (t.assignees ?? []).map((a) => a.user.name.split(" ")[0]),
+    assignees: (t.assignees ?? []).map((a) => shortName(a.user.name)),
     important: t.important,
   };
 }
