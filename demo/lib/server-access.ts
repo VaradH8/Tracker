@@ -43,6 +43,15 @@ export function canUseAsk(role: SessionUser["role"]): boolean {
   return role === "Admin" || role === "Lead" || role === "Coordinator";
 }
 
+/** Per-person hour *totals* on Resources. Oversight roles see every
+ *  person's totals — otherwise anyone working outside the viewer's own
+ *  projects reads as 0h, because time entries are project-scoped (see
+ *  {@link visibleProjectIds}). Only totals are shared: no task, project
+ *  or note leaves the server through this. */
+export function canSeeTeamHours(role: SessionUser["role"]): boolean {
+  return role === "Admin" || role === "Lead" || role === "Coordinator";
+}
+
 export function canSeeProjectFinancials(role: SessionUser["role"]): boolean {
   return role !== "Developer";
 }

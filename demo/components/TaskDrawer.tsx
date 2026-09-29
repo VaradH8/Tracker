@@ -17,6 +17,7 @@ import {
   Trash2,
   CheckCircle2,
   ShieldCheck,
+  Timer,
 } from "lucide-react";
 import { useRef, useState } from "react";
 import {
@@ -26,6 +27,8 @@ import {
   PriorityPicker,
   QuickActions,
   StatusPicker,
+  TimerControls,
+  formatDuration,
 } from "./InlineActions";
 import { useTasks } from "@/lib/tasks-store";
 import { useRole } from "@/lib/role";
@@ -93,6 +96,33 @@ export function TaskDrawer({
   // Deleting is separate from editing: a developer can remove a task they
   // raised without gaining the right to edit every field on it.
   const canDelete = canEdit || me === task.responsible;
+  // Time is logged by whoever does the work, or by an editor correcting it.
+  const canLogTime = isAssignee || canEdit;
+  // Roll the individual start/stop intervals up into one line per person
+  // per day — the total plus how many sessions made it up — instead of a
+  // noisy row for every short stretch.
+  const timeGroups = Object.values(
+    store.entriesForTask(task.id).reduce(
+      (acc, e) => {
+        const key = `${e.person}__${e.date}`;
+        if (!acc[key]) {
+          acc[key] = { key, person: e.person, date: e.date, hours: 0, ids: [] };
+        }
+        acc[key].hours += e.hours;
+        acc[key].ids.push(e.id);
+        return acc;
+      },
+      {} as Record<
+        string,
+        { key: string; person: string; date: string; hours: number; ids: number[] }
+      >,
+    ),
+  ).sort(
+    (a, b) => b.date.localeCompare(a.date) || a.person.localeCompare(b.person),
+  );
+  // Server-tracked cumulative total: incremented as each interval closes,
+  // so it stays right across start/stop cycles.
+  const totalLogged = task.actualHours ?? 0;
   const project = projectById(task.projectId);
   // Sign-off is the Person Responsible (assigner), any project Lead, or
   // a Coordinator/Admin. Doers can't approve their own work.
@@ -606,6 +636,101 @@ export function TaskDrawer({
               className="hidden"
               onChange={onFileChosen}
             />
+          </section>
+
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xs font-semibold text-ink-700 uppercase tracking-wide flex items-center gap-2">
+                <Timer size={12} /> Time
+                <span className="font-medium normal-case text-ink-400">
+                  {formatDuration(totalLogged)} logged
+                  {task.estimatedHours != null &&
+                    ` of ${formatDuration(task.estimatedHours)} est.`}
+                </span>
+              </h3>
+            </div>
+
+            {canLogTime && (
+              <div className="mb-3">
+                <TimerControls
+                  task={task}
+                  canRun={canLogTime}
+                  loggedHours={totalLogged}
+                  active={store.activeTimer}
+                  size="md"
+                  onStart={() => void store.startTimer(task.id)}
+                  onStop={() => void store.stopTimer(task.id)}
+                  onDone={() => void store.doneTimer(task.id)}
+                />
+              </div>
+            )}
+
+            {task.estimatedHours != null && task.estimatedHours > 0 && (
+              <div className="h-1.5 bg-ink-100 rounded-full overflow-hidden mb-3">
+                <div
+                  className={
+                    totalLogged > task.estimatedHours
+                      ? "h-full bg-brand-red"
+                      : "h-full bg-brand-blue"
+                  }
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      (totalLogged / task.estimatedHours) * 100,
+                    )}%`,
+                  }}
+                />
+              </div>
+            )}
+
+            <ul className="space-y-1.5 mb-1">
+              {timeGroups.map((g) => {
+                const canDeleteEntry = canEdit || g.person === me;
+                const sessions = g.ids.length;
+                return (
+                  <li
+                    key={g.key}
+                    className="flex items-center gap-2 text-sm py-1 group"
+                  >
+                    <span className="w-16 shrink-0 font-mono font-medium text-ink-900 text-xs">
+                      {formatDuration(g.hours)}
+                    </span>
+                    <span className="text-ink-700">{g.person}</span>
+                    <span className="text-ink-400 text-xs">
+                      · {sessions} session{sessions === 1 ? "" : "s"}
+                    </span>
+                    <span className="ml-auto text-xs text-ink-400 shrink-0">
+                      {g.date}
+                    </span>
+                    {canDeleteEntry && (
+                      <button
+                        onClick={async () => {
+                          const ok = await confirm({
+                            title: "Remove this day's time?",
+                            body: `${formatDuration(g.hours)} across ${sessions} session${sessions === 1 ? "" : "s"} on ${g.date} will be removed.`,
+                            confirmLabel: "Remove",
+                            danger: true,
+                          });
+                          if (!ok) return;
+                          for (const id of g.ids) {
+                            await store.deleteTimeEntry(id);
+                          }
+                        }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 -m-1 text-ink-400 hover:text-brand-redText"
+                        aria-label="Delete this day's time"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+              {timeGroups.length === 0 && (
+                <li className="text-xs text-ink-400 italic">
+                  No time logged yet.
+                </li>
+              )}
+            </ul>
           </section>
 
           <section>

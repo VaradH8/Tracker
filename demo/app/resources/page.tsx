@@ -44,6 +44,7 @@ function deriveResource(
   a: Account,
   tasks: Task[],
   auditLog: AuditEntry[],
+  hourDays: HourDay[],
 ): Resource {
   const label = labelOf(a);
   const myTasks = tasks.filter((t) => isAssignedTo(t, a));
@@ -91,10 +92,7 @@ function deriveResource(
     isAdmin: !!a.isAdmin,
     status: a.active ? "Active" : "Deactivated",
     lastLogin: a.lastLogin ?? "never",
-    // Hour logging has no UI any more. The type keeps these fields for
-    // the fixtures that still build Resources by hand.
-    hoursLast7: 0,
-    hoursLast30: 0,
+    ...hoursFor(a.id, hourDays),
     capacityPerWeek: 40,
     tasksDone30,
     tasksOpen,
@@ -107,8 +105,72 @@ function deriveResource(
   };
 }
 
+/** One person's logged hours for one day. */
+export type HourDay = { userId: string; date: string; hours: number };
+
+/** Everyone's logged hours for the last month, as per-day totals.
+ *
+ *  Deliberately not the tasks store's `timeEntries`: those are scoped to
+ *  the viewer's own projects, so anyone working elsewhere read as 0h here.
+ *  /api/resources/hours gives oversight roles every person's totals — and
+ *  only totals; tasks and projects stay scoped. */
+function useTeamHours(): HourDay[] {
+  const [days, setDays] = useState<HourDay[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/resources/hours", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : { days: [] }))
+      .then((b: { days?: HourDay[] }) => {
+        if (!cancelled) setDays(b.days ?? []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return days;
+}
+
+/** Logged hours only — never an estimate standing in for them.
+ *  "5d" = the last working week: the past 7 calendar days, counting only
+ *  Mon–Fri so weekends don't dilute the figure. */
+function hoursFor(
+  userId: string,
+  days: HourDay[],
+): { hoursLast7: number; hoursLast30: number } {
+  const today = new Date();
+  const daysAgo = (iso: string) =>
+    Math.round(
+      (today.getTime() - new Date(iso + "T00:00:00").getTime()) /
+        (1000 * 60 * 60 * 24),
+    );
+  const mine = days.filter((d) => d.userId === userId);
+  return {
+    hoursLast7: mine
+      .filter((d) => daysAgo(d.date) < 7 && isWeekday(d.date))
+      .reduce((s, d) => s + d.hours, 0),
+    hoursLast30: mine
+      .filter((d) => daysAgo(d.date) < 30)
+      .reduce((s, d) => s + d.hours, 0),
+  };
+}
+
+/** True if an ISO date (YYYY-MM-DD) falls on Mon–Fri. */
+function isWeekday(iso: string): boolean {
+  const day = new Date(iso + "T00:00:00").getDay();
+  return day >= 1 && day <= 5;
+}
+
 /** Format a fractional hours value as "Xh Ym" (or "Ym" under an hour).
  *  Rounds to the nearest minute so the UI never shows 1.716666h. */
+function fmtHM(hours: number): string {
+  const totalMin = Math.round(Math.max(0, hours) * 60);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  return `${m}m`;
+}
+
 /** A person's tasks bucketed under the project they belong to. */
 type ProjectGroup = { id: number; name: string; tasks: Task[] };
 
@@ -151,6 +213,7 @@ export default function ResourcesPage() {
   const [selected, setSelected] = useState<Resource | null>(null);
   const { tasks, auditLog } = useTasks();
   const { accounts } = useAccounts();
+  const hourDays = useTeamHours();
 
   // Honour deep-links like /resources?filter=flagged from the dashboard.
   useEffect(() => {
@@ -164,7 +227,7 @@ export default function ResourcesPage() {
   // Build the resource list from the real accounts table, augmenting
   // each with computed task / time-log stats.
   const resources: Resource[] = accounts.map((a) =>
-    deriveResource(a, tasks, auditLog),
+    deriveResource(a, tasks, auditLog, hourDays),
   );
 
   const visible = resources
@@ -356,6 +419,21 @@ function ResourceCard({
   onOpen: () => void;
 }) {
   const perf = performancePill(r.performance);
+  const utilization =
+    r.capacityPerWeek > 0
+      ? Math.round((r.hoursLast7 / r.capacityPerWeek) * 100)
+      : 0;
+  // Nothing logged is not the same as under-booked — say so plainly
+  // instead of flagging a 0% week. Otherwise: amber under 60%, green once
+  // the week is reasonably full, red past capacity.
+  const noHours = r.hoursLast7 === 0;
+  const utilizationTone = noHours
+    ? "text-ink-500"
+    : utilization < 60
+      ? "text-brand-yellowText"
+      : utilization <= 100
+        ? "text-brand-greenText"
+        : "text-brand-redText";
   const initials = r.name
     .split(" ")
     .map((p) => p[0])
@@ -384,12 +462,18 @@ function ResourceCard({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 mb-4">
+      <div className="grid grid-cols-2 gap-3 mb-4">
         <Metric
           label="Open tasks"
           value={openTasks}
           sub={r.tasksOverdue > 0 ? `${r.tasksOverdue} overdue` : "0 overdue"}
           subTone={r.tasksOverdue > 0 ? "text-brand-redText" : "text-ink-500"}
+        />
+        <Metric
+          label="Hours / 5d"
+          value={fmtHM(r.hoursLast7)}
+          sub={noHours ? "no time logged" : `${utilization}% of capacity`}
+          subTone={utilizationTone}
         />
       </div>
 
@@ -511,6 +595,40 @@ function ResourceDrawer({
               <Row icon={<Phone size={13} />} value={r.phone} />
               <Row icon={<MapPin size={13} />} value={r.location} />
               <Row icon={<Briefcase size={13} />} value={`Joined ${r.joined}`} />
+            </div>
+          </section>
+
+          <section>
+            <h4 className="text-xs font-semibold text-ink-700 uppercase tracking-wide mb-2">
+              Workload (this week)
+            </h4>
+            <div className="card p-4">
+              <div className="flex items-baseline justify-between mb-2">
+                <span className="text-sm text-ink-700">Hours logged</span>
+                <span className="font-heading text-lg font-semibold">
+                  {fmtHM(r.hoursLast7)} / {r.capacityPerWeek}h
+                </span>
+              </div>
+              <div className="h-2 bg-ink-100 rounded-full overflow-hidden">
+                <div
+                  className={
+                    r.hoursLast7 > r.capacityPerWeek
+                      ? "h-full bg-brand-red"
+                      : "h-full bg-brand-blue"
+                  }
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      r.capacityPerWeek > 0
+                        ? (r.hoursLast7 / r.capacityPerWeek) * 100
+                        : 0,
+                    )}%`,
+                  }}
+                />
+              </div>
+              <p className="text-xs text-ink-500 mt-2">
+                {fmtHM(r.hoursLast30)} logged in the last 30 days
+              </p>
             </div>
           </section>
 
