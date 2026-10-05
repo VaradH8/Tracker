@@ -21,6 +21,7 @@ import {
   CalendarClock,
   Users2,
   MessagesSquare,
+  CalendarRange,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Logo } from "./Logo";
@@ -48,6 +49,7 @@ const NAV: Record<Role, NavItem[]> = {
     { href: "/projects", label: "Projects", Icon: FolderKanban },
     { href: "/calendar", label: "Calendar", Icon: CalendarClock },
     { href: "/resources", label: "Resources", Icon: Users },
+    { href: "/engagement", label: "Engagement", Icon: CalendarRange },
     { href: "/users", label: "Users", Icon: Users },
     { href: "/audit", label: "Audit log", Icon: ScrollText },
     { href: "/settings", label: "Settings", Icon: Settings },
@@ -60,6 +62,7 @@ const NAV: Record<Role, NavItem[]> = {
     { href: "/team", label: "My team", Icon: Users2 },
     { href: "/calendar", label: "Calendar", Icon: CalendarClock },
     { href: "/resources", label: "Resources", Icon: Users },
+    { href: "/engagement", label: "Engagement", Icon: CalendarRange },
     { href: "/leaves", label: "Leaves", Icon: CalendarCheck },
   ],
   Coordinator: [
@@ -70,6 +73,7 @@ const NAV: Record<Role, NavItem[]> = {
     { href: "/team", label: "My team", Icon: Users2 },
     { href: "/calendar", label: "Calendar", Icon: CalendarClock },
     { href: "/resources", label: "Resources", Icon: Users },
+    { href: "/engagement", label: "Engagement", Icon: CalendarRange },
     { href: "/leaves", label: "Leaves", Icon: CalendarCheck },
   ],
   BusinessDeveloper: [

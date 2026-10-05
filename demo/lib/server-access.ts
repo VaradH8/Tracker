@@ -52,6 +52,14 @@ export function canSeeTeamHours(role: SessionUser["role"]): boolean {
   return role === "Admin" || role === "Lead" || role === "Coordinator";
 }
 
+/** Resource Engagement & Project Forecast (/engagement): who is on what
+ *  across every project, who is free, and what-if staffing for upcoming
+ *  work. A planning tool, so it stays with the oversight roles — the same
+ *  ones that see team hours. Mirrored client-side in lib/access.ts. */
+export function canSeeEngagement(role: SessionUser["role"]): boolean {
+  return role === "Admin" || role === "Lead" || role === "Coordinator";
+}
+
 export function canSeeProjectFinancials(role: SessionUser["role"]): boolean {
   return role !== "Developer";
 }

@@ -14,6 +14,7 @@ Role-aware task and project management for engineering services teams. Four role
 | `/projects` | All | Scoped to projects the role can see |
 | `/projects/[id]` | All | Tabs: Tasks (Kanban) · Details (client info) · History (Coord/Admin only) |
 | `/resources` | Admin, Co-ord | Per-person workload, performance signals, leave summary |
+| `/engagement` | Admin, Lead, Co-ord | Resource Engagement: who's on what (people × days grid) and who has no task · Project forecast: pick a project + Application/Plugin track, tick people, see finish date and hires needed; saved forecasts listed as Upcoming / Completed |
 | `/clients` | Admin, BD | Client list + their projects |
 | `/leaves` | All | Self-service; Dev/BD see own + names-only team availability |
 | `/settings` | Admin | General · Users · Audit log · Import xlsx |
