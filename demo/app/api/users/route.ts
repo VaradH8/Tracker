@@ -8,7 +8,9 @@ import { refreshShortNames } from "@/lib/server-names";
 
 const ROLES: Role[] = [
   "Admin",
+  "Lead",
   "Coordinator",
+  "HR",
   "BusinessDeveloper",
   "Developer",
 ];

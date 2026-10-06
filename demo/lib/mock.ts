@@ -129,6 +129,7 @@ export type Resource = {
     | "Admin"
     | "Lead"
     | "Coordinator"
+    | "HR"
     | "BusinessDeveloper"
     | "Developer";
   isAdmin: boolean;

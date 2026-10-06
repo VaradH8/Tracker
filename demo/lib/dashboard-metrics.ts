@@ -244,7 +244,7 @@ export function upcomingLeave(leaves: LeaveEntry[], today: string, n = 10) {
 /* Users                                                               */
 /* ------------------------------------------------------------------ */
 
-export const ROLE_ORDER: Role[] = ["Admin", "Lead", "Coordinator", "BusinessDeveloper", "Developer"];
+export const ROLE_ORDER: Role[] = ["Admin", "Lead", "Coordinator", "HR", "BusinessDeveloper", "Developer"];
 
 export function usersByRole(accounts: Account[]) {
   return ROLE_ORDER.map((role) => {

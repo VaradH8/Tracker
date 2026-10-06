@@ -174,7 +174,7 @@ describe("users", () => {
       account("D", { role: "Coordinator" }),
     ]);
     expect(rows.map((r) => [r.role, r.active, r.inactive])).toEqual([
-      ["Admin", 1, 0], ["Lead", 0, 0], ["Coordinator", 1, 0], ["BusinessDeveloper", 0, 0], ["Developer", 1, 1],
+      ["Admin", 1, 0], ["Lead", 0, 0], ["Coordinator", 1, 0], ["HR", 0, 0], ["BusinessDeveloper", 0, 0], ["Developer", 1, 1],
     ]);
   });
 

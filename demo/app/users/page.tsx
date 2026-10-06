@@ -30,6 +30,7 @@ const ROLES: Role[] = [
   "Admin",
   "Lead",
   "Coordinator",
+  "HR",
   "BusinessDeveloper",
   "Developer",
 ];

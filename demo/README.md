@@ -15,6 +15,8 @@ Role-aware task and project management for engineering services teams. Four role
 | `/projects/[id]` | All | Tabs: Tasks (Kanban) · Details (client info) · History (Coord/Admin only) |
 | `/resources` | Admin, Co-ord | Per-person workload, performance signals, leave summary |
 | `/engagement` | Admin, Lead, Co-ord | Resource Engagement: who's on what (people × days grid) and who has no task · Project forecast: pick a project + Application/Plugin track, tick people, see finish date and hires needed; saved forecasts listed as Upcoming / Completed |
+| `/performance` | Admin, Lead, Co-ord, HR | IBS Monthly / Yearly performance review, generated from tasks, hours and leave; the employee's Reporting Manager (a Lead), HR or Admin complete it. **Only HR** downloads it as the official Word form (`templates/*.docx`, set in embedded Poppins) |
+| `/my-performance` | Dev, Co-ord (and HR) | The employee's own review: tracker evidence, a 1–5 self-rating per area, self-assessment and comments (sent to the Reporting Manager or HR). Manager ratings stay hidden |
 | `/clients` | Admin, BD | Client list + their projects |
 | `/leaves` | All | Self-service; Dev/BD see own + names-only team availability |
 | `/settings` | Admin | General · Users · Audit log · Import xlsx |

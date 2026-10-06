@@ -29,6 +29,12 @@ const NOTIF_PREFS: Record<Role, string[]> = {
     "Daily 9 AM overdue digest",
     "Weekly Monday team summary",
   ],
+  HR: [
+    "Tasks assigned to me",
+    "Status changes on tasks I own",
+    "@mentions in remarks",
+    "Weekly Monday team summary",
+  ],
   BusinessDeveloper: [
     "New project intake requests",
     "Project status changes I follow",

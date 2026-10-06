@@ -3,6 +3,7 @@ import { randomBytes, createHash } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "./db";
 import type { Role } from "./role";
+import { accessRole } from "./role-access";
 
 const SESSION_COOKIE = "tracker_session";
 const SESSION_DAYS = 30;
@@ -12,7 +13,13 @@ export type SessionUser = {
   id: string;
   email: string;
   name: string;
+  /** Role for access checks — HR resolves to "Coordinator" (same access;
+   *  see lib/role-access.ts). */
   role: Role;
+  /** The account's real role ("HR" stays "HR"). Absent means the same as
+   *  `role`. Use it for labels and HR-only privileges, never to widen
+   *  access. */
+  primaryRole?: Role;
   isAdmin: boolean;
 };
 
@@ -331,7 +338,8 @@ function toSessionUser(u: {
     id: u.id,
     email: u.email,
     name: u.name,
-    role: u.primaryRole as Role,
+    role: accessRole(u.primaryRole as Role),
+    primaryRole: u.primaryRole as Role,
     isAdmin: u.isAdmin,
   };
 }
