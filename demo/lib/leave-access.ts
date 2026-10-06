@@ -22,6 +22,10 @@ const SENIORITY: Record<Role, number> = {
   Admin: 3,
   Lead: 2,
   Coordinator: 1,
+  // HR has the Co-ordinator's access (lib/role-access.ts), so the same
+  // standing here — a request from an HR account reads like one from a
+  // Co-ordinator.
+  HR: 1,
   BusinessDeveloper: 0,
   Developer: 0,
 };

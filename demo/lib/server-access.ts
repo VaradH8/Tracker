@@ -60,6 +60,45 @@ export function canSeeEngagement(role: SessionUser["role"]): boolean {
   return role === "Admin" || role === "Lead" || role === "Coordinator";
 }
 
+/** Performance reviews (/performance): view the generated Monthly /
+ *  Yearly report for anyone. Lead (the Reporting Managers), Co-ordinator,
+ *  Admin — and HR, which resolves to Coordinator for access. Mirrored
+ *  client-side in lib/access.ts. */
+export function canSeePerformance(role: SessionUser["role"]): boolean {
+  return role === "Admin" || role === "Lead" || role === "Coordinator";
+}
+
+/** My Performance (/my-performance): Developers and Co-ordinators view
+ *  their own review and fill in their self-rating and self-assessment.
+ *  HR resolves to Coordinator, so HR staff get it too. Mirrored
+ *  client-side in lib/access.ts. */
+export function canSelfReview(role: SessionUser["role"]): boolean {
+  return role === "Developer" || role === "Coordinator";
+}
+
+/** The one privilege HR has over a Co-ordinator: downloading the review
+ *  as the official Word document. Checks the account's *real* role, so
+ *  a plain Co-ordinator never qualifies. */
+export function canDownloadPerformance(user: SessionUser): boolean {
+  return user.primaryRole === "HR";
+}
+
+/** Who can rate and comment on a review: the employee's Reporting
+ *  Manager, HR, and Admin. Other viewers read it. */
+export function canEditPerformance(
+  user: SessionUser,
+  employee: { id: string; reportingManagerId: string | null },
+): boolean {
+  if (user.role === "Admin" || user.primaryRole === "HR") return true;
+  return employee.reportingManagerId === user.id;
+}
+
+/** Employee ID, department, joining date and reporting line — HR master
+ *  data, kept by HR and Admin. */
+export function canEditEmployeeRecord(user: SessionUser): boolean {
+  return user.role === "Admin" || user.primaryRole === "HR";
+}
+
 export function canSeeProjectFinancials(role: SessionUser["role"]): boolean {
   return role !== "Developer";
 }
@@ -113,6 +152,12 @@ export function completedAtUpdate(
   if (next === "Done" && prev !== "Done") return new Date();
   if (next !== "Done" && prev === "Done") return null;
   return undefined;
+}
+
+/** True when a status change takes a finished task back to open work —
+ *  counted on Task.reopenCount as rework for performance reviews. */
+export function isReopen(prev: string, next: string): boolean {
+  return prev === "Done" && next !== "Done";
 }
 
 export async function visibleProjectIds(

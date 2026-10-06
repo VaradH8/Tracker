@@ -15,5 +15,8 @@ export async function POST(req: Request) {
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 401 });
   }
-  return NextResponse.json({ user: result.user });
+  // Send the real role (HR stays HR); the client maps it to access.
+  return NextResponse.json({
+    user: { ...result.user, role: result.user.primaryRole ?? result.user.role },
+  });
 }

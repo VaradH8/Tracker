@@ -22,6 +22,8 @@ import {
   Users2,
   MessagesSquare,
   CalendarRange,
+  ClipboardCheck,
+  UserCheck,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Logo } from "./Logo";
@@ -50,6 +52,7 @@ const NAV: Record<Role, NavItem[]> = {
     { href: "/calendar", label: "Calendar", Icon: CalendarClock },
     { href: "/resources", label: "Resources", Icon: Users },
     { href: "/engagement", label: "Engagement", Icon: CalendarRange },
+    { href: "/performance", label: "Performance", Icon: ClipboardCheck },
     { href: "/users", label: "Users", Icon: Users },
     { href: "/audit", label: "Audit log", Icon: ScrollText },
     { href: "/settings", label: "Settings", Icon: Settings },
@@ -63,6 +66,7 @@ const NAV: Record<Role, NavItem[]> = {
     { href: "/calendar", label: "Calendar", Icon: CalendarClock },
     { href: "/resources", label: "Resources", Icon: Users },
     { href: "/engagement", label: "Engagement", Icon: CalendarRange },
+    { href: "/performance", label: "Performance", Icon: ClipboardCheck },
     { href: "/leaves", label: "Leaves", Icon: CalendarCheck },
   ],
   Coordinator: [
@@ -74,6 +78,23 @@ const NAV: Record<Role, NavItem[]> = {
     { href: "/calendar", label: "Calendar", Icon: CalendarClock },
     { href: "/resources", label: "Resources", Icon: Users },
     { href: "/engagement", label: "Engagement", Icon: CalendarRange },
+    { href: "/performance", label: "Performance", Icon: ClipboardCheck },
+    { href: "/my-performance", label: "My Performance", Icon: UserCheck },
+    { href: "/leaves", label: "Leaves", Icon: CalendarCheck },
+  ],
+  // useRole() resolves HR to Coordinator, so this list is only here to
+  // keep the Record complete — HR sees the Co-ordinator sidebar.
+  HR: [
+    { href: "/my-day", label: "My Day", Icon: Sun },
+    { href: "/ask", label: "Ask Tracker", Icon: MessagesSquare },
+    { href: "/projects", label: "Projects", Icon: FolderKanban },
+    { href: "/my-tasks", label: "My Tasks", Icon: ListTodo },
+    { href: "/team", label: "My team", Icon: Users2 },
+    { href: "/calendar", label: "Calendar", Icon: CalendarClock },
+    { href: "/resources", label: "Resources", Icon: Users },
+    { href: "/engagement", label: "Engagement", Icon: CalendarRange },
+    { href: "/performance", label: "Performance", Icon: ClipboardCheck },
+    { href: "/my-performance", label: "My Performance", Icon: UserCheck },
     { href: "/leaves", label: "Leaves", Icon: CalendarCheck },
   ],
   BusinessDeveloper: [
@@ -85,6 +106,7 @@ const NAV: Record<Role, NavItem[]> = {
   Developer: [
     { href: "/my-tasks", label: "My Tasks", Icon: ListTodo },
     { href: "/projects", label: "Projects", Icon: FolderKanban },
+    { href: "/my-performance", label: "My Performance", Icon: UserCheck },
     { href: "/calendar", label: "Calendar", Icon: CalendarClock },
     { href: "/leaves", label: "Leaves", Icon: CalendarCheck },
   ],
@@ -94,6 +116,7 @@ const ROLE_COLOR: Record<Role, string> = {
   Admin: "bg-brand-red",
   Lead: "bg-brand-blue",
   Coordinator: "bg-brand-blue",
+  HR: "bg-brand-blue",
   BusinessDeveloper: "bg-brand-yellow",
   Developer: "bg-brand-green",
 };

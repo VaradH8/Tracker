@@ -50,6 +50,9 @@ COPY --from=build /app/public ./public
 # Maintenance scripts (run with `docker compose exec app npx tsx scripts/...`):
 # the historical CSV import and the domain user seed both live here.
 COPY --from=build /app/scripts ./scripts
+# The official IBS Word templates the performance review downloads are
+# filled into (lib/performance/docx.ts reads them from ./templates).
+COPY --from=build /app/templates ./templates
 
 RUN chown -R app:app /app
 

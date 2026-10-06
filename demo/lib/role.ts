@@ -1,13 +1,11 @@
 "use client";
 
 import { labelOf, useAccounts, type Account } from "./account-store";
+import { accessRole, type AnyRole } from "./role-access";
 
-export type Role =
-  | "Admin"
-  | "Lead"
-  | "Coordinator"
-  | "BusinessDeveloper"
-  | "Developer";
+/** "HR" has the Co-ordinator's access plus performance-report downloads —
+ *  see lib/role-access.ts. */
+export type Role = AnyRole;
 
 /** The per-project team lanes, and the global Role each one draws from.
  *  A "Leads" lane only offers people whose global role is Lead, etc. */
@@ -47,18 +45,21 @@ export const ROLE_LABELS: Record<Role, string> = {
   Admin: "Admin",
   Lead: "Lead",
   Coordinator: "Co-ordinator",
+  HR: "HR",
   BusinessDeveloper: "Business Developer",
   Developer: "Developer",
 };
 
 /**
- * The signed-in user's role. Returns `[role, _, hydrated]` to keep the
- * existing 3-tuple API; the setter is now a no-op because role follows
- * the signed-in account — to change role, change accounts.
+ * The signed-in user's role *for access decisions*. Returns
+ * `[role, _, hydrated]` to keep the existing 3-tuple API; the setter is
+ * now a no-op because role follows the signed-in account — to change
+ * role, change accounts. HR resolves to "Coordinator" here (same access);
+ * read `current.role` from useAccounts() for the account's real role.
  */
 export function useRole(): [Role, (r: Role | null) => void, boolean] {
   const { current, hydrated } = useAccounts();
-  const role: Role = current?.role ?? "Coordinator";
+  const role: Role = accessRole(current?.role ?? "Coordinator");
   function setRole(_: Role | null) {
     /* role is derived from the signed-in account; this setter is a no-op
        to preserve the legacy call-site shape. */
@@ -78,6 +79,7 @@ export function landingFor(role: Role): string {
     case "Lead":
       return "/my-day";
     case "Coordinator":
+    case "HR":
       return "/my-day";
     case "BusinessDeveloper":
       return "/projects";

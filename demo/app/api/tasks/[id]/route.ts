@@ -5,6 +5,7 @@ import {
   canManageProjectTasks,
   canSeeTask,
   completedAtUpdate,
+  isReopen,
   isTaskAssignee,
   requireUser,
   userByFirstName,
@@ -129,6 +130,9 @@ export async function PATCH(
     // week it was finished on the weekly board.
     const completedAt = completedAtUpdate(existing.status, body.status);
     if (completedAt !== undefined) data.completedAt = completedAt;
+    if (isReopen(existing.status, body.status)) {
+      data.reopenCount = { increment: 1 };
+    }
   }
   if (editor) {
     if (typeof body.title === "string" && body.title.trim()) {

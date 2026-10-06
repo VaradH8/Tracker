@@ -11,7 +11,8 @@ export async function GET() {
     name: user.name,
     shortName: shortName(user.name),
     email: user.email,
-    role: user.role,
+    // The real role (HR stays HR) — the client maps it to access itself.
+    role: user.primaryRole ?? user.role,
     isAdmin: user.isAdmin,
   });
 }

@@ -5,6 +5,7 @@ import {
   canAccessProject,
   canEditTasks,
   completedAtUpdate,
+  isReopen,
   isTaskAssignee,
   requireUser,
   writeAudit,
@@ -65,6 +66,9 @@ export async function POST(
       status: body.status,
       actualHours: body.actualHours ?? undefined,
       completedAt: completedAtUpdate(existing.status, body.status),
+      reopenCount: isReopen(existing.status, body.status)
+        ? { increment: 1 }
+        : undefined,
     },
     include: { assignees: { include: { user: true } }, project: true },
   });
