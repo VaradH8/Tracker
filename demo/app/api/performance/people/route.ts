@@ -8,8 +8,8 @@ import {
 } from "@/lib/server-access";
 import { toISO } from "@/lib/engagement";
 
-/** GET — who can be reviewed (every active non-Admin account), the Leads
- *  who can be their Reporting Manager, and what the viewer may do. */
+/** GET — who can be reviewed (every active non-Admin account) and what
+ *  the viewer may do. */
 export async function GET() {
   const userOrResp = await requireUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
@@ -29,8 +29,6 @@ export async function GET() {
       department: true,
       employeeCode: true,
       joined: true,
-      reportingManagerId: true,
-      reportingManager: { select: { name: true } },
     },
   });
 
@@ -43,12 +41,7 @@ export async function GET() {
       department: u.department ?? "",
       employeeCode: u.employeeCode ?? "",
       joined: u.joined ? toISO(u.joined) : "",
-      reportingManagerId: u.reportingManagerId,
-      reportingManager: u.reportingManager?.name ?? "",
     })),
-    leads: users
-      .filter((u) => u.primaryRole === "Lead")
-      .map((u) => ({ id: u.id, name: u.name })),
     viewer: {
       id: me.id,
       canEditRecords: canEditEmployeeRecord(me),

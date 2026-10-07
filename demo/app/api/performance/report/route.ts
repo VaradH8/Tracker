@@ -4,10 +4,11 @@ import {
   canDownloadPerformance,
   canEditPerformance,
   canSeePerformance,
+  isReportingManager,
   requireUser,
   writeAudit,
 } from "@/lib/server-access";
-import { parseReviewQuery, validateChanges } from "@/lib/performance/forms";
+import { REVIEWED_BY, parseReviewQuery, validateChanges } from "@/lib/performance/forms";
 import { findEmployee, loadReport, saveReviewChanges } from "@/lib/performance/load";
 
 /** GET ?userId&kind=Monthly|Yearly&period=YYYY-MM|YYYY — the generated
@@ -30,7 +31,7 @@ export async function GET(req: Request) {
   if (!loaded) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({
     ...loaded,
-    canEdit: canEditPerformance(me, employee),
+    canEdit: canEditPerformance(me),
     canDownload: canDownloadPerformance(me),
   });
 }
@@ -61,9 +62,9 @@ export async function PUT(req: Request) {
 
   const employee = await findEmployee(q.userId);
   if (!employee) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (!canEditPerformance(me, employee)) {
+  if (!canEditPerformance(me)) {
     return NextResponse.json(
-      { error: "Only the Reporting Manager, HR or Admin can edit this review." },
+      { error: "Only a Reporting Manager (Admin or Lead) or HR can edit this review." },
       { status: 403 },
     );
   }
@@ -71,7 +72,12 @@ export async function PUT(req: Request) {
   const checked = validateChanges(parsed.data.changes);
   if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: 400 });
 
-  const saved = await saveReviewChanges(q.userId, q.kind, q.period, checked.changes, me.id);
+  // The Admin or Lead who last saved the review is the Reporting Manager
+  // named on the form. Server-set only — clients can't send this key.
+  const changes = isReportingManager(me.role)
+    ? { ...checked.changes, [REVIEWED_BY]: me.name }
+    : checked.changes;
+  const saved = await saveReviewChanges(q.userId, q.kind, q.period, changes, me.id);
   if (!saved.ok) return NextResponse.json({ error: saved.error }, { status: 400 });
   await writeAudit(me.id, "performance.save", {
     scope: `${q.kind} review ${q.period}`,

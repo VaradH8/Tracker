@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { canSelfReview, notifyUser, requireUser, writeAudit } from "@/lib/server-access";
+import {
+  canSelfReview,
+  notifyUser,
+  reportingManagersWhere,
+  requireUser,
+  writeAudit,
+} from "@/lib/server-access";
 import {
   isCommentRecipient,
   isEmployeeKey,
@@ -9,7 +15,7 @@ import {
   validateChanges,
   type CommentRecipient,
 } from "@/lib/performance/forms";
-import { findEmployee, loadReport, saveReviewChanges } from "@/lib/performance/load";
+import { loadReport, saveReviewChanges } from "@/lib/performance/load";
 import { periodLabel, toSelfView, type Inputs } from "@/lib/performance/report";
 
 /** GET ?kind=Monthly|Yearly&period=YYYY-MM|YYYY — the signed-in
@@ -41,27 +47,19 @@ const putBody = z.object({
 
 type Recipient = { id: string; name: string };
 
-/** The people a comment addressed to `to` reaches: the employee's
- *  Reporting Manager, or every active HR account. Never the sender. */
+/** The people a comment addressed to `to` reaches: every active
+ *  Reporting Manager (Admin or Lead), or every active HR account. Never
+ *  the sender. */
 async function recipientsFor(
   to: CommentRecipient,
   employeeId: string,
 ): Promise<Recipient[]> {
-  if (to === "manager") {
-    const employee = await findEmployee(employeeId);
-    if (!employee?.reportingManagerId) return [];
-    const manager = await prisma.user.findUnique({
-      where: { id: employee.reportingManagerId },
-      select: { id: true, name: true, isActive: true },
-    });
-    return manager?.isActive && manager.id !== employeeId ? [{ id: manager.id, name: manager.name }] : [];
-  }
-  const hr = await prisma.user.findMany({
-    where: { primaryRole: "HR", isActive: true, NOT: { id: employeeId } },
+  const where = to === "manager" ? reportingManagersWhere : { primaryRole: "HR", isActive: true };
+  return prisma.user.findMany({
+    where: { ...where, NOT: { id: employeeId } },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });
-  return hr;
 }
 
 /** A comment is "submitted" when this save leaves a comment in place and
@@ -108,7 +106,7 @@ export async function PUT(req: Request) {
     recipients = await recipientsFor(comment.to, me.id);
     if (recipients.length) return null;
     return comment.to === "manager"
-      ? "You don't have a Reporting Manager yet — send it to HR, or ask HR to set your Reporting Manager."
+      ? "There's no Admin or Lead account to send this to yet — send it to HR."
       : "There's no HR account to send this to yet — send it to your Reporting Manager.";
   });
   if (!saved.ok) return NextResponse.json({ error: saved.error }, { status: 400 });

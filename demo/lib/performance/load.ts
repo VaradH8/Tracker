@@ -7,7 +7,7 @@
 import { prisma } from "@/lib/db";
 import { getSettingsParsed } from "@/lib/settings";
 import { toISO, workingDaySet } from "@/lib/engagement";
-import { mergeInputs, parseRating, type ReviewKind } from "./forms";
+import { REVIEWED_BY, mergeInputs, parseRating, type ReviewKind } from "./forms";
 import {
   buildReport,
   periodRange,
@@ -47,8 +47,6 @@ export async function findEmployee(id: string) {
       designation: true,
       joined: true,
       capacityPerWeek: true,
-      reportingManagerId: true,
-      reportingManager: { select: { name: true } },
     },
   });
 }
@@ -189,7 +187,9 @@ export async function loadReport(
         department: employee.department ?? "",
         designation: employee.designation ?? "",
         joined: day(employee.joined),
-        reportingManager: employee.reportingManager?.name ?? "",
+        // Reporting Manager is a role (every Admin and Lead): the form
+        // names whichever of them last saved this review.
+        reportingManager: parseInputs(saved?.inputs)[REVIEWED_BY] ?? "",
       },
       tasks: tasks.map((t) => ({
         id: t.id,

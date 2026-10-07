@@ -6,7 +6,9 @@
  * status pills, text / rating fields and the metric tiles.
  */
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import { statusPill, type Status } from "@/lib/mock";
 import { localToday } from "@/lib/engagement";
 import type { Metrics, TextField } from "@/lib/performance/report";
 
@@ -23,19 +25,83 @@ export function previousMonth(): string {
   return d.toISOString().slice(0, 7);
 }
 
-export function Section({ n, title, note, action, children }: { n: number; title: string; note?: string; action?: ReactNode; children: ReactNode }) {
+/**
+ * A numbered form section. `collapsible` turns the header into a toggle
+ * (closed by default unless `defaultOpen`), with `summary` shown beside
+ * the title so a closed section still says what's inside.
+ */
+export function Section({
+  n,
+  title,
+  note,
+  action,
+  collapsible = false,
+  defaultOpen = false,
+  summary,
+  children,
+}: {
+  n: number;
+  title: string;
+  note?: string;
+  action?: ReactNode;
+  collapsible?: boolean;
+  defaultOpen?: boolean;
+  summary?: ReactNode;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(!collapsible || defaultOpen);
+  const heading = (
+    <h2 className="font-heading text-base font-semibold">
+      <span className="text-brand-blue mr-1.5">{n}.</span>
+      {title}
+    </h2>
+  );
   return (
     <section className="card p-5">
-      <div className="flex items-center justify-between gap-2 mb-3">
-        <h2 className="font-heading text-base font-semibold">
-          <span className="text-brand-blue mr-1.5">{n}.</span>
-          {title}
-        </h2>
+      <div className={`flex items-center justify-between gap-2 ${open ? "mb-3" : ""}`}>
+        {collapsible ? (
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            className="flex flex-1 flex-wrap items-center gap-x-3 gap-y-1 text-left -m-1 p-1 rounded hover:bg-ink-50"
+          >
+            {open ? <ChevronDown size={18} className="text-ink-500" /> : <ChevronRight size={18} className="text-ink-500" />}
+            {heading}
+            {summary && <span className="text-xs text-ink-500">{summary}</span>}
+            <span className="ml-auto text-xs font-medium text-brand-blue">{open ? "Hide" : "Show"}</span>
+          </button>
+        ) : (
+          heading
+        )}
         {action}
       </div>
-      {note && <p className="text-xs text-ink-500 -mt-2 mb-3">{note}</p>}
-      {children}
+      {open && note && <p className="text-xs text-ink-500 -mt-2 mb-3">{note}</p>}
+      {open && children}
     </section>
+  );
+}
+
+/** "4 tasks · 2 completed · 1 delayed" — what a collapsed task section
+ *  holds, by status. */
+export function countSummary(statuses: string[]): string {
+  if (!statuses.length) return "No tasks";
+  const by = new Map<string, number>();
+  for (const s of statuses) by.set(s, (by.get(s) ?? 0) + 1);
+  const parts = [...by.entries()].map(([s, n]) => `${n} ${s.toLowerCase()}`);
+  return [`${statuses.length} task${statuses.length === 1 ? "" : "s"}`, ...parts].join(" · ");
+}
+
+/** A task's status the way My Tasks shows it: the status pill in the
+ *  board's colours, plus "Overdue Nd" when it's past its target. */
+export function TaskStatusCell({ status, overdueDays }: { status: string; overdueDays: number | null }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      <span className={statusPill(status as Status) ?? "pill-grey"}>{status}</span>
+      {overdueDays != null && overdueDays > 0 && (
+        <span className="pill-red text-[10px] py-0.5">Overdue {overdueDays}d</span>
+      )}
+    </div>
   );
 }
 

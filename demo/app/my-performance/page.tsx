@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Save } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { useToast } from "@/components/Toast";
+import { useTaskDrawer } from "@/components/TaskDrawerProvider";
 import { canAccess } from "@/lib/access";
 import { useRole } from "@/lib/role";
 import { fmtDay, localToday } from "@/lib/engagement";
@@ -17,7 +18,9 @@ import {
   StatusPill,
   Table,
   Td,
+  TaskStatusCell,
   Text,
+  countSummary,
   inputCls,
   previousMonth,
   type Draft,
@@ -33,7 +36,7 @@ function draftFrom(v: SelfView): Draft {
   v.self.forEach(put);
   v.achievements.forEach((a) => put(a.employee));
   put(v.employeeComments);
-  d["summary.commentTo"] = v.commentTo || (v.employee.reportingManager ? "manager" : "hr");
+  d["summary.commentTo"] = v.commentTo || "manager";
   return d;
 }
 
@@ -217,7 +220,7 @@ export default function MyPerformancePage() {
                 <Detail label="Employee ID" value={v.employee.employeeCode} missing />
                 <Detail label="Department" value={v.employee.department} missing />
                 <Detail label="Designation" value={v.employee.designation} missing />
-                <Detail label="Reporting Manager" value={v.employee.reportingManager} missing />
+                <Detail label="Reporting Manager" value="Admins & Leads" />
                 <Detail label={v.kind === "Monthly" ? "Review Month" : "Review Year"} value={v.periodLabel} />
               </dl>
             </Section>
@@ -225,15 +228,17 @@ export default function MyPerformancePage() {
             <MetricTiles m={v.metrics} />
 
             {v.kind === "Monthly" ? (
-              <Section n={2} title="My Goals / Assigned Tasks">
+              <Section n={2} title="Monthly Goals / Assigned Tasks" collapsible
+                summary={countSummary(v.goals.map((g) => g.status))}
+                note="Your tasks for this month, as they stand on My Tasks. Click a task to open it.">
                 <Table head={["Goal / Task", "Expected Outcome", "Priority", "Target Date", "Status"]} empty="No tasks assigned to you in this month.">
                   {v.goals.map((g) => (
                     <tr key={g.taskId}>
-                      <Td><span className="font-medium">{g.title}</span><div className="text-xs text-ink-500">{g.project}</div></Td>
+                      <Td><TaskTitle id={g.taskId} title={g.title} project={g.project} /></Td>
                       <Td className="text-ink-700">{g.expected || "—"}</Td>
                       <Td>{g.priority}</Td>
                       <Td className="whitespace-nowrap">{g.targetDate ? fmtDay(g.targetDate) : <span className="text-ink-400">not set</span>}</Td>
-                      <Td><StatusPill s={g.status} /></Td>
+                      <Td><TaskStatusCell status={g.taskStatus} overdueDays={g.overdueDays} /></Td>
                     </tr>
                   ))}
                 </Table>
@@ -254,22 +259,25 @@ export default function MyPerformancePage() {
             )}
 
             {v.kind === "Monthly" ? (
-              v.longTerm.length > 0 && (
-                <Section n={3} title="Critical / Long-Term Task Progress"
-                  note="Progress on work that runs beyond this month, against its monthly milestone.">
-                  <Table head={["Task / Project", "Monthly Milestone", "Planned %", "Actual %", "Status"]}>
-                    {v.longTerm.map((l) => (
-                      <tr key={l.taskId}>
-                        <Td><span className="font-medium">{l.title}</span><div className="text-xs text-ink-500">{l.project}</div></Td>
-                        <Td>{l.milestone || "—"}</Td>
-                        <Td>{l.planned == null ? "—" : `${l.planned}%`}</Td>
-                        <Td>{l.actual == null ? "—" : `${l.actual}%`}</Td>
-                        <Td><StatusPill s={l.status} /></Td>
-                      </tr>
-                    ))}
-                  </Table>
-                </Section>
-              )
+              <Section n={3} title="Critical / Long-Term Task Progress" collapsible
+                summary={countSummary(v.longTerm.map((l) => l.status))}
+                note="Critical tasks, and work that runs beyond this month — started earlier, due later, or carried over overdue — judged against the monthly milestone. Click a task to open it.">
+                <Table
+                  head={["Task / Project", "Monthly Milestone", "Planned %", "Actual %", "Progress", "Status"]}
+                  empty="No critical or multi-month tasks this month."
+                >
+                  {v.longTerm.map((l) => (
+                    <tr key={l.taskId}>
+                      <Td><TaskTitle id={l.taskId} title={l.title} project={l.project} /></Td>
+                      <Td>{l.milestone || "—"}</Td>
+                      <Td>{l.planned == null ? "—" : `${l.planned}%`}</Td>
+                      <Td>{l.actual == null ? "—" : `${l.actual}%`}</Td>
+                      <Td><StatusPill s={l.status} /></Td>
+                      <Td><TaskStatusCell status={l.taskStatus} overdueDays={l.overdueDays} /></Td>
+                    </tr>
+                  ))}
+                </Table>
+              </Section>
             ) : (
               <Section n={3} title="My Major Achievements & Contributions" note="Summarise each in your own words.">
                 <Prompts fields={v.achievements.map((a) => ({ ...a.employee, label: a.label }))} {...fieldProps} />
@@ -315,25 +323,18 @@ export default function MyPerformancePage() {
             </Section>
 
             <Section n={6} title="My Comments"
-              note="Anything you'd like your Reporting Manager or HR to know about this review. Whoever you choose is notified when you save.">
+              note="Anything you'd like your Reporting Managers (Admins & Leads) or HR to know about this review. Everyone in the group you choose is notified when you save.">
               <label className="flex flex-wrap items-center gap-2 mb-2 text-sm">
                 <span className="font-medium text-ink-700">Send to</span>
                 <select
                   aria-label="Send comment to"
-                  className={`${inputCls} w-64`}
+                  className={`${inputCls} w-auto min-w-[18rem] pr-8`}
                   value={commentTo}
                   onChange={(e) => set("summary.commentTo")(e.target.value)}
                 >
-                  {COMMENT_RECIPIENTS.map((r) => {
-                    const noManager = r.value === "manager" && !v.employee.reportingManager;
-                    return (
-                      <option key={r.value} value={r.value} disabled={noManager}>
-                        {r.value === "manager"
-                          ? `${r.label}${v.employee.reportingManager ? ` (${v.employee.reportingManager})` : " (not set)"}`
-                          : r.label}
-                      </option>
-                    );
-                  })}
+                  {COMMENT_RECIPIENTS.map((r) => (
+                    <option key={r.value} value={r.value}>{r.label}</option>
+                  ))}
                 </select>
               </label>
               <Text field={v.employeeComments} {...fieldProps} rows={3} />
@@ -348,6 +349,22 @@ export default function MyPerformancePage() {
         )}
       </div>
     </AppShell>
+  );
+}
+
+/** A task's title that opens it in the task drawer, as on My Tasks. */
+function TaskTitle({ id, title, project }: { id: number; title: string; project: string }) {
+  const drawer = useTaskDrawer();
+  return (
+    <button
+      type="button"
+      onClick={() => drawer.open(id, { backLabel: "My Performance" })}
+      className="text-left group"
+      title="Open task"
+    >
+      <span className="font-medium group-hover:text-brand-blue group-hover:underline">{title}</span>
+      <div className="text-xs text-ink-500">{project}</div>
+    </button>
   );
 }
 

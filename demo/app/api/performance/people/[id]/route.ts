@@ -10,12 +10,12 @@ const patchBody = z.object({
   department: optionalText(80),
   designation: optionalText(80),
   joined: z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.literal("")]).nullable().optional(),
-  reportingManagerId: z.string().min(1).nullable().optional(),
 });
 
 /** PATCH — HR / Admin maintain the review's employee details: Employee
- *  ID, department, designation, joining date and Reporting Manager (a
- *  Lead). Fields left out are unchanged; "" or null clears one. */
+ *  ID, department, designation and joining date. (Reporting Manager is a
+ *  role — every Admin and Lead — so there's nothing to assign.) Fields
+ *  left out are unchanged; "" or null clears one. */
 export async function PATCH(req: Request, context: { params: Promise<{ id: string }> }) {
   const userOrResp = await requireUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
@@ -34,19 +34,6 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
   const target = await prisma.user.findUnique({ where: { id }, select: { id: true, name: true } });
   if (!target) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  if (b.reportingManagerId) {
-    if (b.reportingManagerId === id) {
-      return NextResponse.json({ error: "A person cannot report to themselves." }, { status: 400 });
-    }
-    const lead = await prisma.user.findUnique({
-      where: { id: b.reportingManagerId },
-      select: { primaryRole: true, isActive: true },
-    });
-    if (!lead || !lead.isActive || lead.primaryRole !== "Lead") {
-      return NextResponse.json({ error: "Reporting Manager must be an active Lead." }, { status: 400 });
-    }
-  }
-
   // undefined = leave alone; "" / null = clear.
   const text = (v: string | null | undefined) => (v === undefined ? undefined : v || null);
   const data = {
@@ -54,7 +41,6 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
     department: text(b.department),
     designation: text(b.designation),
     joined: b.joined === undefined ? undefined : b.joined ? new Date(b.joined + "T00:00:00Z") : null,
-    reportingManagerId: b.reportingManagerId,
   };
 
   if (data.employeeCode) {

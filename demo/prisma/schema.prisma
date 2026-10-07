@@ -28,8 +28,8 @@ model User {
   /// filled in from Performance → Employee details by Admin or HR.
   employeeCode       String?
   department         String?
-  /// The Lead this person reports to; signs the review as Reporting
-  /// Manager. Cleared (not cascaded) if that Lead's account is deleted.
+  /// Unused: Reporting Manager is now a role (every Admin and Lead), not
+  /// a per-person assignment. Kept so no data is dropped.
   reportingManagerId String?
   reportingManager   User?     @relation("ReportingLine", fields: [reportingManagerId], references: [id], onDelete: SetNull)
   reports            User[]    @relation("ReportingLine")

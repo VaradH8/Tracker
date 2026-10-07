@@ -26,6 +26,7 @@ import {
   Td,
   Text,
   areaCls,
+  countSummary,
   inputCls,
   previousMonth,
   type Draft,
@@ -42,13 +43,10 @@ type Person = {
   department: string;
   employeeCode: string;
   joined: string;
-  reportingManagerId: string | null;
-  reportingManager: string;
 };
 
 type PeopleData = {
   people: Person[];
-  leads: { id: string; name: string }[];
   viewer: { id: string; canEditRecords: boolean; canDownload: boolean };
 };
 
@@ -109,7 +107,7 @@ function suggestionsOf(r: Report): Record<string, string> {
 /**
  * Performance reviews — the IBS Monthly / Yearly review, generated from
  * the tracker (tasks, hours, leave) and completed by the Reporting
- * Manager (a Lead), HR or Admin. Lead, Co-ordinator, HR and Admin can
+ * Manager (an Admin or Lead), HR or Admin. Lead, Co-ordinator, HR and Admin can
  * read every review; only HR downloads the Word document.
  */
 export default function PerformancePage() {
@@ -269,7 +267,7 @@ export default function PerformancePage() {
               comments. These refresh whenever the tracker changes.
             </p>
             <p>
-              <strong>Entered by people:</strong> the Reporting Manager (a Lead), HR or Admin can override any rating
+              <strong>Entered by people:</strong> the Reporting Managers — every Admin and Lead — and HR can override any rating
               or text and save. The employee&apos;s self-assessment and own ratings are never generated — enter
               what the employee submitted, or leave them for the printed form.
             </p>
@@ -342,7 +340,7 @@ export default function PerformancePage() {
               {data?.meta.savedAt
                 ? ` · last saved ${new Date(data.meta.savedAt).toLocaleString("en-GB")}${data.meta.savedBy ? ` by ${data.meta.savedBy}` : ""}`
                 : " · not reviewed yet"}
-              {!editable && " · read-only (only the Reporting Manager, HR or Admin can edit)"}
+              {!editable && " · read-only (Admins, Leads and HR can edit)"}
             </p>
 
             {/* 1. Employee details */}
@@ -358,7 +356,7 @@ export default function PerformancePage() {
                 <Detail label="Employee ID" value={r.employee.employeeCode} missing />
                 <Detail label="Department" value={r.employee.department} missing />
                 <Detail label="Designation" value={r.employee.designation} missing />
-                <Detail label="Reporting Manager" value={r.employee.reportingManager} missing />
+                <Detail label="Reporting Manager" value={r.employee.reportingManager || "Any Admin or Lead — not reviewed yet"} />
                 {r.kind === "Monthly" ? (
                   <>
                     <Detail label="Review Month" value={r.periodLabel} />
@@ -393,7 +391,7 @@ export default function PerformancePage() {
 
             {/* 2. Goals */}
             {r.kind === "Monthly" ? (
-              <Section n={2} title="Monthly Goals / Assigned Tasks">
+              <Section n={2} title="Monthly Goals / Assigned Tasks" collapsible summary={countSummary(r.goals.map((g) => g.status))}>
                 <Table head={["Goal / Task", "Expected Outcome", "Priority", "Target Date", "Status"]} empty="No tasks assigned in this month.">
                   {r.goals.map((g) => (
                     <tr key={g.taskId}>
@@ -448,7 +446,8 @@ export default function PerformancePage() {
 
             {/* 3. Long-term progress / Achievements */}
             {r.kind === "Monthly" ? (
-              <Section n={3} title="Critical / Long-Term Task Progress"
+              <Section n={3} title="Critical / Long-Term Task Progress" collapsible
+                summary={countSummary(r.longTerm.map((l) => l.status))}
                 note="For tasks extending beyond one month, progress is judged against the monthly milestone rather than final completion. Planned % = share of the task's start→target span elapsed; Actual % = hours logged ÷ estimate (100% once done).">
                 <Table head={["Task / Project", "Monthly Milestone", "Planned %", "Actual %", "Status"]} empty="No critical or multi-month tasks in this month.">
                   {r.longTerm.map((l) => (
@@ -529,7 +528,7 @@ export default function PerformancePage() {
               <div className="grid sm:grid-cols-3 gap-3 text-sm">
                 {[
                   ["Employee", r.employee.name],
-                  ["Reporting Manager", r.employee.reportingManager || "Not set"],
+                  ["Reporting Manager", r.employee.reportingManager || "The Admin or Lead who reviews it"],
                   ["HR", "Filled with the HR name on download"],
                 ].map(([who, name]) => (
                   <div key={who} className="rounded border border-ink-200 p-3">
@@ -546,7 +545,6 @@ export default function PerformancePage() {
       {editingPerson && person && people && (
         <EmployeeDetailsModal
           person={person}
-          leads={people.leads}
           onClose={() => setEditingPerson(false)}
           onSaved={async () => {
             setEditingPerson(false);
@@ -561,6 +559,7 @@ export default function PerformancePage() {
 }
 
 /* ---------------------------------------------------------- components */
+
 
 function RatingLine({ a, ...p }: FieldProps & { a: RatingRow }) {
   const comments = `rating.${a.key}.comments`;
@@ -602,12 +601,10 @@ function Choice({ label, options, auto, k, draft, set, editable }: FieldProps & 
 
 function EmployeeDetailsModal({
   person,
-  leads,
   onClose,
   onSaved,
 }: {
   person: Person;
-  leads: { id: string; name: string }[];
   onClose: () => void;
   onSaved: () => void | Promise<void>;
 }) {
@@ -616,7 +613,6 @@ function EmployeeDetailsModal({
     department: person.department,
     designation: person.designation,
     joined: person.joined,
-    reportingManagerId: person.reportingManagerId ?? "",
   });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -631,7 +627,7 @@ function EmployeeDetailsModal({
       const res = await fetch(`/api/performance/people/${person.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, reportingManagerId: form.reportingManagerId || null }),
+        body: JSON.stringify(form),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -654,16 +650,9 @@ function EmployeeDetailsModal({
           <label><span className={label}>Designation</span><input className={`${inputCls} w-full`} value={form.designation} onChange={field("designation")} /></label>
           <label><span className={label}>Date of joining</span><input type="date" className={`${inputCls} w-full`} value={form.joined} onChange={field("joined")} /></label>
         </div>
-        <label className="block">
-          <span className={label}>Reporting Manager (Lead)</span>
-          <select className={`${inputCls} w-full`} value={form.reportingManagerId} onChange={field("reportingManagerId")}>
-            <option value="">Not set</option>
-            {leads.filter((l) => l.id !== person.id).map((l) => (
-              <option key={l.id} value={l.id}>{l.name}</option>
-            ))}
-          </select>
-          <span className="text-xs text-ink-500">The Reporting Manager can rate and comment on this person&apos;s reviews.</span>
-        </label>
+        <p className="text-xs text-ink-500">
+          Reporting Manager: every Admin and Lead acts as Reporting Manager — nothing to assign.
+        </p>
         {error && <p className="text-sm text-brand-redText">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
           <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
