@@ -2,14 +2,16 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import {
   canDownloadPerformance,
+  reportingManagersWhere,
   canEditEmployeeRecord,
   canSeePerformance,
   requireUser,
 } from "@/lib/server-access";
 import { toISO } from "@/lib/engagement";
 
-/** GET — who can be reviewed (every active non-Admin account) and what
- *  the viewer may do. */
+/** GET — who can be reviewed (every active non-Admin account), the
+ *  Admins and Leads who can be their Reporting Manager, and what the
+ *  viewer may do. */
 export async function GET() {
   const userOrResp = await requireUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
@@ -17,6 +19,12 @@ export async function GET() {
   if (!canSeePerformance(me.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+
+  const managers = await prisma.user.findMany({
+    where: reportingManagersWhere,
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, primaryRole: true },
+  });
 
   const users = await prisma.user.findMany({
     where: { isActive: true, primaryRole: { not: "Admin" } },
@@ -29,6 +37,8 @@ export async function GET() {
       department: true,
       employeeCode: true,
       joined: true,
+      reportingManagerId: true,
+      reportingManager: { select: { name: true } },
     },
   });
 
@@ -41,7 +51,10 @@ export async function GET() {
       department: u.department ?? "",
       employeeCode: u.employeeCode ?? "",
       joined: u.joined ? toISO(u.joined) : "",
+      reportingManagerId: u.reportingManagerId,
+      reportingManager: u.reportingManager?.name ?? "",
     })),
+    managers: managers.map((u) => ({ id: u.id, name: u.name, role: u.primaryRole })),
     viewer: {
       id: me.id,
       canEditRecords: canEditEmployeeRecord(me),

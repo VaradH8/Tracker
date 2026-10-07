@@ -9,6 +9,8 @@ vi.mock("@/lib/auth", () => ({ createAccount: vi.fn() }));
 vi.mock("@/lib/server-access", () => ({
   requireUser: vi.fn(),
   canManageUsers: (r: string) => r === "Admin",
+  canManageStaff: (u: { role: string; primaryRole?: string }) =>
+    u.role === "Admin" || u.primaryRole === "HR",
 }));
 
 import { prisma } from "@/lib/db";
@@ -82,5 +84,16 @@ describe("GET /api/users", () => {
     expect(u.hourlyRate).toBe(1500);
     expect(u.phone).toBe("9999999999");
     expect(u.location).toBe("Pune");
+  });
+
+  it("gives HR the full records for onboarding, but not pay", async () => {
+    vi.mocked(requireUser).mockResolvedValue({ ...actor("Coordinator"), primaryRole: "HR" });
+    vi.mocked(prisma.user.findMany).mockResolvedValue([
+      { ...dbRow("Developer"), reportingManagerId: "lead-1" },
+    ] as never);
+    const u = (await (await GET()).json()).users[0];
+    expect(u.phone).toBe("9999999999");
+    expect(u.reportingManagerId).toBe("lead-1");
+    expect(u.hourlyRate).toBe(0);
   });
 });

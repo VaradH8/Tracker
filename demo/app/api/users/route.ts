@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
-import { requireUser, canManageUsers } from "@/lib/server-access";
+import {
+  canManageStaff,
+  canManageUsers,
+  reportingManagerProblem,
+  requireUser,
+  staffChangeRefusal,
+} from "@/lib/server-access";
 import { createAccount } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import type { Role } from "@/lib/role";
@@ -22,7 +28,7 @@ export async function GET() {
   // Non-admins get the basic roster of active people — names + roles —
   // so they can assign tasks and staff project teams. HR / contact fields
   // (salary, phone, location) are redacted; only admins see those.
-  if (!canManageUsers(user.role)) {
+  if (!canManageStaff(user)) {
     const roster = await prisma.user.findMany({
       where: { isActive: true },
       orderBy: [{ name: "asc" }],
@@ -32,13 +38,19 @@ export async function GET() {
   const users = await prisma.user.findMany({
     orderBy: [{ isActive: "desc" }, { createdAt: "asc" }],
   });
-  return NextResponse.json({ users: users.map(serialize) });
+  // HR gets the full people records for onboarding, but pay (hourly
+  // rate) stays Admin-only.
+  const showPay = canManageUsers(user.role);
+  return NextResponse.json({
+    users: users.map((u) => ({ ...serialize(u), hourlyRate: showPay ? u.hourlyRate : 0 })),
+  });
 }
 
 export async function POST(req: Request) {
   const userOrResp = await requireUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
-  if (!canManageUsers(userOrResp.role)) {
+  const me = userOrResp;
+  if (!canManageStaff(me)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const body = await req.json().catch(() => ({}));
@@ -47,9 +59,18 @@ export async function POST(req: Request) {
   const password = String(body.password ?? "");
   const roleInput = String(body.role ?? "Developer") as Role;
   const role = ROLES.includes(roleInput) ? roleInput : "Developer";
+  const refusal = staffChangeRefusal(me, null, role);
+  if (refusal) return NextResponse.json({ error: refusal }, { status: 403 });
+  const reportingManagerId =
+    typeof body.reportingManagerId === "string" && body.reportingManagerId ? body.reportingManagerId : null;
+  const managerProblem = await reportingManagerProblem(reportingManagerId, null);
+  if (managerProblem) return NextResponse.json({ error: managerProblem }, { status: 400 });
   const result = await createAccount({ name, email, role, password });
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 400 });
+  }
+  if (reportingManagerId) {
+    await prisma.user.update({ where: { id: result.user.id }, data: { reportingManagerId } });
   }
   // A new namesake changes both people's labels — pick it up now.
   await refreshShortNames(true);
@@ -73,6 +94,7 @@ function serialize(u: {
   location: string | null;
   hourlyRate: number;
   capacityPerWeek: number;
+  reportingManagerId: string | null;
 }) {
   return {
     id: u.id,
@@ -89,6 +111,7 @@ function serialize(u: {
     location: u.location ?? "",
     hourlyRate: u.hourlyRate,
     capacityPerWeek: u.capacityPerWeek,
+    reportingManagerId: u.reportingManagerId,
   };
 }
 

@@ -35,6 +35,9 @@ export type Account = {
   location?: string;
   hourlyRate?: number;
   capacityPerWeek?: number;
+  /** This person's Reporting Manager (an Admin or Lead), if assigned.
+   *  Sent to Admin and HR only. */
+  reportingManagerId?: string | null;
 };
 
 export const DEMO_DEFAULT_PASSWORD = "tracker2026";
@@ -48,6 +51,7 @@ type RegisterInput = {
   email: string;
   role: Role;
   password: string;
+  reportingManagerId?: string | null;
 };
 
 type Ctx = {
@@ -78,6 +82,7 @@ type Ctx = {
         | "location"
         | "hourlyRate"
         | "capacityPerWeek"
+        | "reportingManagerId"
       > & {
         password?: string;
       }
@@ -240,6 +245,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
           | "location"
           | "hourlyRate"
           | "capacityPerWeek"
+          | "reportingManagerId"
         > & {
           password?: string;
         }

@@ -49,6 +49,16 @@ export default function UsersPage() {
   const toast = useToast();
   const confirm = useConfirm();
 
+  // Admin and HR both manage people here. HR can't touch Admin accounts,
+  // hand out the Admin role, change their own role, delete anyone or set
+  // hourly rates — the server enforces all of it; this only hides it.
+  const viewerIsAdmin = current?.role === "Admin" || !!current?.isAdmin;
+  const roleOptions = viewerIsAdmin ? ROLES : ROLES.filter((r) => r !== "Admin");
+  const isLocked = (a: Account) => !viewerIsAdmin && (a.role === "Admin" || !!a.isAdmin);
+  const managers = reportingManagerOptions(accounts);
+  const managerName = (id: string | null | undefined) =>
+    (id && accounts.find((a) => a.id === id)?.name) || "";
+
   const visible = accounts
     .filter((a) => {
       if (statusFilter === "All") return true;
@@ -143,6 +153,7 @@ export default function UsersPage() {
                 <tr className="text-left text-xs text-ink-500 font-heading font-semibold uppercase tracking-wide border-b border-ink-200 bg-ink-50">
                   <th className="py-3 px-5">Name</th>
                   <th className="py-3 px-3">Role</th>
+                  <th className="py-3 px-3">Reporting Manager</th>
                   <th className="py-3 px-3">Last sign-in</th>
                   <th className="py-3 px-3">Status</th>
                   <th className="py-3 px-3 text-right">Actions</th>
@@ -164,15 +175,21 @@ export default function UsersPage() {
                         onChange={(e) =>
                           changeRole(u.id, e.target.value as Role)
                         }
-                        disabled={!u.active}
+                        disabled={!u.active || isLocked(u) || (!viewerIsAdmin && u.id === current?.id)}
+                        title={isLocked(u) ? "Only an Admin can change an Admin's account" : undefined}
                         className="text-sm rounded border border-ink-200 px-2 py-1 disabled:bg-ink-50 disabled:text-ink-400"
                       >
-                        {ROLES.map((r) => (
+                        {(isLocked(u) ? ROLES : roleOptions).map((r) => (
                           <option key={r} value={r}>
                             {ROLE_LABELS[r]}
                           </option>
                         ))}
                       </select>
+                    </td>
+                    <td className="py-3 px-3">
+                      {managerName(u.reportingManagerId) || (
+                        <span className="text-ink-400">Admins &amp; Leads</span>
+                      )}
                     </td>
                     <td className="py-3 px-3 text-ink-500">
                       {u.lastLogin ?? "never"}
@@ -186,9 +203,11 @@ export default function UsersPage() {
                     </td>
                     <td className="py-3 px-3">
                       <div className="flex items-center gap-1 justify-end">
+                        {!isLocked(u) && (
+                        <>
                         <button
                           onClick={() => setEditing(u)}
-                          title="Edit name, email"
+                          title="Edit details and Reporting Manager"
                           className="p-1.5 rounded text-ink-400 hover:text-brand-blue hover:bg-brand-blueBg"
                         >
                           <Pencil size={14} />
@@ -222,7 +241,9 @@ export default function UsersPage() {
                             <UserCheck size={14} />
                           )}
                         </button>
-                        {current && u.id !== current.id && (
+                        </>
+                        )}
+                        {viewerIsAdmin && current && u.id !== current.id && (
                           <button
                             onClick={() => setDeleting(u)}
                             title="Delete user permanently"
@@ -243,6 +264,8 @@ export default function UsersPage() {
 
       {addOpen && (
         <AddUserModal
+          roles={roleOptions}
+          managers={managers}
           onClose={() => setAddOpen(false)}
           onCreate={async (input) => {
             const result = await createAccount(input);
@@ -261,6 +284,8 @@ export default function UsersPage() {
       {editing && (
         <EditUserModal
           account={editing}
+          managers={managers.filter((m) => m.id !== editing.id)}
+          canSetRate={viewerIsAdmin}
           onClose={() => setEditing(null)}
           onSave={(patch) => {
             updateAccount(editing.id, patch);
@@ -366,17 +391,23 @@ function DeleteUserModal({
 }
 
 function AddUserModal({
+  roles,
+  managers,
   onClose,
   onCreate,
 }: {
+  roles: Role[];
+  managers: Account[];
   onClose: () => void;
   onCreate: (input: {
     name: string;
     email: string;
     role: Role;
     password: string;
+    reportingManagerId: string | null;
   }) => void;
 }) {
+  const [reportingManagerId, setReportingManagerId] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("Developer");
@@ -441,12 +472,18 @@ function AddUserModal({
         onChange={(e) => setRole(e.target.value as Role)}
         className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm"
       >
-        {ROLES.map((r) => (
+        {roles.map((r) => (
           <option key={r} value={r}>
             {ROLE_LABELS[r]}
           </option>
         ))}
       </select>
+
+      <ReportingManagerField
+        value={reportingManagerId}
+        onChange={setReportingManagerId}
+        managers={managers}
+      />
 
       <label className="block text-xs font-medium text-ink-700 mb-1.5">
         Initial password
@@ -479,6 +516,7 @@ function AddUserModal({
               email: email.trim(),
               role,
               password,
+              reportingManagerId: reportingManagerId || null,
             })
           }
           disabled={!name.trim() || !email.trim() || password.length < 6}
@@ -493,10 +531,14 @@ function AddUserModal({
 
 function EditUserModal({
   account,
+  managers,
+  canSetRate,
   onClose,
   onSave,
 }: {
   account: Account;
+  managers: Account[];
+  canSetRate: boolean;
   onClose: () => void;
   onSave: (patch: {
     name: string;
@@ -504,10 +546,12 @@ function EditUserModal({
     designation: string;
     phone: string;
     location: string;
-    hourlyRate: number;
+    hourlyRate?: number;
     capacityPerWeek: number;
+    reportingManagerId: string | null;
   }) => void;
 }) {
+  const [reportingManagerId, setReportingManagerId] = useState(account.reportingManagerId ?? "");
   const [name, setName] = useState(account.name);
   const [email, setEmail] = useState(account.email);
   const [designation, setDesignation] = useState(account.designation ?? "");
@@ -523,8 +567,9 @@ function EditUserModal({
   return (
     <Modal title="Edit user" onClose={onClose} size="lg">
       <p className="text-sm text-ink-500 mb-5">
-        Account + HR details. Use the role dropdown on the row to change
-        role, and the key icon to reset the password.
+        Account + HR details, and who this person reports to. Use the role
+        dropdown on the row to change role, and the key icon to reset the
+        password.
       </p>
 
       <div className="grid grid-cols-2 gap-3 mb-4">
@@ -587,7 +632,14 @@ function EditUserModal({
         </div>
       </div>
 
+      <ReportingManagerField
+        value={reportingManagerId}
+        onChange={setReportingManagerId}
+        managers={managers}
+      />
+
       <div className="grid grid-cols-2 gap-3 mb-6">
+        {canSetRate && (
         <div>
           <label className="block text-xs font-medium text-ink-700 mb-1.5">
             Hourly rate (₹)
@@ -600,6 +652,7 @@ function EditUserModal({
             className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
           />
         </div>
+        )}
         <div>
           <label className="block text-xs font-medium text-ink-700 mb-1.5">
             Capacity (hrs/week)
@@ -625,8 +678,9 @@ function EditUserModal({
               designation: designation.trim(),
               phone: phone.trim(),
               location: location.trim(),
-              hourlyRate: Number(hourlyRate) || 0,
+              ...(canSetRate ? { hourlyRate: Number(hourlyRate) || 0 } : {}),
               capacityPerWeek: Number(capacityPerWeek) || 40,
+              reportingManagerId: reportingManagerId || null,
             })
           }
           disabled={!name.trim() || !email.trim()}
@@ -700,5 +754,46 @@ function ResetPasswordModal({
         </button>
       </div>
     </Modal>
+  );
+}
+
+/** Active Admins and Leads — who can be someone's Reporting Manager. */
+function reportingManagerOptions(accounts: Account[]): Account[] {
+  return accounts
+    .filter((a) => a.active && (a.role === "Admin" || a.role === "Lead" || !!a.isAdmin))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function ReportingManagerField({
+  value,
+  onChange,
+  managers,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  managers: Account[];
+}) {
+  return (
+    <div className="mb-4">
+      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+        Reporting Manager
+      </label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+      >
+        <option value="">Not assigned — every Admin &amp; Lead</option>
+        {managers.map((m) => (
+          <option key={m.id} value={m.id}>
+            {m.name} · {ROLE_LABELS[m.role]}
+          </option>
+        ))}
+      </select>
+      <p className="text-xs text-ink-500 mt-1">
+        Rates and comments on this person&apos;s performance reviews and gets
+        the comments they send to their Reporting Manager.
+      </p>
+    </div>
   );
 }

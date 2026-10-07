@@ -79,8 +79,8 @@ const NAV: Record<Role, NavItem[]> = {
     { href: "/my-performance", label: "My Performance", Icon: UserCheck },
     { href: "/leaves", label: "Leaves", Icon: CalendarCheck },
   ],
-  // useRole() resolves HR to Coordinator, so this list is only here to
-  // keep the Record complete — HR sees the Co-ordinator sidebar.
+  // The Co-ordinator's sidebar plus Users (HR onboards people). Picked by
+  // the account's real role — see navRole below.
   HR: [
     { href: "/my-day", label: "My Day", Icon: Sun },
     { href: "/projects", label: "Projects", Icon: FolderKanban },
@@ -91,6 +91,7 @@ const NAV: Record<Role, NavItem[]> = {
     { href: "/engagement", label: "Engagement", Icon: CalendarRange },
     { href: "/performance", label: "Performance", Icon: ClipboardCheck },
     { href: "/my-performance", label: "My Performance", Icon: UserCheck },
+    { href: "/users", label: "Users", Icon: Users },
     { href: "/leaves", label: "Leaves", Icon: CalendarCheck },
   ],
   BusinessDeveloper: [
@@ -130,8 +131,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const isSignedIn = current != null;
-  const allowed = canAccess(role, pathname);
-  const items = NAV[role];
+  // Sidebar and page access follow the account's real role: HR shares the
+  // Co-ordinator's access everywhere else (useRole), but has its own
+  // sidebar and the Users page.
+  const navRole: Role = current?.role ?? role;
+  const allowed = canAccess(navRole, pathname);
+  const items = NAV[navRole];
 
   useEffect(() => {
     if (!hydrated) return;
@@ -184,7 +189,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             Redirecting…
           </h1>
           <p className="text-sm text-ink-500">
-            That page isn't available for your role ({ROLE_LABELS[role]}).
+            That page isn't available for your role ({ROLE_LABELS[navRole]}).
             Taking you somewhere you can work.
           </p>
         </div>

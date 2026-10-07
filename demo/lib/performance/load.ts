@@ -47,6 +47,8 @@ export async function findEmployee(id: string) {
       designation: true,
       joined: true,
       capacityPerWeek: true,
+      reportingManagerId: true,
+      reportingManager: { select: { name: true } },
     },
   });
 }
@@ -187,9 +189,11 @@ export async function loadReport(
         department: employee.department ?? "",
         designation: employee.designation ?? "",
         joined: day(employee.joined),
-        // Reporting Manager is a role (every Admin and Lead): the form
-        // names whichever of them last saved this review.
-        reportingManager: parseInputs(saved?.inputs)[REVIEWED_BY] ?? "",
+        // The assigned Reporting Manager; with none assigned, whichever
+        // Admin or Lead last saved this review.
+        reportingManager:
+          employee.reportingManager?.name ?? parseInputs(saved?.inputs)[REVIEWED_BY] ?? "",
+        assignedManager: employee.reportingManager?.name ?? "",
       },
       tasks: tasks.map((t) => ({
         id: t.id,

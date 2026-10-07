@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { canEditEmployeeRecord, requireUser, writeAudit } from "@/lib/server-access";
+import {
+  canEditEmployeeRecord,
+  reportingManagerProblem,
+  requireUser,
+  writeAudit,
+} from "@/lib/server-access";
 
 const optionalText = (max: number) => z.string().trim().max(max).nullable().optional();
 
@@ -10,12 +15,12 @@ const patchBody = z.object({
   department: optionalText(80),
   designation: optionalText(80),
   joined: z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.literal("")]).nullable().optional(),
+  reportingManagerId: z.string().nullable().optional(),
 });
 
 /** PATCH — HR / Admin maintain the review's employee details: Employee
- *  ID, department, designation and joining date. (Reporting Manager is a
- *  role — every Admin and Lead — so there's nothing to assign.) Fields
- *  left out are unchanged; "" or null clears one. */
+ *  ID, department, designation, joining date and Reporting Manager (an
+ *  Admin or Lead). Fields left out are unchanged; "" or null clears one. */
 export async function PATCH(req: Request, context: { params: Promise<{ id: string }> }) {
   const userOrResp = await requireUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
@@ -34,6 +39,9 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
   const target = await prisma.user.findUnique({ where: { id }, select: { id: true, name: true } });
   if (!target) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  const managerProblem = await reportingManagerProblem(b.reportingManagerId, id);
+  if (managerProblem) return NextResponse.json({ error: managerProblem }, { status: 400 });
+
   // undefined = leave alone; "" / null = clear.
   const text = (v: string | null | undefined) => (v === undefined ? undefined : v || null);
   const data = {
@@ -41,6 +49,7 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
     department: text(b.department),
     designation: text(b.designation),
     joined: b.joined === undefined ? undefined : b.joined ? new Date(b.joined + "T00:00:00Z") : null,
+    reportingManagerId: b.reportingManagerId === undefined ? undefined : b.reportingManagerId || null,
   };
 
   if (data.employeeCode) {

@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { requireUser, canManageUsers } from "@/lib/server-access";
+import {
+  canManageStaff,
+  canManageUsers,
+  reportingManagerProblem,
+  requireUser,
+  staffChangeRefusal,
+} from "@/lib/server-access";
 import { passwordIssue } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import type { Role } from "@/lib/role";
@@ -74,13 +80,29 @@ export async function PATCH(
   const me = userOrResp;
   const { id } = await context.params;
 
-  // Non-admins can only patch themselves, and only their display name.
+  // Staff managers (Admin, HR) edit anyone they're allowed to; everyone
+  // else can only patch themselves, and only their display / contact
+  // fields. Hourly rate stays with Admin.
   const isAdmin = canManageUsers(me.role);
-  if (!isAdmin && me.id !== id) {
+  const isStaffManager = canManageStaff(me);
+  if (!isStaffManager && me.id !== id) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const body = await req.json().catch(() => ({}));
+  if (isStaffManager && !isAdmin) {
+    const target = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, primaryRole: true, isAdmin: true },
+    });
+    if (!target) return NextResponse.json({ error: "User not found." }, { status: 404 });
+    const refusal = staffChangeRefusal(
+      me,
+      target,
+      typeof body.role === "string" ? body.role : undefined,
+    );
+    if (refusal) return NextResponse.json({ error: refusal }, { status: 403 });
+  }
   const data: {
     name?: string;
     email?: string;
@@ -93,16 +115,17 @@ export async function PATCH(
     location?: string | null;
     hourlyRate?: number;
     capacityPerWeek?: number;
+    reportingManagerId?: string | null;
   } = {};
 
   if (typeof body.name === "string" && body.name.trim()) {
     data.name = body.name.trim();
   }
-  if (isAdmin && typeof body.email === "string" && body.email.trim()) {
+  if (isStaffManager && typeof body.email === "string" && body.email.trim()) {
     data.email = body.email.trim().toLowerCase();
   }
   if (
-    isAdmin &&
+    isStaffManager &&
     typeof body.role === "string" &&
     ROLES.includes(body.role as Role)
   ) {
@@ -115,10 +138,10 @@ export async function PATCH(
     // any code path that checks the boolean directly.
     data.isAdmin = newRole === "Admin";
   }
-  if (isAdmin && typeof body.active === "boolean") {
+  if (isStaffManager && typeof body.active === "boolean") {
     data.isActive = body.active;
   }
-  if (isAdmin && typeof body.password === "string") {
+  if (isStaffManager && typeof body.password === "string") {
     const pwIssue = passwordIssue(body.password);
     if (pwIssue) {
       return NextResponse.json({ error: pwIssue }, { status: 400 });
@@ -139,8 +162,14 @@ export async function PATCH(
   if (isAdmin && typeof body.hourlyRate === "number") {
     data.hourlyRate = body.hourlyRate;
   }
-  if (isAdmin && typeof body.capacityPerWeek === "number") {
+  if (isStaffManager && typeof body.capacityPerWeek === "number") {
     data.capacityPerWeek = body.capacityPerWeek;
+  }
+  if (isStaffManager && (typeof body.reportingManagerId === "string" || body.reportingManagerId === null)) {
+    const managerId = body.reportingManagerId || null;
+    const problem = await reportingManagerProblem(managerId, id);
+    if (problem) return NextResponse.json({ error: problem }, { status: 400 });
+    data.reportingManagerId = managerId;
   }
 
   if (Object.keys(data).length === 0) {
@@ -186,6 +215,7 @@ export async function PATCH(
       location: updated.location ?? "",
       hourlyRate: updated.hourlyRate,
       capacityPerWeek: updated.capacityPerWeek,
+      reportingManagerId: updated.reportingManagerId,
     },
   });
 }

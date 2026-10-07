@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { workingDaySet } from "@/lib/engagement";
 import {
-  band,
   buildReport,
   computeMetrics,
   expectedOutcome,
@@ -61,6 +60,7 @@ function facts(over: Partial<ReportFacts> = {}): ReportFacts {
       designation: "Developer",
       joined: "2024-06-01",
       reportingManager: "Rahul Lead",
+      assignedManager: "Rahul Lead",
     },
     tasks: [],
     entries: [],
@@ -156,15 +156,9 @@ describe("metrics", () => {
     const r = buildReport(f, {});
     const productivity = r.areas.find((a) => a.key === "productivity")!;
     expect(productivity.evidence).toContain("No time logged");
-    // 100% completion alone can't make "Exceptional".
-    expect(productivity.system).toBe(4);
   });
 
-  it("bands values into 1–5", () => {
-    expect(band(95, [90, 75, 60, 40])).toBe(5);
-    expect(band(60, [90, 75, 60, 40])).toBe(3);
-    expect(band(10, [90, 75, 60, 40])).toBe(1);
-    expect(band(null, [90, 75, 60, 40])).toBeNull();
+  it("maps an overall rating to a performance level", () => {
     expect(levelFor(3.4)).toBe("Meets Expectations");
     expect(levelFor(4.6)).toBe("Exceptional");
   });
@@ -192,24 +186,29 @@ describe("buildReport — monthly", () => {
     expect(lt.status).toBe("At Risk");
   });
 
-  it("suggests ratings only where data measures the area", () => {
+  it("never suggests a rating or writes a remark — everything starts blank", () => {
     const r = buildReport(f, {});
-    const by = Object.fromEntries(r.areas.map((a) => [a.key, a]));
-    expect(by.quality.system).toBe(5); // no rework + all signed off
-    expect(by.knowledge.system).toBeNull();
-    expect(by.communication.system).toBeNull();
-    expect(by.communication.evidence).toContain("4 remark");
-    expect(r.summary.overall).not.toBeNull();
-    expect(r.summary.level).toBe(levelFor(r.summary.overall));
+    // Every rating is unmarked until a person marks it.
+    expect(r.areas.every((a) => a.manager === null && a.employee === null && a.effective === null)).toBe(true);
+    expect(r.areas.every((a) => a.comments === "")).toBe(true);
+    // No overall rating, level or priority without ratings to average.
+    expect(r.summary.overall).toBeNull();
+    expect(r.summary.level).toBeNull();
+    // No pre-written text anywhere.
+    const texts = [...r.self, ...r.manager, r.summary.plan, r.summary.feedback, r.summary.employeeComments, ...r.longTerm.map((l) => l.milestone)];
+    expect(texts.every((t) => t.value === "")).toBe(true);
+    expect(texts.every((t) => !("suggested" in t))).toBe(true);
+    // The tracker data stays, for reference.
+    expect(r.areas.find((a) => a.key === "communication")?.evidence).toContain("4 remark");
   });
 
-  it("never generates the employee's self-assessment", () => {
-    const r = buildReport(f, {});
-    expect(r.self.every((s) => s.value === "" && s.suggested === "")).toBe(true);
-    expect(r.manager.find((m) => m.key === "mgr.achievements")?.suggested).toContain("ESP half vibrator");
+  it("takes the overall rating from the manager ratings people entered", () => {
+    const r = buildReport(f, { "rating.quality.manager": "4", "rating.productivity.manager": "3", "rating.quality.employee": "5" });
+    expect(r.summary.overall).toBe(3.5); // employee ratings don't count
+    expect(r.summary.level).toBe(levelFor(3.5));
   });
 
-  it("lets saved inputs override suggestions", () => {
+  it("uses what people entered", () => {
     const r = buildReport(f, {
       "rating.quality.manager": "2",
       "rating.quality.employee": "4",
@@ -252,10 +251,12 @@ describe("buildReport — yearly", () => {
     expect(r.kpis.find((k) => k.key === "onTime")?.achievement).toBe(56); // 50% vs 90% target
     expect(r.kpis.find((k) => k.key === "goal.1")?.manual).toBe(true);
     const comm = r.areas.find((a) => a.key === "communication")!;
-    expect(comm.system).toBe(3);
+    // Monthly ratings are shown as reference, never turned into a rating.
     expect(comm.evidence).toContain("avg 3 over 2 month(s)");
-    expect(r.summary.priority).not.toBeNull();
-    expect(r.manager.find((m) => m.key === "mgr.consistency")?.suggested).toContain("Aug 3.5");
+    expect(comm.effective).toBeNull();
+    expect(r.summary.priority).toBeNull();
+    expect(r.manager.every((m) => m.value === "")).toBe(true);
+    expect(r.achievements.every((a) => a.manager.value === "" && a.employee.value === "")).toBe(true);
   });
 });
 

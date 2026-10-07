@@ -3,17 +3,18 @@ import { z } from "zod";
 import {
   canDownloadPerformance,
   canEditPerformance,
+  canRateHrEvaluation,
   canSeePerformance,
   isReportingManager,
   requireUser,
   writeAudit,
 } from "@/lib/server-access";
-import { REVIEWED_BY, parseReviewQuery, validateChanges } from "@/lib/performance/forms";
+import { REVIEWED_BY, isHrKey, parseReviewQuery, validateChanges } from "@/lib/performance/forms";
 import { findEmployee, loadReport, saveReviewChanges } from "@/lib/performance/load";
 
 /** GET ?userId&kind=Monthly|Yearly&period=YYYY-MM|YYYY — the generated
- *  review: tracker evidence + suggested ratings merged with what the
- *  reviewer saved. */
+ *  review: the tracker's facts (tasks, hours, leave, KPIs) plus the
+ *  ratings and remarks people have entered. */
 export async function GET(req: Request) {
   const userOrResp = await requireUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
@@ -31,7 +32,8 @@ export async function GET(req: Request) {
   if (!loaded) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({
     ...loaded,
-    canEdit: canEditPerformance(me),
+    canEdit: canEditPerformance(me, employee),
+    canEditHr: canRateHrEvaluation(me),
     canDownload: canDownloadPerformance(me),
   });
 }
@@ -62,11 +64,15 @@ export async function PUT(req: Request) {
 
   const employee = await findEmployee(q.userId);
   if (!employee) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (!canEditPerformance(me)) {
+  if (!canEditPerformance(me, employee)) {
     return NextResponse.json(
-      { error: "Only a Reporting Manager (Admin or Lead) or HR can edit this review." },
+      { error: "Only this person's Reporting Manager, an Admin or HR can edit this review." },
       { status: 403 },
     );
+  }
+
+  if (!canRateHrEvaluation(me) && Object.keys(parsed.data.changes).some(isHrKey)) {
+    return NextResponse.json({ error: "Only HR can fill in the HR Evaluation." }, { status: 403 });
   }
 
   const checked = validateChanges(parsed.data.changes);
@@ -90,6 +96,7 @@ export async function PUT(req: Request) {
   return NextResponse.json({
     ...loaded,
     canEdit: true,
+    canEditHr: canRateHrEvaluation(me),
     canDownload: canDownloadPerformance(me),
   });
 }

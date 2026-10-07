@@ -36,6 +36,33 @@ export function canManageUsers(role: SessionUser["role"]): boolean {
   return role === "Admin";
 }
 
+/** The Users page (/users): Admin, and HR — who onboard people. Admin
+ *  keeps the rest of canManageUsers (settings, backups, clients…); HR only
+ *  gets the people list, within the limits of staffChangeRefusal. */
+export function canManageStaff(user: SessionUser): boolean {
+  return user.role === "Admin" || user.primaryRole === "HR";
+}
+
+/** Why a staff manager may NOT make this change, or null if they may.
+ *  Admins may do anything. HR may not touch Admin accounts, hand out the
+ *  Admin role, or change their own role — so HR can't widen anyone's
+ *  access past their own, including their own. */
+export function staffChangeRefusal(
+  actor: SessionUser,
+  target: { id: string; primaryRole: string; isAdmin: boolean } | null,
+  newRole?: string,
+): string | null {
+  if (actor.role === "Admin") return null;
+  if (target && (target.isAdmin || target.primaryRole === "Admin")) {
+    return "Only an Admin can change an Admin's account.";
+  }
+  if (newRole === "Admin") return "Only an Admin can make someone an Admin.";
+  if (target && newRole !== undefined && target.id === actor.id) {
+    return "You can't change your own role.";
+  }
+  return null;
+}
+
 /** Per-person hour *totals* on Resources. Oversight roles see every
  *  person's totals — otherwise anyone working outside the viewer's own
  *  projects reads as 0h, because time entries are project-scoped (see
@@ -53,11 +80,40 @@ export function canSeeEngagement(role: SessionUser["role"]): boolean {
   return role === "Admin" || role === "Lead" || role === "Coordinator";
 }
 
-/** "Reporting Manager" is a role, not a per-person assignment: every
- *  active Admin and Lead is a Reporting Manager for everyone. They rate
- *  and comment on every review (canEditPerformance) and all receive the
- *  comments an employee sends to "Reporting Manager". */
+/** Reporting Managers are Admins and Leads. Each employee can have their
+ *  own (User.reportingManagerId), set from Users → Edit user or
+ *  Performance → Edit details. That person rates and comments on their
+ *  reviews and receives their "Send to: Reporting Manager" comments. An
+ *  employee with none assigned falls back to every Admin and Lead. */
 export const REPORTING_MANAGER_ROLES = ["Admin", "Lead"] as const;
+
+export function canBeReportingManager(u: {
+  primaryRole: string;
+  isAdmin: boolean;
+  isActive: boolean;
+}): boolean {
+  return (
+    u.isActive &&
+    (u.isAdmin || (REPORTING_MANAGER_ROLES as readonly string[]).includes(u.primaryRole))
+  );
+}
+
+/** Why `managerId` can't be `employeeId`'s Reporting Manager, or null if
+ *  it can. Empty / null means "none" and is always fine. */
+export async function reportingManagerProblem(
+  managerId: string | null | undefined,
+  employeeId: string | null,
+): Promise<string | null> {
+  if (!managerId) return null;
+  if (employeeId && managerId === employeeId) return "A person can't be their own Reporting Manager.";
+  const manager = await prisma.user.findUnique({
+    where: { id: managerId },
+    select: { primaryRole: true, isAdmin: true, isActive: true },
+  });
+  return manager && canBeReportingManager(manager)
+    ? null
+    : "Reporting Manager must be an active Admin or Lead.";
+}
 
 /** Prisma `where` for the active Reporting Managers (Admins and Leads). */
 export const reportingManagersWhere = {
@@ -92,10 +148,22 @@ export function canDownloadPerformance(user: SessionUser): boolean {
   return user.primaryRole === "HR";
 }
 
-/** Who can rate and comment on a review: the Reporting Managers (every
- *  Admin and Lead) and HR. Co-ordinators read it. */
-export function canEditPerformance(user: SessionUser): boolean {
-  return isReportingManager(user.role) || user.primaryRole === "HR";
+/** The HR Evaluation section of a review is HR's alone — rated by an
+ *  HR account (real role), not by Admins or the Reporting Manager. */
+export function canRateHrEvaluation(user: SessionUser): boolean {
+  return user.primaryRole === "HR";
+}
+
+/** Who can rate and comment on a review: HR, every Admin, and the
+ *  employee's Reporting Manager — or, while none is assigned, any Lead.
+ *  Co-ordinators read it. */
+export function canEditPerformance(
+  user: SessionUser,
+  employee: { reportingManagerId: string | null },
+): boolean {
+  if (user.role === "Admin" || user.primaryRole === "HR") return true;
+  if (user.role !== "Lead") return false;
+  return !employee.reportingManagerId || employee.reportingManagerId === user.id;
 }
 
 /** Employee ID, department, joining date and reporting line — HR master
