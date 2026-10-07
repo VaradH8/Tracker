@@ -9,12 +9,6 @@ export function canSeeProjectAudit(role: Role): boolean {
   return role === "Admin" || role === "Lead" || role === "Coordinator";
 }
 
-/** Mirror of canUseAsk() in lib/server-access.ts — drives the nav item.
- *  The server gate is the one that counts; this only hides the link. */
-export function canUseAsk(role: Role): boolean {
-  return role === "Admin" || role === "Lead" || role === "Coordinator";
-}
-
 export function canExportData(role: Role): boolean {
   return role !== "Developer";
 }
@@ -30,7 +24,6 @@ export function canSeeRemarkAuthor(role: Role, isAssignee: boolean): boolean {
 
 const ALLOWED: Record<Role, string[]> = {
   Admin: [
-    "/ask",
     "/dashboard",
     "/analytics",
     "/projects",
@@ -47,7 +40,6 @@ const ALLOWED: Record<Role, string[]> = {
     "/notifications",
   ],
   Lead: [
-    "/ask",
     "/my-day",
     "/my-tasks",
     "/projects",
@@ -61,7 +53,6 @@ const ALLOWED: Record<Role, string[]> = {
     "/team",
   ],
   Coordinator: [
-    "/ask",
     "/my-day",
     "/my-tasks",
     "/projects",
@@ -79,7 +70,6 @@ const ALLOWED: Record<Role, string[]> = {
   // useRole() already resolves HR to Coordinator; this entry only keeps
   // the Record complete.
   HR: [
-    "/ask",
     "/my-day",
     "/my-tasks",
     "/projects",

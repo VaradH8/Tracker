@@ -36,13 +36,6 @@ export function canManageUsers(role: SessionUser["role"]): boolean {
   return role === "Admin";
 }
 
-/** Ask Tracker (the chat) is an oversight tool — it answers questions
- *  about other people's workload, so it stays with the roles that already
- *  have cross-person visibility. Mirrored client-side in lib/access.ts. */
-export function canUseAsk(role: SessionUser["role"]): boolean {
-  return role === "Admin" || role === "Lead" || role === "Coordinator";
-}
-
 /** Per-person hour *totals* on Resources. Oversight roles see every
  *  person's totals — otherwise anyone working outside the viewer's own
  *  projects reads as 0h, because time entries are project-scoped (see

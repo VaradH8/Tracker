@@ -20,7 +20,6 @@ import {
   X,
   CalendarClock,
   Users2,
-  MessagesSquare,
   CalendarRange,
   ClipboardCheck,
   UserCheck,
@@ -42,8 +41,8 @@ type NavItem = {
 };
 
 const NAV: Record<Role, NavItem[]> = {
-  // Ask Tracker, Analytics and Leaves are off the Admin sidebar but still
-  // reachable by URL (lib/access.ts is unchanged). Notifications isn't in
+  // Analytics and Leaves are off the Admin sidebar but still reachable by
+  // URL (lib/access.ts is unchanged). Notifications isn't in
   // any role's sidebar: everyone reaches it from the top-bar bell, whose
   // pop-up links to the full page ("View all notifications").
   Admin: [
@@ -59,7 +58,6 @@ const NAV: Record<Role, NavItem[]> = {
   ],
   Lead: [
     { href: "/my-day", label: "My Day", Icon: Sun },
-    { href: "/ask", label: "Ask Tracker", Icon: MessagesSquare },
     { href: "/projects", label: "Projects", Icon: FolderKanban },
     { href: "/my-tasks", label: "My Tasks", Icon: ListTodo },
     { href: "/team", label: "My team", Icon: Users2 },
@@ -71,7 +69,6 @@ const NAV: Record<Role, NavItem[]> = {
   ],
   Coordinator: [
     { href: "/my-day", label: "My Day", Icon: Sun },
-    { href: "/ask", label: "Ask Tracker", Icon: MessagesSquare },
     { href: "/projects", label: "Projects", Icon: FolderKanban },
     { href: "/my-tasks", label: "My Tasks", Icon: ListTodo },
     { href: "/team", label: "My team", Icon: Users2 },
@@ -86,7 +83,6 @@ const NAV: Record<Role, NavItem[]> = {
   // keep the Record complete — HR sees the Co-ordinator sidebar.
   HR: [
     { href: "/my-day", label: "My Day", Icon: Sun },
-    { href: "/ask", label: "Ask Tracker", Icon: MessagesSquare },
     { href: "/projects", label: "Projects", Icon: FolderKanban },
     { href: "/my-tasks", label: "My Tasks", Icon: ListTodo },
     { href: "/team", label: "My team", Icon: Users2 },
