@@ -15,12 +15,12 @@ import {
   validateChanges,
   type CommentRecipient,
 } from "@/lib/performance/forms";
-import { loadReport, saveReviewChanges } from "@/lib/performance/load";
+import { findEmployee, loadReport, saveReviewChanges } from "@/lib/performance/load";
 import { periodLabel, toSelfView, type Inputs } from "@/lib/performance/report";
 
 /** GET ?kind=Monthly|Yearly&period=YYYY-MM|YYYY — the signed-in
- *  employee's own review, as they see it (no manager ratings, comments or
- *  suggested scores — see toSelfView). */
+ *  employee's own review, as they see it (no manager ratings or comments
+ *  — see toSelfView). */
 export async function GET(req: Request) {
   const userOrResp = await requireUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
@@ -47,13 +47,23 @@ const putBody = z.object({
 
 type Recipient = { id: string; name: string };
 
-/** The people a comment addressed to `to` reaches: every active
- *  Reporting Manager (Admin or Lead), or every active HR account. Never
- *  the sender. */
+/** The people a comment addressed to `to` reaches: the employee's own
+ *  Reporting Manager (every active Admin and Lead while none is
+ *  assigned), or every active HR account. Never the sender. */
 async function recipientsFor(
   to: CommentRecipient,
   employeeId: string,
 ): Promise<Recipient[]> {
+  if (to === "manager") {
+    const employee = await findEmployee(employeeId);
+    if (employee?.reportingManagerId) {
+      const manager = await prisma.user.findUnique({
+        where: { id: employee.reportingManagerId },
+        select: { id: true, name: true, isActive: true },
+      });
+      if (manager?.isActive && manager.id !== employeeId) return [{ id: manager.id, name: manager.name }];
+    }
+  }
   const where = to === "manager" ? reportingManagersWhere : { primaryRole: "HR", isActive: true };
   return prisma.user.findMany({
     where: { ...where, NOT: { id: employeeId } },

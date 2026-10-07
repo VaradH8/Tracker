@@ -220,7 +220,7 @@ export default function MyPerformancePage() {
                 <Detail label="Employee ID" value={v.employee.employeeCode} missing />
                 <Detail label="Department" value={v.employee.department} missing />
                 <Detail label="Designation" value={v.employee.designation} missing />
-                <Detail label="Reporting Manager" value="Admins & Leads" />
+                <Detail label="Reporting Manager" value={v.employee.assignedManager || "Admins & Leads"} />
                 <Detail label={v.kind === "Monthly" ? "Review Month" : "Review Year"} value={v.periodLabel} />
               </dl>
             </Section>
@@ -323,7 +323,7 @@ export default function MyPerformancePage() {
             </Section>
 
             <Section n={6} title="My Comments"
-              note="Anything you'd like your Reporting Managers (Admins & Leads) or HR to know about this review. Everyone in the group you choose is notified when you save.">
+              note="Anything you'd like your Reporting Manager or HR to know about this review. Whoever you choose is notified when you save.">
               <label className="flex flex-wrap items-center gap-2 mb-2 text-sm">
                 <span className="font-medium text-ink-700">Send to</span>
                 <select
@@ -333,7 +333,11 @@ export default function MyPerformancePage() {
                   onChange={(e) => set("summary.commentTo")(e.target.value)}
                 >
                   {COMMENT_RECIPIENTS.map((r) => (
-                    <option key={r.value} value={r.value}>{r.label}</option>
+                    <option key={r.value} value={r.value}>
+                      {r.value === "manager"
+                        ? `Reporting Manager (${v.employee.assignedManager || "Admins & Leads"})`
+                        : r.label}
+                    </option>
                   ))}
                 </select>
               </label>

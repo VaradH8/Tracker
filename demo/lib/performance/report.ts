@@ -9,12 +9,12 @@
  * docx.ts writes the result into the Word template.
  *
  * Two kinds of content:
- *   - Derived: task tables, metrics, evidence, *suggested* ratings and
- *     suggested manager text. Recomputed on every read, so they track
- *     the tracker.
- *   - Entered: anything a reviewer typed. It always wins over the
- *     suggestion. The employee's own voice (self-assessment, employee
- *     ratings) is never generated — it stays blank until entered.
+ *   - Derived: the facts — task tables, metrics, KPIs and the tracker
+ *     data shown beside each rating area for reference. Recomputed on
+ *     every read, so they track the tracker.
+ *   - Entered: every rating and remark. The tracker never suggests one;
+ *     they come only from people — the Reporting Manager / Admin and HR,
+ *     and the employee for their own self-assessment. Blank until then.
  *
  * Dates are ISO day strings ("YYYY-MM-DD") throughout, like
  * lib/engagement.ts, whose working-day helpers this reuses.
@@ -23,7 +23,6 @@
 import {
   addDays,
   countWorkingDays,
-  fmtDay,
   isWorkingDay,
   maxISO,
   minISO,
@@ -31,6 +30,7 @@ import {
 import {
   ACHIEVEMENT_ROWS,
   AREAS,
+  HR_AREAS,
   LEVELS,
   MANAGER_PROMPTS,
   MAX_MANUAL_GOALS,
@@ -79,7 +79,12 @@ export type EmployeeFact = {
   department: string;
   designation: string;
   joined: string | null;
+  /** Name for the form: the assigned Reporting Manager, else the Admin
+   *  or Lead who last saved the review. */
   reportingManager: string;
+  /** The assigned Reporting Manager's name, or "" when none is assigned
+   *  (every Admin and Lead acts for this person). */
+  assignedManager: string;
 };
 
 /** A saved monthly review's manager ratings, for the yearly roll-up. */
@@ -111,19 +116,21 @@ export type Inputs = Record<string, string>;
 export type RatingRow = {
   key: string;
   label: string;
+  /** Tracker data for this area — reference for whoever rates it, never
+   *  printed on the form. */
   evidence: string;
-  /** Suggested from tracker data; null where only judgement can rate. */
-  system: number | null;
   employee: number | null;
   manager: number | null;
-  /** What the form shows: manager's rating, else the suggestion. */
+  /** The rating on the form: the manager's, as entered. */
   effective: number | null;
   comments: string;
 };
 
-/** A free-text field: what was saved (may be "") and what the tracker
- *  suggests. Shown / exported as `value || suggested`. */
-export type TextField = { key: string; label: string; value: string; suggested: string };
+/** One HR Evaluation area: HR's 1–5 rating and remarks. */
+export type HrRow = { key: string; label: string; rating: number | null; comments: string };
+
+/** A free-text field and what a person entered in it ("" until then). */
+export type TextField = { key: string; label: string; value: string };
 
 export type GoalRow = {
   taskId: number;
@@ -210,6 +217,8 @@ export type Report = {
   areas: RatingRow[];
   self: TextField[];
   manager: TextField[];
+  /** HR Evaluation — rated by HR only. */
+  hr: HrRow[];
   summary: {
     overall: number | null;
     overallEntered: boolean;
@@ -257,29 +266,6 @@ const pct = (num: number, den: number): number | null =>
   den > 0 ? Math.round((num / den) * 100) : null;
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
-
-/** Rating from a "higher is better" value: ≥c5 → 5, ≥c4 → 4, ≥c3 → 3,
- *  ≥c2 → 2, else 1. Null in, null out. */
-export function band(
-  v: number | null,
-  [c5, c4, c3, c2]: [number, number, number, number],
-): number | null {
-  if (v == null) return null;
-  if (v >= c5) return 5;
-  if (v >= c4) return 4;
-  if (v >= c3) return 3;
-  if (v >= c2) return 2;
-  return 1;
-}
-
-/** Average of the available signals. A single signal can't award a 5 —
- *  "Exceptional" needs a second one to confirm it. */
-function avgRating(vals: (number | null)[]): number | null {
-  const xs = vals.filter((v): v is number => v != null);
-  if (!xs.length) return null;
-  const avg = Math.round(xs.reduce((s, v) => s + v, 0) / xs.length);
-  return xs.length === 1 ? Math.min(4, avg) : avg;
-}
 
 /** The day a Done task counts as finished. Tasks finished before
  *  completedAt was recorded fall back to their target, then creation. */
@@ -487,51 +473,6 @@ export function computeMetrics(
   };
 }
 
-/* --------------------------------------------------- suggested ratings */
-
-/**
- * Suggested 1–5 ratings for the areas the tracker can actually measure.
- * A starting point for the Reporting Manager, who can override any of
- * them; areas that need judgement (job knowledge, communication,
- * learning, problem solving) get evidence but no suggestion.
- *
- * Bands, deliberately conservative — "Exceptional" is never awarded on
- * data alone except where a second signal confirms it:
- *   Productivity  avg(utilization band, completion band), 90/75/60/40;
- *                 with only one of the two available, capped at 4
- *   Ownership     avg(on-time band 90/80/65/50, overdue-at-period-end)
- *   Quality       no reopened work → 4; 5 only if ≥80% of it was also
- *                 signed off; ≤10% reopened → 3, ≤25% → 2, else 1
- *   Attendance    unplanned (sick / unpaid) leave days in the month:
- *                 ≤1 → 4, 2 → 3, ≤4 → 2, else 1 (yearly: ×12)
- *   Goal / KPI    average KPI achievement, 100/90/75/50
- */
-function suggest(kind: ReviewKind, m: Metrics, kpiAvg: number | null) {
-  const productivity = avgRating([
-    band(m.utilization, [90, 75, 60, 40]),
-    band(m.completionRate, [90, 75, 60, 40]),
-  ]);
-  const overdueBand =
-    m.tasksInScope === 0 ? null : m.overdueOpen === 0 ? 5 : m.overdueOpen === 1 ? 4 : m.overdueOpen === 2 ? 3 : m.overdueOpen <= 4 ? 2 : 1;
-  const ownership = avgRating([band(m.onTimeRate, [90, 80, 65, 50]), overdueBand]);
-  let quality: number | null = null;
-  if (m.tasksCompleted > 0 && m.reworkRate != null) {
-    quality =
-      m.reworkRate === 0 ? 4 : m.reworkRate <= 10 ? 3 : m.reworkRate <= 25 ? 2 : 1;
-    if (m.reworkRate === 0 && (m.approvedRate ?? 0) >= 80) quality = 5;
-  }
-  const scale = kind === "Yearly" ? 12 : 1;
-  const u = m.unplannedLeaveDays / scale;
-  const attendance = u <= 1 ? 4 : u <= 2 ? 3 : u <= 4 ? 2 : 1;
-  return {
-    productivity,
-    ownership,
-    quality,
-    attendance,
-    goals: band(kpiAvg, [100, 90, 75, 50]),
-  } as Record<string, number | null>;
-}
-
 function evidenceFor(key: string, m: Metrics): string {
   const f = (v: number | null, suffix = "%") => (v == null ? "n/a" : `${v}${suffix}`);
   switch (key) {
@@ -568,12 +509,12 @@ function evidenceFor(key: string, m: Metrics): string {
 
 /* --------------------------------------------------------------- build */
 
-function text(inputs: Inputs, key: string, label: string, suggested = ""): TextField {
-  return { key, label, value: inputs[key] ?? "", suggested };
+function text(inputs: Inputs, key: string, label: string): TextField {
+  return { key, label, value: inputs[key] ?? "" };
 }
 
-const shown = (t: TextField) => t.value || t.suggested;
-export { shown as textOf };
+/** What a text field shows / prints: only what was entered. */
+export const textOf = (t: TextField) => t.value;
 
 export function buildReport(f: ReportFacts, inputs: Inputs): Report {
   const { kind, period } = f;
@@ -581,13 +522,6 @@ export function buildReport(f: ReportFacts, inputs: Inputs): Report {
   const asOf = minISO(to, f.today);
   const m = computeMetrics(f, from, to, asOf);
   const scoped = f.tasks.filter((t) => inPeriod(t, from, to));
-  const completed = scoped
-    .filter((t) => {
-      const d = doneOn(t);
-      return !!d && d >= from && d <= to;
-    })
-    .sort((a, b) => Number(b.important) - Number(a.important) || (PRIORITY_RANK[a.priority] ?? 9) - (PRIORITY_RANK[b.priority] ?? 9));
-  const overdue = scoped.filter((t) => statusAsOf(t, asOf) === "Delayed");
 
   /* §2 Monthly goals / assigned tasks */
   const goals: GoalRow[] =
@@ -644,12 +578,7 @@ export function buildReport(f: ReportFacts, inputs: Inputs): Report {
               taskId: t.id,
               title: t.title,
               project: t.projectName,
-              milestone: text(
-                inputs,
-                key,
-                "Monthly milestone",
-                planned != null ? `${planned}% of planned span by ${fmtDay(asOf)}` : "",
-              ),
+              milestone: text(inputs, key, "Monthly milestone"),
               planned,
               actual,
               status,
@@ -695,13 +624,8 @@ export function buildReport(f: ReportFacts, inputs: Inputs): Report {
       });
     }
   }
-  const kpiVals = kpis.map((k) => k.achievement).filter((v): v is number => v != null);
-  const kpiAvg = kpiVals.length ? kpiVals.reduce((s, v) => s + v, 0) / kpiVals.length : null;
-
-  /* §4 Ratings */
-  const sys = suggest(kind, m, kpiAvg);
-  // Yearly: where monthly reviews rated the same area, their average is
-  // the better suggestion — it's human judgement across the year.
+  /* §4 Ratings — entered by people only. Yearly reviews show the
+     manager's monthly ratings for the same area as reference data. */
   const monthlyAvg: Record<string, { avg: number; n: number }> = {};
   for (const mr of f.monthly ?? []) {
     for (const [k, v] of Object.entries(mr.ratings)) {
@@ -712,120 +636,46 @@ export function buildReport(f: ReportFacts, inputs: Inputs): Report {
     }
   }
   const areas: RatingRow[] = AREAS[kind].map(({ key, label }) => {
-    let system = sys[key] ?? null;
     let evidence = evidenceFor(key, m);
     const mo = kind === "Yearly" ? monthlyAvg[key] : undefined;
-    if (mo) {
-      system = Math.round(mo.avg);
-      evidence += ` Monthly reviews: avg ${round1(mo.avg)} over ${mo.n} month(s).`;
-    }
+    if (mo) evidence += ` Monthly reviews: avg ${round1(mo.avg)} over ${mo.n} month(s).`;
     const employee = parseRating(inputs[`rating.${key}.employee`]);
     const manager = parseRating(inputs[`rating.${key}.manager`]);
     return {
       key,
       label,
       evidence,
-      system,
       employee,
       manager,
-      effective: manager ?? system,
+      effective: manager,
       comments: inputs[`rating.${key}.comments`] ?? "",
     };
   });
 
   /* Yearly §3 achievements */
-  const projectsLine = list(
-    m.projects.map((p) => `${p.name} (${p.hours} h, ${p.tasks} task${p.tasks === 1 ? "" : "s"})`),
-    5,
-  );
-  const critical = completed.filter((t) => t.important).map((t) => t.title);
   const achievements =
     kind === "Yearly"
-      ? ACHIEVEMENT_ROWS.map(({ key, label }) => {
-          const suggestion =
-            key === "achievements"
-              ? `${m.tasksCompleted} task(s) completed${critical.length ? `, incl. critical: ${list(critical, 4)}` : ""}; ${m.hoursLogged} h logged.`
-              : key === "projects"
-                ? projectsLine
-                : key === "team"
-                  ? `Contributed to ${m.projects.length} project(s); ${m.remarks} task update(s)/remark(s); ${scoped.filter((t) => t.coAssignees > 0).length} shared task(s).`
-                  : "";
-          return {
-            key,
-            label,
-            employee: text(inputs, `ach.${key}.employee`, "Employee summary"),
-            manager: text(inputs, `ach.${key}.manager`, "Manager assessment / evidence", suggestion),
-          };
-        })
+      ? ACHIEVEMENT_ROWS.map(({ key, label }) => ({
+          key,
+          label,
+          employee: text(inputs, `ach.${key}.employee`, "Employee summary"),
+          manager: text(inputs, `ach.${key}.manager`, "Manager assessment / evidence"),
+        }))
       : [];
 
   /* §5 Self-assessment — the employee's own words; never generated. */
   const self = SELF_PROMPTS[kind].map(({ key, label }) => text(inputs, `self.${key}`, label));
 
-  /* §6 Manager assessment — suggested from the evidence. */
-  const strengths: string[] = [];
-  if (m.tasksCompleted && (m.onTimeRate ?? 0) >= 90) strengths.push(`Delivers on time (${m.onTimeRate}% on target)`);
-  if ((m.utilization ?? 0) >= 85) strengths.push(`High output (${m.utilization}% of available hours logged)`);
-  if (m.tasksCompleted >= 3 && m.reworkRate === 0) strengths.push("No completed work reopened");
-  if (m.criticalDone > 0) strengths.push(`Closed ${m.criticalDone} critical task(s)`);
-  if ((m.estimateAccuracy ?? 0) >= 85) strengths.push(`Reliable estimates (${m.estimateAccuracy}% accuracy)`);
+  /* §6 Manager assessment — the Reporting Manager's own words. */
+  const manager = MANAGER_PROMPTS[kind].map(({ key, label }) => text(inputs, `mgr.${key}`, label));
 
-  const improvements: string[] = [];
-  if (overdue.length) improvements.push(`${overdue.length} task(s) overdue at period end: ${list(overdue.map((t) => t.title), 4)}`);
-  if (m.onTimeRate != null && m.onTimeRate < 75) improvements.push(`On-time delivery at ${m.onTimeRate}%`);
-  if (m.utilization != null && m.utilization < 60) improvements.push(`Logged hours at ${m.utilization}% of capacity — log time daily`);
-  if (!m.hoursLogged && m.tasksInScope) improvements.push("No time logged on tasks — use the task timer so effort is visible");
-  if ((m.reworkRate ?? 0) > 10) improvements.push(`${m.reworkRate}% of completed work was reopened`);
-  if (m.missingTargets || m.missingEstimates)
-    improvements.push(
-      `Planning data incomplete: ${m.missingTargets} task(s) without target date, ${m.missingEstimates} without estimate`,
-    );
-
-  const nextFrom = addDays(to, 1);
-  const nextTo = kind === "Monthly" ? periodRange("Monthly", nextFrom.slice(0, 7)).to : addDays(nextFrom, 364);
-  const upcoming = f.tasks
-    .filter((t) => !doneOn(t) || (doneOn(t) ?? "") > to)
-    .filter((t) => !t.targetDate || t.targetDate <= nextTo)
-    .sort((a, b) => (a.targetDate ?? "9999").localeCompare(b.targetDate ?? "9999"))
-    .map((t) => (t.targetDate ? `${t.title} (due ${fmtDay(t.targetDate)})` : t.title));
-
-  const monthlyTrend = (f.monthly ?? [])
-    .map((mr) => {
-      const vals = Object.values(mr.ratings);
-      return vals.length
-        ? `${MONTHS[Number(mr.period.slice(5, 7)) - 1].slice(0, 3)} ${round1(vals.reduce((s, v) => s + v, 0) / vals.length)}`
-        : null;
-    })
-    .filter(Boolean);
-  const completedByMonth = MONTHS.map((name, i) => {
-    const mm = `${period}-${String(i + 1).padStart(2, "0")}`;
-    return `${name.slice(0, 3)} ${completed.filter((t) => (doneOn(t) ?? "").startsWith(mm)).length}`;
-  });
-
-  const managerSuggest: Record<string, string> =
-    kind === "Monthly"
-      ? {
-          achievements: m.tasksCompleted
-            ? `Completed ${m.tasksCompleted} task(s): ${list(completed.map((t) => t.title))}`
-            : "No tasks completed this month.",
-          strengths: strengths.join("; "),
-          improvement: improvements.join("; "),
-          training: "",
-          nextGoals: upcoming.length ? `Close: ${list(upcoming)}` : "",
-        }
-      : {
-          contribution: `${m.tasksCompleted} task(s) completed (${m.criticalDone} critical) across ${m.projects.length} project(s); ${m.hoursLogged} h logged.`,
-          consistency: monthlyTrend.length
-            ? `Monthly review ratings: ${monthlyTrend.join(" · ")}`
-            : `Tasks completed per month: ${completedByMonth.join(" · ")}`,
-          strengths: strengths.join("; "),
-          development: improvements.join("; "),
-          training: "",
-          expectations: "",
-        };
-  const manager = MANAGER_PROMPTS[kind].map(({ key, label }) =>
-    text(inputs, `mgr.${key}`, label, managerSuggest[key] ?? ""),
-  );
+  /* HR Evaluation — HR's own ratings; not part of the overall rating. */
+  const hr: HrRow[] = HR_AREAS.map(({ key, label }) => ({
+    key,
+    label,
+    rating: parseRating(inputs[`hr.${key}.rating`]),
+    comments: inputs[`hr.${key}.comments`] ?? "",
+  }));
 
   /* §7 Summary */
   const enteredOverall = parseRating(inputs["summary.overall"], true);
@@ -858,6 +708,7 @@ export function buildReport(f: ReportFacts, inputs: Inputs): Report {
     areas,
     self,
     manager,
+    hr,
     summary: {
       overall,
       overallEntered: enteredOverall != null,
@@ -871,7 +722,6 @@ export function buildReport(f: ReportFacts, inputs: Inputs): Report {
         inputs,
         "summary.plan",
         kind === "Monthly" ? "Action / Improvement Plan" : "Recommended Focus for Next Year",
-        improvements.length ? improvements.map((s) => s.split(":")[0]).join("; ") : "",
       ),
       feedback: text(inputs, "summary.feedback", "Manager Final Feedback"),
       employeeComments: text(
@@ -895,8 +745,7 @@ function daysBetween(a: string, b: string): number {
 /**
  * What the employee sees on My Performance: their tracker data and the
  * evidence for each area, plus the fields they fill in themselves. The
- * manager's ratings and comments, the suggested ratings and the overall
- * summary are left out, so the self-rating is the employee's own view
+ * manager's ratings and comments and the overall summary are left out, so the self-rating is the employee's own view
  * rather than an echo of the manager's.
  */
 export type SelfView = Pick<
@@ -923,7 +772,7 @@ export function toSelfView(r: Report): SelfView {
     metrics: r.metrics,
     goals: r.goals,
     // The agreed milestone is the target the employee works to — shown.
-    longTerm: r.longTerm.map(({ milestone, ...l }) => ({ ...l, milestone: shown(milestone) })),
+    longTerm: r.longTerm.map(({ milestone, ...l }) => ({ ...l, milestone: milestone.value })),
     kpis: r.kpis.map(({ comments: _comments, ...k }) => k),
     achievements: r.achievements.map(({ key, label, employee }) => ({ key, label, employee })),
     areas: r.areas.map(({ key, label, evidence, employee }) => ({ key, label, evidence, employee })),

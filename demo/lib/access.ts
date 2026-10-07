@@ -66,9 +66,9 @@ const ALLOWED: Record<Role, string[]> = {
     "/notifications",
     "/team",
   ],
-  // HR = Co-ordinator access (+ report downloads, gated server-side).
-  // useRole() already resolves HR to Coordinator; this entry only keeps
-  // the Record complete.
+  // HR = Co-ordinator access, plus Users (onboarding people) and report
+  // downloads — both gated server-side. AppShell checks this list with
+  // the account's real role.
   HR: [
     "/my-day",
     "/my-tasks",
@@ -77,6 +77,7 @@ const ALLOWED: Record<Role, string[]> = {
     "/engagement",
     "/performance",
     "/my-performance",
+    "/users",
     "/leaves",
     "/profile",
     "/calendar",

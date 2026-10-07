@@ -35,6 +35,8 @@ const T = {
   self: 4,
   manager: 5,
   summary: 6,
+  /** Section 8: the template's Rating Scale, replaced by HR Evaluation. */
+  ratingScale: 7,
   signoff: 8,
 } as const;
 const TABLE_COUNT = 10;
@@ -152,6 +154,23 @@ class Doc {
     this.setRows(t, [header, ...rows]);
   }
 
+  /** Swap a section of the template for another: retitle its heading
+   *  (keeping the number and the heading's formatting) and replace its
+   *  table `t` with `table`. */
+  replaceSection(t: number, from: string, to: string, table: string) {
+    const heading = new RegExp(`(<w:t>\\d+\\. )${from}(</w:t>)`);
+    if (!heading.test(this.xml)) throw new Error(`Template heading not found: "${from}"`);
+    // Headings sit outside tables, and tables are swapped back in by
+    // toString, so this only touches the heading.
+    this.xml = this.xml.replace(heading, `$1${esc(to)}$2`);
+    this.tables[t] = table;
+  }
+
+  /** The table at `t` as it stands — to borrow its look. */
+  table(t: number): string {
+    return this.tables[t];
+  }
+
   toString(): string {
     let i = 0;
     return this.xml.replace(TABLE_RE, () => this.tables[i++]);
@@ -165,6 +184,32 @@ const checks = (options: readonly string[], picked: string | null) =>
 
 const pctCell = (v: number | null) => (v == null ? "—" : `${v}%`);
 const ratingCell = (v: number | null) => (v == null ? "" : String(v));
+
+/**
+ * The HR Evaluation table — Area | HR Rating (1–5) | HR Comments — in the
+ * look of the section 4 assessment table (`assessment`, 4 equal columns):
+ * its table properties, shaded header and row formatting. The area
+ * column takes ~0.5in from the rating column so every label fits on one
+ * line, and the comments column takes the width of the last two.
+ */
+export function hrTable(assessment: string, rows: string[][]): string {
+  const tblPr = /<w:tblPr>[\s\S]*?<\/w:tblPr>/.exec(assessment)?.[0] ?? "";
+  const [header, proto] = assessment.match(ROW_RE) ?? [];
+  if (!header || !proto) throw new Error("Assessment table has no rows");
+  // Every cell is styled from the row's first cell: it carries the run
+  // formatting (size, bold) that the template's empty cells lack.
+  const widths = cellsOf(header).map((c) => Number(/<w:tcW w:w="(\d+)"/.exec(c)?.[1] ?? 0));
+  const cols = [widths[0] + 700, widths[1] - 700, widths[2] + widths[3]];
+  const rowOf = (template: string, values: string[]) => {
+    const cell = cellsOf(template)[0];
+    const open = template.slice(0, template.indexOf("<w:tc>"));
+    const cells = values.map((v, i) => setCellText(cell.replace(/(<w:tcW w:w=")\d+/, `$1${cols[i]}`), v));
+    return stripIds(`${open}${cells.join("")}</w:tr>`);
+  };
+  const grid = `<w:tblGrid>${cols.map((w) => `<w:gridCol w:w="${w}"/>`).join("")}</w:tblGrid>`;
+  const head = rowOf(header, ["Evaluation Area", "HR Rating (1–5)", "HR Comments"]);
+  return `<w:tbl>${tblPr}${grid}${head}${rows.map((r) => rowOf(proto, r)).join("")}</w:tbl>`;
+}
 
 export type SignOff = { hrName?: string | null };
 
@@ -226,7 +271,7 @@ export function fillDocument(xml: string, r: Report, signOff: SignOff = {}): str
     doc.byLabel(T.assessment, a.label, {
       1: ratingCell(a.employee),
       2: ratingCell(a.effective),
-      3: a.comments || a.evidence,
+      3: a.comments,
     });
   }
 
@@ -247,11 +292,68 @@ export function fillDocument(xml: string, r: Report, signOff: SignOff = {}): str
   doc.byLabel(T.summary, s.feedback.label, { 1: textOf(s.feedback) });
   doc.byLabel(T.summary, s.employeeComments.label, { 1: textOf(s.employeeComments) });
 
-  /* 9. Sign-off — names filled; signatures and dates stay for ink. */
-  const sign = (name: string) => [`Name: ${name}`, "Signature:", "Date:"];
+  /* 8. HR Evaluation — in place of the template's Rating Scale. */
+  doc.replaceSection(
+    T.ratingScale,
+    "Rating Scale",
+    "HR Evaluation",
+    hrTable(
+      doc.table(T.assessment),
+      r.hr.map((h) => [h.label, ratingCell(h.rating), h.comments]),
+    ),
+  );
+
+  /* 9. Sign-off — names filled; dates stay for ink. */
+  const sign = (name: string) => [`Name: ${name}`, "Date:"];
   doc.data(T.signoff, [[sign(e.name), sign(e.reportingManager), sign(signOff.hrName ?? "")]]);
 
-  return doc.toString();
+  return keepTablesTogether(doc.toString());
+}
+
+/* ------------------------------------------------------- pagination */
+
+const PARA_RE = /<w:p(?:\s[^>]*)?\/>|<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g;
+
+/** Mark a paragraph "keep with next" (w:keepNext follows w:pStyle in
+ *  the pPr sequence, before everything else). */
+export function keepWithNext(p: string): string {
+  if (p.includes("<w:keepNext/>")) return p;
+  const empty = /^<w:p((?:\s[^>]*?)?)\s*\/>$/.exec(p);
+  if (empty) return `<w:p${empty[1]}><w:pPr><w:keepNext/></w:pPr></w:p>`;
+  if (/<w:pPr>/.test(p)) {
+    return /<w:pPr><w:pStyle\b[^>]*\/>/.test(p)
+      ? p.replace(/(<w:pPr><w:pStyle\b[^>]*\/>)/, "$1<w:keepNext/>")
+      : p.replace("<w:pPr>", "<w:pPr><w:keepNext/>");
+  }
+  return p.replace(/^(<w:p(?:\s[^>]*)?>)/, "$1<w:pPr><w:keepNext/></w:pPr>");
+}
+
+/** A row that never splits across pages. */
+function cantSplit(row: string): string {
+  if (row.includes("<w:cantSplit/>")) return row;
+  return /<w:trPr>/.test(row)
+    ? row.replace("<w:trPr>", "<w:trPr><w:cantSplit/>")
+    : row.replace(/^(<w:tr(?:\s[^>]*)?>)/, "$1<w:trPr><w:cantSplit/></w:trPr>");
+}
+
+/**
+ * Keep each table on one page, with its heading: no row splits, every
+ * row but the last keeps with the next, and so does the paragraph just
+ * before the table. A table that doesn't fit in what's left of a page
+ * moves to the next one whole; only a table longer than a page breaks.
+ */
+export function keepTablesTogether(xml: string): string {
+  return xml
+    .replace(TABLE_RE, (table) => {
+      const rows = table.match(ROW_RE) ?? [];
+      let i = 0;
+      return table.replace(ROW_RE, (row) => {
+        const last = ++i === rows.length;
+        const whole = cantSplit(row);
+        return last ? whole : whole.replace(PARA_RE, keepWithNext);
+      });
+    })
+    .replace(/(<w:p[ >](?:(?!<w:p[ >])[\s\S])*?<\/w:p>)(<w:tbl>)/g, (_, p, tbl) => keepWithNext(p) + tbl);
 }
 
 /* --------------------------------------------------------------- font */
@@ -394,12 +496,61 @@ async function applyDocFont(zip: JSZip): Promise<void> {
   await embedFont(zip);
 }
 
+/* --------------------------------------------------------------- logo */
+
+/** The company logo, top-left on every page (a page header). It's the
+ *  app's logo with the white lettering set in navy so it reads on paper
+ *  — templates/inventive-logo-print.png, 621×206. */
+const LOGO_FILE = "inventive-logo-print.png";
+const LOGO_H = 457200; // 0.5in in EMU
+const LOGO_W = Math.round((LOGO_H * 621) / 206);
+
+const LOGO_HEADER = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:p><w:pPr><w:jc w:val="left"/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${LOGO_W}" cy="${LOGO_H}"/><wp:docPr id="9001" name="Inventive logo" descr="Inventive Business Solutions"/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="9001" name="${LOGO_FILE}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rIdLogo"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${LOGO_W}" cy="${LOGO_H}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p></w:hdr>`;
+
+/** Add the logo header and point the document's section at it. */
+async function addLogoHeader(zip: JSZip): Promise<void> {
+  zip.file("word/media/inventive-logo.png", await readFile(path.join(process.cwd(), "templates", LOGO_FILE)));
+  zip.file("word/header1.xml", LOGO_HEADER);
+  zip.file(
+    "word/_rels/header1.xml.rels",
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/inventive-logo.png"/></Relationships>',
+  );
+
+  const relsPath = "word/_rels/document.xml.rels";
+  const rels = await zip.file(relsPath)!.async("string");
+  zip.file(
+    relsPath,
+    rels.replace(
+      "</Relationships>",
+      '<Relationship Id="rIdPerfHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/></Relationships>',
+    ),
+  );
+
+  // headerReference is the first child of sectPr.
+  const docPath = "word/document.xml";
+  const doc = await zip.file(docPath)!.async("string");
+  zip.file(docPath, doc.replace(/(<w:sectPr\b[^>]*>)/g, '$1<w:headerReference w:type="default" r:id="rIdPerfHeader"/>'));
+
+  const typesPath = "[Content_Types].xml";
+  let types = await zip.file(typesPath)!.async("string");
+  if (!/Extension="png"/i.test(types)) {
+    types = types.replace(/(<Types[^>]*>)/, '$1<Default Extension="png" ContentType="image/png"/>');
+  }
+  types = types.replace(
+    "</Types>",
+    '<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/></Types>',
+  );
+  zip.file(typesPath, types);
+}
+
 export async function renderDocx(r: Report, signOff: SignOff = {}): Promise<Buffer> {
   const file = path.join(process.cwd(), "templates", TEMPLATE[r.kind]);
   const zip = await JSZip.loadAsync(await readFile(file));
   const entry = zip.file("word/document.xml");
   if (!entry) throw new Error("Template has no word/document.xml");
   zip.file("word/document.xml", fillDocument(await entry.async("string"), r, signOff));
+  await addLogoHeader(zip);
   await applyDocFont(zip);
   return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
 }

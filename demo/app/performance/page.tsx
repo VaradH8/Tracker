@@ -14,7 +14,7 @@ import {
   PRIORITIES,
   type ReviewKind,
 } from "@/lib/performance/forms";
-import type { RatingRow, Report, TextField } from "@/lib/performance/report";
+import type { HrRow, RatingRow, Report, TextField } from "@/lib/performance/report";
 import {
   Detail,
   MetricTiles,
@@ -43,10 +43,13 @@ type Person = {
   department: string;
   employeeCode: string;
   joined: string;
+  reportingManagerId: string | null;
+  reportingManager: string;
 };
 
 type PeopleData = {
   people: Person[];
+  managers: { id: string; name: string; role: Role }[];
   viewer: { id: string; canEditRecords: boolean; canDownload: boolean };
 };
 
@@ -54,16 +57,18 @@ type ReportData = {
   report: Report;
   meta: { savedAt: string | null; savedBy: string | null };
   canEdit: boolean;
+  /** HR accounts only: the HR Evaluation section. */
+  canEditHr: boolean;
   canDownload: boolean;
 };
 
 /* ---------------------------------------------------------- draft model */
 
-/** Every editable field's starting value: what was saved, else the
- *  tracker's suggestion (so the reviewer edits from a filled form). */
+/** Every editable field's starting value: what was saved ("" if
+ *  nothing yet — the tracker never pre-fills a rating or remark). */
 function draftFrom(r: Report): Draft {
   const d: Draft = {};
-  const put = (t: TextField) => (d[t.key] = t.value || t.suggested);
+  const put = (t: TextField) => (d[t.key] = t.value);
   r.longTerm.forEach((l) => put(l.milestone));
   r.kpis.forEach((k) => put(k.comments));
   r.achievements.forEach((a) => (put(a.employee), put(a.manager)));
@@ -77,6 +82,10 @@ function draftFrom(r: Report): Draft {
     d[`rating.${a.key}.manager`] = a.manager ? String(a.manager) : "";
     d[`rating.${a.key}.comments`] = a.comments;
   }
+  for (const h of r.hr) {
+    d[`hr.${h.key}.rating`] = h.rating ? String(h.rating) : "";
+    d[`hr.${h.key}.comments`] = h.comments;
+  }
   for (const k of r.kpis.filter((k) => k.manual)) {
     d[`${k.key}.goal`] = k.goal;
     d[`${k.key}.expected`] = k.expected;
@@ -88,18 +97,6 @@ function draftFrom(r: Report): Draft {
   d["summary.priority"] = r.summary.priorityEntered ? (r.summary.priority ?? "") : "";
   d.reviewDate = r.reviewDate;
   return d;
-}
-
-/** Suggestions for every text field, so unchanged ones aren't saved
- *  (and keep following the tracker). */
-function suggestionsOf(r: Report): Record<string, string> {
-  const s: Record<string, string> = {};
-  const put = (t: TextField) => (s[t.key] = t.suggested);
-  r.longTerm.forEach((l) => put(l.milestone));
-  r.kpis.forEach((k) => put(k.comments));
-  r.achievements.forEach((a) => (put(a.employee), put(a.manager)));
-  [...r.self, ...r.manager, r.summary.plan, r.summary.feedback, r.summary.employeeComments].forEach(put);
-  return s;
 }
 
 /* ----------------------------------------------------------------- page */
@@ -188,15 +185,12 @@ export default function PerformancePage() {
 
   async function save() {
     if (!data) return;
-    // Only what changed since load. A text left at the tracker's
-    // suggestion is cleared rather than stored, so it keeps following the
-    // tracker.
-    const suggestions = suggestionsOf(data.report);
+    // Only what changed since load ("" clears a field).
     const changes: Draft = {};
     for (const k of new Set([...Object.keys(draft), ...Object.keys(saved)])) {
       const value = (draft[k] ?? "").trim();
       if (value === (saved[k] ?? "").trim()) continue;
-      changes[k] = value === (suggestions[k] ?? "").trim() ? "" : value;
+      changes[k] = value;
     }
     setSaving(true);
     try {
@@ -223,6 +217,7 @@ export default function PerformancePage() {
   const person = people?.people.find((p) => p.id === userId) ?? null;
   const set = (key: string) => (v: string) => setDraft((d) => ({ ...d, [key]: v }));
   const editable = !!data?.canEdit;
+  const hrEditable = !!data?.canEditHr;
   const r = data?.report;
   const downloadHref = `/api/performance/report/download?${new URLSearchParams({ userId, kind, period })}`;
   const years = Array.from({ length: 6 }, (_, i) => String(Number(localToday().slice(0, 4)) - i));
@@ -262,14 +257,18 @@ export default function PerformancePage() {
         {help && (
           <div className="card p-4 text-sm text-ink-700 space-y-1">
             <p>
-              <strong>Generated from the tracker:</strong> employee details, the task tables, hours, leave, KPIs,
-              evidence for each rating, a <em>suggested</em> rating where the data can measure it, and draft manager
-              comments. These refresh whenever the tracker changes.
+              <strong>From the tracker (facts only):</strong> employee details, the task tables, hours, leave, KPIs,
+              and the tracker data beside each rating area for reference. These refresh whenever the tracker
+              changes. The tracker never suggests a rating or writes a remark.
             </p>
             <p>
-              <strong>Entered by people:</strong> the Reporting Managers — every Admin and Lead — and HR can override any rating
-              or text and save. The employee&apos;s self-assessment and own ratings are never generated — enter
-              what the employee submitted, or leave them for the printed form.
+              <strong>Entered by people:</strong> every rating and remark. The employee&apos;s Reporting Manager
+              (every Admin and Lead while none is assigned), Admins and HR mark the manager side; the employee
+              marks their own ratings and self-assessment on My Performance.
+            </p>
+            <p>
+              <strong>HR Evaluation:</strong> rated by HR only — Admins and Reporting Managers see it read-only, and
+              the employee doesn&apos;t see it.
             </p>
             <p>
               Lead, Co-ordinator, HR and Admin can read every review. Only HR can download it as the Word document.
@@ -340,7 +339,7 @@ export default function PerformancePage() {
               {data?.meta.savedAt
                 ? ` · last saved ${new Date(data.meta.savedAt).toLocaleString("en-GB")}${data.meta.savedBy ? ` by ${data.meta.savedBy}` : ""}`
                 : " · not reviewed yet"}
-              {!editable && " · read-only (Admins, Leads and HR can edit)"}
+              {!editable && " · read-only (only this person's Reporting Manager, an Admin or HR can edit)"}
             </p>
 
             {/* 1. Employee details */}
@@ -356,7 +355,10 @@ export default function PerformancePage() {
                 <Detail label="Employee ID" value={r.employee.employeeCode} missing />
                 <Detail label="Department" value={r.employee.department} missing />
                 <Detail label="Designation" value={r.employee.designation} missing />
-                <Detail label="Reporting Manager" value={r.employee.reportingManager || "Any Admin or Lead — not reviewed yet"} />
+                <Detail
+                  label="Reporting Manager"
+                  value={r.employee.assignedManager || "Not assigned — every Admin & Lead"}
+                />
                 {r.kind === "Monthly" ? (
                   <>
                     <Detail label="Review Month" value={r.periodLabel} />
@@ -477,8 +479,8 @@ export default function PerformancePage() {
 
             {/* 4. Ratings */}
             <Section n={4} title={r.kind === "Monthly" ? "Performance Assessment" : "Annual Performance Assessment"}
-              note="Suggested ratings come from tracker data where it can measure the area; the manager's rating overrides it. Scale: 5 Exceptional · 4 Exceeds · 3 Meets · 2 Needs Improvement · 1 Unsatisfactory.">
-              <Table head={["Performance Area", "Tracker evidence", "Suggested", "Employee (1–5)", "Manager (1–5)", "Manager Comments"]}>
+              note="Ratings are marked by people only — the employee rates themselves on My Performance, the Reporting Manager / Admin / HR give the manager rating. Tracker data is shown for reference and isn't printed. Scale: 5 Exceptional · 4 Exceeds · 3 Meets · 2 Needs Improvement · 1 Unsatisfactory.">
+              <Table head={["Performance Area", "Tracker data (reference)", "Employee (1–5)", "Manager (1–5)", "Manager Comments"]}>
                 {r.areas.map((a) => (
                   <RatingLine key={a.key} a={a} draft={draft} set={set} editable={editable} />
                 ))}
@@ -490,7 +492,7 @@ export default function PerformancePage() {
               <Prompts fields={r.self} draft={draft} set={set} editable={editable} />
             </Section>
             <Section n={6} title={r.kind === "Monthly" ? "Manager Assessment" : "Manager Overall Assessment"}
-              note="Pre-filled from tracker data — edit freely.">
+              note="Written by the Reporting Manager, an Admin or HR.">
               <Prompts fields={r.manager} draft={draft} set={set} editable={editable} />
             </Section>
 
@@ -513,7 +515,9 @@ export default function PerformancePage() {
                       onChange={(e) => set("summary.overall")(e.target.value)}
                     />
                   )}
-                  {!r.summary.overallEntered && <p className="text-xs text-ink-500 mt-1">Average of the section 4 ratings.</p>}
+                  {!r.summary.overallEntered && (
+                    <p className="text-xs text-ink-500 mt-1">Average of the manager ratings entered in section 4.</p>
+                  )}
                 </div>
                 <Choice label="Performance Level" options={LEVELS} auto={r.summary.autoLevel} k="summary.level" draft={draft} set={set} editable={editable} />
                 {r.kind === "Yearly" && (
@@ -523,8 +527,18 @@ export default function PerformancePage() {
               <Prompts fields={[r.summary.plan, r.summary.feedback, r.summary.employeeComments]} draft={draft} set={set} editable={editable} />
             </Section>
 
+            {/* 8. HR Evaluation */}
+            <Section n={8} title="HR Evaluation"
+              note={`Rated by HR only — not part of the overall rating${hrEditable ? "" : "; read-only for you"}. Scale: 5 Exceptional · 4 Exceeds · 3 Meets · 2 Needs Improvement · 1 Unsatisfactory.`}>
+              <Table head={["Evaluation Area", "HR Rating (1–5)", "HR Comments"]}>
+                {r.hr.map((h) => (
+                  <HrLine key={h.key} h={h} draft={draft} set={set} editable={hrEditable} />
+                ))}
+              </Table>
+            </Section>
+
             {/* 9. Sign-off */}
-            <Section n={9} title="Sign-Off" note="Signatures and dates are completed on the printed document.">
+            <Section n={9} title="Sign-Off" note="Dates are completed on the printed document.">
               <div className="grid sm:grid-cols-3 gap-3 text-sm">
                 {[
                   ["Employee", r.employee.name],
@@ -545,6 +559,7 @@ export default function PerformancePage() {
       {editingPerson && person && people && (
         <EmployeeDetailsModal
           person={person}
+          managers={people.managers}
           onClose={() => setEditingPerson(false)}
           onSaved={async () => {
             setEditingPerson(false);
@@ -567,12 +582,29 @@ function RatingLine({ a, ...p }: FieldProps & { a: RatingRow }) {
     <tr>
       <Td className="font-medium whitespace-nowrap">{a.label}</Td>
       <Td className="text-xs text-ink-600 min-w-[220px]">{a.evidence}</Td>
-      <Td>{a.system == null ? <span className="text-ink-400 text-xs">manager</span> : <span className="pill-grey">{a.system}</span>}</Td>
       <Td><RatingSelect k={`rating.${a.key}.employee`} label={`${a.label} — employee`} {...p} /></Td>
       <Td><RatingSelect k={`rating.${a.key}.manager`} label={`${a.label} — manager`} {...p} /></Td>
       <Td className="min-w-[200px]">
         {p.editable ? (
-          <textarea aria-label={`${a.label} — comments`} className={areaCls} rows={2} placeholder="Defaults to the tracker evidence"
+          <textarea aria-label={`${a.label} — comments`} className={areaCls} rows={2} placeholder="Manager comments"
+            value={p.draft[comments] ?? ""} onChange={(e) => p.set(comments)(e.target.value)} />
+        ) : (
+          <span className="text-ink-700">{p.draft[comments] || "—"}</span>
+        )}
+      </Td>
+    </tr>
+  );
+}
+
+function HrLine({ h, ...p }: FieldProps & { h: HrRow }) {
+  const comments = `hr.${h.key}.comments`;
+  return (
+    <tr>
+      <Td className="font-medium whitespace-nowrap w-[28%]">{h.label}</Td>
+      <Td className="w-[16%]"><RatingSelect k={`hr.${h.key}.rating`} label={`${h.label} — HR rating`} {...p} /></Td>
+      <Td>
+        {p.editable ? (
+          <textarea aria-label={`${h.label} — HR comments`} className={areaCls} rows={2} placeholder="HR comments"
             value={p.draft[comments] ?? ""} onChange={(e) => p.set(comments)(e.target.value)} />
         ) : (
           <span className="text-ink-700">{p.draft[comments] || "—"}</span>
@@ -589,7 +621,7 @@ function Choice({ label, options, auto, k, draft, set, editable }: FieldProps & 
       <div className="text-[11px] uppercase tracking-wide text-ink-500">{label}</div>
       {editable ? (
         <select aria-label={label} className={`${inputCls} mt-1`} value={v} onChange={(e) => set(k)(e.target.value)}>
-          <option value="">Auto{auto ? ` — ${auto}` : ""}</option>
+          <option value="">From the ratings{auto ? ` — ${auto}` : ""}</option>
           {options.map((o) => <option key={o} value={o}>{o}</option>)}
         </select>
       ) : (
@@ -601,10 +633,12 @@ function Choice({ label, options, auto, k, draft, set, editable }: FieldProps & 
 
 function EmployeeDetailsModal({
   person,
+  managers,
   onClose,
   onSaved,
 }: {
   person: Person;
+  managers: { id: string; name: string; role: Role }[];
   onClose: () => void;
   onSaved: () => void | Promise<void>;
 }) {
@@ -613,6 +647,7 @@ function EmployeeDetailsModal({
     department: person.department,
     designation: person.designation,
     joined: person.joined,
+    reportingManagerId: person.reportingManagerId ?? "",
   });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -627,7 +662,7 @@ function EmployeeDetailsModal({
       const res = await fetch(`/api/performance/people/${person.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, reportingManagerId: form.reportingManagerId || null }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -650,9 +685,18 @@ function EmployeeDetailsModal({
           <label><span className={label}>Designation</span><input className={`${inputCls} w-full`} value={form.designation} onChange={field("designation")} /></label>
           <label><span className={label}>Date of joining</span><input type="date" className={`${inputCls} w-full`} value={form.joined} onChange={field("joined")} /></label>
         </div>
-        <p className="text-xs text-ink-500">
-          Reporting Manager: every Admin and Lead acts as Reporting Manager — nothing to assign.
-        </p>
+        <label className="block">
+          <span className={label}>Reporting Manager (Admin or Lead)</span>
+          <select className={`${inputCls} w-full`} value={form.reportingManagerId} onChange={field("reportingManagerId")}>
+            <option value="">Not assigned — every Admin &amp; Lead</option>
+            {managers.filter((m) => m.id !== person.id).map((m) => (
+              <option key={m.id} value={m.id}>{m.name} · {ROLE_LABELS[m.role] ?? m.role}</option>
+            ))}
+          </select>
+          <span className="text-xs text-ink-500">
+            Also editable from Users → Edit user. They rate and comment on this person&apos;s reviews.
+          </span>
+        </label>
         {error && <p className="text-sm text-brand-redText">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
           <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>

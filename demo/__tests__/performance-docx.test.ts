@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import JSZip from "jszip";
 import { workingDaySet } from "@/lib/engagement";
 import { buildReport, type ReportFacts } from "@/lib/performance/report";
-import { DOC_FONT, fillDocument, obfuscateFont, renderDocx, setCellText, textIn, useDocFont } from "@/lib/performance/docx";
+import { DOC_FONT, fillDocument, keepWithNext, obfuscateFont, renderDocx, setCellText, textIn, useDocFont } from "@/lib/performance/docx";
 
 function facts(kind: "Monthly" | "Yearly"): ReportFacts {
   return {
@@ -17,6 +17,7 @@ function facts(kind: "Monthly" | "Yearly"): ReportFacts {
       designation: "Software Engineer",
       joined: "2024-06-01",
       reportingManager: "Rahul Lead",
+      assignedManager: "Rahul Lead",
     },
     tasks: [1, 2, 3, 4, 5].map((i) => ({
       id: i,
@@ -86,6 +87,20 @@ describe("Poppins font", () => {
 });
 
 describe.each(["Monthly", "Yearly"] as const)("%s Word document", (kind) => {
+  it("has the company logo in the page header", async () => {
+    const zip = await JSZip.loadAsync(await renderDocx(buildReport(facts(kind), {})));
+    const part = (n: string) => zip.file(n)!.async("string");
+
+    expect(zip.file("word/media/inventive-logo.png")).toBeTruthy();
+    expect(await part("word/header1.xml")).toContain('r:embed="rIdLogo"');
+    expect(await part("word/_rels/header1.xml.rels")).toContain('Target="media/inventive-logo.png"');
+    expect(await part("word/_rels/document.xml.rels")).toContain('Id="rIdPerfHeader"');
+    expect(await part("word/document.xml")).toMatch(/<w:sectPr\b[^>]*><w:headerReference w:type="default" r:id="rIdPerfHeader"\/>/);
+    const types = await part("[Content_Types].xml");
+    expect(types).toContain('Extension="png"');
+    expect(types).toContain('PartName="/word/header1.xml"');
+  });
+
   it("is set in Poppins throughout, with the font embedded", async () => {
     const report = buildReport(facts(kind), {});
     const zip = await JSZip.loadAsync(await renderDocx(report));
@@ -117,16 +132,40 @@ describe.each(["Monthly", "Yearly"] as const)("%s Word document", (kind) => {
   it("fills the official template and keeps its structure", async () => {
     const report = buildReport(facts(kind), {
       "rating.quality.employee": "4",
+      "rating.quality.manager": "4",
       "self.achievements": "Closed the ESP change spec",
       "summary.feedback": "Strong month",
+      "hr.professional.rating": "5",
+      "hr.professional.comments": "Courteous with clients",
+      "hr.attendance.rating": "3",
     });
     const xml = await documentXml(await renderDocx(report, { hrName: "Hema HR" }));
     const text = textIn(xml);
 
-    // Same document: header, rating scale and criteria pages untouched.
+    // Same document: header and criteria pages untouched.
     expect(text).toContain("INVENTIVE BUSINESS SOLUTIONS PVT. LTD.");
     expect(text).toContain(kind === "Monthly" ? "Monthly Evaluation Criteria" : "Annual Evaluation Criteria");
+
+    // HR Evaluation in place of the rating scale; numbering unchanged.
     expect(xml.match(/<w:tbl>/g)).toHaveLength(10);
+    expect(text).not.toContain("Rating Scale");
+    expect(text).not.toContain("Needs Improvement1Unsatisfactory"); // the scale table's last rows
+    expect(text).toContain(
+      "8. HR EvaluationEvaluation AreaHR Rating (1–5)HR Comments" +
+        "Professional Behaviour5Courteous with clients" +
+        "Learning & Development" +
+        "Initiative & Ownership" +
+        "Attendance & Punctuality3" +
+        "Teamwork & Collaboration" +
+        "Communication" +
+        "Discipline & Policy Compliance" +
+        "9. Sign-Off",
+    );
+    expect(text).toContain(`10. ${kind === "Monthly" ? "Monthly" : "Annual"} Performance Criteria`);
+
+    // Sign-off: name and date, no signature line.
+    expect(text).toContain("Name: Hema HRDate:");
+    expect(text).not.toContain("Signature");
 
     // Filled in.
     for (const s of ["Sanjana Shinde", "IBS-042", "Engineering", "Rahul Lead", "Closed the ESP change spec", "Strong month", "Name: Hema HR"]) {
@@ -152,6 +191,39 @@ describe.each(["Monthly", "Yearly"] as const)("%s Word document", (kind) => {
   });
 });
 
+describe("Tables stay on one page", () => {
+  it("keeps every row unsplit and with the next, and the heading with its table", async () => {
+    const xml = await documentXml(await renderDocx(buildReport(facts("Monthly"), {})));
+    const tables = xml.match(/<w:tbl>[\s\S]*?<\/w:tbl>/g)!;
+    expect(tables).toHaveLength(10);
+    for (const t of tables) {
+      const rows = t.match(/<w:tr[ >][\s\S]*?<\/w:tr>/g)!;
+      for (const [i, row] of rows.entries()) {
+        expect(row).toContain("<w:cantSplit/>");
+        const paras = row.match(/<w:p(?:\s[^>]*)?\/>|<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g)!;
+        for (const p of paras) {
+          // The last row lets go, so the next section can start a page.
+          expect(p.includes("<w:keepNext/>")).toBe(i < rows.length - 1);
+        }
+      }
+    }
+    const before = [...xml.matchAll(/(<w:p[ >](?:(?!<w:p[ >])[\s\S])*?<\/w:p>)<w:tbl>/g)];
+    expect(before).toHaveLength(10);
+    for (const [, p] of before) expect(p).toContain("<w:keepNext/>");
+    expect(textIn(before[4][1])).toBe("5. Employee Self-Assessment");
+  });
+
+  it("puts keepNext where the schema wants it", () => {
+    expect(keepWithNext('<w:p w14:paraId="1"/>')).toBe('<w:p w14:paraId="1"><w:pPr><w:keepNext/></w:pPr></w:p>');
+    expect(keepWithNext("<w:p><w:r><w:t>x</w:t></w:r></w:p>")).toBe(
+      "<w:p><w:pPr><w:keepNext/></w:pPr><w:r><w:t>x</w:t></w:r></w:p>",
+    );
+    expect(keepWithNext('<w:p><w:pPr><w:pStyle w:val="H2"/><w:jc w:val="center"/></w:pPr></w:p>')).toBe(
+      '<w:p><w:pPr><w:pStyle w:val="H2"/><w:keepNext/><w:jc w:val="center"/></w:pPr></w:p>',
+    );
+  });
+});
+
 describe("Send-to selection", () => {
   it("is never written into the Word document", async () => {
     const zip = await JSZip.loadAsync(
@@ -165,5 +237,16 @@ describe("Send-to selection", () => {
     expect(withHr).toBe(without);
     expect(withManager).toBe(without);
     expect(textIn(without)).toContain("Please review my leave");
+  });
+});
+
+describe("No tracker remarks on the form", () => {
+  it("leaves unrated areas and unwritten remarks blank", async () => {
+    const report = buildReport(facts("Monthly"), {});
+    const xml = await (await JSZip.loadAsync(await renderDocx(report))).file("word/document.xml")!.async("string");
+    const text = textIn(xml);
+    for (const a of report.areas) expect(text).not.toContain(a.evidence);
+    expect(text).toContain("____ / 5"); // nothing rated → blank overall
+    expect(text).not.toContain("☒"); // no performance level ticked
   });
 });

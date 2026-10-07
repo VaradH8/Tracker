@@ -150,7 +150,25 @@ export const ACHIEVEMENT_ROWS: Area[] = [
   { key: "process", label: "Process improvements / initiatives" },
 ];
 
-/** Section 8 — Rating Scale. Index = rating. */
+/** HR Evaluation — section 8 of the download (it takes the slot of the
+ *  template's Rating Scale). Rated 1–5 by HR only, on every review. */
+export const HR_AREAS: Area[] = [
+  { key: "professional", label: "Professional Behaviour" },
+  { key: "learning", label: "Learning & Development" },
+  { key: "initiative", label: "Initiative & Ownership" },
+  { key: "attendance", label: "Attendance & Punctuality" },
+  { key: "teamwork", label: "Teamwork & Collaboration" },
+  { key: "communication", label: "Communication" },
+  { key: "discipline", label: "Discipline & Policy Compliance" },
+];
+
+/** HR's own fields: hr.<area>.rating and hr.<area>.comments. Only an HR
+ *  account may change them — not Admins, not the Reporting Manager. */
+export function isHrKey(key: string): boolean {
+  return /^hr\.[A-Za-z]+\.(rating|comments)$/.test(key);
+}
+
+/** Performance levels (the template's rating scale). Index = rating. */
 export const LEVELS = [
   "Exceptional",
   "Exceeds Expectations",
@@ -185,7 +203,7 @@ export const MAX_MANUAL_GOALS = 5;
  * ratings are "1"–"5". Anything else is rejected by the API.
  */
 export const INPUT_KEY =
-  /^(rating\.[A-Za-z]+\.(employee|manager|comments)|self\.[A-Za-z]+|mgr\.[A-Za-z]+|summary\.(overall|level|priority|plan|feedback|employeeComments|commentTo)|milestone\.\d{1,9}|kpi\.[A-Za-z]+\.comments|goal\.[1-5]\.(goal|expected|actual|achievement|comments)|ach\.[A-Za-z]+\.(employee|manager)|reviewDate)$/;
+  /^(rating\.[A-Za-z]+\.(employee|manager|comments)|self\.[A-Za-z]+|mgr\.[A-Za-z]+|summary\.(overall|level|priority|plan|feedback|employeeComments|commentTo)|milestone\.\d{1,9}|kpi\.[A-Za-z]+\.comments|goal\.[1-5]\.(goal|expected|actual|achievement|comments)|ach\.[A-Za-z]+\.(employee|manager)|hr\.[A-Za-z]+\.(rating|comments)|reviewDate)$/;
 
 export const MAX_INPUT_LENGTH = 4000;
 
@@ -264,7 +282,11 @@ export function mergeInputs(
 }
 
 export function isRatingKey(key: string): boolean {
-  return /^rating\.[A-Za-z]+\.(employee|manager)$/.test(key) || key === "summary.overall";
+  return (
+    /^rating\.[A-Za-z]+\.(employee|manager)$/.test(key) ||
+    /^hr\.[A-Za-z]+\.rating$/.test(key) ||
+    key === "summary.overall"
+  );
 }
 
 /** "3" → 3; anything that isn't 1–5 → null. summary.overall also allows
