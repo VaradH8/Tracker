@@ -2,7 +2,18 @@ import { describe, it, expect } from "vitest";
 import JSZip from "jszip";
 import { workingDaySet } from "@/lib/engagement";
 import { buildReport, type ReportFacts } from "@/lib/performance/report";
-import { DOC_FONT, fillDocument, keepWithNext, obfuscateFont, renderDocx, setCellText, textIn, useDocFont } from "@/lib/performance/docx";
+import {
+  DOC_FONT,
+  bodyHeight,
+  fillDocument,
+  keepWithNext,
+  obfuscateFont,
+  renderDocx,
+  setCellText,
+  tableHeight,
+  textIn,
+  useDocFont,
+} from "@/lib/performance/docx";
 
 function facts(kind: "Monthly" | "Yearly"): ReportFacts {
   return {
@@ -211,6 +222,29 @@ describe("Tables stay on one page", () => {
     expect(before).toHaveLength(10);
     for (const [, p] of before) expect(p).toContain("<w:keepNext/>");
     expect(textIn(before[4][1])).toBe("5. Employee Self-Assessment");
+  });
+
+  it("lets a table longer than a page run on from under its heading", async () => {
+    const f = facts("Monthly");
+    const title = "SANGAM - Not sync files should be highlighted in the excel & excel should be downloadable";
+    f.tasks = Array.from({ length: 40 }, (_, i) => ({ ...f.tasks[0], id: i + 1, title: `${title} ${i}` }));
+    const xml = await documentXml(await renderDocx(buildReport(f, {})));
+    const goals = xml.match(/<w:tbl>[\s\S]*?<\/w:tbl>/g)![1];
+    const rows = goals.match(/<w:tr[ >][\s\S]*?<\/w:tr>/g)!;
+    expect(rows).toHaveLength(41);
+    expect(tableHeight(goals)).toBeGreaterThan(bodyHeight(xml));
+    // Header row repeats on each page and holds on to the first row.
+    expect(rows[0]).toContain("<w:tblHeader/>");
+    expect(rows[0]).toContain("<w:keepNext/>");
+    for (const row of rows.slice(1)) {
+      expect(row).toContain("<w:cantSplit/>");
+      expect(row).not.toContain("<w:keepNext/>");
+    }
+    // ...and the heading stays with it.
+    const heading = /(<w:p[ >](?:(?!<w:p[ >])[\s\S])*?<\/w:p>)<w:tbl>/g;
+    const before = [...xml.matchAll(heading)][1][1];
+    expect(textIn(before)).toBe("2. Monthly Goals / Assigned Tasks");
+    expect(before).toContain("<w:keepNext/>");
   });
 
   it("puts keepNext where the schema wants it", () => {

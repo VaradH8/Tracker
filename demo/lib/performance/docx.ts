@@ -328,29 +328,92 @@ export function keepWithNext(p: string): string {
   return p.replace(/^(<w:p(?:\s[^>]*)?>)/, "$1<w:pPr><w:keepNext/></w:pPr>");
 }
 
-/** A row that never splits across pages. */
-function cantSplit(row: string): string {
-  if (row.includes("<w:cantSplit/>")) return row;
+/** Add row properties (w:trPr children may come in any order). */
+function rowProps(row: string, ...props: string[]): string {
+  const add = props.filter((p) => !row.includes(p)).join("");
+  if (!add) return row;
   return /<w:trPr>/.test(row)
-    ? row.replace("<w:trPr>", "<w:trPr><w:cantSplit/>")
-    : row.replace(/^(<w:tr(?:\s[^>]*)?>)/, "$1<w:trPr><w:cantSplit/></w:trPr>");
+    ? row.replace("<w:trPr>", `<w:trPr>${add}`)
+    : row.replace(/^(<w:tr(?:\s[^>]*)?>)/, `$1<w:trPr>${add}</w:trPr>`);
+}
+
+/** Height of the page body in twips: the page less its margins, with
+ *  the top pushed down to clear the logo header. */
+export function bodyHeight(xml: string): number {
+  const h = Number(/<w:pgSz\b[^>]*\bw:h="(\d+)"/.exec(xml)?.[1] ?? 15840);
+  const mar = /<w:pgMar\b[^>]*>/.exec(xml)?.[0] ?? "";
+  const at = (a: string, d: number) => Number(new RegExp(`\\bw:${a}="(\\d+)"`).exec(mar)?.[1] ?? d);
+  const top = Math.max(at("top", 1440), at("header", 720) + LOGO_H / 635 + 200);
+  return h - top - at("bottom", 1440);
+}
+
+/** Lines a paragraph of `text` takes in `width` twips, wrapping on
+ *  words (a word longer than the line breaks across lines). */
+function wrappedLines(text: string, width: number, charW: number): number {
+  const perLine = Math.max(1, Math.floor(width / charW));
+  let lines = 1;
+  let used = 0;
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    const len = word.length;
+    if (used && used + 1 + len > perLine) {
+      lines += 1;
+      used = 0;
+    }
+    if (len > perLine) {
+      lines += Math.floor((used + len) / perLine);
+      used = (used + len) % perLine;
+    } else used += (used ? 1 : 0) + len;
+  }
+  return lines;
 }
 
 /**
- * Keep each table on one page, with its heading: no row splits, every
- * row but the last keeps with the next, and so does the paragraph just
- * before the table. A table that doesn't fit in what's left of a page
- * moves to the next one whole; only a table longer than a page breaks.
+ * A generous estimate of a table's height in twips. Table text here is
+ * single-spaced with no paragraph spacing (the TableGrid style), in
+ * Poppins: ~0.6em a character and lines 1.5× the font size.
+ */
+export function tableHeight(table: string): number {
+  let total = 0;
+  for (const row of table.match(ROW_RE) ?? []) {
+    let tallest = 0;
+    for (const cell of cellsOf(row)) {
+      const width = Number(/<w:tcW w:w="(\d+)"/.exec(cell)?.[1] ?? 2000) - 216; // less cell margins
+      const sz = Number(/<w:sz w:val="(\d+)"/.exec(cell)?.[1] ?? 18); // half-points
+      const charW = sz * 6;
+      const lines = (cell.match(PARA_RE) ?? [""]).reduce((n, p) => n + wrappedLines(textIn(p), width, charW), 0);
+      tallest = Math.max(tallest, lines * sz * 15);
+    }
+    total += tallest + 30; // borders
+  }
+  return total;
+}
+
+/**
+ * Page breaks around tables. No row ever splits, and each table starts
+ * under its heading:
+ *   - A table that fits on a page is kept whole with its heading: if
+ *     it doesn't fit in what's left of the page, both move to the next.
+ *   - A longer table starts right under its heading and runs on, its
+ *     header row repeated on each page. Only the heading, header row and
+ *     first row are held together, so a heading at the foot of a page
+ *     moves down with them rather than being left on its own.
  */
 export function keepTablesTogether(xml: string): string {
+  // Room for a table plus its heading on one page, with some slack.
+  const fits = bodyHeight(xml) * 0.9 - 600;
   return xml
     .replace(TABLE_RE, (table) => {
       const rows = table.match(ROW_RE) ?? [];
-      let i = 0;
+      const whole = tableHeight(table) <= fits;
+      let i = -1;
       return table.replace(ROW_RE, (row) => {
-        const last = ++i === rows.length;
-        const whole = cantSplit(row);
-        return last ? whole : whole.replace(PARA_RE, keepWithNext);
+        i += 1;
+        if (whole) {
+          const r = rowProps(row, "<w:cantSplit/>");
+          return i < rows.length - 1 ? r.replace(PARA_RE, keepWithNext) : r;
+        }
+        if (i === 0) return rowProps(row, "<w:cantSplit/>", "<w:tblHeader/>").replace(PARA_RE, keepWithNext);
+        return rowProps(row, "<w:cantSplit/>");
       });
     })
     .replace(/(<w:p[ >](?:(?!<w:p[ >])[\s\S])*?<\/w:p>)(<w:tbl>)/g, (_, p, tbl) => keepWithNext(p) + tbl);
