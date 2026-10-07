@@ -189,11 +189,16 @@ export const INPUT_KEY =
 
 export const MAX_INPUT_LENGTH = 4000;
 
+/** Inputs key holding the name of the Reporting Manager (Admin or Lead)
+ *  who last saved the review — the name printed as Reporting Manager on
+ *  the form. Written by the server only; INPUT_KEY doesn't accept it. */
+export const REVIEWED_BY = "reviewedBy";
+
 /** Who an employee's "My Comments" goes to. Stored as
  *  summary.commentTo; used only to route the notification, never printed
  *  on the Word form. */
 export const COMMENT_RECIPIENTS = [
-  { value: "manager", label: "Reporting Manager" },
+  { value: "manager", label: "Reporting Manager (Admins & Leads)" },
   { value: "hr", label: "HR" },
 ] as const;
 export type CommentRecipient = (typeof COMMENT_RECIPIENTS)[number]["value"];

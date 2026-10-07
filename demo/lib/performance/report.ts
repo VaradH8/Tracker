@@ -132,7 +132,13 @@ export type GoalRow = {
   expected: string;
   priority: string;
   targetDate: string | null;
+  /** The review form's wording ("Completed", "Delayed", …). */
   status: string;
+  /** The tracker's own status as of the period end, as My Tasks shows it
+   *  ("To Do", "In Progress", "Blocked", "In review", "Done"). */
+  taskStatus: string;
+  /** Days past target at the period end, if still open; else null. */
+  overdueDays: number | null;
 };
 
 export type ProgressStatus = "On Track" | "At Risk" | "Delayed" | "Completed";
@@ -145,6 +151,8 @@ export type LongTermRow = {
   planned: number | null;
   actual: number | null;
   status: ProgressStatus;
+  taskStatus: string;
+  overdueDays: number | null;
 };
 
 export type KpiRow = {
@@ -308,6 +316,36 @@ export function statusAsOf(t: TaskFact, asOf: string): string {
     default:
       return "In Progress";
   }
+}
+
+/** The tracker status as of `asOf`, in My Tasks' own words. A task
+ *  finished after the period was still being worked on at its end. */
+export function taskStatusAsOf(t: TaskFact, asOf: string): string {
+  const done = doneOn(t);
+  if (done && done <= asOf) return "Done";
+  return t.status === "Done" ? "In Progress" : t.status;
+}
+
+/** Days a still-open task was past its target on `asOf`, else null. */
+export function overdueDaysAsOf(t: TaskFact, asOf: string): number | null {
+  const done = doneOn(t);
+  if (done && done <= asOf) return null;
+  if (!t.targetDate || t.targetDate >= asOf) return null;
+  return daysBetween(t.targetDate, asOf);
+}
+
+/**
+ * Does a task in the period belong in "Critical / Long-Term Task
+ * Progress"? Critical work (flagged important, or Critical priority), and
+ * anything extending beyond the month: started before it, due after it,
+ * or already overdue when it began — carried-over work is multi-month by
+ * definition, even when the tracker only learned of it recently (an
+ * imported task has no start date and a recent creation date).
+ */
+export function isLongTerm(t: TaskFact, from: string, to: string): boolean {
+  if (t.important || /^critical$/i.test(t.priority)) return true;
+  if (startOf(t) < from) return true;
+  return !!t.targetDate && (t.targetDate < from || t.targetDate > to);
 }
 
 /** First meaningful line of the description, minus bullets / dates. */
@@ -570,15 +608,16 @@ export function buildReport(f: ReportFacts, inputs: Inputs): Report {
             priority: t.priority,
             targetDate: t.targetDate,
             status: statusAsOf(t, asOf),
+            taskStatus: taskStatusAsOf(t, asOf),
+            overdueDays: overdueDaysAsOf(t, asOf),
           }))
       : [];
 
-  /* §3 Monthly critical / long-term progress: work that spans beyond the
-     month, plus anything flagged important. */
+  /* §3 Monthly critical / long-term progress — see isLongTerm. */
   const longTerm: LongTermRow[] =
     kind === "Monthly"
       ? scoped
-          .filter((t) => t.important || startOf(t) < from || (t.targetDate ?? "") > to)
+          .filter((t) => isLongTerm(t, from, to))
           .map((t) => {
             const done = doneOn(t);
             const finished = !!done && done <= asOf;
@@ -614,6 +653,8 @@ export function buildReport(f: ReportFacts, inputs: Inputs): Report {
               planned,
               actual,
               status,
+              taskStatus: taskStatusAsOf(t, asOf),
+              overdueDays: overdueDaysAsOf(t, asOf),
             };
           })
       : [];

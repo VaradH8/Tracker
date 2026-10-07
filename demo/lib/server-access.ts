@@ -53,10 +53,26 @@ export function canSeeEngagement(role: SessionUser["role"]): boolean {
   return role === "Admin" || role === "Lead" || role === "Coordinator";
 }
 
+/** "Reporting Manager" is a role, not a per-person assignment: every
+ *  active Admin and Lead is a Reporting Manager for everyone. They rate
+ *  and comment on every review (canEditPerformance) and all receive the
+ *  comments an employee sends to "Reporting Manager". */
+export const REPORTING_MANAGER_ROLES = ["Admin", "Lead"] as const;
+
+/** Prisma `where` for the active Reporting Managers (Admins and Leads). */
+export const reportingManagersWhere = {
+  isActive: true,
+  OR: [{ primaryRole: { in: [...REPORTING_MANAGER_ROLES] } }, { isAdmin: true }],
+};
+
+export function isReportingManager(role: SessionUser["role"]): boolean {
+  return role === "Admin" || role === "Lead";
+}
+
 /** Performance reviews (/performance): view the generated Monthly /
- *  Yearly report for anyone. Lead (the Reporting Managers), Co-ordinator,
- *  Admin — and HR, which resolves to Coordinator for access. Mirrored
- *  client-side in lib/access.ts. */
+ *  Yearly report for anyone. The Reporting Managers (Admin, Lead),
+ *  Co-ordinator — and HR, which resolves to Coordinator for access.
+ *  Mirrored client-side in lib/access.ts. */
 export function canSeePerformance(role: SessionUser["role"]): boolean {
   return role === "Admin" || role === "Lead" || role === "Coordinator";
 }
@@ -76,14 +92,10 @@ export function canDownloadPerformance(user: SessionUser): boolean {
   return user.primaryRole === "HR";
 }
 
-/** Who can rate and comment on a review: the employee's Reporting
- *  Manager, HR, and Admin. Other viewers read it. */
-export function canEditPerformance(
-  user: SessionUser,
-  employee: { id: string; reportingManagerId: string | null },
-): boolean {
-  if (user.role === "Admin" || user.primaryRole === "HR") return true;
-  return employee.reportingManagerId === user.id;
+/** Who can rate and comment on a review: the Reporting Managers (every
+ *  Admin and Lead) and HR. Co-ordinators read it. */
+export function canEditPerformance(user: SessionUser): boolean {
+  return isReportingManager(user.role) || user.primaryRole === "HR";
 }
 
 /** Employee ID, department, joining date and reporting line — HR master

@@ -170,15 +170,14 @@ describe("GET /api/performance/report", () => {
     expect(res.status).toBe(400);
   });
 
-  it("only the Reporting Manager, HR or Admin can edit", async () => {
+  it("every Admin and Lead (the Reporting Managers) and HR can edit; Co-ordinators read", async () => {
     const editable = async (u: SessionUser) => {
       vi.mocked(requireUser).mockResolvedValue(u);
       return (await (await GET_REPORT(get(`/api/performance/report?${Q}`))).json()).canEdit;
     };
-    expect(await editable(actor("Lead", "lead-rm"))).toBe(true);
+    expect(await editable(actor("Lead", "any-lead"))).toBe(true);
+    expect(await editable(actor("Admin", "any-admin"))).toBe(true);
     expect(await editable(actor("HR"))).toBe(true);
-    expect(await editable(actor("Admin"))).toBe(true);
-    expect(await editable(actor("Lead", "other-lead"))).toBe(false);
     expect(await editable(actor("Coordinator"))).toBe(false);
   });
 });
@@ -192,21 +191,24 @@ describe("PUT /api/performance/report", () => {
     expect(prisma.performanceReview.upsert).not.toHaveBeenCalled();
   });
 
-  it("403s a Lead who isn't this person's Reporting Manager", async () => {
-    vi.mocked(requireUser).mockResolvedValue(actor("Lead", "other-lead"));
-    expect((await PUT_REPORT(json("PUT", body))).status).toBe(403);
-  });
-
   it.each([
-    ["Reporting Manager", actor("Lead", "lead-rm")],
-    ["HR", actor("HR")],
-    ["Admin", actor("Admin")],
-  ])("saves for the %s", async (_, u) => {
+    ["any Lead", actor("Lead", "any-lead"), { reviewedBy: "Test Lead" }],
+    ["any Admin", actor("Admin", "any-admin"), { reviewedBy: "Test Admin" }],
+    // HR edits but isn't a Reporting Manager — not named on the form.
+    ["HR", actor("HR"), {}],
+  ])("saves for %s", async (_, u, named) => {
     vi.mocked(requireUser).mockResolvedValue(u);
     expect((await PUT_REPORT(json("PUT", body))).status).toBe(200);
-    expect(vi.mocked(prisma.performanceReview.upsert).mock.calls[0][0].create.inputs).toBe(
-      JSON.stringify({ "rating.quality.manager": "4" }),
-    );
+    expect(JSON.parse(vi.mocked(prisma.performanceReview.upsert).mock.calls[0][0].create.inputs as string)).toEqual({
+      "rating.quality.manager": "4",
+      ...named,
+    });
+  });
+
+  it("won't let a client set who reviewed it", async () => {
+    vi.mocked(requireUser).mockResolvedValue(actor("HR"));
+    const res = await PUT_REPORT(json("PUT", { ...body, changes: { reviewedBy: "Someone Else" } }));
+    expect(res.status).toBe(400);
   });
 
   it("rejects unknown fields and out-of-range ratings", async () => {
@@ -251,31 +253,17 @@ describe("PATCH /api/performance/people/[id]", () => {
     expect(prisma.user.update).not.toHaveBeenCalled();
   });
 
-  it("lets HR set details and a Lead as Reporting Manager", async () => {
+  it("lets HR set the employee details — and ignores any Reporting Manager", async () => {
     vi.mocked(requireUser).mockResolvedValue(actor("HR"));
-    vi.mocked(prisma.user.findUnique)
-      .mockResolvedValueOnce({ id: "emp-1", name: "Sanjana" } as never)
-      .mockResolvedValueOnce({ primaryRole: "Lead", isActive: true } as never);
+    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({ id: "emp-1", name: "Sanjana" } as never);
     const res = await PATCH_PERSON(
       json("PATCH", { employeeCode: "IBS-042", department: "Engineering", reportingManagerId: "lead-rm", joined: "2024-06-01" }),
       params("emp-1"),
     );
     expect(res.status).toBe(200);
-    expect(vi.mocked(prisma.user.update).mock.calls[0][0].data).toMatchObject({
-      employeeCode: "IBS-042",
-      department: "Engineering",
-      reportingManagerId: "lead-rm",
-    });
-  });
-
-  it("rejects a Reporting Manager who isn't a Lead", async () => {
-    vi.mocked(requireUser).mockResolvedValue(actor("Admin"));
-    vi.mocked(prisma.user.findUnique)
-      .mockResolvedValueOnce({ id: "emp-1", name: "Sanjana" } as never)
-      .mockResolvedValueOnce({ primaryRole: "Developer", isActive: true } as never);
-    const res = await PATCH_PERSON(json("PATCH", { reportingManagerId: "dev-2" }), params("emp-1"));
-    expect(res.status).toBe(400);
-    expect(prisma.user.update).not.toHaveBeenCalled();
+    const data = vi.mocked(prisma.user.update).mock.calls[0][0].data;
+    expect(data).toMatchObject({ employeeCode: "IBS-042", department: "Engineering" });
+    expect(data).not.toHaveProperty("reportingManagerId");
   });
 });
 
@@ -296,7 +284,7 @@ describe("PUT /api/performance/report — merging", () => {
     expect(res.status).toBe(200);
     const saved = JSON.parse(vi.mocked(prisma.performanceReview.upsert).mock.calls[0][0].update.inputs as string);
     // Untouched employee field survives; "" clears; new field added.
-    expect(saved).toEqual({ "rating.quality.employee": "4", "rating.quality.manager": "3" });
+    expect(saved).toEqual({ "rating.quality.employee": "4", "rating.quality.manager": "3", reviewedBy: "Test Lead" });
   });
 });
 
@@ -373,14 +361,23 @@ describe("My Comments — Send to Reporting Manager or HR", () => {
     vi.mocked(requireUser).mockResolvedValue(actor("Developer", "emp-1"));
   });
 
-  it("notifies the Reporting Manager when the comment is sent to them", async () => {
-    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: "lead-rm", name: "Rahul Lead", isActive: true } as never);
+  it("notifies every active Admin and Lead when sent to Reporting Manager", async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([
+      { id: "lead-rm", name: "Rahul Lead" },
+      { id: "adm-1", name: "Varad Hadawale" },
+    ] as never);
     const res = await put({ "summary.employeeComments": "Need a CAD licence", "summary.commentTo": "manager" });
     expect(res.status).toBe(200);
-    expect((await res.json()).notified).toEqual(["Rahul Lead"]);
-    expect(notifyUser).toHaveBeenCalledTimes(1);
-    const [to, n] = vi.mocked(notifyUser).mock.calls[0];
-    expect(to).toBe("lead-rm");
+    expect((await res.json()).notified).toEqual(["Rahul Lead", "Varad Hadawale"]);
+    expect(vi.mocked(prisma.user.findMany).mock.calls[0][0]).toMatchObject({
+      where: {
+        isActive: true,
+        OR: [{ primaryRole: { in: ["Admin", "Lead"] } }, { isAdmin: true }],
+        NOT: { id: "emp-1" },
+      },
+    });
+    expect(vi.mocked(notifyUser).mock.calls.map((c) => c[0])).toEqual(["lead-rm", "adm-1"]);
+    const n = vi.mocked(notifyUser).mock.calls[0][1];
     expect(n).toMatchObject({ kind: "performance_comment", body: "Need a CAD licence" });
     expect(n.title).toContain("monthly review for September 2026");
   });
@@ -406,8 +403,8 @@ describe("My Comments — Send to Reporting Manager or HR", () => {
     expect(notifyUser).not.toHaveBeenCalled();
   });
 
-  it("refuses 'Reporting Manager' when none is set", async () => {
-    vi.mocked(findEmployee).mockResolvedValue({ ...EMPLOYEE, reportingManagerId: null } as never);
+  it("refuses 'Reporting Manager' when there's no active Admin or Lead", async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([] as never);
     const res = await put({ "summary.employeeComments": "Hello", "summary.commentTo": "manager" });
     expect(res.status).toBe(400);
     expect(prisma.performanceReview.upsert).not.toHaveBeenCalled();

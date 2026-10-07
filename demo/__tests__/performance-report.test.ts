@@ -20,7 +20,7 @@ import {
   parseReviewQuery,
   validateChanges,
 } from "@/lib/performance/forms";
-import { toSelfView } from "@/lib/performance/report";
+import { isLongTerm, overdueDaysAsOf, taskStatusAsOf, toSelfView } from "@/lib/performance/report";
 
 const WORK = workingDaySet(["Mon", "Tue", "Wed", "Thu", "Fri"]);
 
@@ -306,5 +306,49 @@ describe("employee fields", () => {
     });
     expect(JSON.stringify(v)).not.toContain("secret");
     expect(v.employeeComments.value).toBe("thanks");
+  });
+});
+
+describe("task status as My Tasks shows it", () => {
+  it("reports the tracker status and days overdue at the period end", () => {
+    const blocked = task({ id: 501, status: "Blocked", targetDate: "2026-09-04" });
+    const doneLater = task({ id: 502, status: "Done", completedAt: "2026-10-03", targetDate: "2026-09-20" });
+    const doneInTime = task({ id: 503, status: "Done", completedAt: "2026-09-10", targetDate: "2026-09-12" });
+    expect(taskStatusAsOf(blocked, "2026-09-30")).toBe("Blocked");
+    expect(overdueDaysAsOf(blocked, "2026-09-30")).toBe(26);
+    // Finished after the month: still open (and late) at its end.
+    expect(taskStatusAsOf(doneLater, "2026-09-30")).toBe("In Progress");
+    expect(overdueDaysAsOf(doneLater, "2026-09-30")).toBe(10);
+    expect(taskStatusAsOf(doneInTime, "2026-09-30")).toBe("Done");
+    expect(overdueDaysAsOf(doneInTime, "2026-09-30")).toBeNull();
+
+    const r = buildReport(facts({ tasks: [blocked, doneInTime] }), {});
+    expect(r.goals.find((g) => g.taskId === 501)).toMatchObject({ status: "Delayed", taskStatus: "Blocked", overdueDays: 26 });
+    expect(toSelfView(r).goals.find((g) => g.taskId === 503)).toMatchObject({ taskStatus: "Done", overdueDays: null });
+  });
+});
+
+describe("critical / long-term tasks", () => {
+  const FROM = "2026-09-01";
+  const TO = "2026-09-30";
+  it("counts critical work and anything extending beyond the month", () => {
+    // Imported in September with no start date, due back in May: carried over.
+    expect(isLongTerm(task({ startDate: null, createdAt: "2026-09-17", targetDate: "2026-05-04" }), FROM, TO)).toBe(true);
+    expect(isLongTerm(task({ startDate: "2026-08-20", targetDate: "2026-09-10" }), FROM, TO)).toBe(true); // started earlier
+    expect(isLongTerm(task({ startDate: "2026-09-05", targetDate: "2026-10-15" }), FROM, TO)).toBe(true); // due later
+    expect(isLongTerm(task({ priority: "Critical", startDate: "2026-09-05", targetDate: "2026-09-10" }), FROM, TO)).toBe(true);
+    expect(isLongTerm(task({ important: true, startDate: "2026-09-05", targetDate: "2026-09-10" }), FROM, TO)).toBe(true);
+    // Started and due inside the month: an ordinary monthly task.
+    expect(isLongTerm(task({ startDate: "2026-09-05", targetDate: "2026-09-20" }), FROM, TO)).toBe(false);
+    expect(isLongTerm(task({ startDate: null, createdAt: "2026-09-17", targetDate: null }), FROM, TO)).toBe(false);
+  });
+
+  it("lists carried-over overdue work in section 3", () => {
+    const r = buildReport(
+      facts({ tasks: [task({ id: 601, startDate: null, createdAt: "2026-09-17", targetDate: "2026-05-04", status: "Blocked" })] }),
+      {},
+    );
+    expect(r.longTerm.map((l) => l.taskId)).toEqual([601]);
+    expect(r.longTerm[0]).toMatchObject({ status: "Delayed", taskStatus: "Blocked" });
   });
 });
