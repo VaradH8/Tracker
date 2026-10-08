@@ -117,8 +117,11 @@ beforeEach(() => {
     .mockResolvedValue({ report: REPORT, meta: { savedAt: null, savedBy: null } });
 });
 
-const OUTSIDERS = ["Developer", "BusinessDeveloper"] as const;
-const VIEWERS = ["Admin", "Lead", "Coordinator", "HR"] as const;
+// A Co-ordinator has My Performance only, not the Performance page.
+const OUTSIDERS = ["Developer", "BusinessDeveloper", "Coordinator"] as const;
+const VIEWERS = ["Admin", "Lead", "HR"] as const;
+/** EMPLOYEE reports to lead-rm, so that's the Lead who can see them. */
+const viewer = (role: (typeof VIEWERS)[number]) => actor(role, role === "Lead" ? "lead-rm" : undefined);
 
 describe("HR role", () => {
   it("has exactly the Co-ordinator's access", () => {
@@ -140,12 +143,26 @@ describe("GET /api/performance/people", () => {
   });
 
   it.each(VIEWERS)("lists people for a %s, with download only for HR", async (role) => {
-    vi.mocked(requireUser).mockResolvedValue(actor(role));
+    vi.mocked(requireUser).mockResolvedValue(viewer(role));
     const res = await GET_PEOPLE();
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.viewer.canDownload).toBe(role === "HR");
     expect(body.viewer.canEditRecords).toBe(role === "HR" || role === "Admin");
+  });
+
+  it("lists only a Lead's own team", async () => {
+    vi.mocked(requireUser).mockResolvedValue(actor("Lead", "lead-rm"));
+    await GET_PEOPLE();
+    const people = vi.mocked(prisma.user.findMany).mock.calls[1][0];
+    expect(people?.where).toMatchObject({ reportingManagerId: "lead-rm" });
+  });
+
+  it.each(["Admin", "HR"] as const)("lists everyone for %s", async (role) => {
+    vi.mocked(requireUser).mockResolvedValue(actor(role));
+    await GET_PEOPLE();
+    const people = vi.mocked(prisma.user.findMany).mock.calls[1][0];
+    expect(people?.where).not.toHaveProperty("reportingManagerId");
   });
 });
 
@@ -157,7 +174,7 @@ describe("GET /api/performance/report", () => {
   });
 
   it.each(VIEWERS)("shows the review to a %s", async (role) => {
-    vi.mocked(requireUser).mockResolvedValue(actor(role));
+    vi.mocked(requireUser).mockResolvedValue(viewer(role));
     const res = await GET_REPORT(get(`/api/performance/report?${Q}`));
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -165,6 +182,22 @@ describe("GET /api/performance/report", () => {
     expect(body.canDownload).toBe(role === "HR");
     expect(body.canEditHr).toBe(role === "HR");
     expect(body.report.hr.map((h: { label: string }) => h.label)).toHaveLength(7);
+  });
+
+  it("names the active HR account on the Sign-Off", async () => {
+    vi.mocked(requireUser).mockResolvedValue(actor("Admin"));
+    vi.mocked(prisma.user.findMany).mockResolvedValue([{ name: "Janvi Gaikwad" }] as never);
+    const body = await (await GET_REPORT(get(`/api/performance/report?${Q}`))).json();
+    expect(body.hrName).toBe("Janvi Gaikwad");
+    expect(vi.mocked(prisma.user.findMany).mock.calls[0][0]).toMatchObject({
+      where: { primaryRole: "HR", isActive: true },
+    });
+  });
+
+  it("names the HR viewer themselves on the Sign-Off, as the download does", async () => {
+    vi.mocked(requireUser).mockResolvedValue(actor("HR"));
+    const body = await (await GET_REPORT(get(`/api/performance/report?${Q}`))).json();
+    expect(body.hrName).toBe("Test HR");
   });
 
   it("400s a bad period", async () => {
@@ -178,19 +211,25 @@ describe("GET /api/performance/report", () => {
     return (await (await GET_REPORT(get(`/api/performance/report?${Q}`))).json()).canEdit;
   };
 
-  it("with a Reporting Manager assigned: that person, Admins and HR edit; other Leads read", async () => {
+  it("the Reporting Manager, Admins and HR edit", async () => {
     // EMPLOYEE reports to lead-rm.
     expect(await editable(actor("Lead", "lead-rm"))).toBe(true);
-    expect(await editable(actor("Lead", "other-lead"))).toBe(false);
     expect(await editable(actor("Admin", "any-admin"))).toBe(true);
     expect(await editable(actor("HR"))).toBe(true);
-    expect(await editable(actor("Coordinator"))).toBe(false);
   });
 
-  it("with none assigned: any Lead edits", async () => {
+  it("403s a Lead outside the employee's team", async () => {
+    vi.mocked(requireUser).mockResolvedValue(actor("Lead", "other-lead"));
+    expect((await GET_REPORT(get(`/api/performance/report?${Q}`))).status).toBe(403);
+    expect(loadReport).not.toHaveBeenCalled();
+  });
+
+  it("with none assigned: no Lead sees it; Admins and HR still edit", async () => {
     vi.mocked(findEmployee).mockResolvedValue({ ...EMPLOYEE, reportingManagerId: null } as never);
-    expect(await editable(actor("Lead", "other-lead"))).toBe(true);
-    expect(await editable(actor("Coordinator"))).toBe(false);
+    vi.mocked(requireUser).mockResolvedValue(actor("Lead", "other-lead"));
+    expect((await GET_REPORT(get(`/api/performance/report?${Q}`))).status).toBe(403);
+    expect(await editable(actor("Admin", "any-admin"))).toBe(true);
+    expect(await editable(actor("HR"))).toBe(true);
   });
 });
 

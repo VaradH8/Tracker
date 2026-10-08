@@ -1,12 +1,13 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Users2, ArrowRight, FolderKanban } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { useTasks } from "@/lib/tasks-store";
 import { labelOf, useAccounts, useMyFirstName } from "@/lib/account-store";
 import type { Task } from "@/lib/mock";
-import { ROLE_LABELS } from "@/lib/role";
+import { ROLE_LABELS, useRole } from "@/lib/role";
 import { useProjects } from "@/lib/projects-store";
 
 export default function TeamPage() {
@@ -14,15 +15,36 @@ export default function TeamPage() {
   const { tasks } = useTasks();
   const { projects } = useProjects();
   const { accounts } = useAccounts();
+  const [role] = useRole();
+  const isLead = role === "Lead";
 
-  // Projects I run as a Coordinator — those are the ones whose team I
-  // care about on this page.
-  const myProjects = projects.filter((p) => p.coordinators.includes(me));
+  // A Lead's team is the people who report to them. The server already
+  // limits a Lead's performance list (and their tasks) to that team.
+  const [reportIds, setReportIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!isLead) return;
+    let live = true;
+    fetch("/api/performance/people", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { people?: { id: string }[] } | null) => {
+        if (live) setReportIds(new Set((d?.people ?? []).map((p) => p.id)));
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [isLead]);
+
+  // A Lead: the projects their team has work on (their task list is
+  // already just the team's). A Co-ordinator: the projects they run.
+  const myProjects = isLead
+    ? projects.filter((p) => tasks.some((t) => t.projectId === p.id))
+    : projects.filter((p) => p.coordinators.includes(me));
   const myProjectIds = new Set(myProjects.map((p) => p.id));
   const teamTasks = tasks.filter((t) => myProjectIds.has(t.projectId));
 
-  // Anyone with any per-project role on those projects OR who has a task
-  // assigned counts as "my team", minus me.
+  // A Co-ordinator's team: anyone with any per-project role on those
+  // projects OR who has a task assigned there, minus me.
   const teamFirstNames = new Set(
     [
       ...myProjects.flatMap((p) => [
@@ -35,7 +57,7 @@ export default function TeamPage() {
     ].filter((n) => n !== me),
   );
   const teamPeople = accounts.filter(
-    (a) => a.active && teamFirstNames.has(labelOf(a)),
+    (a) => a.active && (isLead ? reportIds.has(a.id) : teamFirstNames.has(labelOf(a))),
   );
 
   function tasksFor(person: string): Task[] {
@@ -54,9 +76,11 @@ export default function TeamPage() {
           <h1 className="font-heading text-3xl font-semibold">My team</h1>
           <p className="text-sm text-ink-500 mt-1">
             {teamPeople.length}{" "}
-            {teamPeople.length === 1 ? "person" : "people"} across{" "}
+            {teamPeople.length === 1 ? "person" : "people"}
+            {isLead ? " reporting to you, across " : " across "}
             {myProjects.length} project
-            {myProjects.length === 1 ? "" : "s"} you're running.
+            {myProjects.length === 1 ? "" : "s"}
+            {isLead ? "." : " you're running."}
           </p>
         </header>
 
@@ -65,7 +89,7 @@ export default function TeamPage() {
             <div className="flex items-center gap-2 mb-3">
               <FolderKanban size={16} className="text-brand-blue" />
               <h2 className="font-heading text-base font-semibold">
-                Projects you coordinate
+                {isLead ? "Projects your team is on" : "Projects you coordinate"}
               </h2>
             </div>
             <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
@@ -99,8 +123,9 @@ export default function TeamPage() {
               No team yet
             </h2>
             <p className="text-sm text-ink-500 max-w-sm mx-auto">
-              When you assign someone to a task on a project you coordinate,
-              they show up here with their open work and how they're tracking.
+              {isLead
+                ? "People whose Reporting Manager is you show up here with their open work and how they're tracking."
+                : "When you assign someone to a task on a project you coordinate, they show up here with their open work and how they're tracking."}
             </p>
           </div>
         ) : (

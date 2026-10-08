@@ -149,6 +149,26 @@ describe("Users — editing", () => {
     expect((await res.json()).user.reportingManagerId).toBe("lead-1");
   });
 
+  it("refuses a Reporting Manager for an Admin — they head the organisation", async () => {
+    vi.mocked(requireUser).mockResolvedValue(actor("Admin"));
+    vi.mocked(prisma.user.findUnique)
+      .mockResolvedValueOnce(LEAD as never) // the manager check
+      .mockResolvedValueOnce(ADMIN as never); // the employee is an Admin
+    const res = await PATCH(json("PATCH", { reportingManagerId: "lead-1" }), params("adm-1"));
+    expect(res.status).toBe(400);
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it("making someone an Admin ends their reporting line", async () => {
+    vi.mocked(requireUser).mockResolvedValue(actor("Admin"));
+    const res = await PATCH(json("PATCH", { role: "Admin" }), params("dev-1"));
+    expect(res.status).toBe(200);
+    expect(vi.mocked(prisma.user.update).mock.calls[0][0].data).toMatchObject({
+      primaryRole: "Admin",
+      reportingManagerId: null,
+    });
+  });
+
   it("clears a Reporting Manager with null", async () => {
     vi.mocked(requireUser).mockResolvedValue(actor("Admin"));
     const res = await PATCH(json("PATCH", { reportingManagerId: null }), params("dev-1"));

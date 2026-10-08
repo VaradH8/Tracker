@@ -7,6 +7,7 @@ import { Modal } from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import { canAccess } from "@/lib/access";
 import { useRole, ROLE_LABELS, type Role } from "@/lib/role";
+import { useAccounts } from "@/lib/account-store";
 import { fmtDay, localToday } from "@/lib/engagement";
 import {
   LEVELS,
@@ -60,6 +61,8 @@ type ReportData = {
   /** HR accounts only: the HR Evaluation section. */
   canEditHr: boolean;
   canDownload: boolean;
+  /** Who signs for HR: the viewing HR account, else every active HR account. */
+  hrName: string;
 };
 
 /* ---------------------------------------------------------- draft model */
@@ -104,12 +107,16 @@ function draftFrom(r: Report): Draft {
 /**
  * Performance reviews — the IBS Monthly / Yearly review, generated from
  * the tracker (tasks, hours, leave) and completed by the Reporting
- * Manager (an Admin or Lead), HR or Admin. Lead, Co-ordinator, HR and Admin can
- * read every review; only HR downloads the Word document.
+ * Manager (an Admin or Lead), HR or Admin. HR and Admin can read every
+ * review, a Lead their own team's; only HR downloads the Word document.
+ * Co-ordinators have My Performance instead.
  */
 export default function PerformancePage() {
   const [role, , hydrated] = useRole();
-  const enabled = hydrated && canAccess(role, "/performance");
+  // Checked by the account's real role: HR has this page, a Co-ordinator
+  // (whose access HR otherwise shares) doesn't.
+  const { current } = useAccounts();
+  const enabled = hydrated && canAccess(current?.role ?? role, "/performance");
   const toast = useToast();
 
   const [people, setPeople] = useState<PeopleData | null>(null);
@@ -496,8 +503,18 @@ export default function PerformancePage() {
               <Prompts fields={r.manager} draft={draft} set={set} editable={editable} />
             </Section>
 
-            {/* 7. Summary */}
-            <Section n={7} title={r.kind === "Monthly" ? "Monthly Summary" : "Annual Performance Summary"}>
+            {/* 7. HR Evaluation */}
+            <Section n={7} title="HR Evaluation"
+              note={`Rated by HR only — not part of the overall rating${hrEditable ? "" : "; read-only for you"}. Scale: 5 Exceptional · 4 Exceeds · 3 Meets · 2 Needs Improvement · 1 Unsatisfactory.`}>
+              <Table head={["Evaluation Area", "HR Rating (1–5)", "HR Comments"]}>
+                {r.hr.map((h) => (
+                  <HrLine key={h.key} h={h} draft={draft} set={set} editable={hrEditable} />
+                ))}
+              </Table>
+            </Section>
+
+            {/* 8. Summary */}
+            <Section n={8} title={r.kind === "Monthly" ? "Monthly Summary" : "Annual Performance Summary"}>
               <div className="grid gap-4 md:grid-cols-3 mb-4">
                 <div>
                   <div className="text-[11px] uppercase tracking-wide text-ink-500">
@@ -527,23 +544,13 @@ export default function PerformancePage() {
               <Prompts fields={[r.summary.plan, r.summary.feedback, r.summary.employeeComments]} draft={draft} set={set} editable={editable} />
             </Section>
 
-            {/* 8. HR Evaluation */}
-            <Section n={8} title="HR Evaluation"
-              note={`Rated by HR only — not part of the overall rating${hrEditable ? "" : "; read-only for you"}. Scale: 5 Exceptional · 4 Exceeds · 3 Meets · 2 Needs Improvement · 1 Unsatisfactory.`}>
-              <Table head={["Evaluation Area", "HR Rating (1–5)", "HR Comments"]}>
-                {r.hr.map((h) => (
-                  <HrLine key={h.key} h={h} draft={draft} set={set} editable={hrEditable} />
-                ))}
-              </Table>
-            </Section>
-
             {/* 9. Sign-off */}
             <Section n={9} title="Sign-Off" note="Dates are completed on the printed document.">
               <div className="grid sm:grid-cols-3 gap-3 text-sm">
                 {[
                   ["Employee", r.employee.name],
                   ["Reporting Manager", r.employee.reportingManager || "The Admin or Lead who reviews it"],
-                  ["HR", "Filled with the HR name on download"],
+                  ["HR", data?.hrName || "No active HR account"],
                 ].map(([who, name]) => (
                   <div key={who} className="rounded border border-ink-200 p-3">
                     <div className="text-[11px] uppercase tracking-wide text-ink-500">{who}</div>

@@ -3,12 +3,11 @@ import { prisma } from "@/lib/db";
 import {
   assigneesOutsideProject,
   canCreateProjectTasks,
-  canSeeAllProjectTasks,
   forkableTasksFilter,
   notifyUser,
   requireUser,
   rosteredProjectIds,
-  taskAssignmentFilter,
+  taskVisibilityFilter,
   userByFirstName,
   visibleProjectIds,
   writeAudit,
@@ -54,11 +53,12 @@ export async function GET(req: Request) {
   } else if (mineOnly) {
     // Explicit "assigned to me" filter — strictly assignees.
     where.assignees = { some: { userId: user.id } };
-  } else if (!canSeeAllProjectTasks(user.role)) {
-    // Assignment-based visibility: non-oversight roles (Developer, BD)
-    // only see their own tasks even within a project they can access,
-    // rather than the whole project board.
-    Object.assign(where, taskAssignmentFilter(user.id));
+  } else {
+    // Assignment-based visibility: a Lead sees their team's tasks, and
+    // Developers / BDs only their own, even within a project they can
+    // access — rather than the whole project board.
+    const visible = await taskVisibilityFilter(user);
+    if (visible) Object.assign(where, visible);
   }
 
   const tasks = await prisma.task.findMany({

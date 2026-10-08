@@ -5,12 +5,20 @@ import {
   canEditPerformance,
   canRateHrEvaluation,
   canSeePerformance,
+  canSeeReviewOf,
   isReportingManager,
   requireUser,
   writeAudit,
 } from "@/lib/server-access";
 import { REVIEWED_BY, isHrKey, parseReviewQuery, validateChanges } from "@/lib/performance/forms";
-import { findEmployee, loadReport, saveReviewChanges } from "@/lib/performance/load";
+import { activeHrNames, findEmployee, loadReport, saveReviewChanges } from "@/lib/performance/load";
+import type { SessionUser } from "@/lib/auth";
+
+/** The HR name the Sign-Off shows: the HR account viewing it (the one
+ *  whose name the download prints), otherwise the active HR accounts. */
+async function hrSignOffName(me: SessionUser): Promise<string> {
+  return canDownloadPerformance(me) ? me.name : activeHrNames();
+}
 
 /** GET ?userId&kind=Monthly|Yearly&period=YYYY-MM|YYYY — the generated
  *  review: the tracker's facts (tasks, hours, leave, KPIs) plus the
@@ -19,7 +27,7 @@ export async function GET(req: Request) {
   const userOrResp = await requireUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
   const me = userOrResp;
-  if (!canSeePerformance(me.role)) {
+  if (!canSeePerformance(me)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const q = parseReviewQuery(Object.fromEntries(new URL(req.url).searchParams));
@@ -27,6 +35,9 @@ export async function GET(req: Request) {
 
   const employee = await findEmployee(q.userId);
   if (!employee) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!canSeeReviewOf(me, employee)) {
+    return NextResponse.json({ error: "A Lead sees only the reviews of their own team." }, { status: 403 });
+  }
 
   const loaded = await loadReport(q.userId, q.kind, q.period);
   if (!loaded) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -35,6 +46,7 @@ export async function GET(req: Request) {
     canEdit: canEditPerformance(me, employee),
     canEditHr: canRateHrEvaluation(me),
     canDownload: canDownloadPerformance(me),
+    hrName: await hrSignOffName(me),
   });
 }
 
@@ -53,7 +65,7 @@ export async function PUT(req: Request) {
   const userOrResp = await requireUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
   const me = userOrResp;
-  if (!canSeePerformance(me.role)) {
+  if (!canSeePerformance(me)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const parsed = putBody.safeParse(await req.json().catch(() => null));
@@ -64,6 +76,9 @@ export async function PUT(req: Request) {
 
   const employee = await findEmployee(q.userId);
   if (!employee) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!canSeeReviewOf(me, employee)) {
+    return NextResponse.json({ error: "A Lead sees only the reviews of their own team." }, { status: 403 });
+  }
   if (!canEditPerformance(me, employee)) {
     return NextResponse.json(
       { error: "Only this person's Reporting Manager, an Admin or HR can edit this review." },
@@ -98,5 +113,6 @@ export async function PUT(req: Request) {
     canEdit: true,
     canEditHr: canRateHrEvaluation(me),
     canDownload: canDownloadPerformance(me),
+    hrName: await hrSignOffName(me),
   });
 }

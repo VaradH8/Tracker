@@ -16,11 +16,14 @@ vi.mock("@/lib/server-access", () => ({
   userByFirstName: vi.fn(),
   notifyUser: vi.fn(),
   writeAudit: vi.fn(),
-  canSeeAllProjectTasks: (r: string) =>
-    r === "Admin" || r === "Lead" || r === "Coordinator",
+  canSeeAllProjectTasks: (r: string) => r === "Admin" || r === "Coordinator",
   taskAssignmentFilter: (userId: string) => ({
     OR: [{ assignees: { some: { userId } } }, { responsibleId: userId }],
   }),
+  taskVisibilityFilter: async (u: { id: string; role: string }) =>
+    u.role === "Admin" || u.role === "Coordinator"
+      ? null
+      : { OR: [{ assignees: { some: { userId: u.id } } }, { responsibleId: u.id }] },
   forkableTasksFilter: (userId: string) => ({
     NOT: {
       OR: [{ assignees: { some: { userId } } }, { responsibleId: userId }],

@@ -171,6 +171,8 @@ export async function PATCH(
     if (problem) return NextResponse.json({ error: problem }, { status: 400 });
     data.reportingManagerId = managerId;
   }
+  // Admins report to no one: making someone an Admin ends their reporting line.
+  if (data.primaryRole === "Admin") data.reportingManagerId = null;
 
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "Nothing to update." }, { status: 400 });

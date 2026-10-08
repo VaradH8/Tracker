@@ -98,6 +98,12 @@ export function canBeReportingManager(u: {
   );
 }
 
+/** Admins head the organisation: they report to no one, so an Admin
+ *  account never has a Reporting Manager (Users shows "—"). */
+export function isAdminAccount(u: { primaryRole: string; isAdmin: boolean }): boolean {
+  return u.isAdmin || u.primaryRole === "Admin";
+}
+
 /** Why `managerId` can't be `employeeId`'s Reporting Manager, or null if
  *  it can. Empty / null means "none" and is always fine. */
 export async function reportingManagerProblem(
@@ -110,9 +116,15 @@ export async function reportingManagerProblem(
     where: { id: managerId },
     select: { primaryRole: true, isAdmin: true, isActive: true },
   });
-  return manager && canBeReportingManager(manager)
-    ? null
-    : "Reporting Manager must be an active Admin or Lead.";
+  if (!manager || !canBeReportingManager(manager)) return "Reporting Manager must be an active Admin or Lead.";
+  if (employeeId) {
+    const employee = await prisma.user.findUnique({
+      where: { id: employeeId },
+      select: { primaryRole: true, isAdmin: true },
+    });
+    if (employee && isAdminAccount(employee)) return "Admins head the organisation and have no Reporting Manager.";
+  }
+  return null;
 }
 
 /** Prisma `where` for the active Reporting Managers (Admins and Leads). */
@@ -125,12 +137,23 @@ export function isReportingManager(role: SessionUser["role"]): boolean {
   return role === "Admin" || role === "Lead";
 }
 
-/** Performance reviews (/performance): view the generated Monthly /
- *  Yearly report for anyone. The Reporting Managers (Admin, Lead),
- *  Co-ordinator — and HR, which resolves to Coordinator for access.
+/** Performance reviews (/performance): the generated Monthly / Yearly
+ *  reports. The Reporting Managers (Admin, Lead) and HR. Checks HR by the
+ *  account's *real* role — a plain Co-ordinator only gets My Performance.
+ *  A Lead is further limited to their own team (see canSeeReviewOf).
  *  Mirrored client-side in lib/access.ts. */
-export function canSeePerformance(role: SessionUser["role"]): boolean {
-  return role === "Admin" || role === "Lead" || role === "Coordinator";
+export function canSeePerformance(user: SessionUser): boolean {
+  return user.role === "Admin" || user.role === "Lead" || user.primaryRole === "HR";
+}
+
+/** Whose review this viewer may open: a Lead only their own team — the
+ *  people who report to them; Admin and HR anyone. */
+export function canSeeReviewOf(
+  user: SessionUser,
+  employee: { reportingManagerId: string | null },
+): boolean {
+  if (user.role !== "Lead") return canSeePerformance(user);
+  return employee.reportingManagerId === user.id;
 }
 
 /** My Performance (/my-performance): Developers and Co-ordinators view
@@ -155,15 +178,13 @@ export function canRateHrEvaluation(user: SessionUser): boolean {
 }
 
 /** Who can rate and comment on a review: HR, every Admin, and the
- *  employee's Reporting Manager — or, while none is assigned, any Lead.
- *  Co-ordinators read it. */
+ *  Lead the employee reports to. */
 export function canEditPerformance(
   user: SessionUser,
   employee: { reportingManagerId: string | null },
 ): boolean {
   if (user.role === "Admin" || user.primaryRole === "HR") return true;
-  if (user.role !== "Lead") return false;
-  return !employee.reportingManagerId || employee.reportingManagerId === user.id;
+  return user.role === "Lead" && employee.reportingManagerId === user.id;
 }
 
 /** Employee ID, department, joining date and reporting line — HR master
@@ -180,13 +201,25 @@ export function canSeeProjectAudit(role: SessionUser["role"]): boolean {
   return role === "Admin" || role === "Lead" || role === "Coordinator";
 }
 
-/** Oversight roles see every task in the projects they can access — they
- *  run the project and need the full board to assign and track work.
- *  Everyone else (Developer, BusinessDeveloper) is scoped to their *own*
- *  tasks: ones assigned to them or that they're the responsible owner of.
- *  See {@link taskAssignmentFilter}. */
+/** Admin and Co-ordinator see every task in the projects they can access
+ *  — they run the project and need the full board to assign and track
+ *  work. A Lead sees their team's tasks (see {@link teamTaskFilter});
+ *  everyone else (Developer, BusinessDeveloper) only their *own*: ones
+ *  assigned to them or that they're the responsible owner of. See
+ *  {@link taskAssignmentFilter}. */
 export function canSeeAllProjectTasks(role: SessionUser["role"]): boolean {
-  return role === "Admin" || role === "Lead" || role === "Coordinator";
+  return role === "Admin" || role === "Coordinator";
+}
+
+/** A Lead's team: the people who report to them (User.reportingManagerId).
+ *  Admin accounts are never part of anyone's team — they head the
+ *  organisation. */
+export async function teamMemberIds(leadId: string): Promise<string[]> {
+  const reports = await prisma.user.findMany({
+    where: { reportingManagerId: leadId, isAdmin: false, primaryRole: { not: "Admin" } },
+    select: { id: true },
+  });
+  return reports.map((u) => u.id);
 }
 
 /** Prisma `where` fragment matching only the tasks a non-oversight user
@@ -201,17 +234,42 @@ export function taskAssignmentFilter(userId: string) {
   };
 }
 
-/** True if this user is allowed to see a specific task, given its
- *  project + responsible owner. Oversight roles see all; others must be
- *  an assignee or the responsible owner. Assumes project access has
- *  already been checked by the caller. */
+/** The tasks a Lead is entitled to see: their own and their team's —
+ *  assigned to, or the responsibility of, any of them. */
+export async function teamTaskFilter(leadId: string) {
+  const people = [leadId, ...(await teamMemberIds(leadId))];
+  return {
+    OR: [
+      { assignees: { some: { userId: { in: people } } } },
+      { responsibleId: { in: people } },
+    ],
+  };
+}
+
+/** The `where` fragment limiting which tasks this user sees inside the
+ *  projects they can access, or null when they see every task there. */
+export async function taskVisibilityFilter(user: SessionUser) {
+  if (canSeeAllProjectTasks(user.role)) return null;
+  if (user.role === "Lead") return teamTaskFilter(user.id);
+  return taskAssignmentFilter(user.id);
+}
+
+/** True if this user is allowed to see a specific task. Admin and
+ *  Co-ordinator see all; a Lead sees their team's; others must be an
+ *  assignee or the responsible owner. Assumes project access has already
+ *  been checked by the caller. */
 export async function canSeeTask(
   user: SessionUser,
   task: { id: number; responsibleId: string | null },
 ): Promise<boolean> {
   if (canSeeAllProjectTasks(user.role)) return true;
   if (task.responsibleId === user.id) return true;
-  return isTaskAssignee(user.id, task.id);
+  if (user.role !== "Lead") return isTaskAssignee(user.id, task.id);
+  const match = await prisma.task.findFirst({
+    where: { id: task.id, ...(await teamTaskFilter(user.id)) },
+    select: { id: true },
+  });
+  return match !== null;
 }
 
 /** The `completedAt` value to write when a task's status changes from
@@ -257,8 +315,11 @@ export async function visibleProjectIds(
     where: { userId: user.id },
     select: { projectId: true },
   });
+  // A Lead also reaches the projects their team has work on, so every
+  // task of their team is on a board they can open.
+  const people = user.role === "Lead" ? [user.id, ...(await teamMemberIds(user.id))] : [user.id];
   const fromTasks = await prisma.taskAssignee.findMany({
-    where: { userId: user.id },
+    where: { userId: { in: people } },
     select: { task: { select: { projectId: true } } },
   });
   return Array.from(
