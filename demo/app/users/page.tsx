@@ -187,8 +187,12 @@ export default function UsersPage() {
                       </select>
                     </td>
                     <td className="py-3 px-3">
-                      {managerName(u.reportingManagerId) || (
-                        <span className="text-ink-400">Admins &amp; Leads</span>
+                      {isAdminAccount(u) ? (
+                        <span className="text-ink-400">—</span>
+                      ) : (
+                        managerName(u.reportingManagerId) || (
+                          <span className="text-ink-400">Admins &amp; Leads</span>
+                        )
                       )}
                     </td>
                     <td className="py-3 px-3 text-ink-500">
@@ -479,11 +483,13 @@ function AddUserModal({
         ))}
       </select>
 
-      <ReportingManagerField
-        value={reportingManagerId}
-        onChange={setReportingManagerId}
-        managers={managers}
-      />
+      {role !== "Admin" && (
+        <ReportingManagerField
+          value={reportingManagerId}
+          onChange={setReportingManagerId}
+          managers={managers}
+        />
+      )}
 
       <label className="block text-xs font-medium text-ink-700 mb-1.5">
         Initial password
@@ -516,7 +522,7 @@ function AddUserModal({
               email: email.trim(),
               role,
               password,
-              reportingManagerId: reportingManagerId || null,
+              reportingManagerId: role === "Admin" ? null : reportingManagerId || null,
             })
           }
           disabled={!name.trim() || !email.trim() || password.length < 6}
@@ -632,11 +638,13 @@ function EditUserModal({
         </div>
       </div>
 
-      <ReportingManagerField
-        value={reportingManagerId}
-        onChange={setReportingManagerId}
-        managers={managers}
-      />
+      {!isAdminAccount(account) && (
+        <ReportingManagerField
+          value={reportingManagerId}
+          onChange={setReportingManagerId}
+          managers={managers}
+        />
+      )}
 
       <div className="grid grid-cols-2 gap-3 mb-6">
         {canSetRate && (
@@ -680,7 +688,7 @@ function EditUserModal({
               location: location.trim(),
               ...(canSetRate ? { hourlyRate: Number(hourlyRate) || 0 } : {}),
               capacityPerWeek: Number(capacityPerWeek) || 40,
-              reportingManagerId: reportingManagerId || null,
+              reportingManagerId: isAdminAccount(account) ? null : reportingManagerId || null,
             })
           }
           disabled={!name.trim() || !email.trim()}
@@ -755,6 +763,11 @@ function ResetPasswordModal({
       </div>
     </Modal>
   );
+}
+
+/** Admins head the organisation and report to no one. */
+function isAdminAccount(a: Account): boolean {
+  return a.role === "Admin" || !!a.isAdmin;
 }
 
 /** Active Admins and Leads — who can be someone's Reporting Manager. */

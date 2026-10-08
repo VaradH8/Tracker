@@ -53,6 +53,16 @@ export async function findEmployee(id: string) {
   });
 }
 
+/** The active HR accounts' names, for the review's Sign-Off. */
+export async function activeHrNames(): Promise<string> {
+  const hr = await prisma.user.findMany({
+    where: { primaryRole: "HR", isActive: true },
+    select: { name: true },
+    orderBy: { name: "asc" },
+  });
+  return hr.map((u) => u.name).join(", ");
+}
+
 export type ReviewMeta = { savedAt: string | null; savedBy: string | null };
 
 export type SaveResult =

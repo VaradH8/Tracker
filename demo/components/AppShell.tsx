@@ -75,11 +75,11 @@ const NAV: Record<Role, NavItem[]> = {
     { href: "/calendar", label: "Calendar", Icon: CalendarClock },
     { href: "/resources", label: "Resources", Icon: Users },
     { href: "/engagement", label: "Engagement", Icon: CalendarRange },
-    { href: "/performance", label: "Performance", Icon: ClipboardCheck },
     { href: "/my-performance", label: "My Performance", Icon: UserCheck },
     { href: "/leaves", label: "Leaves", Icon: CalendarCheck },
   ],
-  // The Co-ordinator's sidebar plus Users (HR onboards people). Picked by
+  // The Co-ordinator's sidebar plus Performance (every review, and the
+  // Word download) and Users (HR onboards people). Picked by
   // the account's real role — see navRole below.
   HR: [
     { href: "/my-day", label: "My Day", Icon: Sun },

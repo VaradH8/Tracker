@@ -9,14 +9,14 @@ import {
 } from "@/lib/server-access";
 import { toISO } from "@/lib/engagement";
 
-/** GET — who can be reviewed (every active non-Admin account), the
- *  Admins and Leads who can be their Reporting Manager, and what the
- *  viewer may do. */
+/** GET — who can be reviewed (every active non-Admin account; for a
+ *  Lead, only their own team), the Admins and Leads who can be their
+ *  Reporting Manager, and what the viewer may do. */
 export async function GET() {
   const userOrResp = await requireUser();
   if (userOrResp instanceof NextResponse) return userOrResp;
   const me = userOrResp;
-  if (!canSeePerformance(me.role)) {
+  if (!canSeePerformance(me)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -27,7 +27,11 @@ export async function GET() {
   });
 
   const users = await prisma.user.findMany({
-    where: { isActive: true, primaryRole: { not: "Admin" } },
+    where: {
+      isActive: true,
+      primaryRole: { not: "Admin" },
+      ...(me.role === "Lead" ? { reportingManagerId: me.id } : {}),
+    },
     orderBy: { name: "asc" },
     select: {
       id: true,

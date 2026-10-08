@@ -61,8 +61,11 @@ export async function POST(req: Request) {
   const role = ROLES.includes(roleInput) ? roleInput : "Developer";
   const refusal = staffChangeRefusal(me, null, role);
   if (refusal) return NextResponse.json({ error: refusal }, { status: 403 });
+  // Admins head the organisation, so they never get a Reporting Manager.
   const reportingManagerId =
-    typeof body.reportingManagerId === "string" && body.reportingManagerId ? body.reportingManagerId : null;
+    role !== "Admin" && typeof body.reportingManagerId === "string" && body.reportingManagerId
+      ? body.reportingManagerId
+      : null;
   const managerProblem = await reportingManagerProblem(reportingManagerId, null);
   if (managerProblem) return NextResponse.json({ error: managerProblem }, { status: 400 });
   const result = await createAccount({ name, email, role, password });

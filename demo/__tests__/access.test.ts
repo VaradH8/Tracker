@@ -7,7 +7,8 @@ vi.mock("@/lib/db", () => ({
     project: { findMany: vi.fn() },
     projectMember: { findMany: vi.fn(), findFirst: vi.fn() },
     taskAssignee: { findMany: vi.fn(), findUnique: vi.fn() },
-    user: { findFirst: vi.fn(), findUnique: vi.fn() },
+    task: { findFirst: vi.fn() },
+    user: { findFirst: vi.fn(), findUnique: vi.fn(), findMany: vi.fn() },
   },
 }));
 
@@ -67,9 +68,9 @@ describe("role gate helpers (synchronous)", () => {
     expect(canSeeProjectAudit("BusinessDeveloper")).toBe(false);
   });
 
-  it("canSeeAllProjectTasks: oversight roles only (Admin/Lead/Coordinator)", () => {
+  it("canSeeAllProjectTasks: Admin and Coordinator only — a Lead sees their team's", () => {
     expect(canSeeAllProjectTasks("Admin")).toBe(true);
-    expect(canSeeAllProjectTasks("Lead")).toBe(true);
+    expect(canSeeAllProjectTasks("Lead")).toBe(false);
     expect(canSeeAllProjectTasks("Coordinator")).toBe(true);
     expect(canSeeAllProjectTasks("Developer")).toBe(false);
     expect(canSeeAllProjectTasks("BusinessDeveloper")).toBe(false);
@@ -118,6 +119,32 @@ describe("canSeeTask", () => {
       responsibleId: "someone-else",
     });
     expect(ok).toBe(true);
+  });
+
+  it("Lead sees a task of someone who reports to them", async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: "dev-on-team" }] as never);
+    vi.mocked(prisma.task.findFirst).mockResolvedValue({ id: 1 } as never);
+    const ok = await canSeeTask(userWithRole("Lead"), { id: 1, responsibleId: "someone-else" });
+    expect(ok).toBe(true);
+    // Admins are never on a Lead's team.
+    expect(vi.mocked(prisma.user.findMany).mock.calls[0][0]).toMatchObject({
+      where: { reportingManagerId: "user-lead", isAdmin: false, primaryRole: { not: "Admin" } },
+    });
+    const where = vi.mocked(prisma.task.findFirst).mock.calls[0][0]!.where as Record<string, unknown>;
+    expect(where).toEqual({
+      id: 1,
+      OR: [
+        { assignees: { some: { userId: { in: ["user-lead", "dev-on-team"] } } } },
+        { responsibleId: { in: ["user-lead", "dev-on-team"] } },
+      ],
+    });
+  });
+
+  it("Lead cannot see a task outside their team", async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.task.findFirst).mockResolvedValue(null as never);
+    const ok = await canSeeTask(userWithRole("Lead"), { id: 1, responsibleId: "someone-else" });
+    expect(ok).toBe(false);
   });
 
   it("Developer cannot see a task they're neither assigned to nor responsible for", async () => {

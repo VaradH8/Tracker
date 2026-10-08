@@ -58,7 +58,7 @@ const ALLOWED: Record<Role, string[]> = {
     "/projects",
     "/resources",
     "/engagement",
-    "/performance",
+    // No /performance: a Co-ordinator sees only their own review.
     "/my-performance",
     "/leaves",
     "/profile",
