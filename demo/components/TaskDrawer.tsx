@@ -37,6 +37,7 @@ import {
   parseMentions,
   activeFirstNames,
   statusPill,
+  type Status,
   type TaskAttachment,
 } from "@/lib/mock";
 import { useBlockDialog } from "./BlockDialogProvider";
@@ -85,6 +86,13 @@ export function TaskDrawer({
   const task = store.byId(taskId);
 
   if (!task) return null;
+
+  // A refused status change (the server said no) is shown, rather than
+  // silently leaving the task where it was.
+  const changeStatus = async (s: Status) => {
+    const res = await store.setStatus(task.id, s);
+    if (!res.ok) toast.show(res.error, "error");
+  };
 
   const isAssignee = task.assignees.includes(me);
   const canEdit =
@@ -279,7 +287,7 @@ export function TaskDrawer({
                 <span className="text-xs text-ink-500">Status</span>
                 <StatusPicker
                   value={task.status}
-                  onChange={(s) => store.setStatus(task.id, s)}
+                  onChange={changeStatus}
                   onBlock={() => blockDialog.requestBlock(task.id)}
                 />
               </div>
@@ -287,7 +295,7 @@ export function TaskDrawer({
                 task={task}
                 isAssignee={isAssignee}
                 canEdit={canEdit}
-                onStatus={(s) => store.setStatus(task.id, s)}
+                onStatus={changeStatus}
                 onBlock={() => blockDialog.requestBlock(task.id)}
               />
             </div>
@@ -660,7 +668,10 @@ export function TaskDrawer({
                   size="md"
                   onStart={() => void store.startTimer(task.id)}
                   onStop={() => void store.stopTimer(task.id)}
-                  onDone={() => void store.doneTimer(task.id)}
+                  onDone={async () => {
+                    const res = await store.doneTimer(task.id);
+                    if (!res.ok) toast.show(res.error, "error");
+                  }}
                 />
               </div>
             )}

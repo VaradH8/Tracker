@@ -50,23 +50,23 @@ type Ctx = {
   auditLog: AuditEntry[];
   hydrated: boolean;
   activeTimer: ActiveTimer | null;
-  startTimer: (taskId: number) => Promise<void>;
-  stopTimer: (taskId: number) => Promise<void>;
-  doneTimer: (taskId: number) => Promise<void>;
+  startTimer: (taskId: number) => Promise<SaveResult>;
+  stopTimer: (taskId: number) => Promise<SaveResult>;
+  doneTimer: (taskId: number) => Promise<SaveResult>;
   refresh: () => Promise<void>;
   byId: (id: number) => Task | undefined;
   forProject: (projectId: number) => Task[];
   entriesForTask: (taskId: number) => TimeEntry[];
-  setStatus: (id: number, status: Status) => Promise<void>;
-  setPriority: (id: number, priority: Priority) => Promise<void>;
+  setStatus: (id: number, status: Status) => Promise<SaveResult>;
+  setPriority: (id: number, priority: Priority) => Promise<SaveResult>;
   /** Pass "" to clear the deadline back to none. */
-  setTargetDate: (id: number, date: string) => Promise<void>;
-  setStartDate: (id: number, date: string) => Promise<void>;
-  setDescription: (id: number, description: string) => Promise<void>;
+  setTargetDate: (id: number, date: string) => Promise<SaveResult>;
+  setStartDate: (id: number, date: string) => Promise<SaveResult>;
+  setDescription: (id: number, description: string) => Promise<SaveResult>;
   setAssignees: (id: number, names: string[]) => Promise<void>;
   toggleAssignee: (id: number, name: string) => Promise<void>;
   toggleImportant: (id: number) => Promise<void>;
-  setEstimatedHours: (id: number, hours: number | null) => Promise<void>;
+  setEstimatedHours: (id: number, hours: number | null) => Promise<SaveResult>;
   toggleDependency: (id: number, depId: number) => Promise<void>;
   addAttachment: (
     id: number,
@@ -90,6 +90,10 @@ type Ctx = {
   bulkReassign: (ids: number[], name: string) => Promise<void>;
   bulkSetTargetDate: (ids: number[], date: string) => Promise<void>;
 };
+
+/** Outcome of a save, so callers can tell the user when the server said
+ *  no (a 403 on a status change, say) instead of toasting a success. */
+export type SaveResult = { ok: true } | { ok: false; error: string };
 
 const TasksCtx = createContext<Ctx | null>(null);
 
@@ -164,15 +168,24 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     [timeEntries],
   );
 
-  async function patchTask(id: number, patch: Record<string, unknown>) {
+  async function patchTask(
+    id: number,
+    patch: Record<string, unknown>,
+  ): Promise<SaveResult> {
     const res = await fetch(`/api/tasks/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
     });
-    if (!res.ok) return;
     const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: String(body.error ?? `Couldn't save the change (${res.status}).`),
+      };
+    }
     if (body.task) applyUpdatedTask(body.task as Task);
+    return { ok: true };
   }
 
   const setStatus = useCallback(
@@ -555,14 +568,19 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   async function callTimer(
     taskId: number,
     action: "start" | "stop" | "done",
-  ) {
+  ): Promise<SaveResult> {
     const res = await fetch(`/api/tasks/${taskId}/timer`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action }),
     });
-    if (!res.ok) return;
     const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: String(body.error ?? `Couldn't update the timer (${res.status}).`),
+      };
+    }
     if (body.task) applyUpdatedTask(body.task as Task);
     // Refresh local active-timer state from the response (start) or
     // by re-fetching after a stop/done.
@@ -586,6 +604,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
       const b = (await eRes.json()) as { entries: TimeEntry[] };
       setTimeEntries(b.entries ?? []);
     }
+    return { ok: true };
   }
 
   const startTimer = useCallback(

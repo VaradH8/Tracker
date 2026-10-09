@@ -36,7 +36,7 @@ import {
   type ProjectMemberRole,
 } from "@/lib/projects-store";
 import { useRole, landingFor, candidatesForProjectRole } from "@/lib/role";
-import { labelOf, useAccounts, useMyFirstName, type Account } from "@/lib/account-store";
+import { labelOf, useAccounts, useMyFirstName } from "@/lib/account-store";
 import {
   canAccessProject,
   canExportData,
@@ -1076,20 +1076,15 @@ function CreateTaskModal({
   }) => void;
 }) {
   const { accounts } = useAccounts();
-  // Assignable people, split by role — Developers, Co-ordinators, Leads.
-  // `restrictTo` narrows every lane to the project roster for a Developer.
+  // Tasks go to Developers only. Leads and Co-ordinators see every task on
+  // their projects without being assigned, and assigning them would put
+  // the task on their My Tasks. `restrictTo` narrows the list to the
+  // project roster for a Developer.
   const allowed = restrictTo ? new Set(restrictTo) : null;
-  const eligible = (pick: (a: Account) => boolean) =>
-    accounts
-      .filter((a) => a.active && pick(a))
-      .map((a) => labelOf(a))
-      .filter((n) => !allowed || allowed.has(n));
-  const devCandidates = eligible((a) => a.role === "Developer");
-  const coordCandidates = eligible((a) => a.role === "Coordinator");
-  const leadCandidates = eligible((a) => a.role === "Lead" || Boolean(a.isAdmin));
-  const [assigneeTab, setAssigneeTab] = useState<
-    "Developer" | "Coordinator" | "Lead"
-  >("Developer");
+  const devCandidates = accounts
+    .filter((a) => a.active && a.role === "Developer")
+    .map((a) => labelOf(a))
+    .filter((n) => !allowed || allowed.has(n));
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<Status>("To Do");
@@ -1119,13 +1114,6 @@ function CreateTaskModal({
       targetDate: targetDate || undefined,
     });
   }
-
-  const tabCandidates =
-    assigneeTab === "Developer"
-      ? devCandidates
-      : assigneeTab === "Coordinator"
-        ? coordCandidates
-        : leadCandidates;
 
   return (
     <Modal title="New task" onClose={onClose} size="lg">
@@ -1224,44 +1212,16 @@ function CreateTaskModal({
         <>
           <label className="block text-xs font-medium text-ink-700 mb-1.5">
             Assign to <span className="text-brand-redText">*</span>{" "}
-            <span className="text-ink-400 font-normal">
-              (developers, co-ordinators &amp; leads)
-            </span>
+            <span className="text-ink-400 font-normal">(developers)</span>
           </label>
           <div className="mb-6 rounded border border-ink-200 bg-ink-50">
-            <div className="flex border-b border-ink-200">
-              {(["Developer", "Coordinator", "Lead"] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setAssigneeTab(t)}
-                  className={`flex-1 px-3 py-1.5 text-xs font-medium ${
-                    assigneeTab === t
-                      ? "text-brand-blue border-b-2 border-brand-blue bg-white"
-                      : "text-ink-500 hover:text-ink-900"
-                  }`}
-                >
-                  {t === "Developer"
-                    ? "Developers"
-                    : t === "Coordinator"
-                      ? "Co-ordinators"
-                      : "Leads"}
-                </button>
-              ))}
-            </div>
-            {tabCandidates.length === 0 ? (
+            {devCandidates.length === 0 ? (
               <p className="text-xs text-ink-400 italic p-3">
-                No{" "}
-                {assigneeTab === "Developer"
-                  ? "developers"
-                  : assigneeTab === "Coordinator"
-                    ? "co-ordinators"
-                    : "leads"}{" "}
-                available.
+                No developers available.
               </p>
             ) : (
               <div className="flex flex-wrap gap-1.5 p-2">
-                {tabCandidates.map((n) => {
+                {devCandidates.map((n) => {
                   const on = assignees.includes(n);
                   return (
                     <button

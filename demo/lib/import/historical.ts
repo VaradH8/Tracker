@@ -834,6 +834,13 @@ export async function commitParsed(
     // No deadline in the sheet means no deadline on the task — we fall
     // back to the start date if there is one, but never to "today".
     const targetDate = task.targetDate ?? task.startDate ?? null;
+    // A Done task finished on its deadline at the latest, never in the
+    // future — a sheet whose target is still ahead would otherwise read
+    // as "In Progress" on the performance review. A completion time the
+    // app already stamped on an existing task is kept.
+    const now = new Date();
+    const finishedOn =
+      targetDate && targetDate.getTime() < now.getTime() ? targetDate : now;
 
     if (dryRun || projectId < 0) {
       stats.tasksCreated += 1;
@@ -843,7 +850,7 @@ export async function commitParsed(
 
     const existing = await prisma.task.findFirst({
       where: { projectId, title },
-      select: { id: true },
+      select: { id: true, completedAt: true },
     });
     let taskId: number;
     if (existing) {
@@ -855,6 +862,8 @@ export async function commitParsed(
           status: task.status,
           startDate: task.startDate,
           targetDate,
+          completedAt:
+            task.status === "Done" ? (existing.completedAt ?? finishedOn) : null,
           estimatedHours: task.estimatedHours,
           responsibleId: responsibleId ?? undefined,
           approvedById:
@@ -874,6 +883,7 @@ export async function commitParsed(
           status: task.status,
           startDate: task.startDate,
           targetDate,
+          completedAt: task.status === "Done" ? finishedOn : null,
           estimatedHours: task.estimatedHours,
           responsibleId,
           approvedById: task.status === "Done" && approverId ? approverId : null,

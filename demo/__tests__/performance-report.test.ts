@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { workingDaySet } from "@/lib/engagement";
 import {
   buildReport,
+  completionDay,
   computeMetrics,
   expectedOutcome,
   inPeriod,
@@ -351,5 +352,53 @@ describe("critical / long-term tasks", () => {
     );
     expect(r.longTerm.map((l) => l.taskId)).toEqual([601]);
     expect(r.longTerm[0]).toMatchObject({ status: "Delayed", taskStatus: "Blocked" });
+  });
+});
+
+describe("completionDay — a Done task never finishes in the future", () => {
+  const TODAY = "2026-10-09";
+
+  it("open task → null", () => {
+    expect(completionDay(task({ status: "In Progress" }), TODAY)).toBeNull();
+  });
+
+  it("keeps a real completedAt that is in the past", () => {
+    expect(
+      completionDay(task({ status: "Done", completedAt: "2026-09-18" }), TODAY),
+    ).toBe("2026-09-18");
+  });
+
+  it("no completedAt, deadline already passed → the deadline (legacy rows)", () => {
+    expect(
+      completionDay(task({ status: "Done", completedAt: null, targetDate: "2026-09-20" }), TODAY),
+    ).toBe("2026-09-20");
+  });
+
+  it("no completedAt, deadline still ahead → today, not the deadline", () => {
+    // Created straight into Done, or imported with its target still ahead:
+    // the old fallback filed it in the future and the review read it as
+    // "In Progress" although its status was Done.
+    const t = task({ status: "Done", completedAt: null, targetDate: "2026-10-20" });
+    expect(completionDay(t, TODAY)).toBe(TODAY);
+    const fact = { ...t, completedAt: completionDay(t, TODAY) };
+    expect(statusAsOf(fact, TODAY)).toBe("Completed");
+    expect(taskStatusAsOf(fact, TODAY)).toBe("Done");
+    // Without the normalisation the same row read as in progress.
+    expect(taskStatusAsOf(t, TODAY)).toBe("In Progress");
+  });
+
+  it("a completedAt in the future (bad import) is capped at today", () => {
+    expect(
+      completionDay(task({ status: "Done", completedAt: "2026-11-01" }), TODAY),
+    ).toBe(TODAY);
+  });
+
+  it("no dates at all → creation day", () => {
+    expect(
+      completionDay(
+        task({ status: "Done", completedAt: null, targetDate: null, createdAt: "2026-09-01" }),
+        TODAY,
+      ),
+    ).toBe("2026-09-01");
   });
 });

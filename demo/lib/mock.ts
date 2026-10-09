@@ -475,7 +475,8 @@ export function isCarriedForward(status: Status): boolean {
  * Completed tasks: a Done task settles into the week it was *completed*
  * (from completedAt) and shows only there — it never carries forward and
  * never appears in its earlier target/carry weeks. Legacy Done rows with
- * no completedAt fall back to their target week.
+ * no completedAt fall back to their target week, never later than this
+ * week (see finishedOn).
  *
  * Open tasks — base rule: a task lives in the week its target date falls in.
  * Carry-forward: any task not yet Done at the end of its week keeps
@@ -499,15 +500,25 @@ export function taskInWeek(task: Task, week: number): boolean {
   return native < week && isCarriedForward(task.status);
 }
 
+/** The day a Done task counts as finished on the board: completedAt, else
+ *  its target date for legacy rows — but never later than today. A task
+ *  that is Done now cannot finish in the future; one created straight into
+ *  Done, or imported with its deadline still ahead, would otherwise file
+ *  under a week that hasn't happened yet. With neither date it files
+ *  under today rather than vanishing from every week. */
+export function finishedOn(
+  task: Pick<Task, "completedAt" | "targetDate">,
+): string {
+  const today = todayISO();
+  const d = task.completedAt ?? task.targetDate ?? today;
+  return d < today ? d : today;
+}
+
 /** The primary ISO week a task is filed under on the weekly board: its
- *  completion week once Done (falling back to the target week for legacy
- *  rows with no completedAt), otherwise its target week. Use this to
- *  populate a week picker so every task's week is selectable. */
+ *  completion week once Done (see finishedOn), otherwise its target week.
+ *  Use this to populate a week picker so every task's week is selectable. */
 export function weekAnchorOf(task: Task): number | null {
-  const anchor =
-    task.status === "Done"
-      ? (task.completedAt ?? task.targetDate)
-      : task.targetDate;
+  const anchor = task.status === "Done" ? finishedOn(task) : task.targetDate;
   return anchor ? weekNumberOf(anchor) : null;
 }
 
@@ -542,8 +553,8 @@ function localISO(d: Date): string {
  *  with any window that reaches the present. */
 export function taskInRange(task: Task, from: string, to: string): boolean {
   if (task.status === "Done") {
-    const done = task.completedAt ?? task.targetDate;
-    return !!done && done >= from && done <= to;
+    const done = finishedOn(task);
+    return done >= from && done <= to;
   }
   if (!task.targetDate) return to >= todayISO();
   // Still in the future relative to this window; everything else is either
