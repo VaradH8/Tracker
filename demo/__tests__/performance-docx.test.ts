@@ -176,10 +176,10 @@ describe.each(["Monthly", "Yearly"] as const)("%s Word document", (kind) => {
     );
     expect(text).toContain(`10. ${kind === "Monthly" ? "Monthly" : "Annual"} Performance Criteria`);
 
-    // Section 10: the Reporting Manager's answer, right under the question.
-    expect(text).toContain(
-      `${CRITERIA_QUESTION[kind].question}Shipped the ESP change on time.Needs to raise blockers sooner.${kind === "Monthly" ? "Monthly" : "Annual"} Evaluation Criteria`,
-    );
+    // Section 10: the Reporting Manager's answer, right under the Review
+    // Focus question that ends the document.
+    const q = CRITERIA_QUESTION[kind];
+    expect(text.endsWith(`${q.heading}${q.question}Shipped the ESP change on time.Needs to raise blockers sooner.`)).toBe(true);
 
     // Sign-off: name and the download date, no signature line.
     expect(text).toContain(

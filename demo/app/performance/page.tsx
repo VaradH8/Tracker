@@ -575,7 +575,8 @@ export default function PerformancePage() {
             {/* 10. Performance criteria — the Reporting Manager's answer */}
             <Section n={10} title={CRITERIA_QUESTION[r.kind].title}
               note={`Answered by the Reporting Manager${criteriaEditable ? "" : " — read-only for you"}. Printed under the question in the Word document.`}>
-              <p className="text-sm font-medium text-ink-700 mb-2">{r.criteria.label}</p>
+              <h3 className="font-heading text-sm font-semibold mb-1">{CRITERIA_QUESTION[r.kind].heading}</h3>
+              <p className="text-sm text-ink-700 mb-2">{r.criteria.label}</p>
               <Text field={r.criteria} draft={draft} set={set} editable={criteriaEditable} rows={4} />
             </Section>
           </>
