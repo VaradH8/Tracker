@@ -162,19 +162,21 @@ export const HR_AREAS: Area[] = [
   { key: "discipline", label: "Discipline & Policy Compliance" },
 ];
 
-/** Section 10 — the template's heading and the question under it,
- *  verbatim (docx.ts finds the paragraph by `question`). The Reporting
- *  Manager answers it; the answer prints right below the question. */
-export const CRITERIA_QUESTION: Record<ReviewKind, { title: string; question: string }> = {
+/** Section 10 — the template's heading, and the Review Focus question
+ *  that closes it, verbatim (docx.ts finds the paragraph by `question`).
+ *  The Reporting Manager answers it; the answer prints right below. */
+export const CRITERIA_QUESTION: Record<ReviewKind, { title: string; heading: string; question: string }> = {
   Monthly: {
     title: "Monthly Performance Criteria – Detailed Evaluation",
+    heading: "Monthly Review Focus",
     question:
-      "The monthly review evaluates short-term performance, operational delivery, current priorities, and progress toward the next month's goals.",
+      "What did the employee accomplish this month, how effectively did they perform, and what needs improvement next month?",
   },
   Yearly: {
     title: "Annual Performance Criteria – Detailed Evaluation",
+    heading: "Annual Review Focus",
     question:
-      "The annual review evaluates overall contribution, achievement against goals, consistency across the year, capability growth, and readiness for future responsibilities.",
+      "What was the employee's overall contribution during the year, how consistently did they perform, what capabilities did they develop, and what should be the focus for the next year?",
   },
 };
 
