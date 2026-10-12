@@ -206,7 +206,9 @@ export function canSeeProjectAudit(role: SessionUser["role"]): boolean {
  *  work. A Lead sees their team's tasks (see {@link teamTaskFilter});
  *  everyone else (Developer, BusinessDeveloper) only their *own*: ones
  *  assigned to them or that they're the responsible owner of. See
- *  {@link taskAssignmentFilter}. */
+ *  {@link taskAssignmentFilter}. On top of that, anyone designated Lead
+ *  or Co-ordinator on a project's roster sees every task on that project
+ *  — see {@link ledProjectIds}. */
 export function canSeeAllProjectTasks(role: SessionUser["role"]): boolean {
   return role === "Admin" || role === "Coordinator";
 }
@@ -246,24 +248,45 @@ export async function teamTaskFilter(leadId: string) {
   };
 }
 
+/** Projects where the user is designated Lead or Co-ordinator on the
+ *  roster. They run those projects, so they see every task on them
+ *  without having to be assigned — assignment is for the people doing
+ *  the work, and it's what puts a task on someone's My Tasks. */
+export async function ledProjectIds(userId: string): Promise<number[]> {
+  const rows = await prisma.projectMember.findMany({
+    where: { userId, role: { in: ["Lead", "Coordinator"] } },
+    select: { projectId: true },
+  });
+  return Array.from(new Set(rows.map((r) => r.projectId)));
+}
+
 /** The `where` fragment limiting which tasks this user sees inside the
- *  projects they can access, or null when they see every task there. */
+ *  projects they can access, or null when they see every task there.
+ *  On top of their own (or, for a Lead, their team's) tasks, everyone
+ *  sees all tasks on the projects they lead or co-ordinate. */
 export async function taskVisibilityFilter(user: SessionUser) {
   if (canSeeAllProjectTasks(user.role)) return null;
-  if (user.role === "Lead") return teamTaskFilter(user.id);
-  return taskAssignmentFilter(user.id);
+  const own =
+    user.role === "Lead"
+      ? await teamTaskFilter(user.id)
+      : taskAssignmentFilter(user.id);
+  const led = await ledProjectIds(user.id);
+  if (!led.length) return own;
+  return { OR: [{ projectId: { in: led } }, ...own.OR] };
 }
 
 /** True if this user is allowed to see a specific task. Admin and
- *  Co-ordinator see all; a Lead sees their team's; others must be an
+ *  Co-ordinator see all; so does anyone designated Lead or Co-ordinator
+ *  on the task's project; a Lead sees their team's; others must be an
  *  assignee or the responsible owner. Assumes project access has already
  *  been checked by the caller. */
 export async function canSeeTask(
   user: SessionUser,
-  task: { id: number; responsibleId: string | null },
+  task: { id: number; projectId: number; responsibleId: string | null },
 ): Promise<boolean> {
   if (canSeeAllProjectTasks(user.role)) return true;
   if (task.responsibleId === user.id) return true;
+  if ((await ledProjectIds(user.id)).includes(task.projectId)) return true;
   if (user.role !== "Lead") return isTaskAssignee(user.id, task.id);
   const match = await prisma.task.findFirst({
     where: { id: task.id, ...(await teamTaskFilter(user.id)) },
@@ -300,16 +323,11 @@ export async function visibleProjectIds(
   // where they have a task even if no one's added them to the roster yet.
   if (user.role === "Admin") return "all";
 
-  // Coordinators are scoped to the projects they actually coordinate —
-  // NOT projects where they merely appear as a worker/assignee. This
-  // keeps one coordinator from seeing another coordinator's projects.
-  if (user.role === "Coordinator") {
-    const coord = await prisma.projectMember.findMany({
-      where: { userId: user.id, role: "Coordinator" },
-      select: { projectId: true },
-    });
-    return Array.from(new Set(coord.map((m) => m.projectId)));
-  }
+  // Coordinators are scoped to the projects they actually coordinate (or
+  // are designated Lead on) — NOT projects where they merely appear as a
+  // worker/assignee. This keeps one coordinator from seeing another
+  // coordinator's projects.
+  if (user.role === "Coordinator") return ledProjectIds(user.id);
 
   const memberships = await prisma.projectMember.findMany({
     where: { userId: user.id },

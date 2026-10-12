@@ -75,18 +75,26 @@ export function TaskCard({
     );
   }
 
-  function changeStatus(next: Status) {
+  async function changeStatus(next: Status) {
     const prev = task.status;
     if (next === prev) return;
-    store.setStatus(task.id, next);
+    // Wait for the server before celebrating: a refused change used to get
+    // a success toast while the card stayed exactly where it was.
+    const res = await store.setStatus(task.id, next);
+    if (!res.ok) {
+      toast.show(res.error, "error");
+      return;
+    }
     toast.show(`“${task.title}” → ${next}`, "success", {
       label: "Undo",
-      onClick: () => store.setStatus(task.id, prev),
+      onClick: () => void store.setStatus(task.id, prev),
     });
   }
 
   const isAssignee = task.assignees.includes(me);
-  const canEdit = role === "Admin" || role === "Coordinator";
+  // Same editors as the drawer and the server (canEditTasks): a Lead runs
+  // the task without being on it, so they must be able to move it here.
+  const canEdit = role === "Admin" || role === "Lead" || role === "Coordinator";
   const overdue = !!task.overdueDays && task.status !== "Done";
   const project = projectById(task.projectId);
 
@@ -178,9 +186,10 @@ export function TaskCard({
               void store.stopTimer(task.id);
               toast.show("Timer paused — resume any time with Start.");
             }}
-            onDone={() => {
-              void store.doneTimer(task.id);
-              toast.show(`"${task.title}" marked Done.`);
+            onDone={async () => {
+              const res = await store.doneTimer(task.id);
+              if (res.ok) toast.show(`"${task.title}" marked Done.`);
+              else toast.show(res.error, "error");
             }}
           />
           <QuickActions

@@ -313,16 +313,15 @@ function AssigneeMenu({
   onToggle: (name: string) => void;
 }) {
   const [q, setQ] = useState("");
-  // Work is assigned to Developers, Co-ordinators or Leads — split into
-  // tabs so you pick from one role at a time. (No BDs or Admins.)
-  const [tab, setTab] = useState<"Developer" | "Coordinator" | "Lead">(
-    "Developer",
-  );
   const { accounts } = useAccounts();
+  // Work is assigned to Developers only. Leads and Co-ordinators see every
+  // task on the projects they run without being assigned — assigning them
+  // would just put the task on their My Tasks. Anyone already on the task
+  // stays listed whatever their role, so they can still be taken off it.
   const people = accounts
-    // Admins are also eligible under the Leads tab (an admin can lead).
     .filter(
-      (a) => a.active && (a.role === tab || (tab === "Lead" && a.isAdmin)),
+      (a) =>
+        (a.active && a.role === "Developer") || selected.includes(labelOf(a)),
     )
     .filter((a) => a.name.toLowerCase().includes(q.toLowerCase()));
 
@@ -331,29 +330,9 @@ function AssigneeMenu({
       <div className="px-2.5 py-1.5 text-[11px] text-ink-500 border-b border-ink-100 flex items-center justify-between">
         <span>
           {selected.length === 0
-            ? "Pick one or more"
+            ? "Pick one or more developers"
             : `${selected.length} assigned — tap to add or remove`}
         </span>
-      </div>
-      <div className="flex border-b border-ink-100">
-        {(["Developer", "Coordinator", "Lead"] as const).map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            className={`flex-1 px-2 py-1.5 text-xs font-medium ${
-              tab === t
-                ? "text-brand-blue border-b-2 border-brand-blue"
-                : "text-ink-500 hover:text-ink-900"
-            }`}
-          >
-            {t === "Developer"
-              ? "Developers"
-              : t === "Coordinator"
-                ? "Co-ords"
-                : "Leads"}
-          </button>
-        ))}
       </div>
       <div className="p-1.5 border-b border-ink-100">
         <input
@@ -367,13 +346,7 @@ function AssigneeMenu({
       <ul className="text-sm max-h-56 overflow-y-auto py-1">
         {people.length === 0 && (
           <li className="px-3 py-2 text-xs text-ink-400 italic">
-            No{" "}
-            {tab === "Developer"
-              ? "developers"
-              : tab === "Coordinator"
-                ? "co-ordinators"
-                : "leads"}{" "}
-            match.
+            No developers match.
           </li>
         )}
         {people.map((a, i) => {
@@ -474,7 +447,8 @@ export function QuickActions({
         next: "BLOCK",
       });
       break;
-      // Reviewing a submitted task is a checker's job: only Admin /
+    case "In review":
+      // Reviewing a submitted task is a checker's job: only Admin / Lead /
       // Co-ordinator can sign it off as reviewed → Done. The doer can
       // still pull it back if they submitted by mistake.
       if (canEdit) {

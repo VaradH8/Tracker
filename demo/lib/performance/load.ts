@@ -10,6 +10,7 @@ import { toISO, workingDaySet } from "@/lib/engagement";
 import { REVIEWED_BY, mergeInputs, parseRating, type ReviewKind } from "./forms";
 import {
   buildReport,
+  completionDay,
   periodRange,
   type Inputs,
   type MonthlyRatings,
@@ -216,7 +217,18 @@ export async function loadReport(
         startDate: day(t.startDate),
         targetDate: day(t.targetDate),
         createdAt: toISO(t.createdAt),
-        completedAt: day(t.completedAt),
+        // Never in the future: a Done task with no completedAt (created
+        // straight into Done) or one whose deadline is still ahead would
+        // otherwise read as "In Progress" for the current period.
+        completedAt: completionDay(
+          {
+            status: t.status,
+            completedAt: day(t.completedAt),
+            targetDate: day(t.targetDate),
+            createdAt: toISO(t.createdAt),
+          },
+          today,
+        ),
         estimatedHours: t.estimatedHours,
         actualHours: t.actualHours,
         reopenCount: t.reopenCount,

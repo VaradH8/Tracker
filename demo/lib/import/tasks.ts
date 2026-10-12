@@ -375,10 +375,19 @@ export async function commitTaskRows(
 
     // Falls back to the target date rather than "now": filing historic work
     // in the current week is worse than filing it on its deadline, and an
-    // import is almost always after the fact. Cleared when a task comes
-    // back from Done, mirroring completedAtUpdate() on the API path.
+    // import is almost always after the fact. But never later than now — a
+    // Done task can't finish in the future, and a deadline still ahead
+    // would read as "In Progress" on the performance review. Cleared when
+    // a task comes back from Done, mirroring completedAtUpdate() on the
+    // API path.
+    const now = new Date();
+    const finishedOn = t.completedAt ?? targetDate ?? now;
     const completedAt =
-      t.status === "Done" ? (t.completedAt ?? targetDate) : null;
+      t.status === "Done"
+        ? finishedOn.getTime() < now.getTime()
+          ? finishedOn
+          : now
+        : null;
 
     const existing = await prisma.task.findFirst({
       where: { projectId, title: t.title },

@@ -274,6 +274,21 @@ export function doneOn(t: TaskFact): string | null {
   return t.completedAt ?? t.targetDate ?? t.createdAt;
 }
 
+/** The completion day to record on a task's facts: completedAt, else the
+ *  same fallbacks as {@link doneOn} — but never later than `today`. A task
+ *  that is Done now cannot have finished in the future; one created
+ *  straight into Done (no completedAt) or imported with its deadline still
+ *  ahead would otherwise read as "In Progress" for the current period.
+ *  Null for open tasks. */
+export function completionDay(
+  t: Pick<TaskFact, "status" | "completedAt" | "targetDate" | "createdAt">,
+  today: string,
+): string | null {
+  if (t.status !== "Done") return null;
+  const d = t.completedAt ?? t.targetDate ?? t.createdAt;
+  return d < today ? d : today;
+}
+
 function startOf(t: TaskFact): string {
   return t.startDate ?? t.createdAt;
 }

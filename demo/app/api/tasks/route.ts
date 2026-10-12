@@ -136,12 +136,17 @@ export async function POST(req: Request) {
         ? await userByFirstName(responsibleFirst, resolveHint)
         : null;
 
+  const status = String(body.status ?? "To Do");
   const task = await prisma.task.create({
     data: {
       title,
       description: body.description ?? null,
       projectId,
-      status: String(body.status ?? "To Do"),
+      status,
+      // Created straight into Done: stamp the completion time now, as the
+      // status route would. Without it the task has no finish day and
+      // reads as still in progress on the performance review.
+      completedAt: status === "Done" ? new Date() : null,
       priority: String(body.priority ?? "Medium"),
       // No date supplied means the task genuinely has no deadline yet.
       // Never invent one — it stays null until a user sets it.
