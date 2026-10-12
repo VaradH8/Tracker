@@ -105,7 +105,6 @@ export async function loadReport(
   if (!employee) return null;
 
   const { from, to } = periodRange(kind, period);
-  const asOf = to < today ? to : today;
 
   const [settings, tasks, entries, leaves, remarks, saved, monthly] = await Promise.all([
     getSettingsParsed(),
@@ -161,12 +160,12 @@ export async function loadReport(
       : Promise.resolve([]),
   ]);
 
-  // Hours on each task by anyone up to the period's end — "actual %" for
-  // long-running work.
+  // Hours on each task by anyone to date — "actual %" for long-running
+  // work, which stays in the month it started in.
   const logged = tasks.length
     ? await prisma.timeEntry.groupBy({
         by: ["taskId"],
-        where: { taskId: { in: tasks.map((t) => t.id) }, date: { lte: endOf(asOf) } },
+        where: { taskId: { in: tasks.map((t) => t.id) }, date: { lte: endOf(today) } },
         _sum: { hours: true },
       })
     : [];

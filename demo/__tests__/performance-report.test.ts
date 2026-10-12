@@ -7,7 +7,7 @@ import {
   expectedOutcome,
   inPeriod,
   periodRange,
-  statusAsOf,
+  reviewStatus,
   type ReportFacts,
   type TaskFact,
 } from "@/lib/performance/report";
@@ -20,7 +20,7 @@ import {
   parseReviewQuery,
   validateChanges,
 } from "@/lib/performance/forms";
-import { isLongTerm, overdueDaysAsOf, taskStatusAsOf, toSelfView } from "@/lib/performance/report";
+import { isLongTerm, overdueDays, toSelfView } from "@/lib/performance/report";
 
 const WORK = workingDaySet(["Mon", "Tue", "Wed", "Thu", "Fri"]);
 
@@ -95,21 +95,39 @@ describe("periods", () => {
 });
 
 describe("task scoping and status", () => {
-  it("drops work finished before the period and work not yet started", () => {
-    const before = task({ status: "Done", completedAt: "2026-08-28" });
-    const after = task({ startDate: "2026-10-02" });
-    const open = task({ startDate: "2026-07-01", targetDate: "2026-12-01" });
-    expect(inPeriod(before, "2026-09-01", "2026-09-30")).toBe(false);
-    expect(inPeriod(after, "2026-09-01", "2026-09-30")).toBe(false);
-    expect(inPeriod(open, "2026-09-01", "2026-09-30")).toBe(true);
+  it("puts a task in the month it started in, and no other", () => {
+    const sep = (t: TaskFact) => inPeriod(t, "2026-09-01", "2026-09-30");
+    const oct = (t: TaskFact) => inPeriod(t, "2026-10-01", "2026-10-31");
+    // Started in September, finished in October: September's.
+    const finishedLater = task({ startDate: "2026-09-30", status: "Done", completedAt: "2026-10-05" });
+    expect(sep(finishedLater)).toBe(true);
+    expect(oct(finishedLater)).toBe(false);
+    // Started earlier and still running: not carried into later months.
+    const longRunning = task({ startDate: "2026-07-01", targetDate: "2026-12-01" });
+    expect(sep(longRunning)).toBe(false);
+    expect(sep(task({ startDate: "2026-10-02" }))).toBe(false);
+    // No start date: its creation date stands in.
+    expect(sep(task({ startDate: null, createdAt: "2026-09-17" }))).toBe(true);
+    expect(sep(task({ startDate: null, createdAt: "2026-08-31" }))).toBe(false);
   });
 
-  it("reads status as of the period end, not today", () => {
+  it("reads the task's current status, whenever it finished", () => {
     const finishedLater = task({ status: "Done", completedAt: "2026-10-03", targetDate: "2026-10-10" });
-    expect(statusAsOf(finishedLater, "2026-09-30")).toBe("In Progress");
+    expect(reviewStatus(finishedLater, "2026-10-06")).toBe("Completed");
     const late = task({ status: "In Progress", targetDate: "2026-09-15" });
-    expect(statusAsOf(late, "2026-09-30")).toBe("Delayed");
-    expect(statusAsOf(task({ status: "Done", completedAt: "2026-09-10" }), "2026-09-30")).toBe("Completed");
+    expect(reviewStatus(late, "2026-10-06")).toBe("Delayed");
+    expect(reviewStatus(task({ status: "In Progress", targetDate: "2026-10-15" }), "2026-10-06")).toBe("In Progress");
+  });
+
+  it("shows a task finished after its start month as Done in that month's review", () => {
+    // Polish ESP: started 30 Sep, due 2 Oct, finished in October.
+    const esp = task({ id: 701, title: "Polish ESP", startDate: "2026-09-30", targetDate: "2026-10-02", status: "Done", completedAt: "2026-10-05" });
+    const sep = buildReport(facts({ period: "2026-09", today: "2026-10-12", tasks: [esp] }), {});
+    expect(sep.goals.find((g) => g.taskId === 701)).toMatchObject({ status: "Completed", taskStatus: "Done", overdueDays: null });
+    expect(sep.metrics.tasksCompleted).toBe(1);
+    const oct = buildReport(facts({ period: "2026-10", today: "2026-10-12", tasks: [esp] }), {});
+    expect(oct.goals).toHaveLength(0);
+    expect(oct.metrics.tasksCompleted).toBe(0);
   });
 
   it("uses the first line of a commit-log description as the expected outcome", () => {
@@ -169,7 +187,7 @@ describe("buildReport — monthly", () => {
   const f = facts({
     tasks: [
       task({ id: 101, title: "ESP half vibrator", status: "Done", completedAt: "2026-09-23", targetDate: "2026-09-23", priority: "High", approved: true }),
-      task({ id: 102, title: "Plant 3D migration", status: "In Progress", startDate: "2026-08-01", targetDate: "2026-11-30", estimatedHours: 100, logged: 30, important: true }),
+      task({ id: 102, title: "Plant 3D migration", status: "In Progress", startDate: "2026-09-01", targetDate: "2026-11-30", estimatedHours: 100, logged: 10, important: true }),
     ],
     entries: [{ taskId: 101, projectName: "TEI-SUIT", date: "2026-09-23", hours: 150 }],
     remarks: 4,
@@ -182,8 +200,8 @@ describe("buildReport — monthly", () => {
     expect(r.longTerm).toHaveLength(1);
     const lt = r.longTerm[0];
     expect(lt.taskId).toBe(102);
-    expect(lt.actual).toBe(30);
-    expect(lt.planned).toBe(50); // 60 of 121 days elapsed by 30 Sep
+    expect(lt.actual).toBe(10);
+    expect(lt.planned).toBe(39); // 35 of 90 days elapsed by today, 6 Oct
     expect(lt.status).toBe("At Risk");
   });
 
@@ -312,20 +330,18 @@ describe("employee fields", () => {
 });
 
 describe("task status as My Tasks shows it", () => {
-  it("reports the tracker status and days overdue at the period end", () => {
+  it("reports the current tracker status and days overdue today", () => {
     const blocked = task({ id: 501, status: "Blocked", targetDate: "2026-09-04" });
     const doneLater = task({ id: 502, status: "Done", completedAt: "2026-10-03", targetDate: "2026-09-20" });
     const doneInTime = task({ id: 503, status: "Done", completedAt: "2026-09-10", targetDate: "2026-09-12" });
-    expect(taskStatusAsOf(blocked, "2026-09-30")).toBe("Blocked");
-    expect(overdueDaysAsOf(blocked, "2026-09-30")).toBe(26);
-    // Finished after the month: still open (and late) at its end.
-    expect(taskStatusAsOf(doneLater, "2026-09-30")).toBe("In Progress");
-    expect(overdueDaysAsOf(doneLater, "2026-09-30")).toBe(10);
-    expect(taskStatusAsOf(doneInTime, "2026-09-30")).toBe("Done");
-    expect(overdueDaysAsOf(doneInTime, "2026-09-30")).toBeNull();
+    expect(overdueDays(blocked, "2026-09-30")).toBe(26);
+    // Finished, even if after the month: never overdue.
+    expect(overdueDays(doneLater, "2026-10-06")).toBeNull();
+    expect(overdueDays(doneInTime, "2026-10-06")).toBeNull();
 
-    const r = buildReport(facts({ tasks: [blocked, doneInTime] }), {});
-    expect(r.goals.find((g) => g.taskId === 501)).toMatchObject({ status: "Delayed", taskStatus: "Blocked", overdueDays: 26 });
+    const r = buildReport(facts({ tasks: [blocked, doneLater, doneInTime] }), {}); // today 6 Oct
+    expect(r.goals.find((g) => g.taskId === 501)).toMatchObject({ status: "Delayed", taskStatus: "Blocked", overdueDays: 32 });
+    expect(r.goals.find((g) => g.taskId === 502)).toMatchObject({ status: "Completed", taskStatus: "Done", overdueDays: null });
     expect(toSelfView(r).goals.find((g) => g.taskId === 503)).toMatchObject({ taskStatus: "Done", overdueDays: null });
   });
 });
@@ -336,7 +352,6 @@ describe("critical / long-term tasks", () => {
   it("counts critical work and anything extending beyond the month", () => {
     // Imported in September with no start date, due back in May: carried over.
     expect(isLongTerm(task({ startDate: null, createdAt: "2026-09-17", targetDate: "2026-05-04" }), FROM, TO)).toBe(true);
-    expect(isLongTerm(task({ startDate: "2026-08-20", targetDate: "2026-09-10" }), FROM, TO)).toBe(true); // started earlier
     expect(isLongTerm(task({ startDate: "2026-09-05", targetDate: "2026-10-15" }), FROM, TO)).toBe(true); // due later
     expect(isLongTerm(task({ priority: "Critical", startDate: "2026-09-05", targetDate: "2026-09-10" }), FROM, TO)).toBe(true);
     expect(isLongTerm(task({ important: true, startDate: "2026-09-05", targetDate: "2026-09-10" }), FROM, TO)).toBe(true);
@@ -381,10 +396,7 @@ describe("completionDay — a Done task never finishes in the future", () => {
     const t = task({ status: "Done", completedAt: null, targetDate: "2026-10-20" });
     expect(completionDay(t, TODAY)).toBe(TODAY);
     const fact = { ...t, completedAt: completionDay(t, TODAY) };
-    expect(statusAsOf(fact, TODAY)).toBe("Completed");
-    expect(taskStatusAsOf(fact, TODAY)).toBe("Done");
-    // Without the normalisation the same row read as in progress.
-    expect(taskStatusAsOf(t, TODAY)).toBe("In Progress");
+    expect(reviewStatus(fact, TODAY)).toBe("Completed");
   });
 
   it("a completedAt in the future (bad import) is capped at today", () => {

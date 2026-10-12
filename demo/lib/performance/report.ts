@@ -63,7 +63,7 @@ export type TaskFact = {
   actualHours: number | null;
   reopenCount: number;
   approved: boolean;
-  /** Hours logged on the task by anyone, up to the period's end. */
+  /** Hours logged on the task by anyone, to date. */
   logged: number;
   /** Other people sharing the task. */
   coAssignees: number;
@@ -141,10 +141,10 @@ export type GoalRow = {
   targetDate: string | null;
   /** The review form's wording ("Completed", "Delayed", …). */
   status: string;
-  /** The tracker's own status as of the period end, as My Tasks shows it
+  /** The tracker's current status, as My Tasks shows it
    *  ("To Do", "In Progress", "Blocked", "In review", "Done"). */
   taskStatus: string;
-  /** Days past target at the period end, if still open; else null. */
+  /** Days past target today, if still open; else null. */
   overdueDays: number | null;
 };
 
@@ -205,7 +205,8 @@ export type Report = {
   periodLabel: string;
   from: string;
   to: string;
-  /** min(to, today): the "as of" day for statuses and progress. */
+  /** min(to, today): the day capacity is counted to. Task statuses and
+   *  progress are as of today. */
   asOf: string;
   reviewDate: string;
   employee: EmployeeFact;
@@ -293,20 +294,21 @@ function startOf(t: TaskFact): string {
   return t.startDate ?? t.createdAt;
 }
 
-/** A task belongs to the period if it had started by the end and wasn't
- *  already finished before the start. */
+/** A task belongs to the review of the period it started in (its start
+ *  date, else its creation date) and to no other. When it is due or
+ *  finished doesn't move it: work started in September and finished in
+ *  October is September's. */
 export function inPeriod(t: TaskFact, from: string, to: string): boolean {
-  if (startOf(t) > to) return false;
-  const done = doneOn(t);
-  return !done || done >= from;
+  const s = startOf(t);
+  return s >= from && s <= to;
 }
 
-/** Status as of `asOf` — a task finished after the period still reads
- *  as open for that period. */
-export function statusAsOf(t: TaskFact, asOf: string): string {
-  const done = doneOn(t);
-  if (done && done <= asOf) return "Completed";
-  if (t.targetDate && t.targetDate < asOf) return "Delayed";
+/** The review form's wording for a task's current status. A task stays in
+ *  its start month's review, so it reads as the tracker has it now — a
+ *  Done task is "Completed" whenever it finished. */
+export function reviewStatus(t: TaskFact, today: string): string {
+  if (t.status === "Done") return "Completed";
+  if (t.targetDate && t.targetDate < today) return "Delayed";
   switch (t.status) {
     case "To Do":
       return "Not Started";
@@ -319,33 +321,23 @@ export function statusAsOf(t: TaskFact, asOf: string): string {
   }
 }
 
-/** The tracker status as of `asOf`, in My Tasks' own words. A task
- *  finished after the period was still being worked on at its end. */
-export function taskStatusAsOf(t: TaskFact, asOf: string): string {
-  const done = doneOn(t);
-  if (done && done <= asOf) return "Done";
-  return t.status === "Done" ? "In Progress" : t.status;
-}
-
-/** Days a still-open task was past its target on `asOf`, else null. */
-export function overdueDaysAsOf(t: TaskFact, asOf: string): number | null {
-  const done = doneOn(t);
-  if (done && done <= asOf) return null;
-  if (!t.targetDate || t.targetDate >= asOf) return null;
-  return daysBetween(t.targetDate, asOf);
+/** Days a still-open task is past its target today, else null. */
+export function overdueDays(t: TaskFact, today: string): number | null {
+  if (t.status === "Done") return null;
+  if (!t.targetDate || t.targetDate >= today) return null;
+  return daysBetween(t.targetDate, today);
 }
 
 /**
  * Does a task in the period belong in "Critical / Long-Term Task
  * Progress"? Critical work (flagged important, or Critical priority), and
- * anything extending beyond the month: started before it, due after it,
- * or already overdue when it began — carried-over work is multi-month by
+ * anything extending beyond the month it started in: due after it, or
+ * already overdue when it began — carried-over work is multi-month by
  * definition, even when the tracker only learned of it recently (an
  * imported task has no start date and a recent creation date).
  */
 export function isLongTerm(t: TaskFact, from: string, to: string): boolean {
   if (t.important || /^critical$/i.test(t.priority)) return true;
-  if (startOf(t) < from) return true;
   return !!t.targetDate && (t.targetDate < from || t.targetDate > to);
 }
 
@@ -393,16 +385,14 @@ function list(titles: string[], max = 6): string {
 /* ------------------------------------------------------------- metrics */
 
 export function computeMetrics(
-  f: Pick<ReportFacts, "tasks" | "entries" | "leaves" | "remarks" | "workDays" | "hoursPerDay">,
+  f: Pick<ReportFacts, "tasks" | "entries" | "leaves" | "remarks" | "workDays" | "hoursPerDay" | "today">,
   from: string,
   to: string,
   asOf: string,
 ): Metrics {
   const scoped = f.tasks.filter((t) => inPeriod(t, from, to));
-  const completed = scoped.filter((t) => {
-    const d = doneOn(t);
-    return !!d && d >= from && d <= to;
-  });
+  // Done counts for the month the task started in, whenever it finished.
+  const completed = scoped.filter((t) => t.status === "Done");
   const due = scoped.filter((t) => t.targetDate && t.targetDate >= from && t.targetDate <= to);
   // Completion: of the work that was due this period or got finished in
   // it, how much is finished.
@@ -476,7 +466,7 @@ export function computeMetrics(
     estimateAccuracy,
     reworkRate: pct(completed.filter((t) => t.reopenCount > 0).length, completed.length),
     approvedRate: pct(completed.filter((t) => t.approved).length, completed.length),
-    overdueOpen: scoped.filter((t) => statusAsOf(t, asOf) === "Delayed").length,
+    overdueOpen: scoped.filter((t) => reviewStatus(t, f.today) === "Delayed").length,
     criticalTotal: critical.length,
     criticalDone: critical.filter((t) => completedIds.has(t.id)).length,
     projects: [...byProject.entries()]
@@ -500,7 +490,7 @@ function evidenceFor(key: string, m: Metrics): string {
         m.hoursLogged ? `${m.hoursLogged} h logged of ${m.capacityHours} h available (${f(m.utilization)})` : "No time logged"
       }; ${m.tasksCompleted} completed, ${f(m.completionRate)} of due work done.`;
     case "ownership":
-      return `${f(m.onTimeRate)} of completed tasks on/before target; ${m.overdueOpen} overdue at period end.`;
+      return `${f(m.onTimeRate)} of completed tasks on/before target; ${m.overdueOpen} still open and overdue.`;
     case "attendance":
       return m.leaveDays
         ? `${m.leaveDays} leave day(s) of ${m.workingDays} working days (${Object.entries(m.leaveByType)
@@ -556,9 +546,9 @@ export function buildReport(f: ReportFacts, inputs: Inputs): Report {
             expected: expectedOutcome(t.description),
             priority: t.priority,
             targetDate: t.targetDate,
-            status: statusAsOf(t, asOf),
-            taskStatus: taskStatusAsOf(t, asOf),
-            overdueDays: overdueDaysAsOf(t, asOf),
+            status: reviewStatus(t, f.today),
+            taskStatus: t.status,
+            overdueDays: overdueDays(t, f.today),
           }))
       : [];
 
@@ -568,14 +558,16 @@ export function buildReport(f: ReportFacts, inputs: Inputs): Report {
       ? scoped
           .filter((t) => isLongTerm(t, from, to))
           .map((t) => {
-            const done = doneOn(t);
-            const finished = !!done && done <= asOf;
+            // Where the task stands now: a task stays in its start
+            // month's review, however long it runs.
+            const today = f.today;
+            const finished = t.status === "Done";
             const start = startOf(t);
             let planned: number | null = null;
             if (t.targetDate && t.targetDate > start) {
               const span = daysBetween(start, t.targetDate);
-              planned = Math.round(Math.min(1, Math.max(0, daysBetween(start, asOf) / span)) * 100);
-            } else if (t.targetDate) planned = asOf >= t.targetDate ? 100 : 0;
+              planned = Math.round(Math.min(1, Math.max(0, daysBetween(start, today) / span)) * 100);
+            } else if (t.targetDate) planned = today >= t.targetDate ? 100 : 0;
             const actual = finished
               ? 100
               : t.estimatedHours
@@ -583,7 +575,7 @@ export function buildReport(f: ReportFacts, inputs: Inputs): Report {
                 : null;
             const status: ProgressStatus = finished
               ? "Completed"
-              : t.targetDate && t.targetDate < asOf
+              : t.targetDate && t.targetDate < today
                 ? "Delayed"
                 : planned != null && actual != null && planned - actual >= 20
                   ? "At Risk"
@@ -597,8 +589,8 @@ export function buildReport(f: ReportFacts, inputs: Inputs): Report {
               planned,
               actual,
               status,
-              taskStatus: taskStatusAsOf(t, asOf),
-              overdueDays: overdueDaysAsOf(t, asOf),
+              taskStatus: t.status,
+              overdueDays: overdueDays(t, today),
             };
           })
       : [];
