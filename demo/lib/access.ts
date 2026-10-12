@@ -144,6 +144,18 @@ export function visibleProjects(
   );
 }
 
+/** Ids of the projects `me` runs — designated Lead or Co-ordinator on the
+ *  roster. Every task on them is their business without being assigned
+ *  (assignment is for the people doing the work), so My Tasks lists them
+ *  alongside anything they're on. Mirrors ledProjectIds on the server. */
+export function projectsRunBy(projects: Project[], me: string): Set<number> {
+  return new Set(
+    projects
+      .filter((p) => p.leads.includes(me) || p.coordinators.includes(me))
+      .map((p) => p.id),
+  );
+}
+
 export function canAccessProject(
   role: Role,
   projectId: number,
