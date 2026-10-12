@@ -21,7 +21,13 @@ const PRIORITY_STYLE: Record<string, string> = {
  * this is the pool you can pull from. Forking copies the task to you and
  * leaves the original exactly as it was — the person holding it keeps it.
  */
-export function ForkableTasks() {
+export function ForkableTasks({
+  excludeProjectIds,
+}: {
+  /** Projects whose tasks are already on the viewer's board — the ones
+   *  they lead or co-ordinate — so the pool doesn't repeat the board. */
+  excludeProjectIds?: Set<number>;
+} = {}) {
   const { loadForkable, forkTask } = useTasks();
   const { projects } = useProjects();
   const toast = useToast();
@@ -32,9 +38,14 @@ export function ForkableTasks() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    setRows(await loadForkable());
+    const all = await loadForkable();
+    setRows(
+      excludeProjectIds
+        ? all.filter((t) => !excludeProjectIds.has(t.projectId))
+        : all,
+    );
     setLoading(false);
-  }, [loadForkable]);
+  }, [loadForkable, excludeProjectIds]);
 
   useEffect(() => {
     void load();
