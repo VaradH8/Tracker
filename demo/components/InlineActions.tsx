@@ -313,17 +313,23 @@ function AssigneeMenu({
   onToggle: (name: string) => void;
 }) {
   const [q, setQ] = useState("");
-  const { accounts } = useAccounts();
-  // Work is assigned to Developers only. Leads and Co-ordinators see every
-  // task on the projects they run without being assigned — assigning them
-  // would just put the task on their My Tasks. Anyone already on the task
-  // stays listed whatever their role, so they can still be taken off it.
+  const { accounts, current } = useAccounts();
+  // Work is assigned to Developers. Leads and Co-ordinators see every task
+  // on the projects they run without being assigned — assigning them
+  // would just put the task on their My Tasks. The exception is a
+  // Co-ordinator taking a task on themselves (listed first), which is
+  // exactly how they track their own work there. Anyone already on the
+  // task stays listed whatever their role, so they can still be taken off.
+  const selfId = current?.role === "Coordinator" ? current.id : null;
   const people = accounts
     .filter(
       (a) =>
-        (a.active && a.role === "Developer") || selected.includes(labelOf(a)),
+        (a.active && a.role === "Developer") ||
+        a.id === selfId ||
+        selected.includes(labelOf(a)),
     )
-    .filter((a) => a.name.toLowerCase().includes(q.toLowerCase()));
+    .filter((a) => a.name.toLowerCase().includes(q.toLowerCase()))
+    .sort((a, b) => Number(b.id === selfId) - Number(a.id === selfId));
 
   return (
     <div className="min-w-[240px]">
@@ -365,7 +371,12 @@ function AssigneeMenu({
                   className="accent-brand-blue"
                 />
                 <Avatar name={first} colorIdx={i} size="sm" />
-                <span className="flex-1">{a.name}</span>
+                <span className="flex-1">
+                  {a.name}
+                  {a.id === selfId && (
+                    <span className="text-ink-400"> (you)</span>
+                  )}
+                </span>
               </button>
             </li>
           );
