@@ -25,11 +25,12 @@ import {
   byTargetDate,
   daysSince,
   formatTodayLong,
+  greetingNow,
   todayISO,
   type Task,
 } from "@/lib/mock";
 import { useProjects } from "@/lib/projects-store";
-import { useRole } from "@/lib/role";
+import { ROLE_LABELS, useRole } from "@/lib/role";
 import { labelOf, useAccounts, useMyFirstName } from "@/lib/account-store";
 import { useTasks } from "@/lib/tasks-store";
 import { useToast } from "@/components/Toast";
@@ -64,13 +65,19 @@ function CoordinatorMyDay() {
   const router = useRouter();
   const toast = useToast();
   const me = useMyFirstName();
+  const { current } = useAccounts();
+  const [role] = useRole();
+  const isLead = role === "Lead";
+  const roleLabel = ROLE_LABELS[current?.role ?? role];
   const [idleDays, setIdleDays] = useState(3);
 
-  // "My team" = tasks on projects this co-ordinator runs.
+  // "My team" = a Lead: the projects their team has work on (their task
+  // list is already just the team's). A Co-ordinator: the projects they run.
   const myProjectIds = new Set(
-    projects
-      .filter((p) => p.coordinators.includes(me))
-      .map((p) => p.id),
+    (isLead
+      ? projects.filter((p) => tasks.some((t) => t.projectId === p.id))
+      : projects.filter((p) => p.coordinators.includes(me))
+    ).map((p) => p.id),
   );
   const teamTasks = tasks.filter((t) => myProjectIds.has(t.projectId));
 
@@ -112,10 +119,10 @@ function CoordinatorMyDay() {
       <div className="max-w-[1400px] mx-auto px-6 py-8">
         <header className="mb-6">
           <h1 className="font-heading text-3xl font-semibold">
-            Good morning, {me || "there"}
+            {greetingNow()}, {me || "there"}
           </h1>
           <p className="text-sm text-ink-500 mt-1">
-            {formatTodayLong()} · Co-ordinator · what your team needs today
+            {formatTodayLong()} · {roleLabel} · what your team needs today
           </p>
         </header>
 
@@ -612,7 +619,7 @@ function DeveloperMyDay() {
       <div className="max-w-[1400px] mx-auto px-6 py-8">
         <header className="mb-6">
           <h1 className="font-heading text-3xl font-semibold">
-            Good morning, {me || "there"}
+            {greetingNow()}, {me || "there"}
           </h1>
           <p className="text-sm text-ink-500 mt-1">
             {formatTodayLong()} · Developer
