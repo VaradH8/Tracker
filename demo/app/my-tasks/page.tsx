@@ -15,9 +15,7 @@ import {
   type Task,
 } from "@/lib/mock";
 import { useRole } from "@/lib/role";
-import { projectsRunBy } from "@/lib/access";
-import { useAccounts, useMyFirstName } from "@/lib/account-store";
-import { useProjects } from "@/lib/projects-store";
+import { useAccounts } from "@/lib/account-store";
 import { useTasks } from "@/lib/tasks-store";
 
 const COLUMNS: { id: Status; title: string; accent: string }[] = [
@@ -74,15 +72,10 @@ export default function MyTasksPage() {
   }
 
   const { current } = useAccounts();
-  const me = useMyFirstName();
-  const { projects } = useProjects();
-  // A Lead or Co-ordinator runs their projects: every task on them belongs
-  // here without being assigned — assignment is for the people doing the
-  // work. Everyone else sees what they're on.
-  const runs = projectsRunBy(projects, me);
-  const mine = current
-    ? tasks.filter((t) => isAssignedTo(t, current) || runs.has(t.projectId))
-    : [];
+  // Only work assigned to you. Running a project as Lead or Co-ordinator
+  // doesn't put its tasks here — those stay with their assignees and show
+  // up in the Team tasks pool below.
+  const mine = current ? tasks.filter((t) => isAssignedTo(t, current)) : [];
 
   const thisWeekRange = useMemo(() => isoWeekRange(0), []);
   const lastWeekRange = useMemo(() => isoWeekRange(1), []);
@@ -120,9 +113,7 @@ export default function MyTasksPage() {
               {focus && focusApplies
                 ? "Focused on what needs attention today — due, overdue, in progress."
                 : rangeMode === "all"
-                  ? runs.size
-                    ? "Every task on the projects you run, plus any you're on, grouped by status."
-                    : "Every task you're on, across all projects, grouped by status."
+                  ? "Every task you're on, across all projects, grouped by status."
                   : "Your tasks in this window, grouped by status."}
             </p>
           </div>
@@ -191,12 +182,8 @@ export default function MyTasksPage() {
         {mine.length === 0 ? (
           <EmptyState
             Icon={CheckSquare}
-            title={runs.size ? "No tasks on your projects yet" : "No tasks assigned to you"}
-            message={
-              runs.size
-                ? "Tasks on the projects you lead or co-ordinate land here, along with anything assigned to you."
-                : "When a co-ordinator assigns you a task it lands here, grouped by status."
-            }
+            title="No tasks assigned to you"
+            message="When a co-ordinator assigns you a task it lands here, grouped by status."
           />
         ) : shown.length === 0 ? (
           <EmptyState
@@ -251,7 +238,7 @@ export default function MyTasksPage() {
           </p>
         )}
 
-        <ForkableTasks excludeProjectIds={runs} />
+        <ForkableTasks />
       </div>
     </AppShell>
   );
