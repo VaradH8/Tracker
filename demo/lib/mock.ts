@@ -414,6 +414,15 @@ export function formatTodayLong(): string {
   });
 }
 
+/** "Good morning/afternoon/evening" from the viewer's local clock.
+ *  Morning until noon, afternoon until 5pm, evening after. */
+export function greetingNow(): string {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
+
 /** Today's date as a YYYY-MM-DD string. Evaluated at call time so it
  *  reflects the actual current date — not the date a module bundle was
  *  built (which is what a top-level `new Date().toISOString()` would do).
