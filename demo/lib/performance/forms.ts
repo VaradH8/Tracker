@@ -162,6 +162,26 @@ export const HR_AREAS: Area[] = [
   { key: "discipline", label: "Discipline & Policy Compliance" },
 ];
 
+/** Section 10 — the template's heading and the question under it,
+ *  verbatim (docx.ts finds the paragraph by `question`). The Reporting
+ *  Manager answers it; the answer prints right below the question. */
+export const CRITERIA_QUESTION: Record<ReviewKind, { title: string; question: string }> = {
+  Monthly: {
+    title: "Monthly Performance Criteria – Detailed Evaluation",
+    question:
+      "The monthly review evaluates short-term performance, operational delivery, current priorities, and progress toward the next month's goals.",
+  },
+  Yearly: {
+    title: "Annual Performance Criteria – Detailed Evaluation",
+    question:
+      "The annual review evaluates overall contribution, achievement against goals, consistency across the year, capability growth, and readiness for future responsibilities.",
+  },
+};
+
+/** The section 10 answer. Only a Reporting Manager (Admin or Lead)
+ *  writes it — HR reads it, the employee doesn't see it. */
+export const CRITERIA_KEY = "criteria.answer";
+
 /** HR's own fields: hr.<area>.rating and hr.<area>.comments. Only an HR
  *  account may change them — not Admins, not the Reporting Manager. */
 export function isHrKey(key: string): boolean {
@@ -203,7 +223,7 @@ export const MAX_MANUAL_GOALS = 5;
  * ratings are "1"–"5". Anything else is rejected by the API.
  */
 export const INPUT_KEY =
-  /^(rating\.[A-Za-z]+\.(employee|manager|comments)|self\.[A-Za-z]+|mgr\.[A-Za-z]+|summary\.(overall|level|priority|plan|feedback|employeeComments|commentTo)|milestone\.\d{1,9}|kpi\.[A-Za-z]+\.comments|goal\.[1-5]\.(goal|expected|actual|achievement|comments)|ach\.[A-Za-z]+\.(employee|manager)|hr\.[A-Za-z]+\.(rating|comments)|reviewDate)$/;
+  /^(rating\.[A-Za-z]+\.(employee|manager|comments)|self\.[A-Za-z]+|mgr\.[A-Za-z]+|summary\.(overall|level|priority|plan|feedback|employeeComments|commentTo)|milestone\.\d{1,9}|kpi\.[A-Za-z]+\.comments|goal\.[1-5]\.(goal|expected|actual|achievement|comments)|ach\.[A-Za-z]+\.(employee|manager)|hr\.[A-Za-z]+\.(rating|comments)|criteria\.answer|reviewDate)$/;
 
 export const MAX_INPUT_LENGTH = 4000;
 

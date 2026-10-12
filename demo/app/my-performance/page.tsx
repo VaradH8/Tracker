@@ -261,7 +261,7 @@ export default function MyPerformancePage() {
             {v.kind === "Monthly" ? (
               <Section n={3} title="Critical / Long-Term Task Progress" collapsible
                 summary={countSummary(v.longTerm.map((l) => l.status))}
-                note="Critical tasks, and work that runs beyond this month — started earlier, due later, or carried over overdue — judged against the monthly milestone. Click a task to open it.">
+                note="Critical tasks, and work started this month that runs beyond it — due later, or carried over overdue — judged against the monthly milestone. Click a task to open it.">
                 <Table
                   head={["Task / Project", "Monthly Milestone", "Planned %", "Actual %", "Progress", "Status"]}
                   empty="No critical or multi-month tasks this month."

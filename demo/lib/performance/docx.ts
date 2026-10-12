@@ -166,6 +166,23 @@ class Doc {
     this.tables[t] = table;
   }
 
+  /** Add `lines` as paragraphs right after the body paragraph that reads
+   *  `text`, in that paragraph's formatting. Nothing is added for no
+   *  lines. */
+  after(text: string, lines: string[]) {
+    const norm = (s: string) => s.replace(/[‘’]/g, "'").trim();
+    const para = (this.xml.match(/<w:p[ >][\s\S]*?<\/w:p>/g) ?? []).find((p) => norm(textIn(p)) === norm(text));
+    if (!para) throw new Error(`Template paragraph not found: "${text.slice(0, 40)}…"`);
+    if (!lines.length) return;
+    const pPr = /<w:pPr>[\s\S]*?<\/w:pPr>/.exec(para)?.[0] ?? "";
+    const run = /<w:r[ >][\s\S]*?<\/w:r>/.exec(para)?.[0] ?? "";
+    const rPr = /<w:rPr>[\s\S]*?<\/w:rPr>/.exec(run)?.[0] ?? "";
+    const added = lines.map((line) =>
+      line ? `<w:p>${pPr}<w:r>${rPr}<w:t xml:space="preserve">${esc(line)}</w:t></w:r></w:p>` : `<w:p>${pPr}</w:p>`,
+    );
+    this.xml = this.xml.replace(para, () => para + added.join(""));
+  }
+
   /** The table at `t` as it stands — to borrow its look. */
   table(t: number): string {
     return this.tables[t];
@@ -211,7 +228,9 @@ export function hrTable(assessment: string, rows: string[][]): string {
   return `<w:tbl>${tblPr}${grid}${head}${rows.map((r) => rowOf(proto, r)).join("")}</w:tbl>`;
 }
 
-export type SignOff = { hrName?: string | null };
+/** `date`: the ISO day printed against every signature — the day the
+ *  document is downloaded. */
+export type SignOff = { hrName?: string | null; date?: string | null };
 
 export function fillDocument(xml: string, r: Report, signOff: SignOff = {}): string {
   const doc = new Doc(xml);
@@ -303,9 +322,14 @@ export function fillDocument(xml: string, r: Report, signOff: SignOff = {}): str
     ),
   );
 
-  /* 9. Sign-off — names filled; dates stay for ink. */
-  const sign = (name: string) => [`Name: ${name}`, "Date:"];
+  /* 9. Sign-off — names, and the date the document was downloaded. */
+  const dated = signOff.date ? `Date: ${fmtDay(signOff.date)}` : "Date:";
+  const sign = (name: string) => [`Name: ${name}`, dated];
   doc.data(T.signoff, [[sign(e.name), sign(e.reportingManager), sign(signOff.hrName ?? "")]]);
+
+  /* 10. The Reporting Manager's answer, under the criteria question. */
+  const answer = r.criteria.value.trim();
+  doc.after(r.criteria.label, answer ? answer.split(/\r?\n/) : []);
 
   return keepTablesTogether(doc.toString());
 }

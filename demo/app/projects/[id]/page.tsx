@@ -1075,8 +1075,8 @@ function CreateTaskModal({
     targetDate?: string;
   }) => void;
 }) {
-  const { accounts } = useAccounts();
-  // Tasks go to Developers only. Leads and Co-ordinators see every task on
+  const { accounts, current } = useAccounts();
+  // Tasks go to Developers. Leads and Co-ordinators see every task on
   // their projects without being assigned, and assigning them would put
   // the task on their My Tasks. `restrictTo` narrows the list to the
   // project roster for a Developer.
@@ -1085,6 +1085,11 @@ function CreateTaskModal({
     .filter((a) => a.active && a.role === "Developer")
     .map((a) => labelOf(a))
     .filter((n) => !allowed || allowed.has(n));
+  // A Co-ordinator can also give a task to themselves — their own work,
+  // tracked on their My Tasks. Listed first, by name.
+  const self = current?.role === "Coordinator" ? labelOf(current) : null;
+  const candidates =
+    self && !devCandidates.includes(self) ? [self, ...devCandidates] : devCandidates;
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<Status>("To Do");
@@ -1212,16 +1217,18 @@ function CreateTaskModal({
         <>
           <label className="block text-xs font-medium text-ink-700 mb-1.5">
             Assign to <span className="text-brand-redText">*</span>{" "}
-            <span className="text-ink-400 font-normal">(developers)</span>
+            <span className="text-ink-400 font-normal">
+              {self ? "(developers, or yourself)" : "(developers)"}
+            </span>
           </label>
           <div className="mb-6 rounded border border-ink-200 bg-ink-50">
-            {devCandidates.length === 0 ? (
+            {candidates.length === 0 ? (
               <p className="text-xs text-ink-400 italic p-3">
                 No developers available.
               </p>
             ) : (
               <div className="flex flex-wrap gap-1.5 p-2">
-                {devCandidates.map((n) => {
+                {candidates.map((n) => {
                   const on = assignees.includes(n);
                   return (
                     <button
@@ -1249,6 +1256,7 @@ function CreateTaskModal({
                         </svg>
                       )}
                       {n}
+                      {n === self && " (you)"}
                     </button>
                   );
                 })}

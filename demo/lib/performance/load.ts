@@ -64,6 +64,21 @@ export async function activeHrNames(): Promise<string> {
   return hr.map((u) => u.name).join(", ");
 }
 
+/** The Admin or Lead who most recently saved any of this employee's
+ *  reviews, or null if none has. */
+async function lastReviewer(employeeId: string): Promise<string | null> {
+  const reviews = await prisma.performanceReview.findMany({
+    where: { userId: employeeId },
+    orderBy: { updatedAt: "desc" },
+    select: { inputs: true },
+  });
+  for (const r of reviews) {
+    const name = parseInputs(r.inputs)[REVIEWED_BY];
+    if (name) return name;
+  }
+  return null;
+}
+
 export type ReviewMeta = { savedAt: string | null; savedBy: string | null };
 
 export type SaveResult =
@@ -105,7 +120,6 @@ export async function loadReport(
   if (!employee) return null;
 
   const { from, to } = periodRange(kind, period);
-  const asOf = to < today ? to : today;
 
   const [settings, tasks, entries, leaves, remarks, saved, monthly] = await Promise.all([
     getSettingsParsed(),
@@ -161,12 +175,12 @@ export async function loadReport(
       : Promise.resolve([]),
   ]);
 
-  // Hours on each task by anyone up to the period's end — "actual %" for
-  // long-running work.
+  // Hours on each task by anyone to date — "actual %" for long-running
+  // work, which stays in the month it started in.
   const logged = tasks.length
     ? await prisma.timeEntry.groupBy({
         by: ["taskId"],
-        where: { taskId: { in: tasks.map((t) => t.id) }, date: { lte: endOf(asOf) } },
+        where: { taskId: { in: tasks.map((t) => t.id) }, date: { lte: endOf(today) } },
         _sum: { hours: true },
       })
     : [];
@@ -175,6 +189,16 @@ export async function loadReport(
   const savedBy = saved?.updatedById
     ? await prisma.user.findUnique({ where: { id: saved.updatedById }, select: { name: true } })
     : null;
+
+  // The name printed as Reporting Manager: the assigned one; else the
+  // Admin or Lead who last saved this review; else the one who last saved
+  // any of this person's reviews — so a month saved only by HR, or not
+  // saved yet, doesn't go out with the name blank.
+  const reportingManager =
+    employee.reportingManager?.name ??
+    parseInputs(saved?.inputs)[REVIEWED_BY] ??
+    (await lastReviewer(employeeId)) ??
+    "";
 
   const daysPerWeek = Math.max(1, settings.workingDays.length || 5);
   const monthlyRatings: MonthlyRatings[] = monthly.map((r) => {
@@ -200,10 +224,7 @@ export async function loadReport(
         department: employee.department ?? "",
         designation: employee.designation ?? "",
         joined: day(employee.joined),
-        // The assigned Reporting Manager; with none assigned, whichever
-        // Admin or Lead last saved this review.
-        reportingManager:
-          employee.reportingManager?.name ?? parseInputs(saved?.inputs)[REVIEWED_BY] ?? "",
+        reportingManager,
         assignedManager: employee.reportingManager?.name ?? "",
       },
       tasks: tasks.map((t) => ({
