@@ -10,6 +10,7 @@ import { useRole, ROLE_LABELS, type Role } from "@/lib/role";
 import { useAccounts } from "@/lib/account-store";
 import { fmtDay, localToday } from "@/lib/engagement";
 import {
+  CRITERIA_QUESTION,
   LEVELS,
   MAX_MANUAL_GOALS,
   PRIORITIES,
@@ -60,6 +61,8 @@ type ReportData = {
   canEdit: boolean;
   /** HR accounts only: the HR Evaluation section. */
   canEditHr: boolean;
+  /** The Reporting Manager (Admin or Lead) only: the section 10 answer. */
+  canEditCriteria: boolean;
   canDownload: boolean;
   /** Who signs for HR: the viewing HR account, else every active HR account. */
   hrName: string;
@@ -80,6 +83,7 @@ function draftFrom(r: Report): Draft {
   put(r.summary.plan);
   put(r.summary.feedback);
   put(r.summary.employeeComments);
+  put(r.criteria);
   for (const a of r.areas) {
     d[`rating.${a.key}.employee`] = a.employee ? String(a.employee) : "";
     d[`rating.${a.key}.manager`] = a.manager ? String(a.manager) : "";
@@ -225,8 +229,12 @@ export default function PerformancePage() {
   const set = (key: string) => (v: string) => setDraft((d) => ({ ...d, [key]: v }));
   const editable = !!data?.canEdit;
   const hrEditable = !!data?.canEditHr;
+  const criteriaEditable = !!data?.canEditCriteria;
   const r = data?.report;
-  const downloadHref = `/api/performance/report/download?${new URLSearchParams({ userId, kind, period })}`;
+  // The sign-off is dated the day of the download, in the viewer's own
+  // timezone — built at click time so a page left open overnight isn't stale.
+  const downloadHref = () =>
+    `/api/performance/report/download?${new URLSearchParams({ userId, kind, period, date: localToday() })}`;
   const years = Array.from({ length: 6 }, (_, i) => String(Number(localToday().slice(0, 4)) - i));
 
   return (
@@ -326,7 +334,11 @@ export default function PerformancePage() {
                   <Download size={15} /> Download Word
                 </span>
               ) : (
-                <a className="btn-ghost gap-1.5 border border-ink-200" href={downloadHref}>
+                <a
+                  className="btn-ghost gap-1.5 border border-ink-200"
+                  href={downloadHref()}
+                  onClick={(e) => (e.currentTarget.href = downloadHref())}
+                >
                   <Download size={15} /> Download Word
                 </a>
               ))}
@@ -503,18 +515,8 @@ export default function PerformancePage() {
               <Prompts fields={r.manager} draft={draft} set={set} editable={editable} />
             </Section>
 
-            {/* 7. HR Evaluation */}
-            <Section n={7} title="HR Evaluation"
-              note={`Rated by HR only — not part of the overall rating${hrEditable ? "" : "; read-only for you"}. Scale: 5 Exceptional · 4 Exceeds · 3 Meets · 2 Needs Improvement · 1 Unsatisfactory.`}>
-              <Table head={["Evaluation Area", "HR Rating (1–5)", "HR Comments"]}>
-                {r.hr.map((h) => (
-                  <HrLine key={h.key} h={h} draft={draft} set={set} editable={hrEditable} />
-                ))}
-              </Table>
-            </Section>
-
-            {/* 8. Summary */}
-            <Section n={8} title={r.kind === "Monthly" ? "Monthly Summary" : "Annual Performance Summary"}>
+            {/* 7. Summary */}
+            <Section n={7} title={r.kind === "Monthly" ? "Monthly Summary" : "Annual Performance Summary"}>
               <div className="grid gap-4 md:grid-cols-3 mb-4">
                 <div>
                   <div className="text-[11px] uppercase tracking-wide text-ink-500">
@@ -544,8 +546,18 @@ export default function PerformancePage() {
               <Prompts fields={[r.summary.plan, r.summary.feedback, r.summary.employeeComments]} draft={draft} set={set} editable={editable} />
             </Section>
 
+            {/* 8. HR Evaluation — where the Word document has it */}
+            <Section n={8} title="HR Evaluation"
+              note={`Rated by HR only — not part of the overall rating${hrEditable ? "" : "; read-only for you"}. Scale: 5 Exceptional · 4 Exceeds · 3 Meets · 2 Needs Improvement · 1 Unsatisfactory.`}>
+              <Table head={["Evaluation Area", "HR Rating (1–5)", "HR Comments"]}>
+                {r.hr.map((h) => (
+                  <HrLine key={h.key} h={h} draft={draft} set={set} editable={hrEditable} />
+                ))}
+              </Table>
+            </Section>
+
             {/* 9. Sign-off */}
-            <Section n={9} title="Sign-Off" note="Dates are completed on the printed document.">
+            <Section n={9} title="Sign-Off" note="The Word document is dated the day it's downloaded.">
               <div className="grid sm:grid-cols-3 gap-3 text-sm">
                 {[
                   ["Employee", r.employee.name],
@@ -558,6 +570,13 @@ export default function PerformancePage() {
                   </div>
                 ))}
               </div>
+            </Section>
+
+            {/* 10. Performance criteria — the Reporting Manager's answer */}
+            <Section n={10} title={CRITERIA_QUESTION[r.kind].title}
+              note={`Answered by the Reporting Manager${criteriaEditable ? "" : " — read-only for you"}. Printed under the question in the Word document.`}>
+              <p className="text-sm font-medium text-ink-700 mb-2">{r.criteria.label}</p>
+              <Text field={r.criteria} draft={draft} set={set} editable={criteriaEditable} rows={4} />
             </Section>
           </>
         )}

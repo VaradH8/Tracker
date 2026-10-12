@@ -10,7 +10,7 @@ import {
   requireUser,
   writeAudit,
 } from "@/lib/server-access";
-import { REVIEWED_BY, isHrKey, parseReviewQuery, validateChanges } from "@/lib/performance/forms";
+import { CRITERIA_KEY, REVIEWED_BY, isHrKey, parseReviewQuery, validateChanges } from "@/lib/performance/forms";
 import { activeHrNames, findEmployee, loadReport, saveReviewChanges } from "@/lib/performance/load";
 import type { SessionUser } from "@/lib/auth";
 
@@ -45,6 +45,8 @@ export async function GET(req: Request) {
     ...loaded,
     canEdit: canEditPerformance(me, employee),
     canEditHr: canRateHrEvaluation(me),
+    // §10 is the Reporting Manager's to answer; HR reads it.
+    canEditCriteria: canEditPerformance(me, employee) && isReportingManager(me.role),
     canDownload: canDownloadPerformance(me),
     hrName: await hrSignOffName(me),
   });
@@ -90,6 +92,13 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: "Only HR can fill in the HR Evaluation." }, { status: 403 });
   }
 
+  if (!isReportingManager(me.role) && CRITERIA_KEY in parsed.data.changes) {
+    return NextResponse.json(
+      { error: "Only the Reporting Manager answers the performance criteria." },
+      { status: 403 },
+    );
+  }
+
   const checked = validateChanges(parsed.data.changes);
   if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: 400 });
 
@@ -112,6 +121,7 @@ export async function PUT(req: Request) {
     ...loaded,
     canEdit: true,
     canEditHr: canRateHrEvaluation(me),
+    canEditCriteria: isReportingManager(me.role),
     canDownload: canDownloadPerformance(me),
     hrName: await hrSignOffName(me),
   });

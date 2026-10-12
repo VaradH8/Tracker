@@ -31,6 +31,8 @@ import {
   ACHIEVEMENT_ROWS,
   AREAS,
   HR_AREAS,
+  CRITERIA_KEY,
+  CRITERIA_QUESTION,
   LEVELS,
   MANAGER_PROMPTS,
   MAX_MANUAL_GOALS,
@@ -220,6 +222,9 @@ export type Report = {
   manager: TextField[];
   /** HR Evaluation — rated by HR only. */
   hr: HrRow[];
+  /** §10 — the Reporting Manager's answer to the criteria question
+   *  (the label). Not shown to the employee. */
+  criteria: TextField;
   summary: {
     overall: number | null;
     overallEntered: boolean;
@@ -716,6 +721,7 @@ export function buildReport(f: ReportFacts, inputs: Inputs): Report {
     self,
     manager,
     hr,
+    criteria: text(inputs, CRITERIA_KEY, CRITERIA_QUESTION[kind].question),
     summary: {
       overall,
       overallEntered: enteredOverall != null,

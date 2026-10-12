@@ -282,6 +282,28 @@ describe("PUT /api/performance/report", () => {
     expect((await PUT_REPORT(json("PUT", { ...body, changes: { "hr.discipline.rating": "6" } }))).status).toBe(400);
   });
 
+  it("leaves the section 10 answer to the Reporting Manager — HR only reads it", async () => {
+    const answer = { ...body, changes: { "criteria.answer": "Delivered the release on time." } };
+    vi.mocked(requireUser).mockResolvedValue(actor("HR"));
+    const refused = await PUT_REPORT(json("PUT", answer));
+    expect(refused.status).toBe(403);
+    expect((await refused.json()).error).toBe("Only the Reporting Manager answers the performance criteria.");
+    expect(prisma.performanceReview.upsert).not.toHaveBeenCalled();
+    expect((await (await GET_REPORT(get(`/api/performance/report?${Q}`))).json()).canEditCriteria).toBe(false);
+
+    for (const [u, name] of [[actor("Lead", "lead-rm"), "Test Lead"], [actor("Admin", "any-admin"), "Test Admin"]] as const) {
+      vi.mocked(prisma.performanceReview.upsert).mockClear();
+      vi.mocked(requireUser).mockResolvedValue(u);
+      const res = await PUT_REPORT(json("PUT", answer));
+      expect(res.status).toBe(200);
+      expect((await res.json()).canEditCriteria).toBe(true);
+      expect(JSON.parse(vi.mocked(prisma.performanceReview.upsert).mock.calls[0][0].create.inputs as string)).toEqual({
+        ...answer.changes,
+        reviewedBy: name,
+      });
+    }
+  });
+
   it("won't let a client set who reviewed it", async () => {
     vi.mocked(requireUser).mockResolvedValue(actor("HR"));
     const res = await PUT_REPORT(json("PUT", { ...body, changes: { reviewedBy: "Someone Else" } }));
@@ -440,6 +462,7 @@ describe("/api/performance/me — My Performance", () => {
     ["the overall rating", { "summary.overall": "5" }],
     ["the performance level", { "summary.level": "Exceptional" }],
     ["an HR Evaluation rating", { "hr.professional.rating": "5" }],
+    ["the Reporting Manager's section 10 answer", { "criteria.answer": "Strong month" }],
     ["an out-of-range self-rating", { "rating.quality.employee": "9" }],
   ])("rejects %s", async (_, changes) => {
     vi.mocked(requireUser).mockResolvedValue(actor("Developer", "dev-1"));

@@ -3,6 +3,7 @@ import { canDownloadPerformance, requireUser, writeAudit } from "@/lib/server-ac
 import { parseReviewQuery } from "@/lib/performance/forms";
 import { loadReport } from "@/lib/performance/load";
 import { docxFileName, renderDocx } from "@/lib/performance/docx";
+import { toISO } from "@/lib/engagement";
 
 /** GET ?userId&kind&period — the review as the official IBS Word
  *  document. HR only: everyone else who can see the review reads it on
@@ -23,7 +24,12 @@ export async function GET(req: Request) {
   const loaded = await loadReport(q.userId, q.kind, q.period);
   if (!loaded) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const file = await renderDocx(loaded.report, { hrName: me.name });
+  // Signed off on the day of the download: the browser sends its own
+  // local day (the server runs in UTC); otherwise the server's.
+  const sent = new URL(req.url).searchParams.get("date") ?? "";
+  const date = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(sent) ? sent : toISO(new Date());
+
+  const file = await renderDocx(loaded.report, { hrName: me.name, date });
   await writeAudit(me.id, "performance.download", {
     scope: `${q.kind} review ${q.period}`,
     taskTitle: loaded.report.employee.name,

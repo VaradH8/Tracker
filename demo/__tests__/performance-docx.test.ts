@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import JSZip from "jszip";
 import { workingDaySet } from "@/lib/engagement";
 import { buildReport, type ReportFacts } from "@/lib/performance/report";
+import { CRITERIA_QUESTION } from "@/lib/performance/forms";
 import {
   DOC_FONT,
   bodyHeight,
@@ -149,8 +150,9 @@ describe.each(["Monthly", "Yearly"] as const)("%s Word document", (kind) => {
       "hr.professional.rating": "5",
       "hr.professional.comments": "Courteous with clients",
       "hr.attendance.rating": "3",
+      "criteria.answer": "Shipped the ESP change on time.\nNeeds to raise blockers sooner.",
     });
-    const xml = await documentXml(await renderDocx(report, { hrName: "Hema HR" }));
+    const xml = await documentXml(await renderDocx(report, { hrName: "Hema HR", date: "2026-10-12" }));
     const text = textIn(xml);
 
     // Same document: header and criteria pages untouched.
@@ -174,8 +176,15 @@ describe.each(["Monthly", "Yearly"] as const)("%s Word document", (kind) => {
     );
     expect(text).toContain(`10. ${kind === "Monthly" ? "Monthly" : "Annual"} Performance Criteria`);
 
-    // Sign-off: name and date, no signature line.
-    expect(text).toContain("Name: Hema HRDate:");
+    // Section 10: the Reporting Manager's answer, right under the question.
+    expect(text).toContain(
+      `${CRITERIA_QUESTION[kind].question}Shipped the ESP change on time.Needs to raise blockers sooner.${kind === "Monthly" ? "Monthly" : "Annual"} Evaluation Criteria`,
+    );
+
+    // Sign-off: name and the download date, no signature line.
+    expect(text).toContain(
+      "Name: Sanjana ShindeDate: 12 Oct 2026Name: Rahul LeadDate: 12 Oct 2026Name: Hema HRDate: 12 Oct 2026",
+    );
     expect(text).not.toContain("Signature");
 
     // Filled in.
