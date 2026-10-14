@@ -38,6 +38,9 @@ export type Account = {
   /** This person's Reporting Manager (an Admin or Lead), if assigned.
    *  Sent to Admin and HR only. */
   reportingManagerId?: string | null;
+  /** May assign tasks to anyone active, Admins included — not only the
+   *  Developers the pickers normally offer. Set by an Admin. */
+  canAssignAnyone?: boolean;
 };
 
 export const DEMO_DEFAULT_PASSWORD = "tracker2026";
@@ -83,6 +86,7 @@ type Ctx = {
         | "hourlyRate"
         | "capacityPerWeek"
         | "reportingManagerId"
+        | "canAssignAnyone"
       > & {
         password?: string;
       }
@@ -118,6 +122,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
           email: string;
           role: Role;
           isAdmin: boolean;
+          canAssignAnyone?: boolean;
         };
         const acc: Account = {
           id: me.id,
@@ -127,6 +132,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
           role: me.role,
           active: true,
           isAdmin: me.isAdmin,
+          canAssignAnyone: !!me.canAssignAnyone,
         };
         setCurrent(acc);
         await refreshAccounts();
@@ -246,6 +252,7 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
           | "hourlyRate"
           | "capacityPerWeek"
           | "reportingManagerId"
+          | "canAssignAnyone"
         > & {
           password?: string;
         }

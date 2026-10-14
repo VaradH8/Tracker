@@ -555,9 +555,11 @@ function EditUserModal({
     hourlyRate?: number;
     capacityPerWeek: number;
     reportingManagerId: string | null;
+    canAssignAnyone?: boolean;
   }) => void;
 }) {
   const [reportingManagerId, setReportingManagerId] = useState(account.reportingManagerId ?? "");
+  const [canAssignAnyone, setCanAssignAnyone] = useState(!!account.canAssignAnyone);
   const [name, setName] = useState(account.name);
   const [email, setEmail] = useState(account.email);
   const [designation, setDesignation] = useState(account.designation ?? "");
@@ -674,6 +676,23 @@ function EditUserModal({
         </div>
       </div>
 
+      {canSetRate && !isAdminAccount(account) && (
+        <label className="flex items-start gap-2 mb-6 text-sm text-ink-700 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={canAssignAnyone}
+            onChange={(e) => setCanAssignAnyone(e.target.checked)}
+            className="mt-0.5 accent-brand-blue"
+          />
+          <span>
+            Can assign tasks to anyone
+            <span className="block text-xs text-ink-400">
+              Admins and Leads included, not just Developers — admin only
+            </span>
+          </span>
+        </label>
+      )}
+
       <div className="flex justify-end gap-2">
         <button onClick={onClose} className="btn-ghost">
           Cancel
@@ -687,6 +706,7 @@ function EditUserModal({
               phone: phone.trim(),
               location: location.trim(),
               ...(canSetRate ? { hourlyRate: Number(hourlyRate) || 0 } : {}),
+              ...(canSetRate && !isAdminAccount(account) ? { canAssignAnyone } : {}),
               capacityPerWeek: Number(capacityPerWeek) || 40,
               reportingManagerId: isAdminAccount(account) ? null : reportingManagerId || null,
             })

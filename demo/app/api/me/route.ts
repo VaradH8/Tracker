@@ -14,5 +14,6 @@ export async function GET() {
     // The real role (HR stays HR) — the client maps it to access itself.
     role: user.primaryRole ?? user.role,
     isAdmin: user.isAdmin,
+    canAssignAnyone: !!user.canAssignAnyone,
   });
 }

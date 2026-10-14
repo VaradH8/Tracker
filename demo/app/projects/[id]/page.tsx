@@ -1079,10 +1079,12 @@ function CreateTaskModal({
   // Tasks go to Developers. Leads and Co-ordinators see every task on
   // their projects without being assigned, and assigning them would put
   // the task on their My Tasks. `restrictTo` narrows the list to the
-  // project roster for a Developer.
-  const allowed = restrictTo ? new Set(restrictTo) : null;
+  // project roster for a Developer. Someone an Admin has allowed to assign
+  // to anyone gets every active person, Admins included, unrestricted.
+  const anyone = !!current?.canAssignAnyone;
+  const allowed = restrictTo && !anyone ? new Set(restrictTo) : null;
   const devCandidates = accounts
-    .filter((a) => a.active && a.role === "Developer")
+    .filter((a) => a.active && (anyone || a.role === "Developer"))
     .map((a) => labelOf(a))
     .filter((n) => !allowed || allowed.has(n));
   // A Co-ordinator can also give a task to themselves — their own work,

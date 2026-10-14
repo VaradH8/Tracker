@@ -114,8 +114,9 @@ export async function POST(req: Request) {
   // A Developer may only hand work to the project's own roster, and is
   // always the responsible owner of what they raise — they cannot pin
   // accountability on somebody else. Oversight roles keep their existing
-  // freedom to assign and to name a different responsible owner.
-  if (user.role === "Developer") {
+  // freedom to assign and to name a different responsible owner, as does
+  // anyone an Admin has allowed to assign to anyone.
+  if (user.role === "Developer" && !user.canAssignAnyone) {
     const outside = await assigneesOutsideProject(
       projectId,
       validAssignees.map((u) => u.id),

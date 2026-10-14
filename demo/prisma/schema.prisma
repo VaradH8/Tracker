@@ -34,6 +34,10 @@ model User {
   reportingManagerId String?
   reportingManager   User?     @relation("ReportingLine", fields: [reportingManagerId], references: [id], onDelete: SetNull)
   reports            User[]    @relation("ReportingLine")
+  /// Lets this person assign tasks to anyone active — Admins and Leads
+  /// included — rather than only the Developers the pickers normally
+  /// offer. Granted per person by an Admin from the Users page.
+  canAssignAnyone    Boolean   @default(false)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 

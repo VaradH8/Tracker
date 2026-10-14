@@ -223,6 +223,33 @@ describe("Users — editing", () => {
   });
 });
 
+describe("Users — assign-to-anyone stays with Admin", () => {
+  it("lets an Admin grant it", async () => {
+    vi.mocked(requireUser).mockResolvedValue(actor("Admin"));
+    const res = await PATCH(json("PATCH", { canAssignAnyone: true }), params("dev-1"));
+    expect(res.status).toBe(200);
+    const data = vi.mocked(prisma.user.update).mock.calls[0][0].data as Record<string, unknown>;
+    expect(data.canAssignAnyone).toBe(true);
+    expect((await res.json()).user.canAssignAnyone).toBe(true);
+  });
+
+  it("ignores it from HR", async () => {
+    vi.mocked(requireUser).mockResolvedValue(actor("HR"));
+    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(DEV as never);
+    const res = await PATCH(json("PATCH", { name: "X", canAssignAnyone: true }), params("dev-1"));
+    expect(res.status).toBe(200);
+    const data = vi.mocked(prisma.user.update).mock.calls[0][0].data as Record<string, unknown>;
+    expect(data).not.toHaveProperty("canAssignAnyone");
+  });
+
+  it("won't let someone grant it to themselves", async () => {
+    vi.mocked(requireUser).mockResolvedValue(actor("Coordinator", "co-1"));
+    const res = await PATCH(json("PATCH", { canAssignAnyone: true }), params("co-1"));
+    expect(res.status).toBe(400);
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+});
+
 describe("Users — deleting stays with Admin", () => {
   it("403s HR", async () => {
     vi.mocked(requireUser).mockResolvedValue(actor("HR"));

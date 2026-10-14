@@ -21,6 +21,8 @@ export type SessionUser = {
    *  access. */
   primaryRole?: Role;
   isAdmin: boolean;
+  /** May assign tasks to anyone active, Admins included. Absent means no. */
+  canAssignAnyone?: boolean;
 };
 
 type SignInResult =
@@ -333,6 +335,7 @@ function toSessionUser(u: {
   name: string;
   primaryRole: string;
   isAdmin: boolean;
+  canAssignAnyone?: boolean;
 }): SessionUser {
   return {
     id: u.id,
@@ -341,5 +344,6 @@ function toSessionUser(u: {
     role: accessRole(u.primaryRole as Role),
     primaryRole: u.primaryRole as Role,
     isAdmin: u.isAdmin,
+    canAssignAnyone: !!u.canAssignAnyone,
   };
 }

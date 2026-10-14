@@ -162,6 +162,28 @@ describe("POST /api/tasks — a Developer raising work", () => {
     expect(prisma.task.create).not.toHaveBeenCalled();
   });
 
+  it("201 assigning anyone, Admins included, once allowed to assign to anyone", async () => {
+    vi.mocked(requireUser).mockResolvedValue({
+      ...actor("Developer"),
+      canAssignAnyone: true,
+    });
+    vi.mocked(canCreateProjectTasks).mockResolvedValue(true);
+    vi.mocked(userByFirstName).mockResolvedValue({
+      id: "u-admin",
+      name: "Ad Min",
+    } as never);
+    vi.mocked(assigneesOutsideProject).mockResolvedValue(["u-admin"]);
+    const res = await tasksPOST(
+      postReq({ title: "New work", projectId: 7, assignees: ["Ad"] }),
+    );
+    expect(res.status).toBe(201);
+    const data = vi.mocked(prisma.task.create).mock.calls[0][0].data as Record<
+      string,
+      unknown
+    >;
+    expect(data.assignees).toEqual({ create: [{ userId: "u-admin" }] });
+  });
+
   it("is always the responsible owner — cannot pin it on someone else", async () => {
     vi.mocked(canCreateProjectTasks).mockResolvedValue(true);
     vi.mocked(assigneesOutsideProject).mockResolvedValue([]);
