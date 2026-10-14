@@ -168,7 +168,14 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
         return { ok: false, error: body.error ?? "Sign-in failed." };
       }
       const body = (await res.json()) as {
-        user: { id: string; name: string; email: string; role: Role; isAdmin: boolean };
+        user: {
+          id: string;
+          name: string;
+          email: string;
+          role: Role;
+          isAdmin: boolean;
+          canAssignAnyone?: boolean;
+        };
       };
       const acc: Account = {
         id: body.user.id,
@@ -177,6 +184,9 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
         role: body.user.role,
         active: true,
         isAdmin: body.user.isAdmin,
+        // Dropping this left the pickers on Developers only until a full
+        // reload re-read /api/me.
+        canAssignAnyone: !!body.user.canAssignAnyone,
       };
       setCurrent(acc);
       void refreshAccounts();
