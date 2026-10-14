@@ -98,6 +98,7 @@ function serialize(u: {
   hourlyRate: number;
   capacityPerWeek: number;
   reportingManagerId: string | null;
+  canAssignAnyone: boolean;
 }) {
   return {
     id: u.id,
@@ -115,6 +116,7 @@ function serialize(u: {
     hourlyRate: u.hourlyRate,
     capacityPerWeek: u.capacityPerWeek,
     reportingManagerId: u.reportingManagerId,
+    canAssignAnyone: u.canAssignAnyone,
   };
 }
 

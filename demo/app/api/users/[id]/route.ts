@@ -116,6 +116,7 @@ export async function PATCH(
     hourlyRate?: number;
     capacityPerWeek?: number;
     reportingManagerId?: string | null;
+    canAssignAnyone?: boolean;
   } = {};
 
   if (typeof body.name === "string" && body.name.trim()) {
@@ -161,6 +162,10 @@ export async function PATCH(
   }
   if (isAdmin && typeof body.hourlyRate === "number") {
     data.hourlyRate = body.hourlyRate;
+  }
+  // Widening who someone may hand work to is an Admin call, like pay.
+  if (isAdmin && typeof body.canAssignAnyone === "boolean") {
+    data.canAssignAnyone = body.canAssignAnyone;
   }
   if (isStaffManager && typeof body.capacityPerWeek === "number") {
     data.capacityPerWeek = body.capacityPerWeek;
@@ -218,6 +223,7 @@ export async function PATCH(
       hourlyRate: updated.hourlyRate,
       capacityPerWeek: updated.capacityPerWeek,
       reportingManagerId: updated.reportingManagerId,
+      canAssignAnyone: updated.canAssignAnyone,
     },
   });
 }

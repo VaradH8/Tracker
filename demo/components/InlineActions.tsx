@@ -320,11 +320,14 @@ function AssigneeMenu({
   // Co-ordinator taking a task on themselves (listed first), which is
   // exactly how they track their own work there. Anyone already on the
   // task stays listed whatever their role, so they can still be taken off.
+  // Someone an Admin has allowed to assign to anyone sees every active
+  // person, Admins included.
   const selfId = current?.role === "Coordinator" ? current.id : null;
+  const anyone = !!current?.canAssignAnyone;
   const people = accounts
     .filter(
       (a) =>
-        (a.active && a.role === "Developer") ||
+        (a.active && (anyone || a.role === "Developer")) ||
         a.id === selfId ||
         selected.includes(labelOf(a)),
     )
@@ -336,7 +339,7 @@ function AssigneeMenu({
       <div className="px-2.5 py-1.5 text-[11px] text-ink-500 border-b border-ink-100 flex items-center justify-between">
         <span>
           {selected.length === 0
-            ? "Pick one or more developers"
+            ? `Pick one or more ${anyone ? "people" : "developers"}`
             : `${selected.length} assigned — tap to add or remove`}
         </span>
       </div>

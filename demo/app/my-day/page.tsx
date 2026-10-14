@@ -382,7 +382,7 @@ function BulkTaskSection({
   projects?: { id: number; name: string }[];
 }) {
   const { bulkReassign, bulkSetTargetDate } = useTasks();
-  const { accounts } = useAccounts();
+  const { accounts, current } = useAccounts();
   const toast = useToast();
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [projectFilter, setProjectFilter] = useState<number | "all">("all");
@@ -413,7 +413,8 @@ function BulkTaskSection({
   // assignees — so a Developer's task can only be handed to another
   // Developer, a Lead's to a Lead, and so on. If a selected task is
   // unassigned there's no role to match, so we fall back to every active
-  // (non-admin) account.
+  // (non-admin) account. Someone an Admin has allowed to assign to anyone
+  // skips both limits and gets every active person.
   const selectedTasks = tasks.filter((t) => ids.includes(t.id));
   const requiredRoles = new Set<string>();
   for (const t of selectedTasks) {
@@ -428,8 +429,9 @@ function BulkTaskSection({
         .filter(
           (a) =>
             a.active &&
-            !a.isAdmin &&
-            (requiredRoles.size === 0 || requiredRoles.has(a.role)),
+            (current?.canAssignAnyone ||
+              (!a.isAdmin &&
+                (requiredRoles.size === 0 || requiredRoles.has(a.role)))),
         )
         .map((a) => labelOf(a)),
     ),
