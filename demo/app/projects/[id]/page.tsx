@@ -1220,13 +1220,17 @@ function CreateTaskModal({
           <label className="block text-xs font-medium text-ink-700 mb-1.5">
             Assign to <span className="text-brand-redText">*</span>{" "}
             <span className="text-ink-400 font-normal">
-              {self ? "(developers, or yourself)" : "(developers)"}
+              {anyone
+                ? "(anyone)"
+                : self
+                  ? "(developers, or yourself)"
+                  : "(developers)"}
             </span>
           </label>
           <div className="mb-6 rounded border border-ink-200 bg-ink-50">
             {candidates.length === 0 ? (
               <p className="text-xs text-ink-400 italic p-3">
-                No developers available.
+                {anyone ? "No one available." : "No developers available."}
               </p>
             ) : (
               <div className="flex flex-wrap gap-1.5 p-2">
