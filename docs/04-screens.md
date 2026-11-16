@@ -1,6 +1,6 @@
 # 04 — Screens
 
-Every page in `demo/app/`, who reaches it, and what it is for. Visual system: Tailwind tokens in `demo/tailwind.config.ts` (`brand.*` Google palette, `ink.*` greys), Space Grotesk headings, Poppins body, 12 px minimum text.
+Every page in `demo/app/`, who reaches it, and what it is for. Colours, type, widths and motion follow [design-system.md](./design-system.md).
 
 ## Public
 
@@ -61,6 +61,33 @@ The **task drawer** opens over any page from a task link.
 | Permission denied | The API returns 403; `AppShell` redirects pages the role can't open |
 | Success / undo | `components/Toast.tsx`, with an Undo action after deletes |
 | Destructive actions | `ConfirmDialog` before deleting; undo window after |
+| First run | `components/WelcomeCard.tsx`: three role-specific tips on the landing page (Tracker) or `/engineering`, until "Got it" (remembered per account in the browser) |
+
+## Main action per screen
+
+Each screen has one primary (filled blue) button for the job people come to it for; everything else is a ghost button or a link.
+
+| Screen | Main action |
+| --- | --- |
+| My Day / My Tasks | Open a task (the drawer) |
+| Projects | New project |
+| Project page | New task |
+| Task drawer | Change status / log time |
+| Users | Add user |
+| Clients | New client |
+| Leaves | Request leave |
+| Settings | Save changes |
+| Engineering task log | Submit |
+| Engineering approvals | Approve |
+
+## Phones
+
+The app is responsive down to 390 px (checked on every main page for both modules):
+
+- Below `md` the sidebar becomes a slide-over menu (the same items, in the same order).
+- Grids collapse to one column (`grid-cols-1` is always set, so a long word or a wide select can't stretch a column past the screen).
+- Wide tables scroll sideways inside their card (`overflow-x-auto`) rather than being cut off.
+- Button rows wrap.
 
 ## Accessibility baseline
 
@@ -68,4 +95,4 @@ The **task drawer** opens over any page from a task link.
 - No text below 12 px.
 - Icon-only buttons have an `aria-label` and the `tap-target` class: at least 24×24 px with a mouse, 44×44 px on touch screens.
 - Form fields have labels tied to their inputs.
-- Colour contrast is checked by hand (jsdom can't measure it).
+- Colour contrast is enforced on the tokens by `__tests__/design-tokens.test.ts` (every text colour ≥ 4.5:1 on every surface it sits on), and bright colours can't be used as text.

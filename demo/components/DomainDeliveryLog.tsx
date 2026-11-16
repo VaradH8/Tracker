@@ -76,7 +76,7 @@ export function DomainDeliveryLog({ projectId }: { projectId: number }) {
     <div className="mt-4 pt-4 border-t border-ink-100">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-blue"
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-blueText"
       >
         {open ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
         Delivery record — daily counts by division and actionee

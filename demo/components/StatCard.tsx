@@ -8,7 +8,7 @@ const VARIANTS: Record<
 > = {
   blue: {
     iconBg: "bg-brand-blueBg",
-    iconColor: "text-brand-blue",
+    iconColor: "text-brand-blueText",
     ring: "ring-brand-blue",
   },
   red: {

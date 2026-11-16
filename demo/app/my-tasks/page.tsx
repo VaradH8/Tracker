@@ -19,7 +19,7 @@ import { useAccounts } from "@/lib/account-store";
 import { useTasks } from "@/lib/tasks-store";
 
 const COLUMNS: { id: Status; title: string; accent: string }[] = [
-  { id: "To Do", title: "To Do", accent: "bg-ink-400" },
+  { id: "To Do", title: "To Do", accent: "bg-ink-300" },
   { id: "In Progress", title: "In Progress", accent: "bg-brand-blue" },
   { id: "Blocked", title: "Blocked", accent: "bg-brand-red" },
   { id: "In review", title: "In review", accent: "bg-brand-yellow" },

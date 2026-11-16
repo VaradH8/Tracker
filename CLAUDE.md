@@ -20,7 +20,7 @@ Read `README.md`, then `docs/` and `specs/` in numbered order, before larger cha
 5. **Route files export only HTTP handlers** (`GET`, `POST`, …) and Next's route config. Helpers go in `lib/` — Next fails the build on any other export from `route.ts` or `middleware.ts`.
 6. **Don't add roles** without updating `docs/02-roles-and-permissions.md`, `lib/access.ts` (client) and the server helpers together.
 7. **Secrets never go in the repo or the EmailLog.** Session and reset tokens are stored hashed (`lib/session-token.ts`, `hashResetToken`).
-8. **Match the visual system**: Tailwind tokens in `demo/tailwind.config.ts` (`brand.*`, `ink.*`), Space Grotesk headings, Poppins body. No text below 12 px (`text-xs`); icon-only buttons carry `aria-label` and `tap-target`.
+8. **Follow the design system** (`docs/design-system.md`): colours, widths and motion come from `demo/lib/design-tokens.ts` — no hex values or one-off sizes in components. Text uses `ink-400` or darker or a `brand-*Text` shade; no text below 12 px; icon-only buttons carry `aria-label` and `tap-target`; labels are tied to inputs; grids set `grid-cols-1`; tables scroll in `overflow-x-auto`. `__tests__/design-tokens.test.ts` enforces most of this.
 
 ## How to work
 

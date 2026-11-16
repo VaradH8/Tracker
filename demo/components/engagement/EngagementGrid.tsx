@@ -72,7 +72,7 @@ export function EngagementGrid({
           <div
             key={`${s.group}-${i}`}
             style={{ gridColumn: `span ${s.count}` }}
-            className="bg-ink-50 border-b border-r border-ink-200 py-1 text-center text-xs font-semibold text-brand-blue truncate"
+            className="bg-ink-50 border-b border-r border-ink-200 py-1 text-center text-xs font-semibold text-brand-blueText truncate"
           >
             {s.group}
           </div>
@@ -85,7 +85,7 @@ export function EngagementGrid({
               title={p.start === p.end ? fmtDay(p.start) : `${fmtDay(p.start)} – ${fmtDay(p.end)}`}
               className={`border-b border-r border-ink-200 py-1.5 text-center text-xs whitespace-nowrap ${
                 isToday
-                  ? "bg-brand-blueBg text-brand-blue font-semibold"
+                  ? "bg-brand-blueBg text-brand-blueText font-semibold"
                   : p.offDay
                     ? "bg-ink-100 text-ink-400"
                     : "bg-ink-50 text-ink-500"
@@ -137,7 +137,7 @@ function Row({
           <button
             type="button"
             onClick={() => onSelect(row.id)}
-            className="text-sm font-medium text-ink-900 hover:text-brand-blue truncate text-left"
+            className="text-sm font-medium text-ink-900 hover:text-brand-blueText truncate text-left"
           >
             {row.label}
           </button>

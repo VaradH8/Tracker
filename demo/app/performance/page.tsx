@@ -240,7 +240,7 @@ export default function PerformancePage() {
 
   return (
     <AppShell>
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 space-y-4">
+      <div className="max-w-container-wide mx-auto px-4 sm:px-6 py-8 space-y-4">
         <header className="flex flex-wrap items-center gap-3">
           <h1 className="font-heading text-3xl font-semibold">Performance reviews</h1>
           <div className="flex rounded border border-ink-200 bg-white p-0.5">
@@ -261,7 +261,7 @@ export default function PerformancePage() {
             type="button"
             onClick={() => setHelp((v) => !v)}
             aria-label="How this review is built"
-            className="tap-target p-1 rounded-full text-ink-400 hover:text-brand-blue hover:bg-ink-100"
+            className="tap-target p-1 rounded-full text-ink-400 hover:text-brand-blueText hover:bg-ink-100"
           >
             <Info size={18} />
           </button>
@@ -518,7 +518,7 @@ export default function PerformancePage() {
 
             {/* 7. Summary */}
             <Section n={7} title={r.kind === "Monthly" ? "Monthly Summary" : "Annual Performance Summary"}>
-              <div className="grid gap-4 md:grid-cols-3 mb-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3 mb-4">
                 <div>
                   <div className="text-xs uppercase tracking-wide text-ink-500">
                     Overall {r.kind === "Monthly" ? "Monthly" : "Annual"} Rating
@@ -559,7 +559,7 @@ export default function PerformancePage() {
 
             {/* 9. Sign-off */}
             <Section n={9} title="Sign-Off" note="The Word document is dated the day it's downloaded.">
-              <div className="grid sm:grid-cols-3 gap-3 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
                 {[
                   ["Employee", r.employee.name],
                   ["Reporting Manager", r.employee.reportingManager || "The Admin or Lead who reviews it"],

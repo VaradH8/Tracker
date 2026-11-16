@@ -1,34 +1,51 @@
 import type { Config } from "tailwindcss";
+import { layout, motion, palette } from "./lib/design-tokens";
 
 export default {
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      // Every value comes from lib/design-tokens.ts — see
+      // docs/design-system.md for what each one is for.
       colors: {
-        brand: {
-          blue: "#1A73E8",
-          blueHover: "#1967D2",
-          blueBg: "#E8F0FE",
-          red: "#EA4335",
-          redText: "#C5221F",
-          redBg: "#FCE8E6",
-          yellow: "#F9AB00",
-          yellowText: "#B06000",
-          yellowBg: "#FEF7E0",
-          yellowBorder: "#FDD663",
-          green: "#34A853",
-          greenText: "#137333",
-          greenBg: "#E6F4EA",
+        brand: palette.brand,
+        ink: palette.ink,
+        navy: palette.navy,
+      },
+      maxWidth: {
+        container: layout.container.DEFAULT,
+        "container-wide": layout.container.wide,
+        "container-narrow": layout.container.narrow,
+      },
+      minWidth: {
+        table: layout.table,
+      },
+      letterSpacing: {
+        // Small uppercase labels over brand bands.
+        eyebrow: "0.18em",
+      },
+      transitionDuration: {
+        enter: motion.duration.enter,
+        panel: motion.duration.panel,
+      },
+      transitionTimingFunction: {
+        standard: motion.easing.standard,
+      },
+      keyframes: {
+        "fade-in": { from: { opacity: "0" }, to: { opacity: "1" } },
+        "rise-in": {
+          from: { opacity: "0", transform: "translateY(8px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
         },
-        ink: {
-          900: "#202124",
-          700: "#3C4043",
-          500: "#5F6368",
-          400: "#9AA0A6",
-          200: "#DADCE0",
-          100: "#F1F3F4",
-          50: "#F8F9FA",
+        "slide-in-left": {
+          from: { transform: "translateX(-100%)" },
+          to: { transform: "translateX(0)" },
         },
+      },
+      animation: {
+        "fade-in": `fade-in ${motion.duration.enter} ${motion.easing.standard}`,
+        "rise-in": `rise-in ${motion.duration.enter} ${motion.easing.standard}`,
+        "slide-in-left": `slide-in-left ${motion.duration.panel} ${motion.easing.standard}`,
       },
       fontFamily: {
         heading: ["var(--font-heading)", "system-ui", "sans-serif"],

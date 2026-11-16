@@ -59,7 +59,7 @@ const WORKING: string[] = TAG_HOLDER_ROLES;
 
 function verdictCls(status: string): string {
   if (status === "On Track") return "bg-brand-greenBg text-brand-greenText";
-  if (status === "Yet to be started") return "bg-brand-blueBg text-brand-blue";
+  if (status === "Yet to be started") return "bg-brand-blueBg text-brand-blueText";
   if (status === "Behind Schedule") return "bg-brand-redBg text-brand-redText";
   return "bg-ink-100 text-ink-500";
 }
@@ -360,7 +360,7 @@ export function CreateProjectForm({
         className="w-full px-3 py-2 mb-3 rounded border border-ink-200 text-sm"
       />
 
-      <div className="grid sm:grid-cols-2 gap-3 mb-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
         <label className="text-sm">
           <span className="block text-ink-700 mb-1">Client</span>
           <input
@@ -528,7 +528,7 @@ export function EditProjectForm({
         className="w-full px-3 py-2 mb-3 rounded border border-ink-200 text-sm"
       />
 
-      <div className="grid sm:grid-cols-2 gap-3 mb-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
         <label className="text-sm">
           <span className="block text-ink-700 mb-1">Client</span>
           <input
@@ -1097,7 +1097,7 @@ function AssignForm({
         {lockedAssignee ? (
           <div className="text-sm">
             <span className="block text-ink-700 mb-1">Assigning to</span>
-            <span className="inline-block px-2.5 py-1.5 rounded bg-brand-blueBg text-brand-blue font-medium">
+            <span className="inline-block px-2.5 py-1.5 rounded bg-brand-blueBg text-brand-blueText font-medium">
               {lockedAssignee.name}
             </span>
           </div>
@@ -1332,7 +1332,7 @@ function EditAssignmentRow({
           {!correcting ? (
             <button
               onClick={() => setCorrecting(true)}
-              className="text-xs text-brand-blue"
+              className="text-xs text-brand-blueText"
             >
               Correct the delivered count ({row.deliveredCount})
             </button>

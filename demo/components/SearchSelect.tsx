@@ -397,7 +397,7 @@ export function SearchSelect({
                     */
                     className={`w-full text-left px-2.5 py-2 rounded-md flex items-start gap-2 text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                       o.value === value
-                        ? "bg-brand-blueBg text-brand-blue font-medium"
+                        ? "bg-brand-blueBg text-brand-blueText font-medium"
                         : i === active
                           ? "bg-ink-100 text-ink-900"
                           : "text-ink-900"
@@ -405,7 +405,7 @@ export function SearchSelect({
                   >
                     <Check
                       size={14}
-                      className={`mt-0.5 shrink-0 text-brand-blue ${
+                      className={`mt-0.5 shrink-0 text-brand-blueText ${
                         o.value === value ? "" : "invisible"
                       }`}
                     />
@@ -420,7 +420,7 @@ export function SearchSelect({
                         <span
                           className={`block text-xs break-words ${
                             o.value === value
-                              ? "text-brand-blue/70 font-normal"
+                              ? "text-brand-blueText/70 font-normal"
                               : "text-ink-500"
                           }`}
                         >

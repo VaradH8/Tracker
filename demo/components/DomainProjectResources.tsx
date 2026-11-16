@@ -214,7 +214,7 @@ export function DomainProjectResources({
         // inside this table render their lists into document.body rather
         // than beside themselves — see components/SearchSelect.
         <div className="overflow-x-auto mt-4">
-          <table className="w-full text-sm min-w-[760px]">
+          <table className="w-full text-sm min-w-table">
             <thead className="bg-ink-50 text-ink-500 text-xs uppercase tracking-wide">
               <tr>
                 <th className="text-left font-semibold px-3 py-2">Person</th>
@@ -278,7 +278,7 @@ export function DomainProjectResources({
                           !eff
                             ? "text-brand-yellowText"
                             : r.expectedTagsPerDay != null
-                              ? "text-brand-blue font-medium"
+                              ? "text-brand-blueText font-medium"
                               : "text-ink-500"
                         }`}
                       >
@@ -540,7 +540,7 @@ function EditAllocationRow({
         {r.releasedAt && (
           <button
             onClick={() => save({ releasedAt: null })}
-            className="text-xs text-brand-blue mt-1"
+            className="text-xs text-brand-blueText mt-1"
           >
             Undo early release ({fmt(r.releasedAt)})
           </button>

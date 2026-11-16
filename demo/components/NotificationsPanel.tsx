@@ -31,9 +31,9 @@ const ICON: Record<NotificationKind, typeof UserPlus> = {
 };
 
 const TONE: Record<NotificationKind, string> = {
-  assigned: "bg-brand-blueBg text-brand-blue",
+  assigned: "bg-brand-blueBg text-brand-blueText",
   status_change: "bg-ink-100 text-ink-700",
-  mention: "bg-brand-blueBg text-brand-blue",
+  mention: "bg-brand-blueBg text-brand-blueText",
   blocked: "bg-brand-redBg text-brand-redText",
   important: "bg-brand-yellowBg text-brand-yellowText",
   overdue: "bg-brand-redBg text-brand-redText",
@@ -75,13 +75,13 @@ export function NotificationsPanel({
         <h3 className="font-heading text-sm font-semibold">
           Notifications
           {unread > 0 && (
-            <span className="ml-1.5 text-brand-blue">({unread})</span>
+            <span className="ml-1.5 text-brand-blueText">({unread})</span>
           )}
         </h3>
         {unread > 0 && (
           <button
             onClick={() => markAllRead(person)}
-            className="text-xs text-brand-blue hover:underline inline-flex items-center gap-1"
+            className="text-xs text-brand-blueText hover:underline inline-flex items-center gap-1"
           >
             <Check size={12} /> Mark all read
           </button>
@@ -143,7 +143,7 @@ export function NotificationsPanel({
       <Link
         href="/notifications"
         onClick={onClose}
-        className="block px-4 py-2.5 border-t border-ink-200 text-center text-sm font-medium text-brand-blue hover:bg-ink-50"
+        className="block px-4 py-2.5 border-t border-ink-200 text-center text-sm font-medium text-brand-blueText hover:bg-ink-50"
       >
         View all notifications
       </Link>

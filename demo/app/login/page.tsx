@@ -8,6 +8,7 @@ import { Logo } from "@/components/Logo";
 import { useAccounts } from "@/lib/account-store";
 import { landingFor } from "@/lib/role";
 import { BRAND_NAVY, InventiveLogo } from "@/components/InventiveBrand";
+import { ListSkeleton } from "@/components/Skeleton";
 
 type Tab = "tracker" | "domain";
 
@@ -64,7 +65,7 @@ export default function LoginPage() {
                 }}
                 className={
                   tab === t
-                    ? "px-4 py-2 text-sm font-medium border-b-2 border-brand-blue text-brand-blue capitalize"
+                    ? "px-4 py-2 text-sm font-medium border-b-2 border-brand-blue text-brand-blueText capitalize"
                     : "px-4 py-2 text-sm font-medium text-ink-500 hover:text-ink-900 capitalize"
                 }
               >
@@ -134,14 +135,14 @@ export default function LoginPage() {
               <p className="text-xs text-ink-500 text-center mt-4">
                 <Link
                   href="/forgot-password"
-                  className="text-brand-blue hover:underline"
+                  className="text-brand-blueText hover:underline"
                 >
                   Forgot your password?
                 </Link>
               </p>
               <p className="text-xs text-ink-500 text-center mt-2">
                 Need access?{" "}
-                <Link href="/signup" className="text-brand-blue hover:underline">
+                <Link href="/signup" className="text-brand-blueText hover:underline">
                   Bootstrap this instance
                 </Link>{" "}
                 (first user only) or ask your admin to add you.
@@ -174,7 +175,7 @@ function ModuleBrandBand({ label }: { label: string }) {
       style={{ background: BRAND_NAVY }}
     >
       <InventiveLogo height={46} />
-      <span className="text-xs font-medium uppercase tracking-[0.18em] text-white/55">
+      <span className="text-xs font-medium uppercase tracking-eyebrow text-white/55">
         {label}
       </span>
     </div>
@@ -231,7 +232,11 @@ function DomainLogin() {
   }
 
   if (needsBootstrap === null) {
-    return <p className="text-sm text-ink-500 py-6 text-center">Loading…</p>;
+    return (
+      <div className="py-4">
+        <ListSkeleton rows={3} />
+      </div>
+    );
   }
 
   return (

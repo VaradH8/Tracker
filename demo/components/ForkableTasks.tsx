@@ -6,10 +6,11 @@ import { useTasks } from "@/lib/tasks-store";
 import { useProjects } from "@/lib/projects-store";
 import { useToast } from "@/components/Toast";
 import type { Task } from "@/lib/mock";
+import { ListSkeleton } from "./Skeleton";
 
 const PRIORITY_STYLE: Record<string, string> = {
-  High: "bg-brand-red/10 text-brand-red",
-  Medium: "bg-brand-yellow/10 text-brand-yellow",
+  High: "bg-brand-red/10 text-brand-redText",
+  Medium: "bg-brand-yellow/10 text-brand-yellowText",
   Low: "bg-ink-100 text-ink-500",
 };
 
@@ -71,7 +72,9 @@ export function ForkableTasks({
     return (
       <section className="mt-10">
         <h2 className="font-heading text-lg font-semibold">Team tasks</h2>
-        <p className="text-sm text-ink-400 mt-2">Loading…</p>
+        <div className="mt-3">
+          <ListSkeleton rows={3} label="Loading team tasks…" />
+        </div>
       </section>
     );
   }

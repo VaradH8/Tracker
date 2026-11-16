@@ -27,7 +27,9 @@ The definition of done for any change. A pull request is ready when every box th
 
 ## UI
 
-- [ ] Uses the tokens in `tailwind.config.ts`; no new one-off colours.
+- [ ] Uses the tokens in `lib/design-tokens.ts` (via Tailwind); no hex values or one-off sizes — `__tests__/design-tokens.test.ts` passes.
+- [ ] Text uses `ink-400` or darker, or a `brand-*Text` shade; white text only on `brand-blue` or a `*Text` fill.
+- [ ] Works at 390 px wide: grids set `grid-cols-1`, tables sit in `overflow-x-auto`, button rows wrap.
 - [ ] No text below 12 px (`text-xs`).
 - [ ] Icon-only buttons have `aria-label` and `tap-target`.
 - [ ] Form fields have labels tied to their inputs (`htmlFor` / `id`).

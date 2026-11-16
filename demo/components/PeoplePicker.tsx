@@ -1,5 +1,7 @@
 "use client";
 
+import { useId } from "react";
+
 /**
  * Multi-select pill picker for first names. Used wherever the UI needs
  * "pick zero or more people" — project create / edit modals, the per-role
@@ -22,13 +24,16 @@ export function PeoplePicker({
   label?: string;
   emptyHint?: string;
 }) {
+  // A title for the group of toggle buttons, not a <label>: there is no
+  // single field for it to label. Several pickers share a page, hence useId.
+  const titleId = useId();
   if (candidates.length === 0) {
     return (
       <div>
         {label && (
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          <p className="block text-xs font-medium text-ink-700 mb-1.5">
             {label}
-          </label>
+          </p>
         )}
         <p className="text-xs text-ink-400 italic">
           {emptyHint ?? "No people available. Add users in Admin → Users."}
@@ -40,22 +45,27 @@ export function PeoplePicker({
   return (
     <div>
       {label && (
-        <label className="block text-xs font-medium text-ink-700 mb-1.5">
+        <p id={titleId} className="block text-xs font-medium text-ink-700 mb-1.5">
           {label}{" "}
           {selected.length > 0 && (
             <span className="text-ink-400 font-normal">
               · {selected.length} selected
             </span>
           )}
-        </label>
+        </p>
       )}
-      <div className="flex flex-wrap gap-1.5 p-2 rounded border border-ink-200 bg-ink-50">
+      <div
+        role="group"
+        aria-labelledby={label ? titleId : undefined}
+        className="flex flex-wrap gap-1.5 p-2 rounded border border-ink-200 bg-ink-50"
+      >
         {candidates.map((n) => {
           const on = selected.includes(n);
           return (
             <button
               key={n}
               type="button"
+              aria-pressed={on}
               onClick={() => onToggle(n)}
               className={
                 on

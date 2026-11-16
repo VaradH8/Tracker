@@ -77,7 +77,7 @@ function CardHeader({
             <ShieldCheck size={22} />
           </span>
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
+            <p className="text-xs font-semibold uppercase tracking-eyebrow text-white/90">
               {eyebrow}
             </p>
             <h1 className="truncate text-2xl font-bold" style={HEADING_FONT}>
@@ -143,7 +143,7 @@ function Field({
         <Icon
           size={18}
           aria-hidden
-          className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+          className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
         />
         <input
           id={id}
@@ -153,7 +153,7 @@ function Field({
           autoComplete={autoComplete}
           placeholder={placeholder}
           disabled={disabled}
-          className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-11 pr-4 text-[15px] text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/15 disabled:opacity-60"
+          className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-11 pr-4 text-base text-slate-900 outline-none transition placeholder:text-slate-500 focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/15 disabled:opacity-60"
         />
       </div>
     </div>

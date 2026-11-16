@@ -109,7 +109,7 @@ export default function SettingsImportPage() {
   if (role !== "Admin") {
     return (
       <AppShell>
-        <div className="max-w-[1100px] mx-auto px-6 py-8">
+        <div className="max-w-container-narrow mx-auto px-6 py-8">
           <div className="card p-8 text-center">
             <h1 className="font-heading text-xl font-semibold mb-2">
               Admins only
@@ -125,7 +125,7 @@ export default function SettingsImportPage() {
 
   return (
     <AppShell>
-      <div className="max-w-[1100px] mx-auto px-6 py-8">
+      <div className="max-w-container-narrow mx-auto px-6 py-8">
         <header className="mb-6">
           <h1 className="font-heading text-3xl font-semibold">Settings</h1>
           <p className="text-sm text-ink-500 mt-1">
@@ -251,10 +251,10 @@ function UploadStep({
           className="hidden"
           onChange={(e) => accept(e.target.files?.[0])}
         />
-        <UploadCloud size={40} className="mx-auto text-brand-blue mb-3" />
+        <UploadCloud size={40} className="mx-auto text-brand-blueText mb-3" />
         {file ? (
           <p className="text-base font-medium text-ink-900 mb-1 inline-flex items-center gap-2">
-            <FileSpreadsheet size={18} className="text-brand-green" />
+            <FileSpreadsheet size={18} className="text-brand-greenText" />
             {file.name}
             <button
               onClick={(e) => {
@@ -371,7 +371,7 @@ function PreviewStep({
       {data.unmatchedNames.length > 0 && (
         <div className="card p-5 border-brand-yellowBorder bg-brand-yellowBg">
           <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle size={16} className="text-brand-yellow" />
+            <AlertTriangle size={16} className="text-brand-yellowText" />
             <h2 className="font-heading text-lg font-semibold">
               Unmatched names
             </h2>
@@ -422,7 +422,7 @@ function DoneStep({ data, onAgain }: { data: ImportResult; onAgain: () => void }
   return (
     <div className="card p-8 text-center">
       <div className="w-14 h-14 mx-auto rounded-full bg-brand-greenBg grid place-items-center mb-4">
-        <CheckCircle2 size={28} className="text-brand-green" />
+        <CheckCircle2 size={28} className="text-brand-greenText" />
       </div>
       <h2 className="font-heading text-xl font-semibold mb-2">Import complete</h2>
       <p className="text-sm text-ink-500 mb-2">

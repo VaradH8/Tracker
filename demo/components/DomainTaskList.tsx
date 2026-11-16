@@ -235,11 +235,11 @@ function TaskRow({
           <button
             onClick={() => setExpanded((v) => !v)}
             aria-expanded={expanded}
-            className="text-sm font-medium text-ink-900 break-words text-left hover:text-brand-blue inline-flex items-start gap-1.5 group"
+            className="text-sm font-medium text-ink-900 break-words text-left hover:text-brand-blueText inline-flex items-start gap-1.5 group"
           >
             <ChevronRight
               size={14}
-              className={`mt-0.5 shrink-0 text-ink-400 transition-transform group-hover:text-brand-blue ${
+              className={`mt-0.5 shrink-0 text-ink-400 transition-transform group-hover:text-brand-blueText ${
                 expanded ? "rotate-90" : ""
               }`}
             />

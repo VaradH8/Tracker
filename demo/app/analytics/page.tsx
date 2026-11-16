@@ -181,7 +181,7 @@ export default function AnalyticsPage() {
 
   return (
     <AppShell>
-      <div className="max-w-[1400px] mx-auto px-6 py-8">
+      <div className="max-w-container-wide mx-auto px-6 py-8">
         <header className="mb-6">
           <h1 className="font-heading text-3xl font-semibold">Analytics</h1>
           <p className="text-sm text-ink-500 mt-1">
@@ -224,7 +224,7 @@ export default function AnalyticsPage() {
           />
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-6 mb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           {/* Delivery health */}
           <Section title="Project health">
             <Bars
@@ -260,7 +260,7 @@ export default function AnalyticsPage() {
                   <td className="py-2 pr-4">
                     <Link
                       href={`/projects/${p.id}`}
-                      className="text-ink-900 font-medium hover:text-brand-blue"
+                      className="text-ink-900 font-medium hover:text-brand-blueText"
                     >
                       {p.name}
                     </Link>
@@ -299,7 +299,7 @@ export default function AnalyticsPage() {
           )}
         </Section>
 
-        <div className="grid lg:grid-cols-2 gap-6 mb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           {/* Overdue tasks */}
           <Section title={`Overdue tasks (${overdueTasks.length})`}>
             {overdueTasks.length === 0 ? (
@@ -344,7 +344,7 @@ export default function AnalyticsPage() {
           </Section>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Pipeline */}
           <Section title="Pipeline by stage">
             {deals.length === 0 ? (
@@ -361,7 +361,7 @@ export default function AnalyticsPage() {
                 ))}
                 <li className="pt-2 border-t border-ink-100 flex items-center gap-3 text-sm">
                   <span className="w-24 shrink-0 text-ink-600">Weighted</span>
-                  <span className="font-heading font-semibold text-brand-green">
+                  <span className="font-heading font-semibold text-brand-greenText">
                     {formatINR(stats.weightedPipeline)}
                   </span>
                 </li>

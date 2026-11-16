@@ -25,7 +25,7 @@ function leaveTypeColor(type: string): string {
   if (t.includes("wfh") || t.includes("work from"))
     return "bg-brand-greenBg text-brand-greenText";
   if (t.includes("paid") || t.includes("vacation") || t.includes("annual"))
-    return "bg-brand-blueBg text-brand-blue";
+    return "bg-brand-blueBg text-brand-blueText";
   return "bg-ink-100 text-ink-600";
 }
 
@@ -150,7 +150,7 @@ export default function LeavesPage() {
 
   return (
     <AppShell>
-      <div className="max-w-[1100px] mx-auto px-6 py-8">
+      <div className="max-w-container-narrow mx-auto px-6 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="font-heading text-3xl font-semibold">Leaves</h1>
@@ -179,10 +179,10 @@ export default function LeavesPage() {
           </div>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="card p-5">
             <h2 className="font-heading text-lg font-semibold mb-4 flex items-center gap-2">
-              <Calendar size={18} className="text-brand-blue" /> My leaves
+              <Calendar size={18} className="text-brand-blueText" /> My leaves
               <span className="text-xs text-ink-500 font-normal ml-auto">
                 {myLeaves.length}
               </span>
@@ -208,7 +208,7 @@ export default function LeavesPage() {
 
           <div className="card p-5">
             <h2 className="font-heading text-lg font-semibold mb-1 flex items-center gap-2">
-              <Calendar size={18} className="text-brand-blue" /> Team
+              <Calendar size={18} className="text-brand-blueText" /> Team
               availability
             </h2>
             <p className="text-xs text-ink-500 mb-4 flex items-center gap-1.5">
@@ -269,7 +269,7 @@ function BalanceStat({
 }) {
   const cls =
     tone === "blue"
-      ? "text-brand-blue"
+      ? "text-brand-blueText"
       : tone === "green"
         ? "text-brand-greenText"
         : tone === "red"
@@ -328,7 +328,7 @@ function FullLeavesView({
 
   return (
     <AppShell>
-      <div className="max-w-[1100px] mx-auto px-6 py-8">
+      <div className="max-w-container-narrow mx-auto px-6 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="font-heading text-3xl font-semibold">Leaves</h1>
@@ -341,10 +341,10 @@ function FullLeavesView({
           </button>
         </div>
 
-        <section className="grid md:grid-cols-2 gap-6">
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="card p-5">
             <h2 className="font-heading text-lg font-semibold mb-4 flex items-center gap-2">
-              <Calendar size={18} className="text-brand-blue" /> Upcoming
+              <Calendar size={18} className="text-brand-blueText" /> Upcoming
               <span className="text-xs text-ink-500 font-normal ml-auto">
                 {upcoming.length}
               </span>
@@ -369,7 +369,7 @@ function FullLeavesView({
 
           <div className="card p-5">
             <h2 className="font-heading text-lg font-semibold mb-4 flex items-center gap-2">
-              <Clock size={18} className="text-brand-yellow" />
+              <Clock size={18} className="text-brand-yellowText" />
               Pending approval
               <span className="text-xs text-ink-500 font-normal ml-auto">
                 {pending.length}
@@ -408,44 +408,46 @@ function FullLeavesView({
           <h2 className="font-heading text-lg font-semibold mb-4">
             All leave entries
           </h2>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-ink-500 font-heading font-semibold uppercase tracking-wide border-b border-ink-200">
-                <th className="py-2 pr-4">Resource</th>
-                <th className="py-2 pr-4">Type</th>
-                <th className="py-2 pr-4">From</th>
-                <th className="py-2 pr-4">To</th>
-                <th className="py-2 pr-4">Note</th>
-                <th className="py-2 pr-4">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((l) => (
-                <tr key={l.id} className="border-b border-ink-100">
-                  <td className="py-2.5 pr-4 text-ink-900 font-medium">
-                    {l.resourceName}
-                  </td>
-                  <td className="py-2.5 pr-4">
-                    <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded-pill text-xs font-medium ${leaveTypeColor(l.type)}`}
-                    >
-                      {l.type}
-                    </span>
-                  </td>
-                  <td className="py-2.5 pr-4 text-ink-700">{l.start}</td>
-                  <td className="py-2.5 pr-4 text-ink-700">{l.end}</td>
-                  <td className="py-2.5 pr-4 text-ink-500">{l.note ?? "—"}</td>
-                  <td className="py-2.5 pr-4">
-                    {l.approved ? (
-                      <span className="pill-green">Approved</span>
-                    ) : (
-                      <span className="pill-yellow">Pending</span>
-                    )}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-ink-500 font-heading font-semibold uppercase tracking-wide border-b border-ink-200">
+                  <th className="py-2 pr-4">Resource</th>
+                  <th className="py-2 pr-4">Type</th>
+                  <th className="py-2 pr-4">From</th>
+                  <th className="py-2 pr-4">To</th>
+                  <th className="py-2 pr-4">Note</th>
+                  <th className="py-2 pr-4">Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {sorted.map((l) => (
+                  <tr key={l.id} className="border-b border-ink-100">
+                    <td className="py-2.5 pr-4 text-ink-900 font-medium">
+                      {l.resourceName}
+                    </td>
+                    <td className="py-2.5 pr-4">
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-pill text-xs font-medium ${leaveTypeColor(l.type)}`}
+                      >
+                        {l.type}
+                      </span>
+                    </td>
+                    <td className="py-2.5 pr-4 text-ink-700">{l.start}</td>
+                    <td className="py-2.5 pr-4 text-ink-700">{l.end}</td>
+                    <td className="py-2.5 pr-4 text-ink-500">{l.note ?? "—"}</td>
+                    <td className="py-2.5 pr-4">
+                      {l.approved ? (
+                        <span className="pill-green">Approved</span>
+                      ) : (
+                        <span className="pill-yellow">Pending</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <section className="card p-5 mt-6">
@@ -458,34 +460,36 @@ function FullLeavesView({
           {balances.length === 0 ? (
             <p className="text-sm text-ink-500 italic">No leave on record yet.</p>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-ink-500 font-heading font-semibold uppercase tracking-wide border-b border-ink-200">
-                  <th className="py-2 pr-4">Person</th>
-                  <th className="py-2 pr-4">Quota</th>
-                  <th className="py-2 pr-4">Taken</th>
-                  <th className="py-2 pr-4">Remaining</th>
-                </tr>
-              </thead>
-              <tbody>
-                {balances.map((b) => (
-                  <tr key={b.name} className="border-b border-ink-100">
-                    <td className="py-2.5 pr-4 text-ink-900 font-medium">
-                      {b.name}
-                    </td>
-                    <td className="py-2.5 pr-4 text-ink-700">{b.quota}</td>
-                    <td className="py-2.5 pr-4 text-ink-700">{b.taken}</td>
-                    <td
-                      className={`py-2.5 pr-4 font-medium ${
-                        b.remaining <= 0 ? "text-brand-redText" : "text-ink-900"
-                      }`}
-                    >
-                      {b.remaining}
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-ink-500 font-heading font-semibold uppercase tracking-wide border-b border-ink-200">
+                    <th className="py-2 pr-4">Person</th>
+                    <th className="py-2 pr-4">Quota</th>
+                    <th className="py-2 pr-4">Taken</th>
+                    <th className="py-2 pr-4">Remaining</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {balances.map((b) => (
+                    <tr key={b.name} className="border-b border-ink-100">
+                      <td className="py-2.5 pr-4 text-ink-900 font-medium">
+                        {b.name}
+                      </td>
+                      <td className="py-2.5 pr-4 text-ink-700">{b.quota}</td>
+                      <td className="py-2.5 pr-4 text-ink-700">{b.taken}</td>
+                      <td
+                        className={`py-2.5 pr-4 font-medium ${
+                          b.remaining <= 0 ? "text-brand-redText" : "text-ink-900"
+                        }`}
+                      >
+                        {b.remaining}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
       </div>
@@ -680,10 +684,10 @@ function RequestLeaveModal({
         off so the team can plan around it.
       </p>
 
-      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+      <label htmlFor="leaves-type" className="block text-xs font-medium text-ink-700 mb-1.5">
         Type
       </label>
-      <select
+      <select id="leaves-type"
         value={type}
         onChange={(e) => setType(e.target.value)}
         className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm"
@@ -695,23 +699,23 @@ function RequestLeaveModal({
 
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div>
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          <label htmlFor="leaves-from" className="block text-xs font-medium text-ink-700 mb-1.5">
             From
           </label>
-          <DateInput value={start} onChange={(iso: string) => setStart(iso)} className="w-full px-3 py-2 rounded border border-ink-200 text-sm" />
+          <DateInput id="leaves-from" value={start} onChange={(iso: string) => setStart(iso)} className="w-full px-3 py-2 rounded border border-ink-200 text-sm" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          <label htmlFor="leaves-to" className="block text-xs font-medium text-ink-700 mb-1.5">
             To
           </label>
-          <DateInput value={end} onChange={(iso: string) => setEnd(iso)} className="w-full px-3 py-2 rounded border border-ink-200 text-sm" />
+          <DateInput id="leaves-to" value={end} onChange={(iso: string) => setEnd(iso)} className="w-full px-3 py-2 rounded border border-ink-200 text-sm" />
         </div>
       </div>
 
-      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+      <label htmlFor="leaves-note-optional-visible-only-to-" className="block text-xs font-medium text-ink-700 mb-1.5">
         Note (optional · visible only to whoever approves it)
       </label>
-      <textarea
+      <textarea id="leaves-note-optional-visible-only-to-"
         value={note}
         onChange={(e) => setNote(e.target.value)}
         rows={2}

@@ -24,7 +24,7 @@ export function SettingsTabs() {
             href={t.href}
             className={
               active
-                ? "px-4 py-2 text-sm font-medium border-b-2 border-brand-blue text-brand-blue whitespace-nowrap"
+                ? "px-4 py-2 text-sm font-medium border-b-2 border-brand-blue text-brand-blueText whitespace-nowrap"
                 : "px-4 py-2 text-sm font-medium text-ink-500 hover:text-ink-900 whitespace-nowrap"
             }
           >

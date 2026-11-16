@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
+import { chart } from "@/lib/design-tokens";
 
 /**
  * Small SVG chart toolkit for the dashboard: palette, measured width,
@@ -17,24 +18,9 @@ import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
  * "View data" table, and bar paths with a rounded data end.
  */
 
-/** Marks use the app palette; ramps were checked for colour-blind safety. */
-export const CHART = {
-  accent: "#1A73E8",
-  track: "#D2E3FC",
-  deemph: "#9AA0A6",
-  good: "#34A853",
-  warning: "#F9AB00",
-  critical: "#EA4335",
-  grid: "#ECEDEF",
-  axis: "#C4C7CC",
-  ink: "#202124",
-  ink2: "#3C4043",
-  ink3: "#5F6368",
-  muted: "#80868B",
-  surface: "#FFFFFF",
-  /** Ordered categories (e.g. overdue age), light → dark. */
-  ordinal: ["#86b6ef", "#5598e7", "#2a78d6", "#1c5cab", "#104281"],
-} as const;
+/** Marks use the app palette; ramps were checked for colour-blind safety.
+ *  Values live in lib/design-tokens.ts (`chart`). */
+export const CHART = chart;
 
 export type TipLine = { text: string; strong?: boolean };
 

@@ -27,6 +27,7 @@ import {
 import { BRAND_NAVY, BrandPanel } from "@/components/InventiveBrand";
 import { NumberFieldGuard } from "@/components/NumberFieldGuard";
 import { SectionErrorBoundary } from "./SectionErrorBoundary";
+import { ENGINEERING_WELCOME, WelcomeCard } from "./WelcomeCard";
 
 type NavItem = {
   href: string;
@@ -170,7 +171,7 @@ export function DomainShell({ children }: { children: ReactNode }) {
                         aria-current={active ? "page" : undefined}
                         className={`flex items-center gap-2.5 px-2.5 py-2 rounded text-sm font-medium transition ${
                           active
-                            ? "bg-brand-blueBg text-brand-blue"
+                            ? "bg-brand-blueBg text-brand-blueText"
                             : "text-ink-600 hover:bg-ink-100"
                         }`}
                       >
@@ -276,6 +277,15 @@ export function DomainShell({ children }: { children: ReactNode }) {
       <main className="lg:pl-60">
         <div className="max-w-[1280px] mx-auto px-6 py-8">
           <SectionErrorBoundary label="This page" resetKey={pathname}>
+            {/* First-run tips, on the Engineering home only. */}
+            {pathname === "/engineering" && (
+              <WelcomeCard
+                className="mb-6"
+                storageKey={`welcome:engineering:${current.id}`}
+                firstName={current.name.trim().split(/\s+/)[0]}
+                {...ENGINEERING_WELCOME[current.role]}
+              />
+            )}
             {children}
           </SectionErrorBoundary>
         </div>

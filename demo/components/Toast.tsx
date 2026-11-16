@@ -66,13 +66,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 function ToastCard({ toast, onClose }: { toast: Toast; onClose: () => void }) {
   const tone =
     toast.kind === "success"
-      ? { bar: "bg-brand-green", Icon: CheckCircle2, color: "text-brand-green" }
+      ? { bar: "bg-brand-green", Icon: CheckCircle2, color: "text-brand-greenText" }
       : toast.kind === "error"
         ? { bar: "bg-brand-red", Icon: AlertTriangle, color: "text-brand-redText" }
-        : { bar: "bg-brand-blue", Icon: Info, color: "text-brand-blue" };
+        : { bar: "bg-brand-blue", Icon: Info, color: "text-brand-blueText" };
   const Icon = tone.Icon;
   return (
-    <div className="card p-0 overflow-hidden shadow-lg flex animate-in fade-in slide-in-from-bottom-2">
+    <div className="card p-0 overflow-hidden shadow-lg flex motion-safe:animate-rise-in">
       <div className={`w-1 shrink-0 ${tone.bar}`} />
       <div className="flex items-start gap-2.5 p-3 flex-1">
         <Icon size={16} className={`${tone.color} shrink-0 mt-0.5`} />
@@ -84,7 +84,7 @@ function ToastCard({ toast, onClose }: { toast: Toast; onClose: () => void }) {
                 toast.action?.onClick();
                 onClose();
               }}
-              className="mt-1 text-xs font-medium text-brand-blue hover:underline"
+              className="mt-1 text-xs font-medium text-brand-blueText hover:underline"
             >
               {toast.action.label}
             </button>

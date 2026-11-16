@@ -113,7 +113,7 @@ export default function AuditPage() {
 
   return (
     <AppShell>
-      <div className="max-w-[1200px] mx-auto px-6 py-8">
+      <div className="max-w-container mx-auto px-6 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="font-heading text-3xl font-semibold">Audit log</h1>
@@ -200,7 +200,7 @@ export default function AuditPage() {
             message="Nothing recorded for these filters. Try widening the time window or clearing filters."
           />
         ) : (
-          <div className="card overflow-hidden">
+          <div className="card overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-ink-500 font-heading font-semibold uppercase tracking-wide border-b border-ink-200 bg-ink-50">

@@ -32,7 +32,7 @@ export default function SettingsEmailsPage() {
 
   return (
     <AppShell>
-      <div className="max-w-[1100px] mx-auto px-6 py-8">
+      <div className="max-w-container-narrow mx-auto px-6 py-8">
         <header className="mb-6">
           <h1 className="font-heading text-3xl font-semibold">Settings</h1>
           <p className="text-sm text-ink-500 mt-1">
@@ -90,7 +90,7 @@ export default function SettingsEmailsPage() {
             }
           />
         ) : (
-          <div className="card overflow-hidden">
+          <div className="card overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-ink-500 font-heading font-semibold uppercase tracking-wide border-b border-ink-200 bg-ink-50">

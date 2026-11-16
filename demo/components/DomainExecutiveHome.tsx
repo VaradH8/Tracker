@@ -266,7 +266,7 @@ export function DomainExecutiveHome() {
       {/* ---- 2. which project, and how far off --------------------- */}
       <section className="card p-5">
         <SectionHead
-          icon={<TrendingUp size={16} className="text-brand-blue" />}
+          icon={<TrendingUp size={16} className="text-brand-blueText" />}
           title="Projects, worst first"
           note="Every date computed from delivered work, not status updates."
           href="/engineering/forecast"
@@ -338,7 +338,7 @@ export function DomainExecutiveHome() {
           panel that only showed loaded people could never answer it. */}
       <section className="card p-5">
         <SectionHead
-          icon={<Gauge size={16} className="text-brand-blue" />}
+          icon={<Gauge size={16} className="text-brand-blueText" />}
           title="Who's free, who's booked"
           note="Bars show each booking on a shared timeline; the line is today."
           href="/engineering/availability"
@@ -413,7 +413,7 @@ export function DomainExecutiveHome() {
                     );
                   })}
                   <span
-                    className="absolute top-0 bottom-0 w-px bg-ink-400"
+                    className="absolute top-0 bottom-0 w-px bg-ink-300"
                     style={{ left: `${todayPct}%` }}
                   />
                 </span>
@@ -567,7 +567,7 @@ function SectionHead({
       {href && (
         <Link
           href={href}
-          className="text-xs font-medium text-brand-blue hover:underline inline-flex items-center gap-1 shrink-0"
+          className="text-xs font-medium text-brand-blueText hover:underline inline-flex items-center gap-1 shrink-0"
         >
           {linkLabel ?? "Open"} <ArrowRight size={12} />
         </Link>

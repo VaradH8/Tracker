@@ -48,7 +48,7 @@ export default function EngagementPage() {
 
   return (
     <AppShell>
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-8 space-y-4">
+      <div className="max-w-container-wide mx-auto px-4 sm:px-6 py-8 space-y-4">
         <header className="flex flex-wrap items-center gap-3">
           <h1 className="font-heading text-3xl font-semibold">Resource Engagement</h1>
           <div className="flex rounded border border-ink-200 bg-white p-0.5">
@@ -69,7 +69,7 @@ export default function EngagementPage() {
             type="button"
             onClick={() => setHelp((v) => !v)}
             aria-label="How to read this page"
-            className="tap-target p-1 rounded-full text-ink-400 hover:text-brand-blue hover:bg-ink-100"
+            className="tap-target p-1 rounded-full text-ink-400 hover:text-brand-blueText hover:bg-ink-100"
           >
             <Info size={18} />
           </button>

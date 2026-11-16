@@ -31,7 +31,7 @@ export default function ProjectsPage() {
 
   return (
     <AppShell>
-      <div className="max-w-[1400px] mx-auto px-6 py-8">
+      <div className="max-w-container-wide mx-auto px-6 py-8">
         <header className="mb-6">
           <h1 className="font-heading text-3xl font-semibold">Projects</h1>
           <p className="text-sm text-ink-500 mt-1">
@@ -190,7 +190,7 @@ function ActiveProjects({ role }: { role: Role }) {
                     <td className="py-3 px-5">
                       <Link
                         href={`/projects/${p.id}`}
-                        className="font-medium text-ink-900 hover:text-brand-blue"
+                        className="font-medium text-ink-900 hover:text-brand-blueText"
                       >
                         {p.name}
                       </Link>
@@ -218,7 +218,7 @@ function ActiveProjects({ role }: { role: Role }) {
                     <td className="py-3 px-5 text-right">
                       <Link
                         href={`/projects/${p.id}`}
-                        className="inline-flex items-center gap-1 text-brand-blue hover:underline whitespace-nowrap"
+                        className="inline-flex items-center gap-1 text-brand-blueText hover:underline whitespace-nowrap"
                       >
                         Open tasks <ArrowRight size={14} />
                       </Link>
@@ -362,10 +362,10 @@ function CreateProjectModal({
           : "Pick a client and assign the team. Only assigned people will see this project in their Projects tab."}
       </p>
 
-      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+      <label htmlFor="projects-project-name" className="block text-xs font-medium text-ink-700 mb-1.5">
         Project name
       </label>
-      <input
+      <input id="projects-project-name"
         autoFocus
         value={name}
         onChange={(e) => setName(e.target.value)}
@@ -375,10 +375,10 @@ function CreateProjectModal({
 
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div>
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          <label htmlFor="projects-client" className="block text-xs font-medium text-ink-700 mb-1.5">
             Client
           </label>
-          <select
+          <select id="projects-client"
             value={clientId}
             onChange={(e) => setClientId(e.target.value)}
             className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
@@ -400,10 +400,10 @@ function CreateProjectModal({
           )}
         </div>
         <div>
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          <label htmlFor="projects-health" className="block text-xs font-medium text-ink-700 mb-1.5">
             Health
           </label>
-          <select
+          <select id="projects-health"
             value={health}
             onChange={(e) => setHealth(e.target.value)}
             className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
@@ -417,22 +417,22 @@ function CreateProjectModal({
 
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div>
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          <label htmlFor="projects-start-date" className="block text-xs font-medium text-ink-700 mb-1.5">
             Start date
           </label>
-          <DateInput value={start} max={target || undefined} onChange={(iso: string) => setStart(iso)} className="w-full px-3 py-2 rounded border border-ink-200 text-sm" />
+          <DateInput id="projects-start-date" value={start} max={target || undefined} onChange={(iso: string) => setStart(iso)} className="w-full px-3 py-2 rounded border border-ink-200 text-sm" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          <label htmlFor="projects-target-date" className="block text-xs font-medium text-ink-700 mb-1.5">
             Target date
           </label>
-          <DateInput value={target} min={start || undefined} onChange={(iso: string) => setTarget(iso)} className="w-full px-3 py-2 rounded border border-ink-200 text-sm" />
+          <DateInput id="projects-target-date" value={target} min={start || undefined} onChange={(iso: string) => setTarget(iso)} className="w-full px-3 py-2 rounded border border-ink-200 text-sm" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          <label htmlFor="projects-budget-hours" className="block text-xs font-medium text-ink-700 mb-1.5">
             Budget (hours)
           </label>
-          <input
+          <input id="projects-budget-hours"
             type="number"
             min="0"
             value={budgetHours}
@@ -443,11 +443,11 @@ function CreateProjectModal({
         </div>
       </div>
 
-      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+      <label htmlFor="projects-description-optional" className="block text-xs font-medium text-ink-700 mb-1.5">
         Description{" "}
         <span className="text-ink-400 font-normal">(optional)</span>
       </label>
-      <textarea
+      <textarea id="projects-description-optional"
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         rows={2}

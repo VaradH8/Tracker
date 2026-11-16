@@ -76,7 +76,7 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
                 className={
                   opts.danger
                     ? "w-9 h-9 rounded-full bg-brand-redBg text-brand-redText grid place-items-center shrink-0"
-                    : "w-9 h-9 rounded-full bg-brand-blueBg text-brand-blue grid place-items-center shrink-0"
+                    : "w-9 h-9 rounded-full bg-brand-blueBg text-brand-blueText grid place-items-center shrink-0"
                 }
               >
                 <AlertTriangle size={18} />
@@ -111,7 +111,7 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
                 autoFocus
                 className={
                   opts.danger
-                    ? "btn-ghost bg-brand-red text-white hover:bg-brand-redText"
+                    ? "btn-ghost bg-brand-redText text-white hover:bg-brand-redHover"
                     : "btn-primary"
                 }
               >

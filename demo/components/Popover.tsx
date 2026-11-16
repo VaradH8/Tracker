@@ -48,7 +48,7 @@ export function Popover({
         <div
           className={`absolute z-30 top-full mt-1 ${
             align === "right" ? "right-0" : "left-0"
-          } card p-1 min-w-[150px] animate-in fade-in`}
+          } card p-1 min-w-[150px] motion-safe:animate-fade-in`}
           onClick={(e) => e.stopPropagation()}
         >
           {children(() => setOpen(false))}

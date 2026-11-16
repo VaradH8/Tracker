@@ -308,7 +308,7 @@ export default function ForecastPage() {
                   onClick={() => setFilter(key)}
                   className={`px-2.5 py-1 rounded-pill text-xs font-medium border ${
                     filter === key
-                      ? "bg-brand-blueBg text-brand-blue border-brand-blue"
+                      ? "bg-brand-blueBg text-brand-blueText border-brand-blue"
                       : "bg-white text-ink-600 border-ink-200"
                   }`}
                 >
@@ -343,7 +343,7 @@ export default function ForecastPage() {
           // Two up from lg. Each card is now short enough that a pair fits
           // side by side, which is what makes a portfolio comparable
           // rather than a list you scroll through.
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {shown.map((p) => (
               <DomainForecastCard key={p.id} p={p} />
             ))}
@@ -354,7 +354,7 @@ export default function ForecastPage() {
       <p className="text-xs text-ink-400">
         Looking for who&apos;s free? Resource engagement moved to its own page
         — see{" "}
-        <a href="/engineering/availability" className="text-brand-blue">
+        <a href="/engineering/availability" className="text-brand-blueText">
           Resource engagement
         </a>
         .
@@ -417,7 +417,7 @@ function StatusGroup({
             doneTone
               ? "text-ink-600"
               : notStartedTone
-                ? "text-brand-blue"
+                ? "text-brand-blueText"
                 : risk
                   ? "text-brand-redText"
                   : "text-brand-greenText"
@@ -429,7 +429,7 @@ function StatusGroup({
           {projects.length}
         </span>
         {projects.length > 0 && (
-          <span className="text-xs text-brand-blue opacity-0 group-hover:opacity-100 transition">
+          <span className="text-xs text-brand-blueText opacity-0 group-hover:opacity-100 transition">
             show these
           </span>
         )}
@@ -450,7 +450,7 @@ function StatusGroup({
                 <span
                   className={`text-xs font-medium whitespace-nowrap ${
                     notStartedTone
-                      ? "text-brand-blue"
+                      ? "text-brand-blueText"
                       : risk
                         ? "text-brand-redText"
                         : "text-brand-greenText"
@@ -500,9 +500,9 @@ function RateModeToggle({
         type="checkbox"
         checked={on}
         onChange={(e) => onChange(e.target.checked)}
-        className="rounded border-ink-300 text-brand-blue focus:ring-brand-blue"
+        className="rounded border-ink-300 text-brand-blueText focus:ring-brand-blue"
       />
-      <span className={on ? "text-brand-blue font-medium" : "text-ink-600"}>
+      <span className={on ? "text-brand-blueText font-medium" : "text-ink-600"}>
         Use per-project rates as set
       </span>
     </label>
@@ -613,7 +613,7 @@ function Simulator({ onDone }: { onDone: () => void }) {
         each person&apos;s approved delivery rate.
       </p>
 
-      <div className="grid sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <label className="text-sm">
           <span className="block text-ink-700 mb-1">Number of tags</span>
           <input
@@ -696,11 +696,11 @@ function Simulator({ onDone }: { onDone: () => void }) {
           type="checkbox"
           checked={simPerProjectRates}
           onChange={(e) => setSimPerProjectRates(e.target.checked)}
-          className="rounded border-ink-300 text-brand-blue focus:ring-brand-blue"
+          className="rounded border-ink-300 text-brand-blueText focus:ring-brand-blue"
         />
         <span
           className={
-            simPerProjectRates ? "text-brand-blue font-medium" : "text-ink-600"
+            simPerProjectRates ? "text-brand-blueText font-medium" : "text-ink-600"
           }
         >
           Use the rates above as set

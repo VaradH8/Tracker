@@ -160,7 +160,7 @@ export default function KpisPage() {
       />
 
       {/* ---- 1. will it land? ------------------------------------------ */}
-      <section className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <Tile
           label={`Tags delivered · ${data.windowDays}d`}
           value={t.delivered30}
@@ -222,7 +222,7 @@ export default function KpisPage() {
           <Empty>Nobody is set up to hold tags yet.</Empty>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[760px]">
+            <table className="w-full text-sm min-w-table">
               <thead className="text-ink-500 text-xs uppercase tracking-wide border-b border-ink-100">
                 <tr>
                   <th className="text-left font-semibold pb-2">Person</th>
@@ -422,7 +422,7 @@ export default function KpisPage() {
             booked, and every booking has a rate.
           </p>
         ) : (
-          <div className="grid md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <QualityList
               title="Holding tags with no booking"
               note="No allocation window, so the forecast has no dates to plan their work across."
@@ -451,7 +451,7 @@ export default function KpisPage() {
 /* ------------------------------------------------------------------ */
 
 const TONES = {
-  blue: "bg-brand-blueBg text-brand-blue",
+  blue: "bg-brand-blueBg text-brand-blueText",
   green: "bg-brand-greenBg text-brand-greenText",
   red: "bg-brand-redBg text-brand-redText",
   amber: "bg-brand-yellowBg text-brand-yellowText",

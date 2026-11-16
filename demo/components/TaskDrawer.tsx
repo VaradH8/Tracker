@@ -19,7 +19,7 @@ import {
   ShieldCheck,
   Timer,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import {
   AssigneePicker,
   DateField,
@@ -220,7 +220,7 @@ export function TaskDrawer({
           {backLabel && (
             <button
               onClick={onClose}
-              className="inline-flex items-center gap-1 -ml-1 pl-1 pr-2 py-1 rounded text-xs font-medium text-brand-blue hover:bg-brand-blueBg shrink-0"
+              className="inline-flex items-center gap-1 -ml-1 pl-1 pr-2 py-1 rounded text-xs font-medium text-brand-blueText hover:bg-brand-blueBg shrink-0"
             >
               <ArrowLeft size={14} /> {backLabel}
             </button>
@@ -320,7 +320,7 @@ export function TaskDrawer({
                 <>
                   <CheckCircle2
                     size={16}
-                    className="text-brand-green shrink-0"
+                    className="text-brand-greenText shrink-0"
                   />
                   <span className="text-ink-900">
                     Approved by{" "}
@@ -483,7 +483,7 @@ export function TaskDrawer({
                       );
                       setEditingEstimate(true);
                     }}
-                    className="text-sm text-ink-700 hover:text-brand-blue text-left"
+                    className="text-sm text-ink-700 hover:text-brand-blueText text-left"
                   >
                     {task.estimatedHours != null
                       ? `${task.estimatedHours} hrs`
@@ -511,7 +511,7 @@ export function TaskDrawer({
               {canEdit && !depPickerOpen && (
                 <button
                   onClick={() => setDepPickerOpen(true)}
-                  className="text-xs text-brand-blue hover:underline inline-flex items-center gap-1"
+                  className="text-xs text-brand-blueText hover:underline inline-flex items-center gap-1"
                 >
                   <Plus size={12} /> Add
                 </button>
@@ -603,7 +603,7 @@ export function TaskDrawer({
               </h3>
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="text-xs text-brand-blue hover:underline inline-flex items-center gap-1"
+                className="text-xs text-brand-blueText hover:underline inline-flex items-center gap-1"
               >
                 <Upload size={12} /> Upload
               </button>
@@ -617,7 +617,7 @@ export function TaskDrawer({
                   <FileText size={14} className="text-ink-400 shrink-0" />
                   <a
                     href={`/api/tasks/${task.id}/attachments/${a.id}`}
-                    className="flex-1 truncate text-ink-900 hover:text-brand-blue hover:underline"
+                    className="flex-1 truncate text-ink-900 hover:text-brand-blueText hover:underline"
                     title={`Download ${a.name}`}
                   >
                     {a.name}
@@ -890,14 +890,19 @@ function Field({
   hint?: string;
   children: React.ReactNode;
 }) {
+  const titleId = useId();
   return (
     <div>
-      <label className="flex items-center gap-1.5 text-xs font-semibold text-ink-700 uppercase tracking-wide mb-1">
+      <p id={titleId} className="flex items-center gap-1.5 text-xs font-semibold text-ink-700 uppercase tracking-wide mb-1">
         {icon}
         {label}
-      </label>
+      </p>
       {hint && <p className="text-xs text-ink-400 mb-1.5">{hint}</p>}
-      {children}
+      {/* Names whatever control the caller puts here (a select, a picker,
+          a date pair) — a <label> can only point at one input. */}
+      <div role="group" aria-labelledby={titleId}>
+        {children}
+      </div>
     </div>
   );
 }

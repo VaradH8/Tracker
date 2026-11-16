@@ -39,6 +39,7 @@ export function DateInput({
   min,
   max,
   disabled,
+  id,
   "aria-label": ariaLabel,
 }: {
   /** ISO `yyyy-mm-dd`, or "" for empty. */
@@ -49,6 +50,8 @@ export function DateInput({
   min?: string;
   max?: string;
   disabled?: boolean;
+  /** Lands on the typed text box, so a <label htmlFor> can point at it. */
+  id?: string;
   "aria-label"?: string;
 }) {
   const [text, setText] = useState(() => isoToDisplay(value));
@@ -93,6 +96,7 @@ export function DateInput({
         }}
         placeholder="DD-MM-YY"
         disabled={disabled}
+        id={id}
         aria-label={ariaLabel}
         aria-invalid={invalid || undefined}
         // pr-9 reserves the icon's column so the two never share space.
@@ -130,7 +134,7 @@ export function DateInput({
           }
         }}
         aria-label="Open calendar"
-        className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded text-ink-400 hover:text-brand-blue hover:bg-ink-100 disabled:opacity-40 disabled:hover:bg-transparent"
+        className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded text-ink-400 hover:text-brand-blueText hover:bg-ink-100 disabled:opacity-40 disabled:hover:bg-transparent"
       >
         <CalendarDays size={15} />
       </button>

@@ -258,7 +258,7 @@ export default function ResourcesPage() {
 
   return (
     <AppShell>
-      <div className="max-w-[1400px] mx-auto px-6 py-8">
+      <div className="max-w-container-wide mx-auto px-6 py-8">
         <header className="mb-6">
           <h1 className="font-heading text-3xl font-semibold">Resources</h1>
           <p className="text-sm text-ink-500 mt-1">
@@ -271,7 +271,7 @@ export default function ResourcesPage() {
           <SummaryCard
             label="Total"
             value={stats.total}
-            tone="bg-brand-blueBg text-brand-blue"
+            tone="bg-brand-blueBg text-brand-blueText"
             onClick={() => setActive(null)}
             active={active === null}
           />
@@ -677,7 +677,7 @@ function ResourceDrawer({
                 Upcoming leave
               </h4>
               <div className="card p-3 flex items-center gap-2 text-sm">
-                <Calendar size={14} className="text-brand-blue" />
+                <Calendar size={14} className="text-brand-blueText" />
                 {r.upcomingLeaveStart} → {r.upcomingLeaveEnd}
               </div>
             </section>

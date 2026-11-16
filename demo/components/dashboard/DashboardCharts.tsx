@@ -336,7 +336,7 @@ export function ProgressBudgetChart({ rows }: { rows: ProgressRow[] }) {
                   y={y + 4}
                   textAnchor="end"
                   fontSize={12}
-                  fill={gapPts !== null && gapPts >= 20 ? "#C5221F" : CHART.ink3}
+                  fill={gapPts !== null && gapPts >= 20 ? CHART.criticalText : CHART.ink3}
                   fontWeight={gapPts !== null && gapPts >= 20 ? 600 : 400}
                   pointerEvents="none"
                 >
@@ -447,7 +447,7 @@ export function ProjectTimelineChart({ rows, today }: { rows: TimelineRow[]; tod
                 {late && (
                   <path d={barPath(xe + 2, y - 6, Math.max(0, sx(t0) - xe - 2), 12, 3)} fill={CHART.critical} pointerEvents="none" />
                 )}
-                <text x={width} y={y + 4} textAnchor="end" fontSize={12} fill={late ? "#C5221F" : CHART.ink3} fontWeight={late ? 600 : 400} pointerEvents="none">
+                <text x={width} y={y + 4} textAnchor="end" fontSize={12} fill={late ? CHART.criticalText : CHART.ink3} fontWeight={late ? 600 : 400} pointerEvents="none">
                   {note}
                 </text>
                 <rect
@@ -492,7 +492,7 @@ export function LeaveGrid({
   const rowH = 30;
   const cw = days.length ? Math.max(0, width - labelW) / days.length : 0;
   const h = head + rows.length * rowH;
-  const fill = (c: LeaveCell) => (c === "approved" ? CHART.accent : c === "pending" ? CHART.ordinal[0] : "#F1F3F4");
+  const fill = (c: LeaveCell) => (c === "approved" ? CHART.accent : c === "pending" ? CHART.ordinal[0] : CHART.empty);
 
   return (
     <div ref={ref} className="relative">

@@ -193,7 +193,7 @@ export function DomainHandoverFields({
             ) : preview ? (
               <>
                 <div className="flex items-baseline gap-2 flex-wrap">
-                  <CalendarClock size={14} className="text-brand-blue shrink-0" />
+                  <CalendarClock size={14} className="text-brand-blueText shrink-0" />
                   <span className="text-xs uppercase tracking-wide text-ink-500 font-medium">
                     Handover
                   </span>

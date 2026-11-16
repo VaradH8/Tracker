@@ -124,7 +124,7 @@ export default function DomainTaskLogPage() {
             onClick={() => setTab(t.key)}
             className={`px-3 py-1.5 rounded-pill text-sm font-medium border ${
               tab === t.key
-                ? "bg-brand-blueBg text-brand-blue border-brand-blue"
+                ? "bg-brand-blueBg text-brand-blueText border-brand-blue"
                 : "bg-white text-ink-600 border-ink-200 hover:bg-ink-50"
             }`}
           >
@@ -178,7 +178,7 @@ export default function DomainTaskLogPage() {
           <PageSkeleton />
         ) : rows.length === 0 ? (
           <Empty
-            icon={<ClipboardList size={20} className="text-ink-300" />}
+            icon={<ClipboardList size={20} className="text-ink-400" />}
             title="Nothing on you"
             body="Work assigned to you turns up here. You can also give yourself a task from Assign task."
           />
@@ -209,7 +209,7 @@ export default function DomainTaskLogPage() {
               <section>
                 <button
                   onClick={() => setShowDone((v) => !v)}
-                  className="text-sm text-brand-blue"
+                  className="text-sm text-brand-blueText"
                 >
                   {showDone ? "Hide" : "Show"} {done.length} finished
                 </button>
@@ -228,7 +228,7 @@ export default function DomainTaskLogPage() {
       {tab === "approve" &&
         (toReview.length === 0 && coming.length === 0 ? (
           <Empty
-            icon={<CheckSquare size={20} className="text-ink-300" />}
+            icon={<CheckSquare size={20} className="text-ink-400" />}
             title="Nothing waiting on you"
             body="Tasks you're named to review turn up here — as soon as you're named, and again when the work comes back."
           />

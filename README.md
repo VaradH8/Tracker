@@ -25,7 +25,7 @@ Both modules are one Next.js app in [`demo/`](./demo), on PostgreSQL, deployed a
 1. [docs/01-overview.md](./docs/01-overview.md) — what the product is and why
 2. [docs/02-roles-and-permissions.md](./docs/02-roles-and-permissions.md) — who can do what, in both modules
 3. [docs/03-workflows.md](./docs/03-workflows.md) — the everyday journeys
-4. [docs/04-screens.md](./docs/04-screens.md) — every screen and who sees it
+4. [docs/04-screens.md](./docs/04-screens.md) — every screen and who sees it, plus [docs/design-system.md](./docs/design-system.md) — colours, type, layout, motion
 5. [specs/05-data-model.md](./specs/05-data-model.md) — tables and relations
 6. [specs/06-api-spec.md](./specs/06-api-spec.md) — every API route and its guard
 7. [specs/07-tech-stack.md](./specs/07-tech-stack.md) — frameworks and versions

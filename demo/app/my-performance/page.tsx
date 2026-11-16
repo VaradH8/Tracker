@@ -143,7 +143,7 @@ export default function MyPerformancePage() {
 
   return (
     <AppShell>
-      <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-8 space-y-4">
+      <div className="max-w-container mx-auto px-4 sm:px-6 py-8 space-y-4">
         <header className="flex flex-wrap items-center gap-3">
           <h1 className="font-heading text-3xl font-semibold">My Performance</h1>
           <div className="flex rounded border border-ink-200 bg-white p-0.5">
@@ -367,7 +367,7 @@ function TaskTitle({ id, title, project }: { id: number; title: string; project:
       className="text-left group"
       title="Open task"
     >
-      <span className="font-medium group-hover:text-brand-blue group-hover:underline">{title}</span>
+      <span className="font-medium group-hover:text-brand-blueText group-hover:underline">{title}</span>
       <div className="text-xs text-ink-500">{project}</div>
     </button>
   );

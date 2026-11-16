@@ -52,7 +52,7 @@ export function Section({
   const [open, setOpen] = useState(!collapsible || defaultOpen);
   const heading = (
     <h2 className="font-heading text-base font-semibold">
-      <span className="text-brand-blue mr-1.5">{n}.</span>
+      <span className="text-brand-blueText mr-1.5">{n}.</span>
       {title}
     </h2>
   );
@@ -69,7 +69,7 @@ export function Section({
             {open ? <ChevronDown size={18} className="text-ink-500" /> : <ChevronRight size={18} className="text-ink-500" />}
             {heading}
             {summary && <span className="text-xs text-ink-500">{summary}</span>}
-            <span className="ml-auto text-xs font-medium text-brand-blue">{open ? "Hide" : "Show"}</span>
+            <span className="ml-auto text-xs font-medium text-brand-blueText">{open ? "Hide" : "Show"}</span>
           </button>
         ) : (
           heading
