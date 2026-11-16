@@ -158,7 +158,7 @@ export function CommandPalette() {
             placeholder="Search projects, tasks, people, clients…"
             className="flex-1 py-3 text-sm focus:outline-none"
           />
-          <kbd className="text-[10px] text-ink-400 border border-ink-200 rounded px-1.5 py-0.5">
+          <kbd className="text-xs text-ink-400 border border-ink-200 rounded px-1.5 py-0.5">
             Esc
           </kbd>
         </div>

@@ -128,7 +128,7 @@ export function NotificationsPanel({
                       <p className="text-xs text-ink-600 leading-snug">
                         {n.body}
                       </p>
-                      <span className="text-[11px] text-ink-400">
+                      <span className="text-xs text-ink-400">
                         {n.when}
                       </span>
                     </div>

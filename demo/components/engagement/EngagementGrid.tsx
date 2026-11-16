@@ -83,7 +83,7 @@ export function EngagementGrid({
             <div
               key={p.start}
               title={p.start === p.end ? fmtDay(p.start) : `${fmtDay(p.start)} – ${fmtDay(p.end)}`}
-              className={`border-b border-r border-ink-200 py-1.5 text-center text-[11px] whitespace-nowrap ${
+              className={`border-b border-r border-ink-200 py-1.5 text-center text-xs whitespace-nowrap ${
                 isToday
                   ? "bg-brand-blueBg text-brand-blue font-semibold"
                   : p.offDay
@@ -181,7 +181,7 @@ function Row({
           <div
             key={p.start}
             title={tip}
-            className={`border-b border-r border-ink-200 min-h-[40px] grid place-items-center text-[11px] font-medium text-white ${cls}`}
+            className={`border-b border-r border-ink-200 min-h-[40px] grid place-items-center text-xs font-medium text-white ${cls}`}
           >
             {multi ? `${w.length} projects` : ""}
           </div>

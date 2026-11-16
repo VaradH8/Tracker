@@ -262,7 +262,7 @@ function UploadStep({
                 onPick(null);
                 if (inputRef.current) inputRef.current.value = "";
               }}
-              className="p-0.5 rounded hover:bg-ink-200 text-ink-500"
+              className="tap-target p-0.5 rounded hover:bg-ink-200 text-ink-500"
               aria-label="Remove file"
             >
               <X size={14} />

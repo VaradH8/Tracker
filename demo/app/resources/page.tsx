@@ -516,13 +516,13 @@ function Metric({
 }) {
   return (
     <div className="bg-ink-50 rounded-card p-2.5">
-      <div className="text-[10px] text-ink-500 uppercase tracking-wide font-semibold">
+      <div className="text-xs text-ink-500 uppercase tracking-wide font-semibold">
         {label}
       </div>
       <div className="font-heading text-lg font-semibold text-ink-900">
         {value}
       </div>
-      <div className={`text-[11px] ${subTone}`}>{sub}</div>
+      <div className={`text-xs ${subTone}`}>{sub}</div>
     </div>
   );
 }
@@ -564,7 +564,7 @@ function ResourceDrawer({
           </h2>
           <button
             onClick={onClose}
-            className="ml-auto p-1.5 rounded hover:bg-ink-100"
+            className="tap-target ml-auto p-1.5 rounded hover:bg-ink-100"
             aria-label="Close"
           >
             <X size={18} />
@@ -664,7 +664,7 @@ function ResourceDrawer({
                     <li key={f}>{f}</li>
                   ))}
                 </ul>
-                <p className="text-[11px] text-ink-500 mt-2 italic">
+                <p className="text-xs text-ink-500 mt-2 italic">
                   Surface for a one-on-one. No automatic action.
                 </p>
               </div>
@@ -717,7 +717,7 @@ function ResourceDrawer({
                         <span className="flex-1 truncate font-medium text-ink-900">
                           {g.name}
                         </span>
-                        <span className="pill-grey text-[10px] py-0">
+                        <span className="pill-grey text-xs py-0">
                           {g.tasks.length}{" "}
                           {g.tasks.length === 1 ? "task" : "tasks"}
                         </span>
@@ -739,7 +739,7 @@ function ResourceDrawer({
                                 <span className="flex-1 truncate">
                                   {t.title}
                                 </span>
-                                <span className="pill-grey text-[10px] py-0">
+                                <span className="pill-grey text-xs py-0">
                                   {t.status}
                                 </span>
                               </button>
@@ -780,7 +780,7 @@ function SignalCard({
 }) {
   return (
     <div className="card p-3">
-      <div className="flex items-center gap-1.5 text-[10px] text-ink-500 uppercase tracking-wide font-semibold mb-1">
+      <div className="flex items-center gap-1.5 text-xs text-ink-500 uppercase tracking-wide font-semibold mb-1">
         <Icon size={11} />
         {label}
       </div>

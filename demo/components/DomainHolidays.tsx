@@ -190,7 +190,7 @@ function HolidayList({
 }) {
   return (
     <div>
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-400 mb-1.5">
+      <div className="text-xs font-semibold uppercase tracking-wide text-ink-400 mb-1.5">
         {title}
       </div>
       {rows.length === 0 ? (
@@ -206,7 +206,7 @@ function HolidayList({
               >
                 {fmtDate(h.date)}
               </span>
-              <span className="text-[11px] text-ink-400 shrink-0 w-7">
+              <span className="text-xs text-ink-400 shrink-0 w-7">
                 {weekdayOf(h.date)}
               </span>
               <span
@@ -218,7 +218,7 @@ function HolidayList({
                 <button
                   onClick={() => onRemove(h)}
                   disabled={busy}
-                  className="ml-auto p-1 rounded text-ink-400 hover:text-brand-redText hover:bg-brand-redBg shrink-0"
+                  className="tap-target ml-auto p-1 rounded text-ink-400 hover:text-brand-redText hover:bg-brand-redBg shrink-0"
                   aria-label={`Remove ${h.name}`}
                   title="Remove"
                 >

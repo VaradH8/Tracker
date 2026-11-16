@@ -58,6 +58,14 @@ function getTransport(): Transporter | null {
   return cachedTransport;
 }
 
+/** True when sendEmail would actually try to deliver: transport env vars
+ *  set and a From address available. Lets a caller decide what to keep in
+ *  the EmailLog row — e.g. a password-reset link only needs to sit there
+ *  (for an admin to forward) when nothing can email it. */
+export async function emailDeliveryConfigured(): Promise<boolean> {
+  return getTransport() !== null && (await resolveFrom()) !== null;
+}
+
 export async function sendEmail(opts: {
   to: string;
   subject: string;

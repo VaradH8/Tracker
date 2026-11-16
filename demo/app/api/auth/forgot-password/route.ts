@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { sendEmail } from "@/lib/mailer";
+import { emailDeliveryConfigured, sendEmail } from "@/lib/mailer";
 import { hashResetToken, newResetToken } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/client-ip";
 
 /** POST { email } — issues a single-use password-reset token. Always
  *  returns 200 even if the email doesn't match an account, so we don't
@@ -18,6 +19,11 @@ import { rateLimit } from "@/lib/rate-limit";
  *  an outbound message and the rest of the flow is unchanged. */
 const RESET_TTL_MIN = 60;
 
+/** What the EmailLog keeps when the link went out by email instead. */
+function redactedResetBody(): string {
+  return `A password-reset link was emailed to this address. It expires in ${RESET_TTL_MIN} minutes. The link itself is not stored here — ask the person to request a new one if it didn't arrive.`;
+}
+
 // Rate-limit reset requests so the endpoint can't be used to blast a
 // victim's inbox or to probe timing. Per-email and per-IP, fixed window.
 const RESET_MAX_PER_EMAIL = 3;
@@ -29,10 +35,7 @@ export async function POST(req: Request) {
   const email = String(body.email ?? "")
     .trim()
     .toLowerCase();
-  const ip =
-    req.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
-    req.headers.get("x-real-ip") ||
-    null;
+  const ip = clientIp(req);
 
   const emailGate = email
     ? rateLimit(`reset:em:${email}`, RESET_MAX_PER_EMAIL, RESET_WINDOW_MS)
@@ -56,16 +59,19 @@ export async function POST(req: Request) {
       const link = `${origin}/reset-password?token=${rawToken}`;
       const subject = "Reset your Task Manager password";
       const body = `Click the link to choose a new password. It expires in ${RESET_TTL_MIN} minutes.\n\n${link}`;
-      // EmailLog row is the audit surface — always written. SMTP is
-      // best-effort; if SMTP_* env vars aren't set, sendEmail is a
-      // no-op and the admin can still forward the link from
-      // /settings/emails.
+      // EmailLog row is the audit surface — always written. Without SMTP
+      // the full link stays in it so an admin can forward it from
+      // /settings/emails. Once email is really being sent, the link is
+      // left OUT of the log: anyone who can read the log (every Admin,
+      // anyone with a DB backup) could otherwise take over the account
+      // within the hour.
+      const delivered = await emailDeliveryConfigured();
       await prisma.emailLog.create({
         data: {
           recipientId: user.id,
           toEmail: user.email,
           subject,
-          body,
+          body: delivered ? redactedResetBody() : body,
           kind: "password_reset",
         },
       });

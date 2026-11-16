@@ -8,11 +8,16 @@ import {
   setDomainEmail,
 } from "@/lib/domain-auth";
 import { SUPERVISOR_ROLES } from "@/lib/domain";
+import { setupTokenRequired } from "@/lib/setup-token";
 
 export async function GET() {
   const user = await getDomainUser();
   const needsBootstrap = (await countDomainUsers()) === 0;
-  return NextResponse.json({ user, needsBootstrap });
+  return NextResponse.json({
+    user,
+    needsBootstrap,
+    setupTokenRequired: needsBootstrap && setupTokenRequired(),
+  });
 }
 
 /**

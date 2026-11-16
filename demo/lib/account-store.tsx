@@ -55,6 +55,8 @@ type RegisterInput = {
   role: Role;
   password: string;
   reportingManagerId?: string | null;
+  /** First-admin sign-up only, when the server sets SETUP_TOKEN. */
+  setupToken?: string;
 };
 
 type Ctx = {

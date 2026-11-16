@@ -12,6 +12,7 @@ import { DomainPage, PageHeader } from "@/components/DomainPage";
 import { DomainRefreshButton } from "@/components/DomainRefreshButton";
 import { DOMAIN_ROLE_LABELS, type DomainRole } from "@/lib/domain";
 import { fmtDate } from "@/lib/domain-format";
+import { PageSkeleton } from "@/components/Skeleton";
 
 /**
  * Delivery KPIs, in the order a review actually asks them:
@@ -142,7 +143,7 @@ export default function KpisPage() {
     return (
       <DomainPage width="wide">
         <PageHeader title="Delivery KPIs" />
-        <p className="text-sm text-ink-500">Loading…</p>
+        <PageSkeleton />
       </DomainPage>
     );
   }
@@ -552,7 +553,7 @@ function TrendChart({
                 />
               </div>
             </div>
-            <span className="text-[11px] text-ink-500 whitespace-nowrap">
+            <span className="text-xs text-ink-500 whitespace-nowrap">
               {fmtDate(w.label)}
             </span>
           </div>
@@ -585,7 +586,7 @@ function QualityList({
       <h3 className="text-sm font-medium text-ink-900">
         {title}{" "}
         <span
-          className={`ml-1 px-1.5 py-0.5 rounded-pill text-[11px] ${
+          className={`ml-1 px-1.5 py-0.5 rounded-pill text-xs ${
             rows.length > 0
               ? "bg-brand-yellowBg text-brand-yellowText"
               : "bg-brand-greenBg text-brand-greenText"

@@ -4,6 +4,8 @@ import bcrypt from "bcryptjs";
 import { prisma } from "./db";
 import type { Role } from "./role";
 import { accessRole } from "./role-access";
+import { clearRateLimit, peekRateLimit, rateLimit } from "./rate-limit";
+import { hashSessionToken, newSessionToken } from "./session-token";
 
 const SESSION_COOKIE = "tracker_session";
 const SESSION_DAYS = 30;
@@ -78,38 +80,30 @@ export function hashResetToken(rawToken: string): string {
 /* Login throttling (in-process)                                       */
 /* ------------------------------------------------------------------ */
 
-// In-memory throttle bucket. Survives until the container restarts.
-// Acceptable for a single-instance internal tool — would need Redis
-// once we scale beyond one app container.
-type Bucket = { count: number; lockedUntil: number };
-const LOGIN_BUCKETS = new Map<string, Bucket>();
+/**
+ * Brute-force limits, counted against FAILED attempts only — the same
+ * scheme the Engineering login uses (lib/domain-auth.ts).
+ *
+ * The old gate charged every attempt, successes included, and never
+ * cleared the per-IP bucket: the whole office signs in from one NAT
+ * address, so twenty ordinary sign-ins in fifteen minutes locked everyone
+ * out. Now the check only peeks, and a hit is spent when an attempt fails.
+ *
+ * In-memory (lib/rate-limit.ts): fine for one app container, needs Redis
+ * once there is more than one.
+ */
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_PER_EMAIL = 5;
-const LOGIN_MAX_PER_IP = 20;
+const LOGIN_MAX_PER_IP = 50;
 
-function bumpAndCheck(
-  key: string,
-  max: number,
-): { locked: boolean; retryInSec: number } {
-  const now = Date.now();
-  const b = LOGIN_BUCKETS.get(key);
-  if (b && b.lockedUntil > now) {
-    return { locked: true, retryInSec: Math.ceil((b.lockedUntil - now) / 1000) };
-  }
-  if (b && now - (b.lockedUntil - LOGIN_WINDOW_MS) > LOGIN_WINDOW_MS) {
-    LOGIN_BUCKETS.delete(key);
-  }
-  const next = LOGIN_BUCKETS.get(key) ?? { count: 0, lockedUntil: 0 };
-  next.count += 1;
-  if (next.count >= max) {
-    next.lockedUntil = now + LOGIN_WINDOW_MS;
-  }
-  LOGIN_BUCKETS.set(key, next);
-  return { locked: false, retryInSec: 0 };
+/** The bucket a person's lockout lives in. Exported so a password reset
+ *  can clear it under the same name. */
+export function loginRateKey(identifier: string): string {
+  return `login:em:${identifier.trim().toLowerCase()}`;
 }
 
-function clearBucket(key: string) {
-  LOGIN_BUCKETS.delete(key);
+function loginIpKey(ip: string): string {
+  return `login:ip:${ip}`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -130,23 +124,25 @@ export async function signIn(
   }
 
   // Throttle BEFORE doing the lookup so we don't spam Postgres on a
-  // brute-force run either.
-  const emailGate = bumpAndCheck(`em:${q}`, LOGIN_MAX_PER_EMAIL);
-  if (emailGate.locked) {
+  // brute-force run either. Peek only: a hit is charged on failure.
+  const emailKey = loginRateKey(q);
+  const ipKey = ip ? loginIpKey(ip) : null;
+  const byEmail = peekRateLimit(emailKey, LOGIN_MAX_PER_EMAIL);
+  const byIp = ipKey
+    ? peekRateLimit(ipKey, LOGIN_MAX_PER_IP)
+    : { ok: true, retryInSec: 0 };
+  const locked = !byEmail.ok ? byEmail : byIp;
+  if (!locked.ok) {
     return {
       ok: false,
-      error: `Too many failed attempts. Try again in ${Math.ceil(emailGate.retryInSec / 60)} min.`,
+      error: `Too many failed attempts. Try again in ${Math.ceil(locked.retryInSec / 60)} min.`,
     };
   }
-  if (ip) {
-    const ipGate = bumpAndCheck(`ip:${ip}`, LOGIN_MAX_PER_IP);
-    if (ipGate.locked) {
-      return {
-        ok: false,
-        error: `Too many failed attempts. Try again in ${Math.ceil(ipGate.retryInSec / 60)} min.`,
-      };
-    }
-  }
+  /** One failed attempt: charged to the account and to the address. */
+  const chargeFailure = () => {
+    rateLimit(emailKey, LOGIN_MAX_PER_EMAIL, LOGIN_WINDOW_MS);
+    if (ipKey) rateLimit(ipKey, LOGIN_MAX_PER_IP, LOGIN_WINDOW_MS);
+  };
 
   /**
    * Match by email exact, OR by full name, OR by first-name prefix.
@@ -178,13 +174,20 @@ export async function signIn(
   // Single generic error for "no such user", "wrong password", and
   // "deactivated" — leaks no information about which accounts exist.
   const GENERIC = "Wrong account or password.";
-  if (!user) return { ok: false, error: GENERIC };
-  if (!user.isActive) return { ok: false, error: GENERIC };
+  if (!user || !user.isActive) {
+    chargeFailure();
+    return { ok: false, error: GENERIC };
+  }
   const ok = await bcrypt.compare(password, user.passwordHash);
-  if (!ok) return { ok: false, error: GENERIC };
+  if (!ok) {
+    chargeFailure();
+    return { ok: false, error: GENERIC };
+  }
 
-  // Success — clear this email's throttle bucket.
-  clearBucket(`em:${q}`);
+  // Success — clear this account's throttle bucket. The per-IP bucket is
+  // left alone: it only ever counts failures, so it can't lock out the
+  // office, and clearing it would let one good login wipe an attack's count.
+  clearRateLimit(emailKey);
 
   await prisma.user.update({
     where: { id: user.id },
@@ -197,9 +200,11 @@ export async function signIn(
 
 export async function signOut(): Promise<void> {
   const jar = await cookies();
-  const sid = jar.get(SESSION_COOKIE)?.value;
-  if (sid) {
-    await prisma.session.delete({ where: { id: sid } }).catch(() => null);
+  const token = jar.get(SESSION_COOKIE)?.value;
+  if (token) {
+    await prisma.session
+      .delete({ where: { id: hashSessionToken(token) } })
+      .catch(() => null);
   }
   jar.delete(SESSION_COOKIE);
 }
@@ -268,8 +273,10 @@ export async function createAccount(
 
 export async function getCurrentUser(): Promise<SessionUser | null> {
   const jar = await cookies();
-  const sid = jar.get(SESSION_COOKIE)?.value;
-  if (!sid) return null;
+  const token = jar.get(SESSION_COOKIE)?.value;
+  if (!token) return null;
+  // The table stores only the token's hash — see lib/session-token.ts.
+  const sid = hashSessionToken(token);
   const session = await prisma.session.findUnique({
     where: { id: sid },
     include: { user: true },
@@ -297,15 +304,44 @@ export async function changePassword(
   if (!ok) return { ok: false, error: "Current password doesn't match." };
   const passwordHash = await bcrypt.hash(nextPassword, 10);
   await prisma.user.update({ where: { id: current.id }, data: { passwordHash } });
+  // Retire every session issued under the old password — a password is
+  // usually changed because it might be known to someone else, and their
+  // session would otherwise outlive it for up to 30 days. This device gets
+  // a fresh session so it isn't signed out mid-action (same as the
+  // Engineering login, lib/domain-auth.ts changeDomainPassword).
+  await revokeAllSessions(current.id);
+  await createSession(current.id);
   return { ok: true };
 }
 
 /* ------------------------------------------------------------------ */
 
+/** Sign this account out everywhere. Used on any password change —
+ *  self-service, admin reset, or a reset link. */
+export async function revokeAllSessions(userId: string): Promise<number> {
+  const { count } = await prisma.session.deleteMany({ where: { userId } });
+  return count;
+}
+
+/** Sign this account out everywhere except the browser making this
+ *  request (if it is signed in as that account). For an admin setting a
+ *  password: the target loses every session, and an admin resetting their
+ *  own password from the Users page isn't signed out mid-action. */
+export async function revokeOtherSessions(userId: string): Promise<number> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  const keep = token ? hashSessionToken(token) : null;
+  const { count } = await prisma.session.deleteMany({
+    where: keep ? { userId, NOT: { id: keep } } : { userId },
+  });
+  return count;
+}
+
 async function createSession(userId: string) {
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
-  const session = await prisma.session.create({
-    data: { userId, expiresAt },
+  // The cookie carries the token; the row stores only its hash.
+  const token = newSessionToken();
+  await prisma.session.create({
+    data: { id: hashSessionToken(token), userId, expiresAt },
   });
   const jar = await cookies();
   // Secure-cookie policy: default ON in production (we run behind
@@ -320,7 +356,7 @@ async function createSession(userId: string) {
       : explicit === "0"
         ? false
         : process.env.NODE_ENV === "production";
-  jar.set(SESSION_COOKIE, session.id, {
+  jar.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
     secure,

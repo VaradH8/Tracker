@@ -194,14 +194,14 @@ export function DomainHandoverFields({
               <>
                 <div className="flex items-baseline gap-2 flex-wrap">
                   <CalendarClock size={14} className="text-brand-blue shrink-0" />
-                  <span className="text-[11px] uppercase tracking-wide text-ink-500 font-medium">
+                  <span className="text-xs uppercase tracking-wide text-ink-500 font-medium">
                     Handover
                   </span>
                   <strong className="font-heading text-base text-ink-900">
                     {fmtDate(preview.handover)}
                   </strong>
                 </div>
-                <p className="text-[11px] text-ink-500 mt-1">
+                <p className="text-xs text-ink-500 mt-1">
                   {value.totalWorkingDays} working days from{" "}
                   {fmtDate(preview.firstWorkingDay)} ·{" "}
                   {preview.weekendsSkipped} weekend day

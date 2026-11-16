@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { fmtWeekday as fmt } from "@/lib/domain-format";
+import { ListSkeleton } from "./Skeleton";
 
 /**
  * The delivery record behind a project's forecast: which tags were signed
@@ -84,7 +85,7 @@ export function DomainDeliveryLog({ projectId }: { projectId: number }) {
       {open && (
         <div className="mt-3">
           {days === null ? (
-            <p className="text-sm text-ink-500">Loading…</p>
+            <ListSkeleton />
           ) : (
             <>
               {/* Per-division pace, measured from approved work. */}

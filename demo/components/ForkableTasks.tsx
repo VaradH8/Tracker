@@ -109,14 +109,14 @@ export function ForkableTasks({
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-medium truncate">{t.title}</span>
                 <span
-                  className={`text-[11px] px-1.5 py-0.5 rounded ${
+                  className={`text-xs px-1.5 py-0.5 rounded ${
                     PRIORITY_STYLE[t.priority] ?? PRIORITY_STYLE.Low
                   }`}
                 >
                   {t.priority}
                 </span>
                 {t.forkedFromId && (
-                  <span className="text-[11px] px-1.5 py-0.5 rounded bg-ink-100 text-ink-500">
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-ink-100 text-ink-500">
                     already a fork
                   </span>
                 )}

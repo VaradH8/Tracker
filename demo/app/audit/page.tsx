@@ -229,7 +229,7 @@ export default function AuditPage() {
                         <span className="text-ink-900 font-medium">
                           {ACTION_LABELS[e.action] ?? e.action}
                         </span>
-                        <code className="ml-2 text-[10px] font-mono text-ink-400">
+                        <code className="ml-2 text-xs font-mono text-ink-400">
                           {e.action}
                         </code>
                       </td>
@@ -255,7 +255,7 @@ export default function AuditPage() {
                               <div className="text-ink-500 font-semibold uppercase tracking-wide mb-1">
                                 Before
                               </div>
-                              <pre className="bg-brand-redBg text-brand-redText p-2 rounded text-[11px] whitespace-pre-wrap">
+                              <pre className="bg-brand-redBg text-brand-redText p-2 rounded text-xs whitespace-pre-wrap">
                                 {e.before ?? "—"}
                               </pre>
                             </div>
@@ -263,7 +263,7 @@ export default function AuditPage() {
                               <div className="text-ink-500 font-semibold uppercase tracking-wide mb-1">
                                 After
                               </div>
-                              <pre className="bg-brand-greenBg text-brand-greenText p-2 rounded text-[11px] whitespace-pre-wrap">
+                              <pre className="bg-brand-greenBg text-brand-greenText p-2 rounded text-xs whitespace-pre-wrap">
                                 {e.after ?? "—"}
                               </pre>
                             </div>

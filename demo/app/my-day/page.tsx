@@ -227,7 +227,7 @@ function CoordinatorMyDay() {
                         href="/resources?filter=flagged"
                         className="flex items-center gap-3 p-2 -mx-2 rounded hover:bg-ink-50"
                       >
-                        <div className="w-8 h-8 rounded-full bg-brand-yellow text-white grid place-items-center text-[10px] font-heading font-medium shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-brand-yellow text-white grid place-items-center text-xs font-heading font-medium shrink-0">
                           {r.name
                             .split(" ")
                             .map((p) => p[0])
@@ -242,7 +242,7 @@ function CoordinatorMyDay() {
                             {r.designation}
                           </div>
                         </div>
-                        <span className="pill-yellow text-[10px] py-0 shrink-0">
+                        <span className="pill-yellow text-xs py-0 shrink-0">
                           idle {daysSince(r.lastStatusChange)}d
                         </span>
                       </Link>
@@ -260,7 +260,7 @@ function CoordinatorMyDay() {
               <ul className="space-y-3 text-sm">
                 {RECENT_ACTIVITY.map((a, i) => (
                   <li key={i} className="flex gap-3">
-                    <div className="w-7 h-7 rounded-full bg-ink-100 grid place-items-center text-[10px] font-heading font-medium text-ink-700 shrink-0">
+                    <div className="w-7 h-7 rounded-full bg-ink-100 grid place-items-center text-xs font-heading font-medium text-ink-700 shrink-0">
                       {a.who[0]}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -700,7 +700,7 @@ function DeveloperMyDay() {
                 <ul className="space-y-3 text-sm">
                   {myActivity.map((a) => (
                     <li key={a.id} className="flex gap-3">
-                      <div className="w-7 h-7 rounded-full bg-ink-100 grid place-items-center text-[10px] font-heading font-medium text-ink-700 shrink-0">
+                      <div className="w-7 h-7 rounded-full bg-ink-100 grid place-items-center text-xs font-heading font-medium text-ink-700 shrink-0">
                         {a.actor[0]}
                       </div>
                       <div className="flex-1 min-w-0">

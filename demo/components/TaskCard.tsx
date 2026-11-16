@@ -148,7 +148,7 @@ export function TaskCard({
         />
         <div className="flex items-center gap-2 flex-wrap">
           {overdue && (
-            <span className="pill-red text-[10px] py-0.5">
+            <span className="pill-red text-xs py-0.5">
               Overdue {task.overdueDays}d
             </span>
           )}

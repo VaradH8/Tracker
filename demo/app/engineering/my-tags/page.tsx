@@ -11,6 +11,7 @@ import {
   fmtDate as fmt,
   submissionStatusCls as statusCls,
 } from "@/lib/domain-format";
+import { PageSkeleton } from "@/components/Skeleton";
 
 type Assignment = {
   id: number;
@@ -204,7 +205,7 @@ export default function MyTagsPage() {
           </button>
         </div>
       ) : assignments === null ? (
-        <p className="text-sm text-ink-500">Loading…</p>
+        <PageSkeleton />
       ) : rows.length === 0 && submissions.length === 0 ? (
         <p className="text-sm text-ink-400 italic">
           Nothing assigned to you yet.
@@ -518,7 +519,7 @@ function AssignmentCard({
               <span className="text-ink-500 font-normal"> · {a.divisionName}</span>
             )}
             {a.complexity === "Complex" && (
-              <span className="ml-2 px-1.5 py-0.5 rounded-pill text-[11px] font-medium bg-brand-yellowBg text-brand-yellowText align-middle">
+              <span className="ml-2 px-1.5 py-0.5 rounded-pill text-xs font-medium bg-brand-yellowBg text-brand-yellowText align-middle">
                 Complex
               </span>
             )}

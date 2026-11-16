@@ -385,7 +385,7 @@ function TaskRow({
           */}
           {t.history && t.history.length > 0 && (
             <>
-              <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-400 mb-2">
+              <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-400 mb-2">
                 <History size={12} /> History
               </div>
               <ol className="space-y-2 border-l border-ink-200 pl-3">

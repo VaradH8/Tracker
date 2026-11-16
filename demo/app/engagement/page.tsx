@@ -8,6 +8,7 @@ import { ForecastView } from "@/components/engagement/ForecastView";
 import { useEngagementData } from "@/components/engagement/shared";
 import { canAccess } from "@/lib/access";
 import { useRole } from "@/lib/role";
+import { CardSkeleton } from "@/components/Skeleton";
 
 type Tab = "current" | "forecast";
 const TABS: { id: Tab; label: string }[] = [
@@ -68,7 +69,7 @@ export default function EngagementPage() {
             type="button"
             onClick={() => setHelp((v) => !v)}
             aria-label="How to read this page"
-            className="p-1 rounded-full text-ink-400 hover:text-brand-blue hover:bg-ink-100"
+            className="tap-target p-1 rounded-full text-ink-400 hover:text-brand-blue hover:bg-ink-100"
           >
             <Info size={18} />
           </button>
@@ -96,7 +97,7 @@ export default function EngagementPage() {
         {error ? (
           <div className="card p-6 text-center text-sm text-brand-redText">{error}</div>
         ) : !data ? (
-          <div className="card p-6 text-center text-sm text-ink-400">Loading…</div>
+          <CardSkeleton />
         ) : tab === "current" ? (
           <CurrentView data={data} />
         ) : (

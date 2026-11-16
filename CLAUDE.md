@@ -1,70 +1,44 @@
 # CLAUDE.md — Instructions for Claude Code
 
-This file is read automatically by Claude Code when invoked from the project root.
+Read automatically when Claude Code runs from the repo root. It describes the app as it is, not the original MVP brief.
 
-## Mission
+## What this repo is
 
-Build the Project Tracker MVP described in this folder. Read the documents in the order specified in `README.md`. Do not begin coding until you've read them all.
+One Next.js app in `demo/` with two modules that share a database but not a login:
+
+- **Tracker** (`/my-day`, `/projects`, `/dashboard`, …) — roles `Admin`, `Lead`, `Coordinator`, `HR`, `BusinessDeveloper`, `Developer`. Session cookie `tracker_session`, table `Session`, users in `User`.
+- **Engineering** (`/engineering/*`, API under `/api/domain/*`) — roles `Admin`, `CEO`, `Lead`, `TeamLead`, `SME`, `Actionee`. Session cookie `domain_session`, table `DomainSession`, users in `DomainUser`. In code it is still called "domain".
+
+Read `README.md`, then `docs/` and `specs/` in numbered order, before larger changes.
 
 ## Hard rules
 
-1. **Read all docs first** — `README.md` → `docs/01` → `docs/02` → `docs/03` → `docs/04` → `specs/05` → `specs/06` → `specs/07` → `specs/08` → `specs/09` → `specs/10`. Don't skip.
-2. **Follow the build plan in `specs/09-build-plan.md`** phase by phase. Don't try to build everything at once.
-3. **Three roles only**: Admin (global), Manager (per-team), User (per-team). Do not introduce more roles.
-4. **Server-side enforcement** for every permission check. Never trust the client.
-5. **Match the visual style** in `docs/04-screens.md` and `assets/demo.html`. Google color palette. Space Grotesk for headings. Poppins for body.
-6. **Use the tech stack in `specs/07-tech-stack.md`**. Don't substitute frameworks without an explicit reason.
-7. **Both Manager and User land on `/my-day`** — not on a team board, not on a generic dashboard.
-8. **Test the import using `assets/Ongoing_Projects.xlsx`** — this is the real data the system has to handle.
-9. **Never lose data on redeployment.** A redeploy or container restart must preserve all existing users and application data. No code change may delete, wipe, reset, or overwrite persisted data unless that destruction is the *directly intended* purpose of the change (and even then it must be explicit and guarded). In particular: migrations must be additive/non-destructive by default, seeds must only bootstrap an empty database (never wipe a populated one), and any destructive operation must be opt-in behind an explicit flag that is never part of the deploy path.
+1. **Never lose data on redeploy.** Migrations are additive by default; a data-changing migration must be safe to re-run. The seed only bootstraps an empty database. Anything destructive is opt-in behind an explicit flag that is never on the deploy path.
+2. **Enforce every permission on the server.** The UI hiding a button is never the control. Use the helpers in `lib/server-access.ts` (Tracker) and `lib/domain-auth.ts` / `lib/domain.ts` (Engineering) rather than new ad-hoc checks.
+3. **Scope by object, not just by role.** Checking a role is not enough when the request names an object: confirm the object belongs to the project/task the permission was checked on (see `canUseTaskFiles`, `canAccessProject`, `canSeeTask`).
+4. **Every new or changed endpoint gets a test** that the wrong role (or the wrong object) gets `403`/`404`, in `demo/__tests__/`.
+5. **Route files export only HTTP handlers** (`GET`, `POST`, …) and Next's route config. Helpers go in `lib/` — Next fails the build on any other export from `route.ts` or `middleware.ts`.
+6. **Don't add roles** without updating `docs/02-roles-and-permissions.md`, `lib/access.ts` (client) and the server helpers together.
+7. **Secrets never go in the repo or the EmailLog.** Session and reset tokens are stored hashed (`lib/session-token.ts`, `hashResetToken`).
+8. **Match the visual system**: Tailwind tokens in `demo/tailwind.config.ts` (`brand.*`, `ink.*`), Space Grotesk headings, Poppins body. No text below 12 px (`text-xs`); icon-only buttons carry `aria-label` and `tap-target`.
 
-## How I want you to work
+## How to work
 
-- Work phase by phase from `specs/09-build-plan.md`. After each phase, summarize what's built, run the relevant tests, and ask before proceeding.
-- For every endpoint you add, write a permission test that asserts the wrong role gets `403`.
-- For every UI page you add, take a moment to compare to the visual style guide and fix anything that drifts.
-- Commit messages: imperative, concise. Phase number prefixes welcome (e.g., `[P2] add task drawer`).
-- When unsure, prefer the simpler implementation. This is an MVP, not a platform.
+- From `demo/`: `npx tsc --noEmit` and `npm test` must pass before you hand anything back. `npx vitest run __tests__/a11y.test.tsx` is the accessibility check (axe-core).
+- Prefer the simpler implementation; this is an internal tool for a few dozen people.
+- Keep comments in the existing style: explain *why*, in full sentences.
+- Commit messages: imperative and concise. Don't commit or push unless asked.
+- Working copy uses CRLF line endings on Windows (`core.autocrlf=true`); keep files that way.
 
-## Project root layout to create
+## Running it
 
-See `specs/07-tech-stack.md` "Repository structure" section.
+- Tests: `cd demo && npm test`
+- Local app: see `demo/README.md` (or the `verify` skill in `demo/.claude/skills/`).
+- Production: GitHub Actions builds `ghcr.io/varadh8/tracker-app`; Portainer deploys `compose.yml` to the Swarm. See `specs/08-deployment.md`.
 
-## Environment
+## Things not to do
 
-- Local dev: `docker compose up`, app available on `http://localhost`
-- Backend hot reload via uvicorn `--reload`
-- Frontend hot reload via Vite dev server (proxy `/api/*` to backend)
-
-## What's already provided in this folder
-
-- **Real source data** in `assets/Ongoing_Projects.xlsx` — use this for import testing
-- **Visual reference** in `assets/demo.html` — open in a browser to see the target look and feel
-- **Full PRD** in `docs/` and `specs/`
-
-## What I expect at the end
-
-A working Docker Compose stack that:
-1. Runs locally with `docker compose up`
-2. Deploys to AWS EC2 via Portainer with no manual intervention beyond setting env vars
-3. Imports the real `Ongoing_Projects.xlsx` end-to-end
-4. Passes every checkbox in `specs/10-acceptance-criteria.md`
-
-## Things you should NOT do
-
-- Don't add features beyond MVP scope (see `docs/01-overview.md` non-goals)
-- Don't add Celery, Kubernetes, microservices, GraphQL, or other complexity
-- Don't introduce a fourth role
-- Don't use JWT (use server sessions, simpler to revoke)
-- Don't build a mobile app (responsive web is enough)
-- Don't reproduce the spreadsheet's data quirks; normalize them on import
-- Don't wipe, reset, or re-seed a populated database on deploy/restart — see Hard rule 9. Existing data survives every redeployment unless destruction is explicitly intended and guarded.
-
-## When you finish a phase
-
-Run through these checks before moving on:
-1. The phase's "Done when" criteria from `specs/09-build-plan.md` are met
-2. New endpoints have passing permission tests
-3. New UI matches the visual style
-4. Stack still boots cleanly via `docker compose up`
-5. Summarize what was built and ask before starting the next phase
+- Don't wipe, reset or re-seed a populated database on deploy or restart.
+- Don't reintroduce the deleted `backend/` (FastAPI), `frontend/` (Vite) or `caddy/` scaffolds — the app is `demo/`, and Traefik is the proxy.
+- Don't parse uploaded spreadsheets with anything but the pinned SheetJS build (`xlsx` from cdn.sheetjs.com, ≥ 0.20.2); the npm `xlsx` 0.18 has unpatched CVEs.
+- Don't log or store raw tokens, passwords or reset links.

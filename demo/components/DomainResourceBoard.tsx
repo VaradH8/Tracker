@@ -357,7 +357,7 @@ export function DomainResourceBoard({
       </p>
 
       {/* ---- which colour is which ---------------------------------- */}
-      <div className="flex items-center gap-3 flex-wrap text-[11px] text-ink-600 mb-3">
+      <div className="flex items-center gap-3 flex-wrap text-xs text-ink-600 mb-3">
         <span className="inline-flex items-center gap-1.5">
           <span className={`w-2.5 h-2.5 rounded-sm ${FREE_COLOUR}`} />
           Free
@@ -379,7 +379,7 @@ export function DomainResourceBoard({
             between them are what let you read DOWN — "who is free in week
             33" — which is the question a bar could never answer.
           */}
-          <table className="w-full table-fixed border-collapse text-[11px]">
+          <table className="w-full table-fixed border-collapse text-xs">
             <thead>
               <tr>
                 <th
@@ -431,7 +431,7 @@ export function DomainResourceBoard({
                       <div className="truncate text-sm font-medium text-ink-900">
                         {r.name}
                       </div>
-                      <div className="truncate text-[11px] text-ink-500">
+                      <div className="truncate text-xs text-ink-500">
                         {DOMAIN_ROLE_LABELS[r.role as DomainRole] ?? r.role}
                         {doubled && (
                           <span className="font-medium text-brand-yellowText">

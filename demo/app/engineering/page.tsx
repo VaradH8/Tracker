@@ -16,6 +16,7 @@ import { DomainTasksCard } from "@/components/DomainTasksCard";
 import { DomainPage, PageHeader } from "@/components/DomainPage";
 import { DomainExecutiveHome } from "@/components/DomainExecutiveHome";
 import { fmtDate } from "@/lib/domain-format";
+import { PageSkeleton } from "@/components/Skeleton";
 
 /**
  * The Domain home, answering one question per role:
@@ -245,7 +246,7 @@ function ManagerHome() {
     load();
   }, [load]);
 
-  if (projects === null) return <p className="text-sm text-ink-500">Loading…</p>;
+  if (projects === null) return <PageSkeleton />;
 
   const behind = projects.filter((p) => p.forecast.status === "Behind Schedule");
   const pendingTags = pending.reduce((s, x) => s + x.completedCount, 0);
@@ -658,7 +659,7 @@ function ProjectGroupCard({ g }: { g: ProjectGroup }) {
             {g.projectName}
           </span>
           {done && (
-            <span className="px-1.5 py-0.5 rounded-pill text-[10px] font-semibold bg-brand-greenBg text-brand-greenText">
+            <span className="px-1.5 py-0.5 rounded-pill text-xs font-semibold bg-brand-greenBg text-brand-greenText">
               done
             </span>
           )}
@@ -696,7 +697,7 @@ function ProjectGroupCard({ g }: { g: ProjectGroup }) {
             <span className="block text-sm font-semibold text-ink-900">
               {g.delivered} / {g.assigned}
             </span>
-            <span className="block text-[11px] text-ink-500">delivered</span>
+            <span className="block text-xs text-ink-500">delivered</span>
           </span>
         </>
       )}
@@ -756,7 +757,7 @@ function WorkerHome({ secondary = false }: { secondary?: boolean }) {
   useEffect(load, [load]);
 
   if (rows === null) {
-    return secondary ? null : <p className="text-sm text-ink-500">Loading…</p>;
+    return secondary ? null : <PageSkeleton />;
   }
 
   const groups = groupByProject(allocs, rows);

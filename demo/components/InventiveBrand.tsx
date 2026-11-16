@@ -80,7 +80,7 @@ export function BrandPanel({
       />
       <span
         className={`font-medium tracking-wide text-white/75 leading-none whitespace-nowrap ${
-          subdued ? "text-[12px]" : "text-[13px]"
+          subdued ? "text-xs" : "text-[13px]"
         }`}
       >
         {label}

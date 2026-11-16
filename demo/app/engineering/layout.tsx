@@ -4,6 +4,7 @@ import { useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { DomainAuthProvider, useDomain } from "@/lib/domain-store";
 import { DomainShell } from "@/components/DomainShell";
+import { ShellSkeleton } from "@/components/Skeleton";
 
 export default function DomainLayout({ children }: { children: ReactNode }) {
   return (
@@ -23,9 +24,7 @@ function Gate({ children }: { children: ReactNode }) {
 
   if (!hydrated) {
     return (
-      <div className="min-h-screen bg-ink-50 grid place-items-center">
-        <p className="text-sm text-ink-500">Loading…</p>
-      </div>
+      <ShellSkeleton />
     );
   }
   if (!current) return null;

@@ -13,6 +13,7 @@ import { SearchSelect } from "@/components/SearchSelect";
 import { DomainTaskCard, type TaskCardTask } from "@/components/DomainTaskCard";
 import { useDomain } from "@/lib/domain-store";
 import type { TaskSort } from "@/components/DomainSortToggle";
+import { ListSkeleton } from "./Skeleton";
 
 /**
  * Everything that has been assigned, and a way to find one of them.
@@ -275,7 +276,7 @@ export function DomainTaskHistory({
       )}
 
       {rows === null ? (
-        <p className="text-sm text-ink-500">Loading…</p>
+        <ListSkeleton />
       ) : shown.length === 0 ? (
         <div className="card p-10 text-center">
           <div className="flex justify-center mb-2">

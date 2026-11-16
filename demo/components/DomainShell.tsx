@@ -26,6 +26,7 @@ import {
 } from "@/lib/domain";
 import { BRAND_NAVY, BrandPanel } from "@/components/InventiveBrand";
 import { NumberFieldGuard } from "@/components/NumberFieldGuard";
+import { SectionErrorBoundary } from "./SectionErrorBoundary";
 
 type NavItem = {
   href: string;
@@ -155,7 +156,7 @@ export function DomainShell({ children }: { children: ReactNode }) {
           if (groupItems.length === 0) return null;
           return (
             <div key={group} className="mb-5">
-              <div className="px-2 mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-400">
+              <div className="px-2 mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-400">
                 {group}
               </div>
               <ul className="space-y-0.5">
@@ -198,7 +199,7 @@ export function DomainShell({ children }: { children: ReactNode }) {
             <span className="block text-sm font-medium text-ink-900 truncate">
               {current.name}
             </span>
-            <span className="block text-[11px] text-ink-500">
+            <span className="block text-xs text-ink-500">
               {DOMAIN_ROLE_LABELS[current.role]}
             </span>
           </span>
@@ -235,7 +236,7 @@ export function DomainShell({ children }: { children: ReactNode }) {
       >
         <button
           onClick={() => setOpen(true)}
-          className="p-2 -ml-2 rounded hover:bg-white/10 text-white/80"
+          className="tap-target p-2 -ml-2 rounded hover:bg-white/10 text-white/80"
           aria-label="Open navigation"
         >
           <Menu size={18} />
@@ -262,7 +263,7 @@ export function DomainShell({ children }: { children: ReactNode }) {
                 ink-500 on navy was very nearly invisible. */}
             <button
               onClick={() => setOpen(false)}
-              className="absolute top-5 right-3 p-1.5 rounded hover:bg-white/10 text-white/70 hover:text-white z-10"
+              className="tap-target absolute top-5 right-3 p-1.5 rounded hover:bg-white/10 text-white/70 hover:text-white z-10"
               aria-label="Close navigation"
             >
               <X size={16} />
@@ -273,7 +274,11 @@ export function DomainShell({ children }: { children: ReactNode }) {
       )}
 
       <main className="lg:pl-60">
-        <div className="max-w-[1280px] mx-auto px-6 py-8">{children}</div>
+        <div className="max-w-[1280px] mx-auto px-6 py-8">
+          <SectionErrorBoundary label="This page" resetKey={pathname}>
+            {children}
+          </SectionErrorBoundary>
+        </div>
       </main>
     </div>
   );
@@ -348,13 +353,13 @@ function ModeToggle({
           <span className="block text-xs font-medium text-ink-800">
             {taskLogOnly ? "Task log mode" : "Normal mode"}
           </span>
-          <span className="block text-[11px] text-ink-500">
+          <span className="block text-xs text-ink-500">
             {taskLogOnly ? "Tasks only" : "Everything shown"}
           </span>
         </span>
       </button>
       {failed && (
-        <p className="text-[11px] text-brand-redText mt-1">
+        <p className="text-xs text-brand-redText mt-1">
           Couldn&apos;t save that. Try again.
         </p>
       )}

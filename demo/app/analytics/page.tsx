@@ -286,7 +286,7 @@ export default function AnalyticsPage() {
                       {reasons.map((r) => (
                         <span
                           key={r}
-                          className="px-1.5 py-0.5 rounded-pill text-[10px] font-medium bg-brand-redBg text-brand-redText"
+                          className="px-1.5 py-0.5 rounded-pill text-xs font-medium bg-brand-redBg text-brand-redText"
                         >
                           {r}
                         </span>

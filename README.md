@@ -1,39 +1,46 @@
-# Project Tracker — Build Package
+# Inventive Task Manager (Tracker + Engineering)
 
-This folder contains everything needed to build the Project Tracker MVP. Read documents in this order:
+Internal work tracker for Inventive Business Solutions. It replaced the shared `Ongoing_Projects.xlsx` that 7 teams used to track projects, and grew a second module for the engineering delivery team.
+
+- **Tracker** — projects, tasks, time logs, leaves, performance reviews, resourcing and the sales pipeline. Six roles.
+- **Engineering** — tag deliveries, allocations, approvals, forecast and KPIs. Its own login and its own six roles.
+
+Both modules are one Next.js app in [`demo/`](./demo), on PostgreSQL, deployed as a Docker Swarm stack behind Traefik.
+
+## Repository layout
+
+| Path | What it is |
+| --- | --- |
+| [`demo/`](./demo) | The application: Next.js 15 (App Router) + Prisma + Postgres. Pages in `app/`, API routes in `app/api/`, shared logic in `lib/`, tests in `__tests__/`. |
+| [`compose.yml`](./compose.yml) | Production stack: Postgres, the app image from GHCR, nightly `pg_dump`, optional off-host copy. |
+| [`.github/workflows/build-app.yml`](./.github/workflows/build-app.yml) | CI: typecheck, tests, accessibility check, production build, then push the image to GHCR. |
+| [`docs/`](./docs) | What the product does: overview, roles, workflows, screens. |
+| [`specs/`](./specs) | How it is built: data model, API, stack, deployment, roadmap, definition of done. |
+| [`tools/xlsx-build/`](./tools/xlsx-build) | Builds the Excel import template. |
+| [`historical-import/`](./historical-import) | Drop zone and notes for one-off historical imports. |
+| [`assets/`](./assets) | The original spreadsheet, the visual reference (`demo.html`) and the quick guide. |
 
 ## Reading order
 
-1. **[README.md](./README.md)** ← you are here
-2. **[docs/01-overview.md](./docs/01-overview.md)** — what we're building and why
-3. **[docs/02-roles-and-permissions.md](./docs/02-roles-and-permissions.md)** — the 3 roles, what each can/can't do
-4. **[docs/03-workflows.md](./docs/03-workflows.md)** — step-by-step flow per role (login → actions)
-5. **[docs/04-screens.md](./docs/04-screens.md)** — every screen, what's on it, by role
-6. **[specs/05-data-model.md](./specs/05-data-model.md)** — database tables, fields, relationships
-7. **[specs/06-api-spec.md](./specs/06-api-spec.md)** — REST endpoints
-8. **[specs/07-tech-stack.md](./specs/07-tech-stack.md)** — frameworks, libraries, versions
-9. **[specs/08-deployment.md](./specs/08-deployment.md)** — Docker, Portainer, EC2 setup
-10. **[specs/09-build-plan.md](./specs/09-build-plan.md)** — phased delivery, milestone-by-milestone
-11. **[specs/10-acceptance-criteria.md](./specs/10-acceptance-criteria.md)** — definition of done
+1. [docs/01-overview.md](./docs/01-overview.md) — what the product is and why
+2. [docs/02-roles-and-permissions.md](./docs/02-roles-and-permissions.md) — who can do what, in both modules
+3. [docs/03-workflows.md](./docs/03-workflows.md) — the everyday journeys
+4. [docs/04-screens.md](./docs/04-screens.md) — every screen and who sees it
+5. [specs/05-data-model.md](./specs/05-data-model.md) — tables and relations
+6. [specs/06-api-spec.md](./specs/06-api-spec.md) — every API route and its guard
+7. [specs/07-tech-stack.md](./specs/07-tech-stack.md) — frameworks and versions
+8. [specs/08-deployment.md](./specs/08-deployment.md) — how it runs in production
+9. [specs/09-build-plan.md](./specs/09-build-plan.md) — what's done and what's next
+10. [specs/10-acceptance-criteria.md](./specs/10-acceptance-criteria.md) — definition of done for any change
 
-## For Claude Code
+## Quick start (local)
 
-When invoked from the project root:
+```sh
+cd demo
+npm ci
+npx prisma generate
+npm test            # unit, route-permission and accessibility tests
+npm run dev         # needs DATABASE_URL pointing at a Postgres
+```
 
-- **First task**: read the documents in the order above before writing any code
-- **Source xlsx file** for import testing: `assets/Ongoing_Projects.xlsx`
-- **HTML mockup** showing the UI direction: `assets/demo.html` — match the visual style (Google color palette, Space Grotesk for headings, Poppins for body)
-- **Build environment**: a single AWS EC2 instance running Docker + Portainer
-- **Database**: PostgreSQL 16
-- **Auth**: email + password, session cookies
-- **Three roles only**: Admin (global), Manager (per-team), User (per-team)
-
-## Project name
-
-`project-tracker`
-
-## Quick summary (TL;DR for the model)
-
-A web app to replace a multi-sheet Excel tracker. Teams (e.g., Samanvay, Thermax P&ID) contain Projects, which contain Tasks. Tasks have priority, assignees, dates, status (To Do / In Progress / Blocked / Done), and a Manager-controlled "Important" flag that surfaces them on a cross-team Admin dashboard. Manager and User both land on a "My Day" dashboard on login. Admin lands on an org-wide dashboard.
-
-Build it lean. MVP scope is in `specs/09-build-plan.md`. Don't over-engineer.
+[`demo/README.md`](./demo/README.md) has the local database setup; [`DEPLOY.md`](./DEPLOY.md) and [specs/08](./specs/08-deployment.md) cover production.

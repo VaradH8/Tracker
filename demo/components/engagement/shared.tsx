@@ -134,7 +134,7 @@ export function StatTile({
 }) {
   return (
     <div className="card px-4 py-3" title={hint}>
-      <div className="text-[11px] font-medium uppercase tracking-wide text-ink-500">
+      <div className="text-xs font-medium uppercase tracking-wide text-ink-500">
         {label}
       </div>
       <div className={`font-heading text-xl font-semibold leading-tight mt-0.5 ${tone}`}>
@@ -193,7 +193,7 @@ export function PeriodControls({
           type="button"
           aria-label="Previous"
           onClick={() => setView({ ...view, anchor: shiftAnchor(view.gran, view.anchor, -1) })}
-          className="px-2 py-1.5 text-ink-500 hover:bg-ink-100"
+          className="tap-target px-2 py-1.5 text-ink-500 hover:bg-ink-100"
         >
           <ChevronLeft size={16} />
         </button>
@@ -209,7 +209,7 @@ export function PeriodControls({
           type="button"
           aria-label="Next"
           onClick={() => setView({ ...view, anchor: shiftAnchor(view.gran, view.anchor, 1) })}
-          className="px-2 py-1.5 text-ink-500 hover:bg-ink-100"
+          className="tap-target px-2 py-1.5 text-ink-500 hover:bg-ink-100"
         >
           <ChevronRight size={16} />
         </button>
@@ -222,4 +222,4 @@ export const inputCls =
   "h-9 rounded border border-ink-200 bg-white px-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue";
 
 export const labelCls =
-  "text-[11px] font-medium uppercase tracking-wide text-ink-500";
+  "text-xs font-medium uppercase tracking-wide text-ink-500";

@@ -233,7 +233,7 @@ export function CurrentView({ data }: { data: EngagementData }) {
         rows={people.map((p) => ({
           id: p.id,
           label: p.shortName,
-          tag: p.track ? <span className={`${TRACK_PILL[p.track]} !px-2 !py-0 text-[10px]`}>{p.track}</span> : undefined,
+          tag: p.track ? <span className={`${TRACK_PILL[p.track]} !px-2 !py-0 text-xs`}>{p.track}</span> : undefined,
         }))}
         periods={periods}
         gran={view.gran}
@@ -287,7 +287,7 @@ function PersonDetail({
         )}
       </p>
 
-      <h3 className="text-[11px] font-medium uppercase tracking-wide text-ink-500">Engagements</h3>
+      <h3 className="text-xs font-medium uppercase tracking-wide text-ink-500">Engagements</h3>
       {blocks.length === 0 ? (
         <p className="text-sm text-ink-400 mt-1 mb-4">Not engaged on any project — available now.</p>
       ) : (
@@ -311,7 +311,7 @@ function PersonDetail({
 
       {reserved.length > 0 && (
         <>
-          <h3 className="text-[11px] font-medium uppercase tracking-wide text-ink-500">Reserved in forecast</h3>
+          <h3 className="text-xs font-medium uppercase tracking-wide text-ink-500">Reserved in forecast</h3>
           <ul className="mt-1 mb-4 text-sm text-ink-700 list-disc pl-5">
             {reserved.map((f) => (
               <li key={`${f.projectId}-${f.track}`}>
@@ -324,7 +324,7 @@ function PersonDetail({
 
       {leaves.length > 0 && (
         <>
-          <h3 className="text-[11px] font-medium uppercase tracking-wide text-ink-500">Upcoming leave</h3>
+          <h3 className="text-xs font-medium uppercase tracking-wide text-ink-500">Upcoming leave</h3>
           <ul className="mt-1 text-sm text-ink-700 list-disc pl-5">
             {leaves.map((l, i) => (
               <li key={i}>

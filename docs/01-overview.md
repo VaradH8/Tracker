@@ -1,69 +1,51 @@
 # 01 — Overview
 
-## What we're building
+## What it is
 
-A web-based work-tracking application called **Project Tracker** that replaces a multi-sheet Excel file currently used to track ongoing projects across 7 teams.
+An internal web app for Inventive Business Solutions, an engineering-services company. It started as a replacement for one shared Excel workbook and now runs two modules:
 
-## Why we're building it
+| Module | For | What it tracks | Login |
+| --- | --- | --- | --- |
+| **Tracker** | Everyone in the delivery and business teams | Clients, projects, tasks (assignment, status, approval, dependencies, forks), time logs, attachments, leaves, the sales pipeline, resource engagement and forecasts, monthly/yearly performance reviews | `/login` → Tracker tab |
+| **Engineering** | The engineering delivery team (P&ID tagging and similar) | Projects and divisions, tag allocations, daily tag submissions and approvals, delivery corrections, Engineering tasks with reviewers, holidays and leave, forecast, resource availability, KPIs | `/login` → Engineering tab |
 
-The Excel file (`Ongoing_Projects.xlsx`) has these problems:
+Both live in one Next.js app (`demo/`) on one Postgres database, but each has its own user table, session and roles.
 
-- Concurrent edits cause data overwrites
-- No notifications when work is assigned, edited, or overdue
-- No history of who changed what
-- Roll-up dashboard for important items must be hand-maintained
-- Inconsistent formats: efforts written as `8 hrs`, `8`, `TBD`; dates as `16/03/2026` text or `46147` Excel serial
-- No access control — anyone can edit anything
-- Hard to filter "what's assigned to me" or "what's overdue this week"
+## Why it exists
 
-## What it preserves from the old system
+The workbook `assets/Ongoing_Projects.xlsx`, shared by 7 teams, had:
 
-The mental model carries over directly:
+- concurrent edits overwriting each other;
+- no notification when work was assigned, changed or overdue;
+- no history of who changed what;
+- a roll-up dashboard maintained by hand;
+- inconsistent formats (efforts as `8 hrs`, `8`, `TBD`; dates as text or Excel serials);
+- no access control.
+
+The app fixes each: one record per task, notifications in-app and by email, an audit log on every change, automatic dashboards, normalised import, and server-enforced roles.
+
+## The model it kept from the spreadsheet
 
 ```
-Team (e.g., "Samanvay – Engg Memory")
-  └── Project (e.g., "Saipem", "Luggi", "Thermax")
-        └── Task (with priority, assignees, dates, status, remarks)
+Client
+  └── Project  (roster: Lead, Co-ordinator, Developer, BD lanes)
+        └── Task  (assignees, responsible person, priority, dates, status, remarks,
+                   time entries, attachments, dependencies, approval)
 ```
 
-Existing column structure from the spreadsheet is preserved when exporting back to Excel, so leadership can still consume reports in the format they're used to.
-
-## Existing teams (7) to be migrated
-
-1. POCs
-2. Support Automation
-3. Thermax P&ID
-4. Thermax ENIMAX
-5. Thermax QA
-6. Samanvay – Engg Memory
-7. AMC
+Excel import (`/settings/import`, `/projects/[id]` → Import tasks) normalises the old sheets, and exports keep the column layout leadership is used to.
 
 ## Goals
 
-- Lightweight, role-aware web app
-- Three roles: Admin, Manager, User
-- Task CRUD with status workflow
-- "My Day" landing page for Manager and User
-- Org dashboard (Admin) showing important tasks across all teams
-- Audit log for every change
-- Excel import (for migration) and export (for leadership reporting)
-- Deployable as a single Docker stack on EC2 via Portainer
+- Everyone lands on the work that is theirs: `My Day` for Leads, Co-ordinators and HR, `My Tasks` for Developers; the org dashboard for Admins; the Engineering dashboard for that module.
+- Nothing changes silently: notifications, audit log, approvals.
+- Planning without a spreadsheet: resource engagement, project forecasts, availability.
+- Reviews from evidence: performance reviews pull tasks, hours, leave and rework from the tracker.
+- Safe to run: data survives every redeploy; every permission is checked on the server.
 
-## Non-goals (explicitly out of scope for MVP)
+## Non-goals (current)
 
-- Gantt charts
-- Sub-tasks or task dependencies
-- Time-tracking / timesheet integration
-- Slack / Teams integration
-- Mobile app (responsive web is enough)
-- SSO / SAML
-- File attachments
-- Customer-facing or external sharing
-
-## Scale assumptions
-
-- ~30 active users, 50 concurrent at peak
-- ~500 active tasks at any time
-- Single AWS EC2 instance (t3.medium or similar)
-- Single Postgres database
-- Daily backups to S3
+- Native mobile apps (the web app is responsive).
+- SSO/SAML (open question — see [specs/09](../specs/09-build-plan.md)).
+- Slack/Teams integration.
+- Multi-tenant use outside Inventive.

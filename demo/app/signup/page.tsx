@@ -19,6 +19,10 @@ export default function SignupPage() {
   // null = still checking, true = no users yet (bootstrap allowed),
   // false = users exist (signup locked, admin must add accounts).
   const [allowed, setAllowed] = useState<boolean | null>(null);
+  // The server asks for a setup token on the first admin when SETUP_TOKEN
+  // is set (lib/setup-token.ts).
+  const [tokenRequired, setTokenRequired] = useState(false);
+  const [setupToken, setSetupToken] = useState("");
 
   useEffect(() => {
     if (hydrated && current) router.replace(landingFor(current.role));
@@ -27,7 +31,10 @@ export default function SignupPage() {
   useEffect(() => {
     fetch("/api/auth/signup", { cache: "no-store" })
       .then((r) => r.json())
-      .then((b) => setAllowed(Boolean(b.allowed)))
+      .then((b) => {
+        setAllowed(Boolean(b.allowed));
+        setTokenRequired(Boolean(b.setupTokenRequired));
+      })
       .catch(() => setAllowed(false));
   }, []);
 
@@ -38,7 +45,13 @@ export default function SignupPage() {
       return;
     }
     // Role is forced to Admin server-side on first user.
-    const result = await register({ name, email, role: "Admin", password });
+    const result = await register({
+      name,
+      email,
+      role: "Admin",
+      password,
+      ...(tokenRequired ? { setupToken } : {}),
+    });
     if (!result.ok) {
       setError(result.error);
       return;
@@ -101,10 +114,11 @@ export default function SignupPage() {
             add the rest of the team via Admin → Users.
           </p>
           <form onSubmit={submit}>
-            <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            <label htmlFor="signup-full-name" className="block text-xs font-medium text-ink-700 mb-1.5">
               Full name
             </label>
             <input
+                  id="signup-full-name"
               autoFocus
               value={name}
               onChange={(e) => {
@@ -114,10 +128,11 @@ export default function SignupPage() {
               placeholder="e.g. Varad Hadawale"
               className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
             />
-            <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            <label htmlFor="signup-email" className="block text-xs font-medium text-ink-700 mb-1.5">
               Email
             </label>
             <input
+                  id="signup-email"
               type="email"
               value={email}
               onChange={(e) => {
@@ -127,10 +142,11 @@ export default function SignupPage() {
               placeholder="you@company.com"
               className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
             />
-            <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            <label htmlFor="signup-password" className="block text-xs font-medium text-ink-700 mb-1.5">
               Password
             </label>
             <input
+                  id="signup-password"
               type="password"
               value={password}
               onChange={(e) => {
@@ -140,10 +156,11 @@ export default function SignupPage() {
               placeholder="at least 6 characters"
               className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
             />
-            <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            <label htmlFor="signup-confirm-password" className="block text-xs font-medium text-ink-700 mb-1.5">
               Confirm password
             </label>
             <input
+                  id="signup-confirm-password"
               type="password"
               value={confirm}
               onChange={(e) => {
@@ -152,13 +169,35 @@ export default function SignupPage() {
               }}
               className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
             />
+            {tokenRequired && (
+              <>
+                <label htmlFor="signup-setup-token" className="block text-xs font-medium text-ink-700 mb-1.5">
+                  Setup token
+                </label>
+                <input
+                  id="signup-setup-token"
+                  value={setupToken}
+                  onChange={(e) => {
+                    setSetupToken(e.target.value);
+                    setError(null);
+                  }}
+                  autoComplete="off"
+                  placeholder="From whoever deployed the app"
+                  className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                />
+              </>
+            )}
             {error && (
               <p className="text-xs text-brand-redText mb-3">{error}</p>
             )}
             <button
               type="submit"
               disabled={
-                !name.trim() || !email.trim() || !password || !confirm
+                !name.trim() ||
+                !email.trim() ||
+                !password ||
+                !confirm ||
+                (tokenRequired && !setupToken.trim())
               }
               className="btn-primary w-full"
             >

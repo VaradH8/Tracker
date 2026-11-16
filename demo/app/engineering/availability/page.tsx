@@ -10,6 +10,7 @@ import {
 import { DomainPage, PageHeader } from "@/components/DomainPage";
 import { DomainRefreshButton } from "@/components/DomainRefreshButton";
 import { fmtDate } from "@/lib/domain-format";
+import { PageSkeleton } from "@/components/Skeleton";
 
 /**
  * Resource engagement — who is free, who is booked, until when, and how
@@ -128,7 +129,7 @@ export default function AvailabilityPage() {
       )}
 
       {resources === null ? (
-        <p className="text-sm text-ink-500">Loading…</p>
+        <PageSkeleton />
       ) : (
         <DomainResourceBoard resources={resources} />
       )}

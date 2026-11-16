@@ -230,7 +230,7 @@ export function ImportantToggle({
         if (!readOnly) onChange(!value);
       }}
       disabled={readOnly}
-      className={`p-1 -m-1 rounded ${readOnly ? "" : "hover:bg-brand-yellowBg"}`}
+      className={`tap-target p-1 -m-1 rounded ${readOnly ? "" : "hover:bg-brand-yellowBg"}`}
       title={
         readOnly
           ? "Important — pinned to org dashboard"
@@ -268,7 +268,7 @@ export function AssigneePicker({
           <Avatar key={a} name={a} colorIdx={i} />
         ))}
         {selected.length > 3 && (
-          <div className="w-6 h-6 rounded-full border-2 border-white grid place-items-center text-[10px] font-medium bg-ink-100 text-ink-700">
+          <div className="w-6 h-6 rounded-full border-2 border-white grid place-items-center text-xs font-medium bg-ink-100 text-ink-700">
             +{selected.length - 3}
           </div>
         )}
@@ -293,7 +293,7 @@ export function AssigneePicker({
               .map((a, i) => <Avatar key={a} name={a} colorIdx={i} />)
           )}
           {selected.length > 3 && (
-            <div className="w-6 h-6 rounded-full border-2 border-white grid place-items-center text-[10px] font-medium bg-ink-100 text-ink-700">
+            <div className="w-6 h-6 rounded-full border-2 border-white grid place-items-center text-xs font-medium bg-ink-100 text-ink-700">
               +{selected.length - 3}
             </div>
           )}
@@ -336,7 +336,7 @@ function AssigneeMenu({
 
   return (
     <div className="min-w-[240px]">
-      <div className="px-2.5 py-1.5 text-[11px] text-ink-500 border-b border-ink-100 flex items-center justify-between">
+      <div className="px-2.5 py-1.5 text-xs text-ink-500 border-b border-ink-100 flex items-center justify-between">
         <span>
           {selected.length === 0
             ? `Pick one or more ${anyone ? "people" : "developers"}`
@@ -398,7 +398,7 @@ function Avatar({
   colorIdx: number;
   size?: "sm" | "md";
 }) {
-  const dim = size === "sm" ? "w-5 h-5 text-[9px]" : "w-6 h-6 text-[10px]";
+  const dim = size === "sm" ? "w-5 h-5 text-xs" : "w-6 h-6 text-xs";
   return (
     <div
       title={name}
@@ -520,7 +520,7 @@ export function QuickActions({
               }
             }}
             title={b.tip}
-            className={`px-1.5 py-0.5 rounded text-[10px] font-medium inline-flex items-center gap-1 ${b.tone}`}
+            className={`px-1.5 py-0.5 rounded text-xs font-medium inline-flex items-center gap-1 ${b.tone}`}
           >
             <Icon size={11} /> {b.label}
           </button>
@@ -621,7 +621,7 @@ export function TimerControls({
   const btnCls =
     size === "md"
       ? "inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium"
-      : "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium";
+      : "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium";
 
   return (
     <div className="inline-flex items-center gap-1">
@@ -631,7 +631,7 @@ export function TimerControls({
           so we hide this chip to avoid two competing clocks. */}
       {!running && loggedHours > 0 && (
         <span
-          className="inline-flex items-center gap-1 text-[10px] text-ink-400"
+          className="inline-flex items-center gap-1 text-xs text-ink-400"
           title={`${loggedLabel} logged total`}
         >
           <Clock size={11} /> {loggedLabel}
@@ -754,7 +754,7 @@ function QuickLogMenu({ onLog }: { onLog: (hours: number) => void }) {
 
   return (
     <div className="min-w-[208px]">
-      <div className="px-2 py-1 text-[11px] text-ink-400 uppercase tracking-wide font-semibold">
+      <div className="px-2 py-1 text-xs text-ink-400 uppercase tracking-wide font-semibold">
         Log time — today
       </div>
       <div className="flex flex-wrap gap-1 px-1 py-1">

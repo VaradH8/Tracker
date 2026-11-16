@@ -296,7 +296,7 @@ export function SearchSelect({
         // Same box as every other control on the page — see domain-ui.
         // A picker that looks different from the select beside it reads as
         // a different kind of thing.
-        className={`${selectClass(size, "w-full text-left")} flex items-center gap-2 pr-2 ${
+        className={`tap-target ${selectClass(size, "w-full text-left")} flex items-center gap-2 pr-2 ${
           open ? "border-brand-blue ring-2 ring-brand-blue/20" : ""
         }`}
       >

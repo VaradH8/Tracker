@@ -139,7 +139,7 @@ function ScopeFields({
             )}
           </div>
           {scope.receivedExceedsContract && (
-            <p className="text-[11px] text-brand-yellowText mt-1.5">
+            <p className="text-xs text-brand-yellowText mt-1.5">
               More has been received than the contract covers — the contract
               figure is probably out of date.
             </p>
@@ -190,7 +190,7 @@ function ScopeFields({
                 />
                 <button
                   onClick={() => setDivisions((prev) => prev.filter((_, j) => j !== i))}
-                  className="btn-ghost text-xs"
+                  className="tap-target btn-ghost text-xs"
                   aria-label="Remove division"
                 >
                   <Trash2 size={14} />
@@ -509,7 +509,7 @@ export function EditProjectForm({
     <div className="card p-4 mb-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="font-heading font-semibold">Edit project</h3>
-        <button onClick={onCancel} className="btn-ghost text-sm" aria-label="Close">
+        <button onClick={onCancel} className="tap-target btn-ghost text-sm" aria-label="Close">
           <X size={14} />
         </button>
       </div>
@@ -850,7 +850,7 @@ export function TagAssignmentPanel({
                       </span>
                       {a && (
                         <span
-                          className={`px-2 py-0.5 rounded-pill text-[11px] font-medium ${
+                          className={`px-2 py-0.5 rounded-pill text-xs font-medium ${
                             a.status === "Free"
                               ? "bg-brand-greenBg text-brand-greenText"
                               : "bg-brand-yellowBg text-brand-yellowText"
@@ -886,7 +886,7 @@ export function TagAssignmentPanel({
                       <div className="font-heading font-semibold text-ink-900">
                         {delivered} / {assigned}
                       </div>
-                      <div className="text-[11px] text-ink-500">
+                      <div className="text-xs text-ink-500">
                         delivered
                         {pending > 0 && (
                           <span className="text-brand-yellowText">
@@ -917,7 +917,7 @@ export function TagAssignmentPanel({
                         }
                         title={`Take ${sec.name} off this project`}
                         aria-label={`Take ${sec.name} off this project`}
-                        className="btn-ghost text-sm text-brand-redText border border-ink-200"
+                        className="tap-target btn-ghost text-sm text-brand-redText border border-ink-200"
                       >
                         <Trash2 size={13} />
                       </button>
@@ -984,7 +984,7 @@ export function TagAssignmentPanel({
                                 labelling every ordinary batch "Simple" is
                                 noise. */}
                             {r.complexity === "Complex" && (
-                              <span className="ml-1.5 px-1.5 py-0.5 rounded-pill text-[11px] font-medium bg-brand-yellowBg text-brand-yellowText">
+                              <span className="ml-1.5 px-1.5 py-0.5 rounded-pill text-xs font-medium bg-brand-yellowBg text-brand-yellowText">
                                 Complex
                               </span>
                             )}
@@ -1011,7 +1011,7 @@ export function TagAssignmentPanel({
                             {canAssign && (
                               <button
                                 onClick={() => setEditing(r.id)}
-                                className="btn-ghost text-xs"
+                                className="tap-target btn-ghost text-xs"
                                 aria-label={`Edit ${sec.name}'s ${r.divisionName ?? ""} assignment`}
                               >
                                 <Pencil size={13} />
@@ -1371,7 +1371,7 @@ function EditAssignmentRow({
               >
                 Cancel correction
               </button>
-              <p className="text-[11px] text-ink-500 w-full">
+              <p className="text-xs text-ink-500 w-full">
                 Was <strong>{row.deliveredCount}</strong>. This goes on the
                 record with your name against it, and Save applies it.
               </p>
@@ -1384,7 +1384,7 @@ function EditAssignmentRow({
           {(row.corrections ?? []).length > 0 && (
             <ul className="mt-2 space-y-0.5">
               {(row.corrections ?? []).map((c) => (
-                <li key={c.id} className="text-[11px] text-ink-500">
+                <li key={c.id} className="text-xs text-ink-500">
                   {fmt(c.at.slice(0, 10))} · {c.by} set delivered{" "}
                   <strong>{c.before}</strong> → <strong>{c.after}</strong> —{" "}
                   <span className="italic">&ldquo;{c.reason}&rdquo;</span>

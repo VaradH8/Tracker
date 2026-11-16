@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { canEditTasks, requireUser } from "@/lib/server-access";
+import { canAccessProject, canEditTasks, requireUser } from "@/lib/server-access";
 
-/** Author can drop their own remark; Coord/Admin can drop any. */
+/** Author can drop their own remark; an editor (Admin/Lead/Coord) can drop
+ *  any remark on a project they can access. */
 export async function DELETE(
   _req: Request,
   context: { params: Promise<{ id: string; remarkId: string }> },
@@ -20,8 +21,17 @@ export async function DELETE(
   if (!remark) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  if (remark.authorId !== user.id && !canEditTasks(user.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (remark.authorId !== user.id) {
+    if (!canEditTasks(user.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    const task = await prisma.task.findUnique({
+      where: { id: remark.taskId },
+      select: { projectId: true },
+    });
+    if (!task || !(await canAccessProject(user, task.projectId))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
   }
   await prisma.remark.delete({ where: { id: remarkId } });
   return NextResponse.json({ ok: true });

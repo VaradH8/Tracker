@@ -92,7 +92,7 @@ function ToastCard({ toast, onClose }: { toast: Toast; onClose: () => void }) {
         </div>
         <button
           onClick={onClose}
-          className="text-ink-400 hover:text-ink-700 shrink-0"
+          className="tap-target text-ink-400 hover:text-ink-700 shrink-0"
           aria-label="Dismiss"
         >
           <X size={14} />

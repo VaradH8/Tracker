@@ -51,6 +51,6 @@ describe("admin-only route gates", () => {
 
   it("backup export: 403 for a Developer", async () => {
     vi.mocked(requireUser).mockResolvedValue(actor("Developer"));
-    expect((await backupGET()).status).toBe(403);
+    expect((await backupGET(new Request("http://t/api/admin/backup"))).status).toBe(403);
   });
 });

@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 import { prisma } from "@/lib/db";
-import { canAccessProject, requireUser } from "@/lib/server-access";
+import { canAccessProject, canUseTaskFiles, requireUser } from "@/lib/server-access";
 import { serializeAttachment } from "@/lib/serializers";
 
 /** Max bytes accepted per uploaded file. Anything larger gets rejected
@@ -47,16 +47,21 @@ export async function POST(
   }
   const task = await prisma.task.findUnique({
     where: { id: taskId },
-    select: { projectId: true },
+    select: { id: true, projectId: true, responsibleId: true },
   });
   if (!task) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (!(await canAccessProject(user, task.projectId))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // Anyone who can see the project can attach files — Developers and
-  // Business Developers included, assigned to the task or not. Removing
-  // an attachment stays editor/assignee-only (see [attId]/route.ts).
+  // Anyone on the project can attach files — Developers and Business
+  // Developers included, assigned to the task or not — and so can anyone
+  // who can see the task (see canUseTaskFiles). Reaching the project only
+  // through some other task's assignment is not enough. Removing an
+  // attachment stays editor/assignee-only (see [attId]/route.ts).
+  if (!(await canUseTaskFiles(user, task))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const form = await req.formData().catch(() => null);
   if (!form) {

@@ -62,7 +62,7 @@ export default function ClientsPage() {
                     </Link>
                     <p className="text-xs text-ink-500">{c.industry}</p>
                   </div>
-                  <span className="pill-grey text-[11px]">
+                  <span className="pill-grey text-xs">
                     Since {c.since.slice(0, 4)}
                   </span>
                 </div>
@@ -85,7 +85,7 @@ export default function ClientsPage() {
                     <div className="font-heading text-lg font-semibold">
                       {clientProjects.length}
                     </div>
-                    <div className="text-[10px] text-ink-500 uppercase tracking-wide">
+                    <div className="text-xs text-ink-500 uppercase tracking-wide">
                       Projects
                     </div>
                   </div>
@@ -93,7 +93,7 @@ export default function ClientsPage() {
                     <div className="font-heading text-lg font-semibold text-brand-blue">
                       {active}
                     </div>
-                    <div className="text-[10px] text-ink-500 uppercase tracking-wide">
+                    <div className="text-xs text-ink-500 uppercase tracking-wide">
                       Active
                     </div>
                   </div>

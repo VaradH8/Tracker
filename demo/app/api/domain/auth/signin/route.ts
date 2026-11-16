@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
 import { domainSignIn } from "@/lib/domain-auth";
+import { clientIp } from "@/lib/client-ip";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
-  const ip =
-    req.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
-    req.headers.get("x-real-ip") ||
-    null;
+  const ip = clientIp(req);
   const r = await domainSignIn(
     String(body.email ?? ""),
     String(body.password ?? ""),

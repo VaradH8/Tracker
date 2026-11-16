@@ -99,7 +99,7 @@ export function TaskStatusCell({ status, overdueDays }: { status: string; overdu
     <div className="flex flex-wrap items-center gap-1">
       <span className={statusPill(status as Status) ?? "pill-grey"}>{status}</span>
       {overdueDays != null && overdueDays > 0 && (
-        <span className="pill-red text-[10px] py-0.5">Overdue {overdueDays}d</span>
+        <span className="pill-red text-xs py-0.5">Overdue {overdueDays}d</span>
       )}
     </div>
   );
@@ -108,7 +108,7 @@ export function TaskStatusCell({ status, overdueDays }: { status: string; overdu
 export function Detail({ label, value, missing }: { label: string; value: string; missing?: boolean }) {
   return (
     <div>
-      <dt className="text-[11px] uppercase tracking-wide text-ink-500">{label}</dt>
+      <dt className="text-xs uppercase tracking-wide text-ink-500">{label}</dt>
       <dd className={value ? "text-ink-900" : "text-ink-400"}>{value || (missing ? "Not set" : "—")}</dd>
     </div>
   );
@@ -120,7 +120,7 @@ export function Table({ head, empty, children }: { head: string[]; empty?: strin
     <div className="overflow-x-auto">
       <table className="w-full text-sm border-collapse min-w-[640px]">
         <thead>
-          <tr className="bg-ink-50 text-left text-[11px] uppercase tracking-wide text-ink-500">
+          <tr className="bg-ink-50 text-left text-xs uppercase tracking-wide text-ink-500">
             {head.map((h) => (
               <th key={h} className="px-3 py-2 font-medium border-b border-ink-200">{h}</th>
             ))}
@@ -211,7 +211,7 @@ export function MetricTiles({ m }: { m: Metrics }) {
     <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
       {tiles.map(([label, value, hint]) => (
         <div key={label} className="card p-3">
-          <div className="text-[11px] uppercase tracking-wide text-ink-500">{label}</div>
+          <div className="text-xs uppercase tracking-wide text-ink-500">{label}</div>
           <div className="font-heading text-xl font-semibold">{value}</div>
           {hint && <div className="text-xs text-ink-500">{hint}</div>}
         </div>

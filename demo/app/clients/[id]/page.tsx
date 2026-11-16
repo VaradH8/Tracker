@@ -23,6 +23,7 @@ import { useProjects } from "@/lib/projects-store";
 import { useToast } from "@/components/Toast";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { useRole } from "@/lib/role";
+import { PageSkeleton } from "@/components/Skeleton";
 
 export default function ClientDetailPage({
   params,
@@ -56,7 +57,7 @@ export default function ClientDetailPage({
     return (
       <AppShell>
         <div className="max-w-[1100px] mx-auto px-6 py-8">
-          <p className="text-sm text-ink-500">Loading…</p>
+          <PageSkeleton />
         </div>
       </AppShell>
     );
