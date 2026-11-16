@@ -30,12 +30,15 @@ export async function GET() {
   // (salary, phone, location) are redacted; only admins see those.
   if (!canManageStaff(user)) {
     const roster = await prisma.user.findMany({
-      where: { isActive: true },
+      where: { isActive: true, isServiceAccount: false },
       orderBy: [{ name: "asc" }],
     });
     return NextResponse.json({ users: roster.map(serializeRoster) });
   }
+  // Service accounts (API integrations) are managed under
+  // /api/admin/service-accounts, never as people.
   const users = await prisma.user.findMany({
+    where: { isServiceAccount: false },
     orderBy: [{ isActive: "desc" }, { createdAt: "asc" }],
   });
   // HR gets the full people records for onboarding, but pay (hourly

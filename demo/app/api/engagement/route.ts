@@ -49,7 +49,7 @@ export async function GET() {
     await Promise.all([
       getSettingsParsed(),
       prisma.user.findMany({
-        where: { isActive: true, primaryRole: { in: [...ENGAGEMENT_ROLES] } },
+        where: { isActive: true, isServiceAccount: false, primaryRole: { in: [...ENGAGEMENT_ROLES] } },
         orderBy: { name: "asc" },
       }),
       prisma.task.findMany({

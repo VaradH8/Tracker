@@ -8,22 +8,22 @@ datasource db {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  name         String
-  passwordHash String
-  primaryRole  String
-  isAdmin      Boolean   @default(false)
-  isActive     Boolean   @default(true)
-  designation  String?
-  phone        String?
-  location     String?
-  joined       DateTime?
-  lastLoginAt  DateTime?
-  hourlyRate   Int       @default(0)
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  name               String
+  passwordHash       String
+  primaryRole        String
+  isAdmin            Boolean   @default(false)
+  isActive           Boolean   @default(true)
+  designation        String?
+  phone              String?
+  location           String?
+  joined             DateTime?
+  lastLoginAt        DateTime?
+  hourlyRate         Int       @default(0)
   /// Delivery track for resource planning: "Application" | "Plugin".
   /// Null until a planner puts the person on a track (Engagement page).
-  track        String?
+  track              String?
   /// HR identity shown on the performance review forms. All optional —
   /// filled in from Performance → Employee details by Admin or HR.
   employeeCode       String?
@@ -38,8 +38,12 @@ model User {
   /// included — rather than only the Developers the pickers normally
   /// offer. Granted per person by an Admin from the Users page.
   canAssignAnyone    Boolean   @default(false)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  /// A machine account (e.g. "PM Inventive") that only ever calls
+  /// /api/v1 with a bearer token. It can never sign in through the UI and
+  /// is left out of every people list and picker.
+  isServiceAccount   Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   // Performance / efficiency signals
   hoursLast7       Int    @default(0)
@@ -64,6 +68,8 @@ model User {
   emailsReceived      EmailLog[]
   leaves              Leave[]
   performanceReviews  PerformanceReview[]  @relation("ReviewEmployee")
+  apiTokens           ApiToken[]
+  taskHistoryChanged  TaskHistory[]        @relation("TaskHistoryChangedBy")
 }
 
 /// One-time password-reset token. Issued by /api/auth/forgot-password
@@ -122,12 +128,16 @@ model Project {
   progress    Int      @default(0)
   health      String   @default("green")
   description String?
+  /// Short human prefix for task keys ("CRM" -> CRM-142), used by the
+  /// /api/v1 integration. Null means keys fall back to "P<projectId>".
+  key         String?  @unique
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   members   ProjectMember[]
   tasks     Task[]
   forecasts ResourceForecast[]
+  sprints   Sprint[]
 }
 
 /// Per-project role assignment. One row per (project, user, role) so the
@@ -166,7 +176,7 @@ model Task {
   // Drives which ISO week a completed task settles into on the weekly
   // board — a finished task shows in the week it was completed, not its
   // target week, and never carries forward.
-  completedAt    DateTime?
+  completedAt DateTime?
 
   // Times the task went from Done back to an open status. Rework signal
   // for the performance review's Quality of Work evidence.
@@ -192,6 +202,19 @@ model Task {
   forks        Task[]    @relation("TaskForks")
   forkedAt     DateTime?
 
+  /// Sprint this task is planned into; null = backlog.
+  sprintId        Int?
+  sprint          Sprint? @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+  /// Parent task for a subtask. SetNull so deleting a parent never takes
+  /// its subtasks with it.
+  parentId        Int?
+  parent          Task?   @relation("TaskSubtasks", fields: [parentId], references: [id], onDelete: SetNull)
+  subtasks        Task[]  @relation("TaskSubtasks")
+  progressPercent Int     @default(0)
+  blockedReason   String?
+  /// JSON array of strings — same string-JSON convention as User.flags.
+  tags            String  @default("[]")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -201,8 +224,12 @@ model Task {
   timeEntries TimeEntry[]
   blockedBy   TaskDependency[] @relation("TaskBlockedBy")
   blocks      TaskDependency[] @relation("TaskBlocks")
+  history     TaskHistory[]
 
   @@index([forkedFromId])
+  @@index([sprintId])
+  @@index([parentId])
+  @@index([updatedAt])
 }
 
 model TaskAssignee {
@@ -265,13 +292,17 @@ model TimeEntry {
 }
 
 model Remark {
-  id        Int      @id @default(autoincrement())
-  taskId    Int
-  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id])
-  body      String
-  createdAt DateTime @default(now())
+  id               Int      @id @default(autoincrement())
+  taskId           Int
+  task             Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorId         String
+  author           User     @relation(fields: [authorId], references: [id])
+  body             String
+  /// Set when the remark came through /api/v1: whose message it relays
+  /// and where it came from (e.g. a Teams standup reply).
+  onBehalfOfUserId String?
+  sourceNote       String?
+  createdAt        DateTime @default(now())
 }
 
 model AuditEntry {
@@ -406,53 +437,55 @@ model PipelineDeal {
   updatedAt      DateTime  @updatedAt
 }
 
-/* ====================================================================
-   Domain module — a separate, self-contained mini-app living inside the
-   same database but sharing NOTHING with the tracker tables above.
-   Roles: Admin / Lead / TeamLead / Actionee. Its own accounts, sessions,
-   projects, tasks and daily work logs.
-   ==================================================================== */
+/**
+ * ====================================================================
+ * Domain module — a separate, self-contained mini-app living inside the
+ * same database but sharing NOTHING with the tracker tables above.
+ * Roles: Admin / Lead / TeamLead / Actionee. Its own accounts, sessions,
+ * projects, tasks and daily work logs.
+ * ====================================================================
+ */
 
 model DomainUser {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  name          String
-  passwordHash  String
-  role          String   @default("Actionee") // Admin | Lead | TeamLead | Actionee
+  id                 String   @id @default(cuid())
+  email              String   @unique
+  name               String
+  passwordHash       String
+  role               String   @default("Actionee") // Admin | Lead | TeamLead | Actionee
   /// Unused. The module plans in tags/day, not hours, so nothing reads or
   /// writes this. Kept only because dropping a column is destructive
   /// (CLAUDE.md rule 9) — remove it in a deliberate migration once you are
   /// sure no environment still needs the values.
-  dailyCapacity Int      @default(8)
+  dailyCapacity      Int      @default(8)
   /// Expected tags/day for this person, set by a Lead when they're added.
   /// Used for forecasting until they have approved history of their own,
   /// at which point the measured rate takes over. Null = use the house
   /// default.
   expectedTagsPerDay Float?
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   sessions      DomainSession[]
   /// The employee record for this person, where HR has made one. Optional
   /// in both directions: most employees never get a login, and an account
   /// can exist before HR files the paperwork.
-  employee      DomainEmployee? @relation("DomainEmployeeAccount")
-  projectsOwned DomainProject[] @relation("DomainProjectOwner")
-  tasksAssigned DomainTask[]    @relation("DomainTaskAssignee")
-  tasksCreated  DomainTask[]    @relation("DomainTaskCreator")
-  tasksReviewed DomainTask[]    @relation("DomainTaskReviewer")
+  employee      DomainEmployee?   @relation("DomainEmployeeAccount")
+  projectsOwned DomainProject[]   @relation("DomainProjectOwner")
+  tasksAssigned DomainTask[]      @relation("DomainTaskAssignee")
+  tasksCreated  DomainTask[]      @relation("DomainTaskCreator")
+  tasksReviewed DomainTask[]      @relation("DomainTaskReviewer")
   taskEvents    DomainTaskEvent[] @relation("DomainTaskEventActor")
   workLogs      DomainWorkLog[]
 
-  allocations         DomainAllocation[]    @relation("DomainAllocationUser")
-  allocationsCreated  DomainAllocation[]    @relation("DomainAllocationCreator")
-  tagAssignments      DomainTagAssignment[] @relation("DomainTagAssignee")
-  tagAssignmentsMade  DomainTagAssignment[] @relation("DomainTagAssignmentCreator")
-  tagSubmissions      DomainTagSubmission[] @relation("DomainTagSubmitter")
-  deliveryCorrections DomainDeliveryCorrection[] @relation("DomainDeliveryCorrector")
-  tagAssignmentsRemoved DomainTagAssignment[] @relation("DomainTagAssignmentRemover")
-  tagReviews          DomainTagSubmission[] @relation("DomainTagReviewer")
+  allocations           DomainAllocation[]         @relation("DomainAllocationUser")
+  allocationsCreated    DomainAllocation[]         @relation("DomainAllocationCreator")
+  tagAssignments        DomainTagAssignment[]      @relation("DomainTagAssignee")
+  tagAssignmentsMade    DomainTagAssignment[]      @relation("DomainTagAssignmentCreator")
+  tagSubmissions        DomainTagSubmission[]      @relation("DomainTagSubmitter")
+  deliveryCorrections   DomainDeliveryCorrection[] @relation("DomainDeliveryCorrector")
+  tagAssignmentsRemoved DomainTagAssignment[]      @relation("DomainTagAssignmentRemover")
+  tagReviews            DomainTagSubmission[]      @relation("DomainTagReviewer")
   /// Hide everything but the Task log for this person.
   ///
   /// A display preference, stored on the user rather than in the browser
@@ -461,19 +494,19 @@ model DomainUser {
   /// office PC. It hides nav entries and nothing else: every permission
   /// check is unchanged, because a preference must never be load-bearing
   /// for access.
-  taskLogOnly         Boolean               @default(false)
+  taskLogOnly           Boolean                    @default(false)
   /// People this person names as reviewers by default when raising a task.
-  defaultReviewers    DomainDefaultReviewer[] @relation("DefaultReviewerOwner")
+  defaultReviewers      DomainDefaultReviewer[]    @relation("DefaultReviewerOwner")
   /// The other side: tasks where somebody else has named THEM a default.
   /// Present so deleting an account takes its standing nominations with
   /// it rather than leaving ids that pre-fill a person who is gone.
-  defaultReviewerFor  DomainDefaultReviewer[] @relation("DefaultReviewerPerson")
-  taskReviews         DomainTaskReviewer[]  @relation("DomainTaskReviewerUser")
-  tasksEdited         DomainTask[]          @relation("DomainTaskEditor")
-  taskFilesUploaded   DomainTaskAttachment[] @relation("DomainTaskAttachmentUploader")
-  leaveRecords   DomainLeave[] @relation("DomainLeaveSubject")
-  leavesAuthored DomainLeave[] @relation("DomainLeaveAuthor")
-  leavesDecided  DomainLeave[] @relation("DomainLeaveDecider")
+  defaultReviewerFor    DomainDefaultReviewer[]    @relation("DefaultReviewerPerson")
+  taskReviews           DomainTaskReviewer[]       @relation("DomainTaskReviewerUser")
+  tasksEdited           DomainTask[]               @relation("DomainTaskEditor")
+  taskFilesUploaded     DomainTaskAttachment[]     @relation("DomainTaskAttachmentUploader")
+  leaveRecords          DomainLeave[]              @relation("DomainLeaveSubject")
+  leavesAuthored        DomainLeave[]              @relation("DomainLeaveAuthor")
+  leavesDecided         DomainLeave[]              @relation("DomainLeaveDecider")
 }
 
 /// A person on the payroll, kept by HR. Deliberately NOT a login: most of
@@ -533,7 +566,7 @@ model DomainProject {
   /// What the client has actually handed over for us to work on. This is
   /// the denominator for delivery: you cannot deliver a tag you have not
   /// been given.
-  totalTags    Int       @default(0)
+  totalTags Int @default(0)
 
   /// The whole scope agreed with the client, which is usually larger than
   /// what has been released to us so far. Nullable because plenty of
@@ -556,7 +589,7 @@ model DomainProject {
   /// Who the work is for. A plain name, deliberately NOT a link to the
   /// tracker's Client table — the Domain module stays self-contained.
   /// Shown to actionees so they know whose work they're holding.
-  client       String?
+  client             String?
 
   tasks    DomainTask[]
   workLogs DomainWorkLog[]
@@ -600,25 +633,25 @@ model DomainProjectDivision {
 /// forecast reads to answer "who is free, and from when" and what raises
 /// the conflict prompt when the same person is booked twice over.
 model DomainAllocation {
-  id          Int           @id @default(autoincrement())
-  projectId   Int
-  project     DomainProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  userId      String
-  user        DomainUser    @relation("DomainAllocationUser", fields: [userId], references: [id], onDelete: Cascade)
-  startDate   DateTime
-  endDate     DateTime
+  id                 Int           @id @default(autoincrement())
+  projectId          Int
+  project            DomainProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId             String
+  user               DomainUser    @relation("DomainAllocationUser", fields: [userId], references: [id], onDelete: Cascade)
+  startDate          DateTime
+  endDate            DateTime
   /// Set when someone is let go of the project early — from this date they
   /// count as available even though endDate hasn't arrived.
-  releasedAt  DateTime?
+  releasedAt         DateTime?
   /// What this person is expected to deliver per day *on this project*.
   /// The same person can be quick on one discipline and slow on another, so
   /// this beats both their measured average and their profile-level rate
   /// when forecasting this project. Null = fall back to those.
   expectedTagsPerDay Float?
-  createdById String
-  createdBy   DomainUser    @relation("DomainAllocationCreator", fields: [createdById], references: [id])
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  createdById        String
+  createdBy          DomainUser    @relation("DomainAllocationCreator", fields: [createdById], references: [id])
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
   @@unique([projectId, userId])
   @@index([userId])
@@ -660,9 +693,9 @@ model DomainTagAssignment {
   /// leaving a project. So the row is marked instead: every screen that
   /// asks "what work is live" filters these out, and the Approvals history,
   /// which asks "what was decided", does not.
-  removedAt      DateTime?
-  removedById    String?
-  removedBy      DomainUser?     @relation("DomainTagAssignmentRemover", fields: [removedById], references: [id], onDelete: SetNull)
+  removedAt   DateTime?
+  removedById String?
+  removedBy   DomainUser? @relation("DomainTagAssignmentRemover", fields: [removedById], references: [id], onDelete: SetNull)
 
   submissions DomainTagSubmission[]
   corrections DomainDeliveryCorrection[]
@@ -747,26 +780,26 @@ model DomainTask {
   divisionId Int?
   division   DomainDivision? @relation(fields: [divisionId], references: [id], onDelete: SetNull)
 
-  title       String
-  description String?
-  status         String        @default("Assigned")
-  assigneeId     String?
-  assignee       DomainUser?   @relation("DomainTaskAssignee", fields: [assigneeId], references: [id])
-  createdById    String
-  createdBy      DomainUser    @relation("DomainTaskCreator", fields: [createdById], references: [id])
-  startDate      DateTime?
-  targetDate     DateTime? // the deadline
+  title            String
+  description      String?
+  status           String      @default("Assigned")
+  assigneeId       String?
+  assignee         DomainUser? @relation("DomainTaskAssignee", fields: [assigneeId], references: [id])
+  createdById      String
+  createdBy        DomainUser  @relation("DomainTaskCreator", fields: [createdById], references: [id])
+  startDate        DateTime?
+  targetDate       DateTime? // the deadline
   /// What the assigner budgeted. Filled in from the dates at nine hours a
   /// working day (see lib/domain-task-hours) and editable — plenty of
   /// tasks are two hours inside a week-long window.
-  estimatedHours Float?
+  estimatedHours   Float?
   /// How urgent this is: Low, Medium or High.
   ///
   /// Medium by default rather than null, so every task sorts against every
   /// other one. A nullable priority splits a list into "ranked" and
   /// "unranked" the first time somebody sorts by it, and the unranked pile
   /// is always the older half.
-  priority       String   @default("Medium")
+  priority         String      @default("Medium")
   /// Whether the estimate counted the Saturdays and Sundays in the span.
   ///
   /// Stored rather than recomputed because it is the assigner's decision,
@@ -774,7 +807,7 @@ model DomainTask {
   /// one team and 27h for another, and without this the reader of a 27h
   /// weekend task cannot tell whether somebody meant it or fat-fingered
   /// the number.
-  includesWeekends Boolean @default(false)
+  includesWeekends Boolean     @default(false)
   /// When the brief was last changed after it went out, and by whom.
   ///
   /// Recorded because the person doing the work read something, and an
@@ -783,15 +816,15 @@ model DomainTask {
   ///
   /// Null on a task nobody has touched since assigning it, which is most
   /// of them — the chip only appears when there is something to say.
-  editedAt       DateTime?
-  editedById     String?
-  editedBy       DomainUser? @relation("DomainTaskEditor", fields: [editedById], references: [id], onDelete: SetNull)
+  editedAt         DateTime?
+  editedById       String?
+  editedBy         DomainUser? @relation("DomainTaskEditor", fields: [editedById], references: [id], onDelete: SetNull)
   /// What the assignee reported having spent, given on submission.
   /// Optional: work gets done without anybody timing it, and refusing a
   /// submission for want of a number only teaches people to invent one.
-  hoursSpent     Float?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  hoursSpent       Float?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
 
   /// Filled in when the assignee submits the task for review: the day they
   /// did the work, their note, and when they pressed submit. Kept apart
@@ -917,10 +950,10 @@ model DomainTaskEvent {
   actor   DomainUser @relation("DomainTaskEventActor", fields: [actorId], references: [id])
 
   /// Assigned | Reassigned | Submitted | Approved | Rejected
-  kind String
+  kind   String
   /// What was said at the time: the brief, the submission note, or the
   /// reviewer's reason. Null where the action carried no words.
-  note String?
+  note   String?
   /// Free context, e.g. who a task was moved to.
   detail String?
 
@@ -983,7 +1016,7 @@ model DomainHoliday {
 /// never recorded how long" stays distinguishable from "half day, zero
 /// hours".
 model DomainLeave {
-  id     Int    @id @default(autoincrement())
+  id     Int        @id @default(autoincrement())
   userId String
   user   DomainUser @relation("DomainLeaveSubject", fields: [userId], references: [id], onDelete: Cascade)
   /// The IST day this covers (midnight UTC of that date), matching
@@ -995,7 +1028,7 @@ model DomainLeave {
   hours  Float?
   note   String?
   /// Pending | Approved | Rejected
-  status String @default("Pending")
+  status String     @default("Pending")
 
   /// Who put the row there — the person themselves for a request, or the
   /// supervisor who marked it.
@@ -1003,9 +1036,9 @@ model DomainLeave {
   createdBy   DomainUser @relation("DomainLeaveAuthor", fields: [createdById], references: [id])
 
   /// Who approved or rejected it, and when. Null while pending.
-  decidedById String?
-  decidedBy   DomainUser? @relation("DomainLeaveDecider", fields: [decidedById], references: [id])
-  decidedAt   DateTime?
+  decidedById  String?
+  decidedBy    DomainUser? @relation("DomainLeaveDecider", fields: [decidedById], references: [id])
+  decidedAt    DateTime?
   decisionNote String?
 
   createdAt DateTime @default(now())
@@ -1014,4 +1047,98 @@ model DomainLeave {
   @@unique([userId, date])
   @@index([status])
   @@index([date])
+}
+
+/**
+ * ====================================================================
+ * /api/v1 integration (PM Inventive). Additive only.
+ * ====================================================================
+ */
+
+/// A one-week (or any length) plan of tasks for one project.
+model Sprint {
+  id        Int      @id @default(autoincrement())
+  projectId Int
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  goal      String?
+  startDate DateTime
+  endDate   DateTime
+  /// planned | active | closed
+  status    String   @default("planned")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tasks Task[]
+
+  @@index([projectId, status])
+}
+
+/// Bearer token for a service account. Only the SHA-256 of the token is
+/// stored; the raw value is shown once when it is created. Revoking sets
+/// revokedAt — the row stays for the audit trail.
+model ApiToken {
+  id          Int       @id @default(autoincrement())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  tokenHash   String    @unique
+  /// First characters of the raw token, so an admin can tell tokens apart.
+  prefix      String
+  createdById String?
+  createdAt   DateTime  @default(now())
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+
+  @@index([userId])
+}
+
+/// Field-level change log for tasks written through /api/v1. Append-only.
+/// oldValue/newValue are JSON-encoded so null, numbers and strings
+/// round-trip exactly (undo depends on that).
+model TaskHistory {
+  id               Int      @id @default(autoincrement())
+  taskId           Int
+  task             Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  field            String
+  oldValue         String?
+  newValue         String?
+  changedById      String?
+  changedBy        User?    @relation("TaskHistoryChangedBy", fields: [changedById], references: [id], onDelete: SetNull)
+  onBehalfOfUserId String?
+  sourceNote       String?
+  at               DateTime @default(now())
+
+  @@index([taskId, at])
+}
+
+/// Stored response for a POST carrying an Idempotency-Key, replayed for
+/// 24 hours so a retried request never creates a duplicate.
+model ApiIdempotency {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  key       String
+  method    String
+  path      String
+  status    Int
+  response  String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, key])
+  @@index([createdAt])
+}
+
+/// One row per /api/v1 request: who, what, when, outcome (S-8).
+model ApiRequestLog {
+  id         Int      @id @default(autoincrement())
+  userId     String?
+  tokenId    Int?
+  method     String
+  path       String
+  status     Int
+  durationMs Int
+  at         DateTime @default(now())
+
+  @@index([at])
+  @@index([userId, at])
 }
