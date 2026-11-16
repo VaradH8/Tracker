@@ -39,7 +39,7 @@ export function DomainSortToggle({
           onClick={() => onChange(key)}
           className={`px-2.5 py-1 rounded-pill text-xs font-medium border ${
             value === key
-              ? "bg-brand-blueBg text-brand-blue border-brand-blue"
+              ? "bg-brand-blueBg text-brand-blueText border-brand-blue"
               : "bg-white text-ink-600 border-ink-200 hover:bg-ink-50"
           }`}
         >

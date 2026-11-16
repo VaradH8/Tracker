@@ -107,7 +107,7 @@ export default function OrgDashboardPage() {
 
   return (
     <AppShell>
-      <div className="max-w-[1400px] mx-auto px-6 py-8">
+      <div className="max-w-container-wide mx-auto px-6 py-8">
         <header className="mb-6">
           <h1 className="font-heading text-3xl font-semibold">Dashboard</h1>
           <p className="text-sm text-ink-500 mt-1">
@@ -152,7 +152,7 @@ export default function OrgDashboardPage() {
 
         {/* ------------------------------------------------ Projects */}
         <SectionHead title="Projects" href="/projects" linkLabel="Open Projects" />
-        <div className="grid lg:grid-cols-3 gap-6 mb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           <ChartCard
             className="lg:col-span-2"
             title="Project timeline"
@@ -193,7 +193,7 @@ export default function OrgDashboardPage() {
           </ChartCard>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-6 mb-10">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
           <ChartCard
             className="lg:col-span-2"
             title="Progress vs budget used"
@@ -247,7 +247,7 @@ export default function OrgDashboardPage() {
 
         {/* ------------------------------------------------ Resources */}
         <SectionHead title="Resources" href="/resources" linkLabel="Open Resources" />
-        <div className="grid lg:grid-cols-3 gap-6 mb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           <ChartCard
             title="Utilization, last 5 working days"
             subtitle={
@@ -294,7 +294,7 @@ export default function OrgDashboardPage() {
           </ChartCard>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-6 mb-10">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
           <ChartCard
             title="Open tasks per person"
             subtitle={
@@ -354,7 +354,7 @@ export default function OrgDashboardPage() {
 
         {/* ------------------------------------------------ Users */}
         <SectionHead title="Users" href="/users" linkLabel="Open Users" />
-        <div className="grid lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <ChartCard
             title="Users by role"
             subtitle={`${activeUsers} active · ${accounts.length - activeUsers} deactivated`}
@@ -409,7 +409,7 @@ function SectionHead({ title, href, linkLabel }: { title: string; href: string; 
   return (
     <div className="flex items-end justify-between mb-3">
       <h2 className="font-heading text-xl font-semibold text-ink-900">{title}</h2>
-      <Link href={href} className="text-sm text-brand-blue hover:underline inline-flex items-center gap-1">
+      <Link href={href} className="text-sm text-brand-blueText hover:underline inline-flex items-center gap-1">
         {linkLabel} <ArrowRight size={14} />
       </Link>
     </div>

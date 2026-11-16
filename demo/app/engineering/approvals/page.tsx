@@ -222,7 +222,7 @@ export default function ApprovalsPage() {
             onClick={() => setTab("pending")}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium ${
               tab === "pending"
-                ? "bg-brand-blueBg text-brand-blue"
+                ? "bg-brand-blueBg text-brand-blueText"
                 : "text-ink-600 hover:bg-ink-100"
             }`}
           >
@@ -232,7 +232,7 @@ export default function ApprovalsPage() {
             onClick={() => setTab("history")}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium ${
               tab === "history"
-                ? "bg-brand-blueBg text-brand-blue"
+                ? "bg-brand-blueBg text-brand-blueText"
                 : "text-ink-600 hover:bg-ink-100"
             }`}
           >
@@ -382,7 +382,7 @@ function ProjectPicker({
       {projects.length === 0 ? (
         <p className="text-sm text-ink-400 italic">Nothing matches that search.</p>
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {projects.map((p) => (
             <button
               key={p.id}
@@ -413,7 +413,7 @@ function ProjectPicker({
                       Oldest from {fmt(p.oldest)}
                     </div>
                   )}
-                  <span className="text-sm text-brand-blue inline-flex items-center gap-1 mt-3">
+                  <span className="text-sm text-brand-blueText inline-flex items-center gap-1 mt-3">
                     Review <ChevronRight size={14} />
                   </span>
                 </>
@@ -432,7 +432,7 @@ function ProjectPicker({
                       Last {fmtStamp(p.last)}
                     </div>
                   )}
-                  <span className="text-sm text-brand-blue inline-flex items-center gap-1 mt-3">
+                  <span className="text-sm text-brand-blueText inline-flex items-center gap-1 mt-3">
                     View history <ChevronRight size={14} />
                   </span>
                 </>
@@ -479,7 +479,7 @@ function PendingDetail({
         <div>
           <button
             onClick={onBack}
-            className="text-sm text-brand-blue inline-flex items-center gap-1"
+            className="text-sm text-brand-blueText inline-flex items-center gap-1"
           >
             <ChevronLeft size={14} /> All projects
           </button>
@@ -560,7 +560,7 @@ function ColFilter({
       className={`w-full px-1.5 py-1 rounded border text-xs ${
         value === "all"
           ? "border-ink-200 text-ink-500"
-          : "border-brand-blue text-brand-blue bg-brand-blueBg"
+          : "border-brand-blue text-brand-blueText bg-brand-blueBg"
       }`}
     >
       <option value="all">All</option>
@@ -632,7 +632,7 @@ function HistoryDetail({
         <div>
           <button
             onClick={onBack}
-            className="text-sm text-brand-blue inline-flex items-center gap-1"
+            className="text-sm text-brand-blueText inline-flex items-center gap-1"
           >
             <ChevronLeft size={14} /> All projects
           </button>

@@ -12,6 +12,7 @@ import { NewAssignmentToaster } from "@/components/NewAssignmentToaster";
 import { ConfirmDialogProvider } from "@/components/ConfirmDialog";
 import { BlockDialogProvider } from "@/components/BlockDialogProvider";
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { palette } from "@/lib/design-tokens";
 
 const heading = Space_Grotesk({
   subsets: ["latin"],
@@ -67,7 +68,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#1A73E8",
+  themeColor: palette.brand.blue,
   width: "device-width",
   initialScale: 1,
 };

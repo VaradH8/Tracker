@@ -362,7 +362,7 @@ export function ResourceChecklist({
           <button
             type="button"
             onClick={() => picked.forEach((id) => onToggle(id, false))}
-            className="text-xs text-brand-blue"
+            className="text-xs text-brand-blueText"
           >
             Clear all
           </button>
@@ -383,7 +383,7 @@ export function ResourceChecklist({
               onClick={() => setRole(key)}
               className={`px-2 py-0.5 rounded-pill text-xs font-medium border ${
                 role === key
-                  ? "bg-brand-blueBg text-brand-blue border-brand-blue"
+                  ? "bg-brand-blueBg text-brand-blueText border-brand-blue"
                   : "bg-white text-ink-600 border-ink-200"
               }`}
             >

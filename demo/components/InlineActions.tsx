@@ -244,8 +244,8 @@ export function ImportantToggle({
         size={14}
         className={
           value
-            ? "text-brand-yellow fill-brand-yellow"
-            : "text-ink-400 hover:text-brand-yellow"
+            ? "text-brand-yellowText fill-brand-yellow"
+            : "text-ink-400 hover:text-brand-yellowText"
         }
       />
     </button>
@@ -284,7 +284,7 @@ export function AssigneePicker({
           title="Click to change assignees"
         >
           {selected.length === 0 ? (
-            <span className="inline-flex items-center gap-1 text-xs text-ink-400 hover:text-brand-blue">
+            <span className="inline-flex items-center gap-1 text-xs text-ink-400 hover:text-brand-blueText">
               <Users size={12} /> Assign
             </span>
           ) : (
@@ -441,7 +441,7 @@ export function QuickActions({
         label: "Start",
         tip: "Move to In Progress",
         icon: Play,
-        tone: "text-brand-blue hover:bg-brand-blueBg",
+        tone: "text-brand-blueText hover:bg-brand-blueBg",
         next: "In Progress",
       });
       break;
@@ -470,7 +470,7 @@ export function QuickActions({
           label: "Mark reviewed",
           tip: "Reviewed — mark as Done",
           icon: CheckCircle2,
-          tone: "text-brand-green hover:bg-brand-greenBg",
+          tone: "text-brand-greenText hover:bg-brand-greenBg",
           next: "Done",
         });
       }
@@ -487,7 +487,7 @@ export function QuickActions({
         label: "Unblock",
         tip: "Move back to In Progress",
         icon: Play,
-        tone: "text-brand-blue hover:bg-brand-blueBg",
+        tone: "text-brand-blueText hover:bg-brand-blueBg",
         next: "In Progress",
       });
       break;
@@ -644,7 +644,7 @@ export function TimerControls({
             e.stopPropagation();
             onStop();
           }}
-          className={`${btnCls} bg-brand-red text-white hover:bg-brand-redText`}
+          className={`${btnCls} bg-brand-redText text-white hover:bg-brand-redHover`}
           title="Stop the timer (resume later with Start)"
         >
           <Square size={11} fill="currentColor" />
@@ -657,7 +657,7 @@ export function TimerControls({
             e.stopPropagation();
             onStart();
           }}
-          className={`${btnCls} text-brand-blue hover:bg-brand-blueBg`}
+          className={`${btnCls} text-brand-blueText hover:bg-brand-blueBg`}
           title={
             elseTimed
               ? "You're timing another task. Starting here will stop that one."
@@ -673,7 +673,7 @@ export function TimerControls({
           e.stopPropagation();
           onDone();
         }}
-        className={`${btnCls} text-brand-green hover:bg-brand-greenBg`}
+        className={`${btnCls} text-brand-greenText hover:bg-brand-greenBg`}
         title="Stop the timer and mark this task Done"
       >
         <CheckCircle2 size={11} /> Done
@@ -723,7 +723,7 @@ export function TimeLogChip({
           className={`inline-flex items-center gap-1 text-xs cursor-pointer hover:underline ${
             over
               ? "text-brand-redText"
-              : "text-ink-500 hover:text-brand-blue"
+              : "text-ink-500 hover:text-brand-blueText"
           }`}
           title={
             loggedHours > 0
@@ -763,7 +763,7 @@ function QuickLogMenu({ onLog }: { onLog: (hours: number) => void }) {
             key={h}
             type="button"
             onClick={() => onLog(h)}
-            className="px-2.5 py-1 rounded border border-ink-200 text-xs font-medium hover:bg-brand-blueBg hover:border-brand-blue hover:text-brand-blue"
+            className="px-2.5 py-1 rounded border border-ink-200 text-xs font-medium hover:bg-brand-blueBg hover:border-brand-blue hover:text-brand-blueText"
           >
             +{h}h
           </button>
@@ -826,7 +826,7 @@ function relativeTone(iso: string): { text: string } {
     (target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
   );
   if (diff < 0) return { text: "text-brand-redText font-medium" };
-  if (diff === 0) return { text: "text-brand-blue font-medium" };
+  if (diff === 0) return { text: "text-brand-blueText font-medium" };
   if (diff === 1) return { text: "text-ink-700" };
   return { text: "text-ink-500" };
 }

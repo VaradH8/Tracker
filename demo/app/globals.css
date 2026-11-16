@@ -18,12 +18,20 @@ h4 {
   @apply font-heading;
 }
 
+/* Placeholders at the lightest text grey (5.3:1). Tailwind's default
+   (#9CA3AF) is 2.5:1 — under WCAG AA. */
+input::placeholder,
+textarea::placeholder {
+  color: theme("colors.ink.400");
+  opacity: 1;
+}
+
 @layer components {
   .pill {
     @apply inline-flex items-center px-3 py-1 rounded-pill text-xs font-medium font-sans whitespace-nowrap;
   }
   .pill-blue {
-    @apply pill bg-brand-blueBg text-brand-blue;
+    @apply pill bg-brand-blueBg text-brand-blueText;
   }
   .pill-red {
     @apply pill bg-brand-redBg text-brand-redText;
@@ -144,5 +152,21 @@ h4 {
       min-width: 44px;
       min-height: 44px;
     }
+  }
+}
+
+/*
+ * Motion off for people who ask for it (OS "reduce motion"). Animations in
+ * the app are opt-in via `motion-safe:` already; this also stops
+ * transitions and the skeleton pulse.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

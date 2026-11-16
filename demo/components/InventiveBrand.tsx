@@ -1,3 +1,5 @@
+import { brandNavyGradient } from "@/lib/design-tokens";
+
 /**
  * The Inventive logo, shared by both modules.
  *
@@ -17,8 +19,9 @@
  * through here.
  */
 
-/** The brand's own navy, lifted from the site's header styles. */
-export const BRAND_NAVY = "linear-gradient(135deg, #001e3c 0%, #0f172a 100%)";
+/** The brand's own navy, lifted from the site's header styles
+ *  (lib/design-tokens.ts). */
+export const BRAND_NAVY = brandNavyGradient;
 
 export function InventiveLogo({
   className = "",
@@ -80,7 +83,7 @@ export function BrandPanel({
       />
       <span
         className={`font-medium tracking-wide text-white/75 leading-none whitespace-nowrap ${
-          subdued ? "text-xs" : "text-[13px]"
+          subdued ? "text-xs" : "text-sm"
         }`}
       >
         {label}

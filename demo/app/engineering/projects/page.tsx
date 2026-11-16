@@ -156,7 +156,7 @@ export default function DomainProjectsPage() {
             setSelected(null);
             setEditingProject(null);
           }}
-          className="text-sm text-brand-blue inline-flex items-center gap-1 mb-3"
+          className="text-sm text-brand-blueText inline-flex items-center gap-1 mb-3"
         >
           <ChevronLeft size={14} /> All projects
         </button>
@@ -341,7 +341,7 @@ export default function DomainProjectsPage() {
       ) : shown.length === 0 ? (
         <p className="text-sm text-ink-400 italic">Nothing matches that search.</p>
       ) : (
-        <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {shown.map((p) => (
             <ProjectCard key={p.id} p={p} onOpen={() => setSelected(p.id)} />
           ))}
@@ -371,7 +371,7 @@ function ProjectRoster({ resources }: { resources: NonNullable<Project["resource
           : `${resources.length} ${resources.length === 1 ? "person" : "people"} booked.`}
       </p>
       {resources.length > 0 && (
-        <ul className="grid sm:grid-cols-2 gap-2">
+        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {resources.map((r) => (
             <li
               key={r.allocationId}
@@ -545,7 +545,7 @@ function ProjectCard({ p, onOpen }: { p: Project; onOpen: () => void }) {
       {/* mt-auto pins this to the bottom of the card. With a fixed margin it
           floated up on cards that lack the "not yet assigned" line, so the
           Open links didn't line up across the row. */}
-      <span className="text-sm text-brand-blue inline-flex items-center gap-1 mt-auto pt-4">
+      <span className="text-sm text-brand-blueText inline-flex items-center gap-1 mt-auto pt-4">
         Open <ChevronRight size={14} />
       </span>
     </button>

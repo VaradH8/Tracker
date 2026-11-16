@@ -161,7 +161,7 @@ export function DomainRemoveResource({
             {/* --- remove ------------------------------------------- */}
             <div className="rounded-card border border-ink-200 p-4">
               <div className="flex items-start gap-2.5">
-                <UserMinus size={16} className="mt-0.5 shrink-0 text-brand-blue" />
+                <UserMinus size={16} className="mt-0.5 shrink-0 text-brand-blueText" />
                 <div className="min-w-0 flex-1">
                   <h3 className="font-medium text-ink-900">Remove from project</h3>
                   <p className="text-sm text-ink-500 mt-0.5">

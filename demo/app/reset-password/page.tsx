@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { KeyRound, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { ListSkeleton } from "@/components/Skeleton";
 
 export default function ResetPasswordPage() {
   return (
@@ -30,7 +31,7 @@ function Shell({
         <div className="card p-6">
           <Link
             href="/login"
-            className="inline-flex items-center gap-1.5 text-xs text-ink-500 hover:text-brand-blue mb-4"
+            className="inline-flex items-center gap-1.5 text-xs text-ink-500 hover:text-brand-blueText mb-4"
           >
             <ArrowLeft size={12} /> Back to sign in
           </Link>
@@ -38,7 +39,9 @@ function Shell({
             Choose a new password
           </h1>
           {loading ? (
-            <p className="text-sm text-ink-500 mt-2">Loading…</p>
+            <div className="mt-4">
+              <ListSkeleton rows={2} />
+            </div>
           ) : (
             children
           )}
@@ -100,11 +103,11 @@ function ResetForm() {
             At least 10 characters with one letter and one digit/symbol.
           </p>
           <form onSubmit={submit}>
-            <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            <label htmlFor="reset-password-new-password" className="block text-xs font-medium text-ink-700 mb-1.5">
               New password
             </label>
             <div className="relative mb-4">
-              <input
+              <input id="reset-password-new-password"
                 type={show ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -120,10 +123,10 @@ function ResetForm() {
                 {show ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
-            <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            <label htmlFor="reset-password-confirm-new-password" className="block text-xs font-medium text-ink-700 mb-1.5">
               Confirm new password
             </label>
-            <input
+            <input id="reset-password-confirm-new-password"
               type={show ? "text" : "password"}
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}

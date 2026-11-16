@@ -258,7 +258,7 @@ export function DomainResourceBoard({
               onClick={() => setOnly(key)}
               className={`px-2.5 py-1 rounded-pill text-xs font-medium border ${
                 only === key
-                  ? "bg-brand-blueBg text-brand-blue border-brand-blue"
+                  ? "bg-brand-blueBg text-brand-blueText border-brand-blue"
                   : "bg-white text-ink-600 border-ink-200"
               }`}
             >
@@ -310,7 +310,7 @@ export function DomainResourceBoard({
               onClick={() => setMode(key)}
               className={`px-2.5 py-1 rounded-pill text-xs font-medium border ${
                 mode === key
-                  ? "bg-brand-blueBg text-brand-blue border-brand-blue"
+                  ? "bg-brand-blueBg text-brand-blueText border-brand-blue"
                   : "bg-white text-ink-600 border-ink-200"
               }`}
             >
@@ -517,7 +517,7 @@ export function DomainResourceBoard({
         booked Monday to Wednesday fills three fifths of its cell. A cell
         split into bands is two projects at once.{" "}
         <span
-          className="inline-block align-middle w-3 h-3 rounded-sm bg-ink-400"
+          className="inline-block align-middle w-3 h-3 rounded-sm bg-ink-300"
           style={CARRIED_HATCH}
         />{" "}
         Hatched means tags carried on a project with no booking behind them.

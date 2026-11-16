@@ -158,7 +158,7 @@ export function DomainTaskHistory({
               onClick={() => setScope(s.key)}
               className={`px-3 py-1.5 rounded-pill text-sm font-medium border ${
                 scope === s.key
-                  ? "bg-brand-blueBg text-brand-blue border-brand-blue"
+                  ? "bg-brand-blueBg text-brand-blueText border-brand-blue"
                   : "bg-white text-ink-600 border-ink-200 hover:bg-ink-50"
               }`}
             >
@@ -167,7 +167,7 @@ export function DomainTaskHistory({
           ))}
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
           <label className="text-xs">
             <span className="block text-ink-700 font-medium mb-1">Status</span>
             <SearchSelect
@@ -261,7 +261,7 @@ export function DomainTaskHistory({
           {filtered && (
             <button
               onClick={clearAll}
-              className="text-xs text-brand-blue inline-flex items-center gap-1"
+              className="text-xs text-brand-blueText inline-flex items-center gap-1"
             >
               <X size={12} /> Clear filters
             </button>
@@ -280,7 +280,7 @@ export function DomainTaskHistory({
       ) : shown.length === 0 ? (
         <div className="card p-10 text-center">
           <div className="flex justify-center mb-2">
-            <History size={20} className="text-ink-300" />
+            <History size={20} className="text-ink-400" />
           </div>
           <p className="font-medium text-ink-700">
             {filtered ? "Nothing matches those filters" : "Nothing here yet"}

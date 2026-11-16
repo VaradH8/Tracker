@@ -138,7 +138,7 @@ export function DomainEmployees({
       )}
 
       {adding && canEdit && (
-        <div className="card p-4 mb-6 grid sm:grid-cols-2 gap-2">
+        <div className="card p-4 mb-6 grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div>
             <input
               value={form.code}

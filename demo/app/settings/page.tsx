@@ -83,17 +83,17 @@ export default function SettingsGeneralPage() {
             {/* Email */}
             <section className="card p-6">
               <h2 className="font-heading text-lg font-semibold mb-1 flex items-center gap-2">
-                <Mail size={18} className="text-brand-blue" /> Email
+                <Mail size={18} className="text-brand-blueText" /> Email
               </h2>
               <p className="text-xs text-ink-500 mb-4">
                 Host, port and credentials come from the server&apos;s SMTP_*
                 env vars. The From address is set here and used on every
                 outbound email.
               </p>
-              <label className="block text-xs font-medium text-ink-700 mb-1.5">
+              <label htmlFor="settings-from-address" className="block text-xs font-medium text-ink-700 mb-1.5">
                 From address
               </label>
-              <input
+              <input id="settings-from-address"
                 value={s.smtpFrom}
                 onChange={(e) => setS({ ...s, smtpFrom: e.target.value })}
                 placeholder="tracker@inventivebizsol.com"
@@ -104,15 +104,15 @@ export default function SettingsGeneralPage() {
             {/* Working schedule */}
             <section className="card p-6">
               <h2 className="font-heading text-lg font-semibold mb-4 flex items-center gap-2">
-                <CalendarDays size={18} className="text-brand-blue" /> Working
+                <CalendarDays size={18} className="text-brand-blueText" /> Working
                 schedule
               </h2>
-              <div className="grid sm:grid-cols-2 gap-4 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                 <div>
-                  <label className="block text-xs font-medium text-ink-700 mb-1.5">
+                  <label htmlFor="settings-working-hours-per-day" className="block text-xs font-medium text-ink-700 mb-1.5">
                     Working hours per day
                   </label>
-                  <input
+                  <input id="settings-working-hours-per-day"
                     type="number"
                     min="1"
                     max="24"
@@ -124,16 +124,17 @@ export default function SettingsGeneralPage() {
                   />
                 </div>
               </div>
-              <label className="block text-xs font-medium text-ink-700 mb-1.5">
+              <p id="settings-working-days" className="block text-xs font-medium text-ink-700 mb-1.5">
                 Working days
-              </label>
-              <div className="flex flex-wrap gap-1.5">
+              </p>
+              <div role="group" aria-labelledby="settings-working-days" className="flex flex-wrap gap-1.5">
                 {WEEKDAYS.map((d) => {
                   const on = s.workingDays.includes(d);
                   return (
                     <button
                       key={d}
                       type="button"
+                      aria-pressed={on}
                       onClick={() =>
                         setS({
                           ...s,
@@ -158,12 +159,12 @@ export default function SettingsGeneralPage() {
             {/* Leave */}
             <section className="card p-6">
               <h2 className="font-heading text-lg font-semibold mb-4 flex items-center gap-2">
-                <Plane size={18} className="text-brand-blue" /> Leave
+                <Plane size={18} className="text-brand-blueText" /> Leave
               </h2>
-              <label className="block text-xs font-medium text-ink-700 mb-1.5">
+              <label htmlFor="settings-annual-leave-quota-days-year" className="block text-xs font-medium text-ink-700 mb-1.5">
                 Annual leave quota (days/year)
               </label>
-              <input
+              <input id="settings-annual-leave-quota-days-year"
                 type="number"
                 min="0"
                 value={s.annualLeaveQuota}
@@ -172,14 +173,14 @@ export default function SettingsGeneralPage() {
                 }
                 className="w-40 px-3 py-2 mb-4 rounded border border-ink-200 text-sm"
               />
-              <label className="block text-xs font-medium text-ink-700 mb-1.5">
+              <p id="settings-leave-types" className="block text-xs font-medium text-ink-700 mb-1.5">
                 Leave types
-              </label>
-              <div className="flex flex-wrap gap-1.5 mb-2">
+              </p>
+              <div role="group" aria-labelledby="settings-leave-types" className="flex flex-wrap gap-1.5 mb-2">
                 {s.leaveTypes.map((t) => (
                   <span
                     key={t}
-                    className="inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-pill bg-brand-blueBg text-brand-blue text-xs font-medium"
+                    className="inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-pill bg-brand-blueBg text-brand-blueText text-xs font-medium"
                   >
                     {t}
                     <button
@@ -306,7 +307,7 @@ function BackupSection() {
   return (
     <section className="card p-6">
       <h2 className="font-heading text-lg font-semibold mb-1 flex items-center gap-2">
-        <Database size={18} className="text-brand-blue" /> Backup
+        <Database size={18} className="text-brand-blueText" /> Backup
       </h2>
       <p className="text-xs text-ink-500 mb-4">
         Download a full JSON snapshot of every record to keep off this server.

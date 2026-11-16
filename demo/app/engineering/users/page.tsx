@@ -104,7 +104,7 @@ export default function DomainUsersPage() {
       </div>
 
       {adding && (
-        <div className="card p-4 mb-6 grid sm:grid-cols-2 gap-2">
+        <div className="card p-4 mb-6 grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div>
             <input
               value={form.name}
@@ -176,7 +176,7 @@ export default function DomainUsersPage() {
         <p className="text-xs text-brand-greenText mb-2">{notice}</p>
       )}
 
-      <div className="card overflow-hidden">
+      <div className="card overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-ink-50 text-ink-500 text-xs uppercase tracking-wide">
             <tr>
@@ -368,7 +368,7 @@ function ManageRow({
               aria-expanded={open}
               className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded border ${
                 open
-                  ? "bg-brand-blueBg text-brand-blue border-brand-blue"
+                  ? "bg-brand-blueBg text-brand-blueText border-brand-blue"
                   : "text-ink-600 border-ink-200 hover:bg-ink-50"
               }`}
             >
@@ -376,7 +376,7 @@ function ManageRow({
               {open ? "Close" : "Manage"}
             </button>
           ) : (
-            <span className="text-xs text-ink-300">—</span>
+            <span className="text-xs text-ink-400">—</span>
           )}
         </td>
       </tr>
@@ -384,7 +384,7 @@ function ManageRow({
       {open && canManage && (
         <tr>
           <td colSpan={4} className="px-4 py-4 bg-ink-50">
-            <div className="grid sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Name">
                 <div className="flex gap-2">
                   <input
@@ -483,7 +483,7 @@ function ManageRow({
                 <button
                   onClick={fixSignIn}
                   disabled={busy !== null}
-                  className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded border border-brand-blue text-brand-blue hover:bg-brand-blueBg disabled:opacity-40"
+                  className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded border border-brand-blue text-brand-blueText hover:bg-brand-blueBg disabled:opacity-40"
                 >
                   <KeyRound size={13} />
                   {busy === "fix" ? "Fixing…" : "Fix their sign-in"}

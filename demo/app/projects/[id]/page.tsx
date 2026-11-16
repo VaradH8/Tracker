@@ -50,9 +50,10 @@ import { PeoplePicker } from "@/components/PeoplePicker";
 import { ImportTasksModal } from "@/components/ImportTasksModal";
 import { toCsv, downloadCsv } from "@/lib/csv";
 import { DateInput } from "@/components/DateInput";
+import { PageSkeleton } from "@/components/Skeleton";
 
 const COLUMNS: { id: Status; title: string; accent: string }[] = [
-  { id: "To Do", title: "To Do", accent: "bg-ink-400" },
+  { id: "To Do", title: "To Do", accent: "bg-ink-300" },
   { id: "In Progress", title: "In Progress", accent: "bg-brand-blue" },
   { id: "Blocked", title: "Blocked", accent: "bg-brand-red" },
   { id: "In review", title: "In review", accent: "bg-brand-yellow" },
@@ -199,6 +200,18 @@ export default function ProjectDetailPage({
   if (showAudit) tabs.push("history");
   const activeTab = tabs.includes(tab) ? tab : "tasks";
 
+  // Still loading (and not mid-delete): a page-shaped placeholder rather
+  // than a card that says "Loading…" and then changes its mind.
+  if (!isDeleting && (!hydrated || !projectsHydrated)) {
+    return (
+      <AppShell>
+        <div className="max-w-container-wide mx-auto px-6 py-8">
+          <PageSkeleton label="Loading project…" />
+        </div>
+      </AppShell>
+    );
+  }
+
   if (!hydrated || !projectsHydrated || !project || !allowed) {
     return (
       <AppShell>
@@ -226,10 +239,10 @@ export default function ProjectDetailPage({
 
   return (
     <AppShell>
-      <div className="max-w-[1400px] mx-auto px-6 py-8">
+      <div className="max-w-container-wide mx-auto px-6 py-8">
         <Link
           href="/projects"
-          className="inline-flex items-center gap-1.5 text-sm text-ink-500 hover:text-brand-blue mb-4"
+          className="inline-flex items-center gap-1.5 text-sm text-ink-500 hover:text-brand-blueText mb-4"
         >
           <ArrowLeft size={14} /> All projects
         </Link>
@@ -251,7 +264,8 @@ export default function ProjectDetailPage({
               </p>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          {/* Wraps on a phone instead of pushing Delete off-screen. */}
+          <div className="flex items-center gap-2 flex-wrap">
             {showExport && (
               <button
                 onClick={() => {
@@ -387,7 +401,7 @@ export default function ProjectDetailPage({
               onClick={() => setTab(t)}
               className={
                 activeTab === t
-                  ? "px-4 py-2 text-sm font-medium border-b-2 border-brand-blue text-brand-blue capitalize"
+                  ? "px-4 py-2 text-sm font-medium border-b-2 border-brand-blue text-brand-blueText capitalize"
                   : "px-4 py-2 text-sm font-medium text-ink-500 hover:text-ink-900 capitalize"
               }
             >
@@ -512,7 +526,7 @@ export default function ProjectDetailPage({
         )}
 
         {activeTab === "details" && client && (
-          <div className="grid lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <section className="lg:col-span-2 space-y-6">
               <div className="card p-6">
                 <h2 className="font-heading text-lg font-semibold mb-3">
@@ -580,7 +594,7 @@ export default function ProjectDetailPage({
                 <h2 className="font-heading text-lg font-semibold mb-3">
                   {showFinancials ? "Schedule & budget" : "Schedule"}
                 </h2>
-                <dl className="grid sm:grid-cols-2 gap-4 text-sm">
+                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                   <Row icon={<Calendar size={14} />} label="Start" value={project.startDate} />
                   <Row icon={<Calendar size={14} />} label="Target" value={project.targetDate} />
                   {showFinancials && (
@@ -597,7 +611,7 @@ export default function ProjectDetailPage({
             <aside>
               <div className="card p-6">
                 <div className="flex items-center gap-1.5 mb-3">
-                  <Building2 size={16} className="text-brand-blue" />
+                  <Building2 size={16} className="text-brand-blueText" />
                   <h2 className="font-heading text-lg font-semibold">Client</h2>
                 </div>
                 <div className="space-y-3 text-sm">
@@ -620,7 +634,7 @@ export default function ProjectDetailPage({
                     <div className="text-ink-700">{client.primaryContact}</div>
                     <a
                       href={`mailto:${client.email}`}
-                      className="text-xs text-brand-blue hover:underline inline-flex items-center gap-1 mt-0.5"
+                      className="text-xs text-brand-blueText hover:underline inline-flex items-center gap-1 mt-0.5"
                     >
                       <Mail size={11} /> {client.email}
                     </a>
@@ -640,7 +654,7 @@ export default function ProjectDetailPage({
         {activeTab === "history" && showAudit && (
           <div className="card p-6">
             <div className="flex items-center gap-2 mb-4 flex-wrap">
-              <History size={18} className="text-brand-blue" />
+              <History size={18} className="text-brand-blueText" />
               <h2 className="font-heading text-lg font-semibold">
                 Activity history
               </h2>
@@ -803,7 +817,7 @@ function ProjectRoleLane({
         {members.map((m) => (
           <span
             key={m}
-            className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-pill bg-brand-blueBg text-brand-blue text-xs font-medium"
+            className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-pill bg-brand-blueBg text-brand-blueText text-xs font-medium"
           >
             {m}
             {canEdit && (
@@ -906,10 +920,10 @@ function EditProjectModal({
         Update the project&apos;s plan, schedule, and team rosters.
       </p>
 
-      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+      <label htmlFor="projects-detail-name" className="block text-xs font-medium text-ink-700 mb-1.5">
         Name
       </label>
-      <input
+      <input id="projects-detail-name"
         value={name}
         onChange={(e) => setName(e.target.value)}
         className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
@@ -917,10 +931,10 @@ function EditProjectModal({
 
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div>
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          <label htmlFor="projects-detail-status" className="block text-xs font-medium text-ink-700 mb-1.5">
             Status
           </label>
-          <select
+          <select id="projects-detail-status"
             value={status}
             onChange={(e) => setStatus(e.target.value)}
             className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
@@ -932,10 +946,10 @@ function EditProjectModal({
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          <label htmlFor="projects-detail-health" className="block text-xs font-medium text-ink-700 mb-1.5">
             Health
           </label>
-          <select
+          <select id="projects-detail-health"
             value={health}
             onChange={(e) => setHealth(e.target.value)}
             className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
@@ -976,25 +990,25 @@ function EditProjectModal({
 
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div>
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          <label htmlFor="projects-detail-start-date" className="block text-xs font-medium text-ink-700 mb-1.5">
             Start date
           </label>
-          <DateInput value={startDate} onChange={(iso: string) => setStartDate(iso)} className="w-full px-3 py-2 rounded border border-ink-200 text-sm" />
+          <DateInput id="projects-detail-start-date" value={startDate} onChange={(iso: string) => setStartDate(iso)} className="w-full px-3 py-2 rounded border border-ink-200 text-sm" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          <label htmlFor="projects-detail-target-date" className="block text-xs font-medium text-ink-700 mb-1.5">
             Target date
           </label>
-          <DateInput value={targetDate} onChange={(iso: string) => setTargetDate(iso)} className="w-full px-3 py-2 rounded border border-ink-200 text-sm" />
+          <DateInput id="projects-detail-target-date" value={targetDate} onChange={(iso: string) => setTargetDate(iso)} className="w-full px-3 py-2 rounded border border-ink-200 text-sm" />
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div>
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          <label htmlFor="projects-detail-budget-hours" className="block text-xs font-medium text-ink-700 mb-1.5">
             Budget (hours)
           </label>
-          <input
+          <input id="projects-detail-budget-hours"
             type="number"
             value={budgetHours}
             onChange={(e) => setBudgetHours(e.target.value)}
@@ -1002,19 +1016,19 @@ function EditProjectModal({
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          <p className="block text-xs font-medium text-ink-700 mb-1.5">
             Progress
-          </label>
+          </p>
           <p className="text-xs text-ink-500 px-3 py-2 rounded bg-ink-50 border border-ink-100">
             Auto-calculated from completed tasks.
           </p>
         </div>
       </div>
 
-      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+      <label htmlFor="projects-detail-description" className="block text-xs font-medium text-ink-700 mb-1.5">
         Description
       </label>
-      <textarea
+      <textarea id="projects-detail-description"
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         rows={3}
@@ -1126,10 +1140,10 @@ function CreateTaskModal({
     <Modal title="New task" onClose={onClose} size="lg">
       <p className="text-sm text-ink-500 mb-5 truncate">In {projectName}</p>
 
-      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+      <label htmlFor="projects-detail-task-title" className="block text-xs font-medium text-ink-700 mb-1.5">
         Task title
       </label>
-      <input
+      <input id="projects-detail-task-title"
         autoFocus
         value={title}
         onChange={(e) => setTitle(e.target.value)}
@@ -1140,11 +1154,11 @@ function CreateTaskModal({
         className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
       />
 
-      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+      <label htmlFor="projects-detail-description-optional" className="block text-xs font-medium text-ink-700 mb-1.5">
         Description{" "}
         <span className="text-ink-400 font-normal">(optional)</span>
       </label>
-      <textarea
+      <textarea id="projects-detail-description-optional"
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         rows={2}
@@ -1154,10 +1168,10 @@ function CreateTaskModal({
 
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div>
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          <label htmlFor="projects-detail-start-in-column" className="block text-xs font-medium text-ink-700 mb-1.5">
             Start in column
           </label>
-          <select
+          <select id="projects-detail-start-in-column"
             value={status}
             onChange={(e) => setStatus(e.target.value as Status)}
             className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
@@ -1170,10 +1184,10 @@ function CreateTaskModal({
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          <label htmlFor="projects-detail-priority" className="block text-xs font-medium text-ink-700 mb-1.5">
             Priority
           </label>
-          <select
+          <select id="projects-detail-priority"
             value={priority}
             onChange={(e) => setPriority(e.target.value as Priority)}
             className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
@@ -1188,24 +1202,24 @@ function CreateTaskModal({
 
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div>
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          <label htmlFor="projects-detail-start-date-optional" className="block text-xs font-medium text-ink-700 mb-1.5">
             Start date{" "}
             <span className="text-ink-400 font-normal">(optional)</span>
           </label>
-          <DateInput value={startDate} max={targetDate || undefined} onChange={(iso: string) => setStartDate(iso)} className="w-full px-3 py-2 rounded border border-ink-200 text-sm" />
+          <DateInput id="projects-detail-start-date-optional" value={startDate} max={targetDate || undefined} onChange={(iso: string) => setStartDate(iso)} className="w-full px-3 py-2 rounded border border-ink-200 text-sm" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          <label htmlFor="projects-detail-target-date-2" className="block text-xs font-medium text-ink-700 mb-1.5">
             Target date <span className="text-brand-redText">*</span>
           </label>
-          <DateInput value={targetDate} min={startDate || undefined} onChange={(iso: string) => setTargetDate(iso)} className="w-full px-3 py-2 rounded border border-ink-200 text-sm" />
+          <DateInput id="projects-detail-target-date-2" value={targetDate} min={startDate || undefined} onChange={(iso: string) => setTargetDate(iso)} className="w-full px-3 py-2 rounded border border-ink-200 text-sm" />
         </div>
       </div>
 
-      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+      <label htmlFor="projects-detail-estimated-hours" className="block text-xs font-medium text-ink-700 mb-1.5">
         Estimated hours <span className="text-brand-redText">*</span>
       </label>
-      <input
+      <input id="projects-detail-estimated-hours"
         type="number"
         step="0.5"
         min="0"
@@ -1217,7 +1231,7 @@ function CreateTaskModal({
 
       {canAssign ? (
         <>
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          <p id="projects-detail-assign-to" className="block text-xs font-medium text-ink-700 mb-1.5">
             Assign to <span className="text-brand-redText">*</span>{" "}
             <span className="text-ink-400 font-normal">
               {anyone
@@ -1226,8 +1240,12 @@ function CreateTaskModal({
                   ? "(developers, or yourself)"
                   : "(developers)"}
             </span>
-          </label>
-          <div className="mb-6 rounded border border-ink-200 bg-ink-50">
+          </p>
+          <div
+            role="group"
+            aria-labelledby="projects-detail-assign-to"
+            className="mb-6 rounded border border-ink-200 bg-ink-50"
+          >
             {candidates.length === 0 ? (
               <p className="text-xs text-ink-400 italic p-3">
                 {anyone ? "No one available." : "No developers available."}
@@ -1240,6 +1258,7 @@ function CreateTaskModal({
                     <button
                       key={n}
                       type="button"
+                      aria-pressed={on}
                       onClick={() => toggleAssignee(n)}
                       className={
                         on
@@ -1321,7 +1340,7 @@ function Stat({
       : tone === "yellow"
         ? "text-brand-yellowText"
         : tone === "blue"
-          ? "text-brand-blue"
+          ? "text-brand-blueText"
           : "text-ink-900";
   return (
     <div className="card p-4">

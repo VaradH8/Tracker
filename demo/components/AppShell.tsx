@@ -35,6 +35,7 @@ import { canAccess } from "@/lib/access";
 import { useNotifications } from "@/lib/notifications-store";
 import { SectionErrorBoundary } from "./SectionErrorBoundary";
 import { ShellSkeleton } from "./Skeleton";
+import { TRACKER_WELCOME, WelcomeCard } from "./WelcomeCard";
 
 type NavItem = {
   href: string;
@@ -111,13 +112,15 @@ const NAV: Record<Role, NavItem[]> = {
   ],
 };
 
+// Avatar fills behind white initials: the *Text shades, because white on
+// the bright red/yellow/green is 1.9–3.9:1 — under WCAG AA for text.
 const ROLE_COLOR: Record<Role, string> = {
-  Admin: "bg-brand-red",
+  Admin: "bg-brand-redText",
   Lead: "bg-brand-blue",
   Coordinator: "bg-brand-blue",
   HR: "bg-brand-blue",
-  BusinessDeveloper: "bg-brand-yellow",
-  Developer: "bg-brand-green",
+  BusinessDeveloper: "bg-brand-yellowText",
+  Developer: "bg-brand-greenText",
 };
 
 function initialsFor(name: string): string {
@@ -209,6 +212,15 @@ export function AppShell({ children }: { children: ReactNode }) {
           <main className="flex-1 overflow-y-auto">
             {/* A crash in the page keeps the sidebar and top bar usable. */}
             <SectionErrorBoundary label="This page" resetKey={pathname}>
+              {/* First-run tips, on the role's landing page only. */}
+              {pathname === landingFor(navRole) && (
+                <WelcomeCard
+                  className="max-w-container-wide mx-auto px-6 pt-6"
+                  storageKey={`welcome:tracker:${current!.id}`}
+                  firstName={current!.name.trim().split(/\s+/)[0]}
+                  {...TRACKER_WELCOME[navRole]}
+                />
+              )}
               {children}
             </SectionErrorBoundary>
           </main>
@@ -225,7 +237,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 }
 
 const NAV_ACTIVE =
-  "flex items-center gap-3 px-3 py-2 rounded text-sm font-medium bg-brand-blueBg text-brand-blue";
+  "flex items-center gap-3 px-3 py-2 rounded text-sm font-medium bg-brand-blueBg text-brand-blueText";
 const NAV_IDLE =
   "flex items-center gap-3 px-3 py-2 rounded text-sm font-medium text-ink-700 hover:bg-ink-100";
 
@@ -233,8 +245,40 @@ function navIsActive(pathname: string, href: string): boolean {
   return pathname === href || (href !== "/" && pathname.startsWith(href));
 }
 
-function Sidebar({ items }: { items: NavItem[] }) {
+/** The sidebar's links — shared by the desktop rail and the phone
+ *  slide-over so the two can't drift apart. Same list, order and styling as
+ *  before; aria-current tells screen readers which page is open. */
+function NavLinks({
+  items,
+  onNavigate,
+}: {
+  items: NavItem[];
+  onNavigate?: () => void;
+}) {
   const pathname = usePathname();
+  return (
+    <nav aria-label="Main" className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
+      {items.map((item) => {
+        const Icon = item.Icon;
+        const active = navIsActive(pathname, item.href);
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            onClick={onNavigate}
+            aria-current={active ? "page" : undefined}
+            className={active ? NAV_ACTIVE : NAV_IDLE}
+          >
+            <Icon size={16} aria-hidden="true" />
+            {item.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+function Sidebar({ items }: { items: NavItem[] }) {
   return (
     <aside className="hidden md:flex w-60 shrink-0 bg-white border-r border-ink-200 flex-col">
       {/* The same brand panel as the Engineering rail, so the two modules
@@ -243,23 +287,7 @@ function Sidebar({ items }: { items: NavItem[] }) {
       <div className="border-b border-ink-200">
         <BrandPanel label="Tracker" className="px-5 h-14 w-full" height={26} />
       </div>
-      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
-        {items.map((item) => {
-          const Icon = item.Icon;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={
-                navIsActive(pathname, item.href) ? NAV_ACTIVE : NAV_IDLE
-              }
-            >
-              <Icon size={16} />
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
+      <NavLinks items={items} />
       <div className="px-5 py-3 border-t border-ink-200 text-xs text-ink-400">
         v1.0
       </div>
@@ -277,8 +305,6 @@ function MobileNav({
   open: boolean;
   onClose: () => void;
 }) {
-  const pathname = usePathname();
-
   useEffect(() => {
     if (!open) return;
     function onEsc(e: KeyboardEvent) {
@@ -292,7 +318,7 @@ function MobileNav({
 
   return (
     <div className="md:hidden fixed inset-0 z-[70] flex">
-      <aside className="w-64 max-w-[82vw] bg-white border-r border-ink-200 flex flex-col h-full animate-in slide-in-from-left">
+      <aside className="w-64 max-w-[82vw] bg-white border-r border-ink-200 flex flex-col h-full motion-safe:animate-slide-in-left">
         <div
           className="h-14 flex items-center justify-between px-5 border-b border-ink-200"
           style={{ background: BRAND_NAVY }}
@@ -307,24 +333,7 @@ function MobileNav({
             <X size={18} />
           </button>
         </div>
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
-          {items.map((item) => {
-            const Icon = item.Icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={onClose}
-                className={
-                  navIsActive(pathname, item.href) ? NAV_ACTIVE : NAV_IDLE
-                }
-              >
-                <Icon size={16} />
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
+        <NavLinks items={items} onNavigate={onClose} />
         <div className="px-5 py-3 border-t border-ink-200 text-xs text-ink-400">
           v1.0
         </div>
@@ -417,7 +426,7 @@ function TopBar({
         >
           <Bell size={18} />
           {unread > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-brand-red text-white text-xs font-medium grid place-items-center">
+            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-brand-redText text-white text-xs font-medium grid place-items-center">
               {unread}
             </span>
           )}

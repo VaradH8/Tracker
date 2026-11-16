@@ -98,7 +98,7 @@ export default function UsersPage() {
 
   return (
     <AppShell>
-      <div className="max-w-[1200px] mx-auto px-6 py-8">
+      <div className="max-w-container mx-auto px-6 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="font-heading text-3xl font-semibold">Users</h1>
@@ -147,7 +147,7 @@ export default function UsersPage() {
             message="Try a different search term or status filter."
           />
         ) : (
-          <div className="card overflow-hidden">
+          <div className="card overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-ink-500 font-heading font-semibold uppercase tracking-wide border-b border-ink-200 bg-ink-50">
@@ -212,21 +212,21 @@ export default function UsersPage() {
                         <button
                           onClick={() => setEditing(u)}
                           title="Edit details and Reporting Manager"
-                          className="p-1.5 rounded text-ink-400 hover:text-brand-blue hover:bg-brand-blueBg"
+                          className="p-1.5 rounded text-ink-400 hover:text-brand-blueText hover:bg-brand-blueBg"
                         >
                           <Pencil size={14} />
                         </button>
                         <button
                           onClick={() => setResetting(u)}
                           title="Reset password"
-                          className="p-1.5 rounded text-ink-400 hover:text-brand-blue hover:bg-brand-blueBg"
+                          className="p-1.5 rounded text-ink-400 hover:text-brand-blueText hover:bg-brand-blueBg"
                         >
                           <KeyRound size={14} />
                         </button>
                         <Link
                           href={`/audit?actor=${encodeURIComponent(u.name)}`}
                           title="View this user's audit trail"
-                          className="p-1.5 rounded text-ink-400 hover:text-brand-blue hover:bg-brand-blueBg"
+                          className="p-1.5 rounded text-ink-400 hover:text-brand-blueText hover:bg-brand-blueBg"
                         >
                           <ScrollText size={14} />
                         </Link>
@@ -381,11 +381,11 @@ function DeleteUserModal({
         </div>
       </div>
 
-      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+      <label htmlFor="users-type-to-confirm" className="block text-xs font-medium text-ink-700 mb-1.5">
         Type <code className="bg-ink-100 px-1 rounded">{account.name}</code>{" "}
         to confirm
       </label>
-      <input
+      <input id="users-type-to-confirm"
         autoFocus
         value={confirmName}
         onChange={(e) => setConfirmName(e.target.value)}
@@ -450,10 +450,10 @@ function AddUserModal({
         password with them; they can change it after signing in.
       </p>
 
-      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+      <label htmlFor="users-full-name" className="block text-xs font-medium text-ink-700 mb-1.5">
         Full name
       </label>
-      <input
+      <input id="users-full-name"
         autoFocus
         value={name}
         onChange={(e) => {
@@ -471,10 +471,10 @@ function AddUserModal({
         className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
       />
 
-      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+      <label htmlFor="users-email" className="block text-xs font-medium text-ink-700 mb-1.5">
         Email
       </label>
-      <input
+      <input id="users-email"
         type="email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
@@ -482,10 +482,10 @@ function AddUserModal({
         className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
       />
 
-      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+      <label htmlFor="users-role" className="block text-xs font-medium text-ink-700 mb-1.5">
         Role
       </label>
-      <select
+      <select id="users-role"
         value={role}
         onChange={(e) => setRole(e.target.value as Role)}
         className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm"
@@ -505,11 +505,11 @@ function AddUserModal({
         />
       )}
 
-      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+      <label htmlFor="users-initial-password" className="block text-xs font-medium text-ink-700 mb-1.5">
         Initial password
       </label>
       <div className="flex gap-2 mb-6">
-        <input
+        <input id="users-initial-password"
           type="text"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -596,10 +596,10 @@ function EditUserModal({
 
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div>
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          <label htmlFor="users-full-name-2" className="block text-xs font-medium text-ink-700 mb-1.5">
             Full name
           </label>
-          <input
+          <input id="users-full-name-2"
             autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -607,10 +607,10 @@ function EditUserModal({
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          <label htmlFor="users-email-2" className="block text-xs font-medium text-ink-700 mb-1.5">
             Email
           </label>
-          <input
+          <input id="users-email-2"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -619,10 +619,10 @@ function EditUserModal({
         </div>
       </div>
 
-      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+      <label htmlFor="users-designation" className="block text-xs font-medium text-ink-700 mb-1.5">
         Designation
       </label>
-      <input
+      <input id="users-designation"
         value={designation}
         onChange={(e) => setDesignation(e.target.value)}
         placeholder="e.g. Senior Developer"
@@ -631,10 +631,10 @@ function EditUserModal({
 
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div>
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          <label htmlFor="users-phone" className="block text-xs font-medium text-ink-700 mb-1.5">
             Phone
           </label>
-          <input
+          <input id="users-phone"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             placeholder="+91 …"
@@ -642,10 +642,10 @@ function EditUserModal({
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          <label htmlFor="users-location" className="block text-xs font-medium text-ink-700 mb-1.5">
             Location
           </label>
-          <input
+          <input id="users-location"
             value={location}
             onChange={(e) => setLocation(e.target.value)}
             placeholder="City"
@@ -665,11 +665,11 @@ function EditUserModal({
       <div className="grid grid-cols-2 gap-3 mb-6">
         {canSetRate && (
         <div>
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          <label htmlFor="users-hourly-rate-admin-only" className="block text-xs font-medium text-ink-700 mb-1.5">
             Hourly rate (₹)
             <span className="text-ink-400 font-normal"> — admin only</span>
           </label>
-          <input
+          <input id="users-hourly-rate-admin-only"
             type="number"
             value={hourlyRate}
             onChange={(e) => setHourlyRate(e.target.value)}
@@ -678,10 +678,10 @@ function EditUserModal({
         </div>
         )}
         <div>
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">
+          <label htmlFor="users-capacity-hrs-week" className="block text-xs font-medium text-ink-700 mb-1.5">
             Capacity (hrs/week)
           </label>
-          <input
+          <input id="users-capacity-hrs-week"
             type="number"
             value={capacityPerWeek}
             onChange={(e) => setCapacityPerWeek(e.target.value)}
@@ -762,11 +762,11 @@ function ResetPasswordModal({
         can change it again after signing in.
       </p>
 
-      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+      <label htmlFor="users-new-password" className="block text-xs font-medium text-ink-700 mb-1.5">
         New password
       </label>
       <div className="flex gap-2 mb-6">
-        <input
+        <input id="users-new-password"
           autoFocus
           type="text"
           value={password}
@@ -822,10 +822,10 @@ function ReportingManagerField({
 }) {
   return (
     <div className="mb-4">
-      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+      <label htmlFor="users-reporting-manager" className="block text-xs font-medium text-ink-700 mb-1.5">
         Reporting Manager
       </label>
-      <select
+      <select id="users-reporting-manager"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="w-full px-3 py-2 rounded border border-ink-200 text-sm"

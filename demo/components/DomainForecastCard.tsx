@@ -104,9 +104,9 @@ export function statusTone(s: string) {
   }
   if (s === "Yet to be started") {
     return {
-      chip: "bg-brand-blueBg text-brand-blue",
+      chip: "bg-brand-blueBg text-brand-blueText",
       bar: "bg-brand-blue",
-      text: "text-brand-blue",
+      text: "text-brand-blueText",
       rail: "border-brand-blue",
     };
   }
@@ -120,7 +120,7 @@ export function statusTone(s: string) {
   }
   return {
     chip: "bg-ink-100 text-ink-500",
-    bar: "bg-ink-400",
+    bar: "bg-ink-300",
     text: "text-ink-500",
     rail: "border-ink-200",
   };
@@ -175,7 +175,7 @@ function Timeline({ p }: { p: ProjectRow }) {
 
         {/* where we are now */}
         <div
-          className="absolute top-1.5 h-6 w-px bg-ink-400"
+          className="absolute top-1.5 h-6 w-px bg-ink-300"
           style={{ left: `${todayPct}%` }}
           title={`Today — ${fmt(todayISO)}`}
         />
@@ -423,7 +423,7 @@ export function DomainForecastCard({
       <button
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="mt-auto pt-3 inline-flex items-center gap-1 self-start text-xs font-medium text-brand-blue hover:underline"
+        className="mt-auto pt-3 inline-flex items-center gap-1 self-start text-xs font-medium text-brand-blueText hover:underline"
       >
         {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         {open ? "Hide detail" : "Detail"}

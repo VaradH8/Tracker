@@ -142,10 +142,10 @@ export function ImportTasksModal({
               className="hidden"
               onChange={(e) => accept(e.target.files?.[0])}
             />
-            <UploadCloud size={34} className="mx-auto text-brand-blue mb-2" />
+            <UploadCloud size={34} className="mx-auto text-brand-blueText mb-2" />
             {file ? (
               <p className="text-sm font-medium text-ink-900 inline-flex items-center gap-2">
-                <FileSpreadsheet size={16} className="text-brand-green" />
+                <FileSpreadsheet size={16} className="text-brand-greenText" />
                 {file.name}
                 <button
                   onClick={(e) => {
@@ -221,7 +221,7 @@ export function ImportTasksModal({
           {preview.unmatchedNames.length > 0 && (
             <div className="card p-4 mb-4 border-brand-yellowBorder bg-brand-yellowBg">
               <div className="flex items-center gap-2 mb-1.5">
-                <AlertTriangle size={15} className="text-brand-yellow" />
+                <AlertTriangle size={15} className="text-brand-yellowText" />
                 <h3 className="font-heading text-sm font-semibold">
                   Names that don&apos;t match a user
                 </h3>
@@ -272,7 +272,7 @@ export function ImportTasksModal({
       {step === "done" && result && (
         <div className="text-center py-4">
           <div className="w-12 h-12 mx-auto rounded-full bg-brand-greenBg grid place-items-center mb-3">
-            <CheckCircle2 size={26} className="text-brand-green" />
+            <CheckCircle2 size={26} className="text-brand-greenText" />
           </div>
           <h3 className="font-heading text-lg font-semibold mb-1">
             Import complete

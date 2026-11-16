@@ -287,7 +287,7 @@ export function DomainAssignTask({
         the task is done when the person doing it says so.
       </p>
 
-      <div className="grid sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className="text-xs sm:col-span-2">
           <span className="block text-ink-700 font-medium mb-1">
             What needs doing <span className="text-brand-redText">*</span>
@@ -412,7 +412,7 @@ export function DomainAssignTask({
                   priority === p
                     ? p === "High"
                       ? "bg-brand-redBg text-brand-redText border-brand-red"
-                      : "bg-brand-blueBg text-brand-blue border-brand-blue"
+                      : "bg-brand-blueBg text-brand-blueText border-brand-blue"
                     : "bg-white text-ink-600 border-ink-200 hover:bg-ink-50"
                 }`}
                 aria-pressed={priority === p}
@@ -483,7 +483,7 @@ export function DomainAssignTask({
                     }}
                     className={`px-2.5 py-1 rounded-pill text-xs font-medium border ${
                       !includeWeekends
-                        ? "bg-white border-brand-blue text-brand-blue"
+                        ? "bg-white border-brand-blue text-brand-blueText"
                         : "bg-transparent border-ink-200 text-ink-600 hover:bg-white"
                     }`}
                   >
@@ -497,7 +497,7 @@ export function DomainAssignTask({
                     }}
                     className={`px-2.5 py-1 rounded-pill text-xs font-medium border ${
                       includeWeekends
-                        ? "bg-white border-brand-blue text-brand-blue"
+                        ? "bg-white border-brand-blue text-brand-blueText"
                         : "bg-transparent border-ink-200 text-ink-600 hover:bg-white"
                     }`}
                   >
@@ -541,7 +541,7 @@ export function DomainAssignTask({
             {chosenReviewers.map((r) => (
               <span
                 key={r.id}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-pill bg-brand-blueBg text-brand-blue text-xs font-medium"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-pill bg-brand-blueBg text-brand-blueText text-xs font-medium"
               >
                 {r.name}
                 <button
@@ -593,7 +593,7 @@ export function DomainAssignTask({
                 type="button"
                 onClick={saveDefaults}
                 disabled={savingDefaults}
-                className="text-xs text-brand-blue hover:underline disabled:opacity-50 shrink-0"
+                className="text-xs text-brand-blueText hover:underline disabled:opacity-50 shrink-0"
               >
                 {savingDefaults
                   ? "Saving…"
@@ -666,7 +666,7 @@ export function DomainAssignTask({
       {done && (
         <div className="mt-4 rounded-lg border border-brand-green bg-brand-greenBg p-4">
           <div className="flex items-start gap-2">
-            <span className="mt-0.5 shrink-0 w-5 h-5 rounded-full bg-brand-green text-white flex items-center justify-center">
+            <span className="mt-0.5 shrink-0 w-5 h-5 rounded-full bg-brand-greenText text-white flex items-center justify-center">
               <Check size={13} strokeWidth={3} />
             </span>
             <div className="min-w-0 flex-1">

@@ -116,7 +116,7 @@ function CoordinatorMyDay() {
 
   return (
     <AppShell>
-      <div className="max-w-[1400px] mx-auto px-6 py-8">
+      <div className="max-w-container-wide mx-auto px-6 py-8">
         <header className="mb-6">
           <h1 className="font-heading text-3xl font-semibold">
             {greetingNow()}, {me || "there"}
@@ -165,7 +165,7 @@ function CoordinatorMyDay() {
           />
         </section>
 
-        <div className="grid lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <section className="lg:col-span-2 space-y-6">
             {shows("due") && (
               <PlainTaskSection
@@ -200,7 +200,7 @@ function CoordinatorMyDay() {
             <div className="card p-5">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="font-heading text-lg font-semibold flex items-center gap-2">
-                  <UserMinus size={18} className="text-brand-yellow" /> Idle
+                  <UserMinus size={18} className="text-brand-yellowText" /> Idle
                   resources
                 </h2>
                 <select
@@ -227,7 +227,7 @@ function CoordinatorMyDay() {
                         href="/resources?filter=flagged"
                         className="flex items-center gap-3 p-2 -mx-2 rounded hover:bg-ink-50"
                       >
-                        <div className="w-8 h-8 rounded-full bg-brand-yellow text-white grid place-items-center text-xs font-heading font-medium shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-brand-yellowText text-white grid place-items-center text-xs font-heading font-medium shrink-0">
                           {r.name
                             .split(" ")
                             .map((p) => p[0])
@@ -254,7 +254,7 @@ function CoordinatorMyDay() {
 
             <div className="card p-5">
               <h2 className="font-heading text-lg font-semibold mb-3 flex items-center gap-2">
-                <Activity size={18} className="text-brand-blue" /> Recent
+                <Activity size={18} className="text-brand-blueText" /> Recent
                 activity
               </h2>
               <ul className="space-y-3 text-sm">
@@ -347,7 +347,7 @@ function PlainTaskSection({
   return (
     <div className="card p-5">
       <div className="flex items-center gap-2 mb-4">
-        <Icon size={18} className="text-brand-blue" />
+        <Icon size={18} className="text-brand-blueText" />
         <h2 className="font-heading text-lg font-semibold">{title}</h2>
         <span className="text-xs text-ink-500">({tasks.length})</span>
       </div>
@@ -465,7 +465,7 @@ function BulkTaskSection({
   return (
     <div className="card p-5">
       <div className="flex items-center gap-2 mb-4">
-        <Icon size={18} className="text-brand-red" />
+        <Icon size={18} className="text-brand-redText" />
         <h2 className="font-heading text-lg font-semibold">{title}</h2>
         <span className="text-xs text-ink-500">({visibleTasks.length})</span>
         {showProjectFilter && (
@@ -476,7 +476,7 @@ function BulkTaskSection({
                 e.target.value === "all" ? "all" : Number(e.target.value),
               )
             }
-            className="ml-auto text-xs rounded border border-ink-200 px-2 py-1 bg-white"
+            className="ml-auto min-w-0 text-xs rounded border border-ink-200 px-2 py-1 bg-white"
             title="Filter by project"
             aria-label="Filter overdue tasks by project"
           >
@@ -500,7 +500,7 @@ function BulkTaskSection({
         <>
           {ids.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 mb-3 p-2 rounded-card bg-brand-blueBg">
-              <span className="text-xs font-medium text-brand-blue px-1">
+              <span className="text-xs font-medium text-brand-blueText px-1">
                 {ids.length} selected
               </span>
               <select
@@ -618,7 +618,7 @@ function DeveloperMyDay() {
 
   return (
     <AppShell>
-      <div className="max-w-[1400px] mx-auto px-6 py-8">
+      <div className="max-w-container-wide mx-auto px-6 py-8">
         <header className="mb-6">
           <h1 className="font-heading text-3xl font-semibold">
             {greetingNow()}, {me || "there"}
@@ -655,7 +655,7 @@ function DeveloperMyDay() {
           />
         </section>
 
-        <div className="grid lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <section className="lg:col-span-2 space-y-6">
             <div className="card p-5">
               <div className="flex items-center justify-between mb-4">
@@ -755,7 +755,7 @@ function DeveloperMyDay() {
 function InboxZero() {
   return (
     <div className="py-10 text-center">
-      <Sparkles size={28} className="mx-auto text-brand-yellow mb-2" />
+      <Sparkles size={28} className="mx-auto text-brand-yellowText mb-2" />
       <p className="text-sm font-medium text-ink-700">Inbox zero.</p>
       <p className="text-xs text-ink-500">Nothing on your plate today.</p>
     </div>

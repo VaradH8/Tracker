@@ -37,9 +37,9 @@ const KIND_ICON: Record<NotificationKind, typeof UserPlus> = {
 };
 
 const KIND_TONE: Record<NotificationKind, string> = {
-  assigned: "bg-brand-blueBg text-brand-blue",
+  assigned: "bg-brand-blueBg text-brand-blueText",
   status_change: "bg-ink-100 text-ink-700",
-  mention: "bg-brand-blueBg text-brand-blue",
+  mention: "bg-brand-blueBg text-brand-blueText",
   blocked: "bg-brand-redBg text-brand-redText",
   important: "bg-brand-yellowBg text-brand-yellowText",
   overdue: "bg-brand-redBg text-brand-redText",

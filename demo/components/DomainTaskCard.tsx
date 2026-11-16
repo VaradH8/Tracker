@@ -93,7 +93,7 @@ const PRIORITY_TONE: Record<string, string> = {
 };
 
 const STATUS_TONE: Record<string, string> = {
-  Assigned: "bg-brand-blueBg text-brand-blue",
+  Assigned: "bg-brand-blueBg text-brand-blueText",
   Submitted: "bg-brand-yellowBg text-brand-yellowText",
   Approved: "bg-brand-greenBg text-brand-greenText",
   Rejected: "bg-brand-redBg text-brand-redText",
@@ -339,7 +339,7 @@ export function DomainTaskCard({
             className={`mt-0.5 shrink-0 text-ink-400 transition-transform ${open ? "rotate-90" : ""}`}
           />
           <span className="min-w-0">
-            <span className="block font-medium text-ink-900 group-hover:text-brand-blue">
+            <span className="block font-medium text-ink-900 group-hover:text-brand-blueText">
               {t.title}
             </span>
           </span>

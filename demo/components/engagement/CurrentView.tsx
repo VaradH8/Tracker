@@ -105,7 +105,7 @@ export function CurrentView({ data }: { data: EngagementData }) {
         <StatTile
           label="Busy today"
           value={engagedCount}
-          tone="text-brand-blue"
+          tone="text-brand-blueText"
           hint="People with at least one open task running today."
         />
         <StatTile
@@ -183,7 +183,7 @@ export function CurrentView({ data }: { data: EngagementData }) {
                 show === value
                   ? value === "free"
                     ? "border-brand-green bg-brand-greenBg text-brand-greenText font-medium"
-                    : "border-brand-blue bg-brand-blueBg text-brand-blue font-medium"
+                    : "border-brand-blue bg-brand-blueBg text-brand-blueText font-medium"
                   : "border-ink-200 text-ink-700 hover:bg-ink-100"
               }`}
             >
@@ -223,7 +223,7 @@ export function CurrentView({ data }: { data: EngagementData }) {
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-ink-700">
-          Today: <strong className="text-brand-blue">{engagedCount}</strong> busy ·{" "}
+          Today: <strong className="text-brand-blueText">{engagedCount}</strong> busy ·{" "}
           <strong className="text-brand-greenText">{freePeople.length}</strong> available
           {filtered ? " (for the selected filters)" : ""}
         </p>

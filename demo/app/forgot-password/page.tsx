@@ -37,7 +37,7 @@ export default function ForgotPasswordPage() {
         <div className="card p-6">
           <Link
             href="/login"
-            className="inline-flex items-center gap-1.5 text-xs text-ink-500 hover:text-brand-blue mb-4"
+            className="inline-flex items-center gap-1.5 text-xs text-ink-500 hover:text-brand-blueText mb-4"
           >
             <ArrowLeft size={12} /> Back to sign in
           </Link>
@@ -56,10 +56,10 @@ export default function ForgotPasswordPage() {
             </div>
           ) : (
             <form onSubmit={submit}>
-              <label className="block text-xs font-medium text-ink-700 mb-1.5">
+              <label htmlFor="forgot-password-email" className="block text-xs font-medium text-ink-700 mb-1.5">
                 Email
               </label>
-              <input
+              <input id="forgot-password-email"
                 autoFocus
                 type="email"
                 value={email}

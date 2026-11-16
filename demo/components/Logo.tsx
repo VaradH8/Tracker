@@ -1,4 +1,11 @@
-const COLORS = ["#1A73E8", "#EA4335", "#F9AB00", "#34A853"];
+import { palette } from "@/lib/design-tokens";
+
+const COLORS = [
+  palette.brand.blue,
+  palette.brand.red,
+  palette.brand.yellow,
+  palette.brand.green,
+];
 
 export function Logo({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
   const dot =

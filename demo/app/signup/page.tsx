@@ -7,6 +7,7 @@ import { UserPlus, ShieldAlert } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { useAccounts } from "@/lib/account-store";
 import { landingFor } from "@/lib/role";
+import { CardSkeleton } from "@/components/Skeleton";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -62,7 +63,9 @@ export default function SignupPage() {
   if (allowed === null) {
     return (
       <main className="min-h-screen bg-ink-50 grid place-items-center px-4">
-        <p className="text-sm text-ink-500">Loading…</p>
+        <div className="w-full max-w-md">
+          <CardSkeleton rows={4} />
+        </div>
       </main>
     );
   }
@@ -207,7 +210,7 @@ export default function SignupPage() {
           </form>
           <p className="text-xs text-ink-500 text-center mt-4">
             Already have an account?{" "}
-            <Link href="/login" className="text-brand-blue hover:underline">
+            <Link href="/login" className="text-brand-blueText hover:underline">
               Sign in
             </Link>
           </p>

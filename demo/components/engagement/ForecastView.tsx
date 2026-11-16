@@ -354,7 +354,7 @@ export function ForecastView({
               : `Nobody is on the ${setup.track} track yet — put developers on it in “Application & Plugin teams” below.`}
           </p>
         ) : (
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {candidates.map(({ person, from }) => {
               const on = chosen.has(person.id);
               const later = from > start;
@@ -407,7 +407,7 @@ export function ForecastView({
                       type="button"
                       disabled={busy}
                       onClick={() => clear(f.projectId, f.track, p.id)}
-                      className="text-xs text-brand-blue hover:underline"
+                      className="text-xs text-brand-blueText hover:underline"
                     >
                       release
                     </button>
@@ -460,9 +460,9 @@ export function ForecastView({
                 <StatTile
                   label="Forecast finish"
                   value={fmtDay(summary.endDate)}
-                  tone={summary.late ? "text-brand-yellowText" : "text-brand-blue"}
+                  tone={summary.late ? "text-brand-yellowText" : "text-brand-blueText"}
                 />
-                <StatTile label="Free now" value={summary.freeNow} tone="text-brand-blue" />
+                <StatTile label="Free now" value={summary.freeNow} tone="text-brand-blueText" />
                 <StatTile
                   label="Joining later"
                   value={summary.joiningLater}
@@ -471,7 +471,7 @@ export function ForecastView({
                 <StatTile
                   label="Need to hire"
                   value={summary.hires}
-                  tone={summary.hires ? "text-brand-redText" : "text-brand-blue"}
+                  tone={summary.hires ? "text-brand-redText" : "text-brand-blueText"}
                 />
               </div>
               {summary.late ? (
@@ -483,7 +483,7 @@ export function ForecastView({
                   <strong>Hire {summary.hires} more</strong> ({setup.track}, joining from {fmtDay(start)}) to meet the target.
                 </p>
               ) : (
-                <p className="rounded-card border border-brand-blue/30 bg-brand-blueBg px-3 py-2 text-sm text-brand-blue">
+                <p className="rounded-card border border-brand-blue/30 bg-brand-blueBg px-3 py-2 text-sm text-brand-blueText">
                   On time — {summary.contributing.length} {summary.contributing.length === 1 ? "person" : "people"} ({summary.freeNow} free now,{" "}
                   {summary.joiningLater} joining later) finish by {fmtDay(summary.endDate)} in {summary.days} working days.
                 </p>
@@ -629,77 +629,79 @@ function ForecastList({
             : "No completed forecasts yet. A forecast moves here when its project is marked Delivered."}
         </p>
       ) : (
-        <table className="w-full text-sm mt-2">
-          <thead className="bg-ink-50 text-xs text-ink-500">
-            <tr>
-              <th className="px-4 py-2 text-left font-medium">Project</th>
-              <th className="px-3 py-2 text-left font-medium">Track</th>
-              <th className="px-3 py-2 text-center font-medium">People</th>
-              <th className="px-3 py-2 text-center font-medium">Effort</th>
-              <th className="px-3 py-2 text-center font-medium">Start</th>
-              <th className="px-3 py-2 text-center font-medium">Target</th>
-              {tab === "upcoming" && <th className="px-3 py-2 text-center font-medium">Forecast finish</th>}
-              <th className="px-3 py-2 text-center font-medium">Status</th>
-              <th className="px-3 py-2">
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(({ f, s }) => {
-              const isActive = !f.completed && active.projectId === f.projectId && active.track === f.track;
-              return (
-                <tr
-                  key={keyOf(f.projectId, f.track)}
-                  onClick={f.completed ? undefined : () => onOpen(f.projectId, f.track)}
-                  title={f.completed ? undefined : "Open this forecast"}
-                  className={`border-t border-ink-100 ${f.completed ? "" : "cursor-pointer"} ${
-                    isActive ? "bg-violet-50" : "hover:bg-ink-50"
-                  }`}
-                >
-                  <td className="px-4 py-2 font-medium">{f.projectName}</td>
-                  <td className="px-3 py-2">
-                    <span className={TRACK_PILL[f.track]}>{f.track}</span>
-                  </td>
-                  <td className="px-3 py-2 text-center">{f.memberIds.length}</td>
-                  <td className="px-3 py-2 text-center">{fmtHours(f.effortHours)}</td>
-                  <td className="px-3 py-2 text-center whitespace-nowrap">{fmtDay(f.startDate)}</td>
-                  <td className="px-3 py-2 text-center whitespace-nowrap">{fmtDay(f.targetDate)}</td>
-                  {tab === "upcoming" && (
-                    <td className="px-3 py-2 text-center whitespace-nowrap">{fmtDay(s.endDate)}</td>
-                  )}
-                  <td className="px-3 py-2 text-center">
-                    {f.completed ? (
-                      <span className="pill-grey inline-flex items-center gap-1">
-                        <CheckCircle2 size={12} /> Project delivered
-                      </span>
-                    ) : !f.targetDate ? (
-                      <span className="pill-grey">No target</span>
-                    ) : s.late ? (
-                      <span className="pill-red">Late · hire {s.hires}</span>
-                    ) : (
-                      <span className="pill-green">On time</span>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm mt-2">
+            <thead className="bg-ink-50 text-xs text-ink-500">
+              <tr>
+                <th className="px-4 py-2 text-left font-medium">Project</th>
+                <th className="px-3 py-2 text-left font-medium">Track</th>
+                <th className="px-3 py-2 text-center font-medium">People</th>
+                <th className="px-3 py-2 text-center font-medium">Effort</th>
+                <th className="px-3 py-2 text-center font-medium">Start</th>
+                <th className="px-3 py-2 text-center font-medium">Target</th>
+                {tab === "upcoming" && <th className="px-3 py-2 text-center font-medium">Forecast finish</th>}
+                <th className="px-3 py-2 text-center font-medium">Status</th>
+                <th className="px-3 py-2">
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ f, s }) => {
+                const isActive = !f.completed && active.projectId === f.projectId && active.track === f.track;
+                return (
+                  <tr
+                    key={keyOf(f.projectId, f.track)}
+                    onClick={f.completed ? undefined : () => onOpen(f.projectId, f.track)}
+                    title={f.completed ? undefined : "Open this forecast"}
+                    className={`border-t border-ink-100 ${f.completed ? "" : "cursor-pointer"} ${
+                      isActive ? "bg-violet-50" : "hover:bg-ink-50"
+                    }`}
+                  >
+                    <td className="px-4 py-2 font-medium">{f.projectName}</td>
+                    <td className="px-3 py-2">
+                      <span className={TRACK_PILL[f.track]}>{f.track}</span>
+                    </td>
+                    <td className="px-3 py-2 text-center">{f.memberIds.length}</td>
+                    <td className="px-3 py-2 text-center">{fmtHours(f.effortHours)}</td>
+                    <td className="px-3 py-2 text-center whitespace-nowrap">{fmtDay(f.startDate)}</td>
+                    <td className="px-3 py-2 text-center whitespace-nowrap">{fmtDay(f.targetDate)}</td>
+                    {tab === "upcoming" && (
+                      <td className="px-3 py-2 text-center whitespace-nowrap">{fmtDay(s.endDate)}</td>
                     )}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <button
-                      type="button"
-                      aria-label={`Delete forecast for ${f.projectName} (${f.track})`}
-                      title="Delete forecast"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void remove(f);
-                      }}
-                      className="tap-target p-1.5 rounded text-ink-400 hover:text-brand-redText hover:bg-brand-redBg"
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                    <td className="px-3 py-2 text-center">
+                      {f.completed ? (
+                        <span className="pill-grey inline-flex items-center gap-1">
+                          <CheckCircle2 size={12} /> Project delivered
+                        </span>
+                      ) : !f.targetDate ? (
+                        <span className="pill-grey">No target</span>
+                      ) : s.late ? (
+                        <span className="pill-red">Late · hire {s.hires}</span>
+                      ) : (
+                        <span className="pill-green">On time</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <button
+                        type="button"
+                        aria-label={`Delete forecast for ${f.projectName} (${f.track})`}
+                        title="Delete forecast"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void remove(f);
+                        }}
+                        className="tap-target p-1.5 rounded text-ink-400 hover:text-brand-redText hover:bg-brand-redBg"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );
@@ -765,7 +767,7 @@ function TeamsPanel({ data, reload }: { data: EngagementData; reload: () => Prom
     <section className="card p-3">
       <button type="button" onClick={() => setOpen((v) => !v)} className="w-full flex items-center justify-between gap-2 text-left">
         <span className="flex items-center gap-2">
-          <Users2 size={16} className="text-brand-blue" />
+          <Users2 size={16} className="text-brand-blueText" />
           <span className="font-heading font-semibold">Application &amp; Plugin teams</span>
           <span className="text-xs text-ink-500">
             {doers.filter((p) => p.track === "Application").length} Application ·{" "}
@@ -773,11 +775,11 @@ function TeamsPanel({ data, reload }: { data: EngagementData; reload: () => Prom
             {unassigned ? <span className="text-brand-yellowText"> · {unassigned} without a track</span> : null}
           </span>
         </span>
-        <span className="text-sm text-brand-blue">{open ? "Hide" : "Manage"}</span>
+        <span className="text-sm text-brand-blueText">{open ? "Hide" : "Manage"}</span>
       </button>
       {open && (
-        <div className="mt-3 grid gap-3 md:grid-cols-3">
-          {column("Application", doers.filter((p) => p.track === "Application"), "text-brand-blue")}
+        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+          {column("Application", doers.filter((p) => p.track === "Application"), "text-brand-blueText")}
           {column("Plugin", doers.filter((p) => p.track === "Plugin"), "text-brand-greenText")}
           {column("No track", doers.filter((p) => !p.track), "text-ink-700")}
         </div>

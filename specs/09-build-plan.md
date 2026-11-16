@@ -27,6 +27,11 @@ The original phase-by-phase MVP plan is complete and the product has grown past 
 - [x] Accessibility: 12 px minimum text, larger pointer targets on icon buttons, labelled auth forms, axe check in CI.
 - [x] Skeleton loading states, per-section error boundaries, offline banner, undo for task and project deletes.
 - [x] Docs and specs rewritten to match the real app; unused scaffolds removed.
+- [x] Colour contrast: text tokens all ≥ 4.5:1 (ink-400 darkened, brand `*Text` shades for words), enforced by a test.
+- [x] Every form label tied to its field; toggle groups named; `aria-pressed` on toggles.
+- [x] Design system: `lib/design-tokens.ts` feeds Tailwind, charts and logo; no hex in components; motion tokens and reduced-motion support; `docs/design-system.md`.
+- [x] Phones: no page scrolls sideways at 390 px; tables scroll inside their card; button rows wrap.
+- [x] First-run welcome card per role, in both modules.
 
 ## Next
 
@@ -37,7 +42,6 @@ The original phase-by-phase MVP plan is complete and the product has grown past 
 - [ ] Allowlist attachment file types.
 - [ ] Session idle timeout (sessions are a fixed 30 days today).
 - [ ] Undo for Engineering task/project deletes (Tracker only so far).
-- [ ] A type scale and spacing scale to replace the remaining one-off pixel values.
 
 ## Open questions
 

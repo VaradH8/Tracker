@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { useToast } from "@/components/Toast";
 import { useAccounts } from "@/lib/account-store";
@@ -117,14 +117,14 @@ export default function ProfilePage() {
 
         <section className="card p-6">
           <h2 className="font-heading text-lg font-semibold mb-4">Account</h2>
-          <div className="grid sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-ink-700 mb-1.5">
+              <label htmlFor="profile-display-name" className="block text-xs font-medium text-ink-700 mb-1.5">
                 Display name
               </label>
               {editingName ? (
                 <div className="flex gap-2">
-                  <input
+                  <input id="profile-display-name"
                     autoFocus
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
@@ -174,13 +174,13 @@ export default function ProfilePage() {
           {pwOpen && (
             <form
               onSubmit={submitPassword}
-              className="mt-4 pt-4 border-t border-ink-100 grid sm:grid-cols-3 gap-3"
+              className="mt-4 pt-4 border-t border-ink-100 grid grid-cols-1 sm:grid-cols-3 gap-3"
             >
               <div>
-                <label className="block text-xs font-medium text-ink-700 mb-1.5">
+                <label htmlFor="profile-current-password" className="block text-xs font-medium text-ink-700 mb-1.5">
                   Current password
                 </label>
-                <input
+                <input id="profile-current-password"
                   type="password"
                   value={currentPw}
                   onChange={(e) => {
@@ -191,10 +191,10 @@ export default function ProfilePage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-ink-700 mb-1.5">
+                <label htmlFor="profile-new-password" className="block text-xs font-medium text-ink-700 mb-1.5">
                   New password
                 </label>
-                <input
+                <input id="profile-new-password"
                   type="password"
                   value={nextPw}
                   onChange={(e) => {
@@ -206,10 +206,10 @@ export default function ProfilePage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-ink-700 mb-1.5">
+                <label htmlFor="profile-confirm-new-password" className="block text-xs font-medium text-ink-700 mb-1.5">
                   Confirm new password
                 </label>
-                <input
+                <input id="profile-confirm-new-password"
                   type="password"
                   value={confirmPw}
                   onChange={(e) => {
@@ -279,12 +279,14 @@ export default function ProfilePage() {
 }
 
 function Field({ label, value }: { label: string; value: string }) {
+  // Rendered several times on this page, so each needs its own id.
+  const id = useId();
   return (
     <div>
-      <label className="block text-xs font-medium text-ink-700 mb-1.5">
+      <label htmlFor={id} className="block text-xs font-medium text-ink-700 mb-1.5">
         {label}
       </label>
-      <input
+      <input id={id}
         readOnly
         value={value}
         className="w-full px-3 py-2 rounded border border-ink-200 text-sm bg-ink-50"

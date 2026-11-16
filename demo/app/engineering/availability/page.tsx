@@ -95,7 +95,7 @@ export default function AvailabilityPage() {
           </div>
           <div className="card p-4">
             <div className="text-xs text-ink-500 font-medium">Allocated</div>
-            <div className="font-heading text-3xl font-semibold mt-1 text-brand-blue">
+            <div className="font-heading text-3xl font-semibold mt-1 text-brand-blueText">
               {booked}
             </div>
           </div>

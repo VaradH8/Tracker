@@ -95,7 +95,7 @@ export default function DomainAccountPage() {
                 Your name is how you appear on every picker, approval and
                 delivery record.
               </p>
-              <div className="grid sm:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <label className="text-xs">
                   <span className="block text-ink-700 font-medium mb-1">Name</span>
                   <input

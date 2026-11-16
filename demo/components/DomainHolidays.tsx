@@ -100,7 +100,7 @@ export function DomainHolidays({ onChanged }: { onChanged?: () => void } = {}) {
       <div className="flex items-start justify-between gap-3 flex-wrap mb-4">
         <div>
           <h2 className="font-heading text-lg font-semibold flex items-center gap-2">
-            <CalendarOff size={17} className="text-brand-blue" />
+            <CalendarOff size={17} className="text-brand-blueText" />
             Public holidays
           </h2>
           <p className="text-sm text-ink-500 mt-0.5">
@@ -147,7 +147,7 @@ export function DomainHolidays({ onChanged }: { onChanged?: () => void } = {}) {
           No holidays added yet — handover dates currently skip weekends only.
         </p>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <HolidayList
             title={`Upcoming (${upcoming.length})`}
             rows={upcoming}

@@ -29,6 +29,7 @@ import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { ToastProvider, useToast } from "@/components/Toast";
 import LoginPage from "@/app/login/page";
+import { TRACKER_WELCOME, WelcomeCard } from "@/components/WelcomeCard";
 
 const AXE_OPTIONS = {
   runOnly: { type: "tag" as const, values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"] },
@@ -96,6 +97,22 @@ describe("accessibility (axe)", () => {
 
   it("toast with an Undo action", async () => {
     expect(await violations(<ToastProvider><ToastWithAction /></ToastProvider>)).toEqual([]);
+  });
+
+  it("first-run welcome card", async () => {
+    window.localStorage.clear();
+    const found = await violations(
+      <WelcomeCard storageKey="welcome:test" firstName="Asha" {...TRACKER_WELCOME.Developer} />,
+    );
+    expect(found).toEqual([]);
+    expect(screen.getByRole("heading", { name: /Welcome, Asha/ })).toBeTruthy();
+  });
+
+  it("first-run welcome card stays dismissed", async () => {
+    window.localStorage.setItem("welcome:seen", "dismissed");
+    render(<WelcomeCard storageKey="welcome:seen" firstName="Asha" {...TRACKER_WELCOME.Developer} />);
+    await act(async () => {});
+    expect(screen.queryByText(/Welcome, Asha/)).toBeNull();
   });
 
   it("sign-in page", async () => {

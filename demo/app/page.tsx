@@ -6,7 +6,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-white text-ink-900 flex flex-col">
       <header className="border-b border-ink-200">
-        <div className="max-w-[1200px] mx-auto px-6 h-16 flex items-center justify-between">
+        <div className="max-w-container mx-auto px-6 h-16 flex items-center justify-between">
           <Logo size="md" />
           <Link href="/login" className="btn-primary">
             Sign in <ArrowRight size={14} className="ml-1.5" />
@@ -14,15 +14,15 @@ export default function HomePage() {
         </div>
       </header>
 
-      <section className="flex-1 max-w-[1200px] mx-auto px-6 pt-16 pb-20 grid lg:grid-cols-2 gap-12 items-center w-full">
+      <section className="flex-1 max-w-container mx-auto px-6 pt-16 pb-20 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center w-full">
         <div>
-          <div className="inline-flex items-center gap-1.5 mb-4 px-2.5 py-1 rounded-pill bg-brand-blueBg text-brand-blue text-xs font-medium">
+          <div className="inline-flex items-center gap-1.5 mb-4 px-2.5 py-1 rounded-pill bg-brand-blueBg text-brand-blueText text-xs font-medium">
             <span className="w-1.5 h-1.5 rounded-full bg-brand-blue animate-pulse" />
             Built for engineering services teams
           </div>
           <h1 className="font-heading text-4xl sm:text-5xl font-semibold leading-tight mb-5">
             Run projects.{" "}
-            <span className="text-brand-blue">See who's doing what.</span>{" "}
+            <span className="text-brand-blueText">See who's doing what.</span>{" "}
             Keep the work moving.
           </h1>
           <p className="text-lg text-ink-700 leading-relaxed mb-8 max-w-xl">
@@ -45,7 +45,7 @@ export default function HomePage() {
       </section>
 
       <footer className="border-t border-ink-200">
-        <div className="max-w-[1200px] mx-auto px-6 py-8 flex items-center justify-between text-sm text-ink-500">
+        <div className="max-w-container mx-auto px-6 py-8 flex items-center justify-between text-sm text-ink-500">
           <Logo size="sm" />
           <p>© 2026 · Task Manager</p>
         </div>
@@ -69,7 +69,7 @@ function HeroPreview() {
         <Stat
           label="Active projects"
           value="6"
-          tone="bg-brand-blueBg text-brand-blue"
+          tone="bg-brand-blueBg text-brand-blueText"
         />
         <Stat
           label="Overdue tasks"

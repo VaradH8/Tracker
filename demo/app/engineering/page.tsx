@@ -107,7 +107,7 @@ function AttentionRow({
       ? "text-brand-redText"
       : tone === "yellow"
         ? "text-brand-yellowText"
-        : "text-brand-blue";
+        : "text-brand-blueText";
   return (
     <li>
       {/*
@@ -139,7 +139,7 @@ function AttentionRow({
         )}
         <ArrowRight
           size={14}
-          className="ml-auto shrink-0 text-ink-300 group-hover:text-brand-blue"
+          className="ml-auto shrink-0 text-ink-400 group-hover:text-brand-blueText"
         />
       </Link>
     </li>
@@ -400,7 +400,7 @@ function ManagerHome() {
           <h2 className="font-heading text-lg font-semibold">Your projects</h2>
           <Link
             href="/engineering/forecast"
-            className="text-sm text-brand-blue inline-flex items-center gap-1"
+            className="text-sm text-brand-blueText inline-flex items-center gap-1"
           >
             <TrendingUp size={14} /> Full forecast
           </Link>
@@ -410,7 +410,7 @@ function ManagerHome() {
           <div className="card p-6 text-center">
             <p className="text-sm text-ink-500">
               No projects yet.{" "}
-              <Link href="/engineering/projects" className="text-brand-blue">
+              <Link href="/engineering/projects" className="text-brand-blueText">
                 Create the first one
               </Link>
               .
@@ -420,12 +420,12 @@ function ManagerHome() {
           // min-w-0 is what makes overflow-x-auto do anything here. This
           // card is a grid item, and a grid item defaults to
           // min-width:auto — it refuses to shrink below its content. So
-          // the table's min-w-[760px] pushed the CARD out to 760 instead
+          // the table's min-w-table pushed the CARD out to 760 instead
           // of scrolling inside it, and the whole dashboard scrolled
           // sideways on a phone. The overflow rule was always right; it
           // never got the chance to apply.
           <div className="card overflow-x-auto min-w-0">
-            <table className="w-full text-sm min-w-[760px]">
+            <table className="w-full text-sm min-w-table">
               <thead className="bg-ink-50 text-ink-500 text-xs uppercase tracking-wide">
                 <tr>
                   <th className="text-left font-semibold px-4 py-2">Project</th>
@@ -457,7 +457,7 @@ function ManagerHome() {
                         <td className="px-4 py-2">
                           <Link
                             href={`/engineering/projects?project=${p.id}`}
-                            className="font-medium text-ink-900 hover:text-brand-blue"
+                            className="font-medium text-ink-900 hover:text-brand-blueText"
                           >
                             {p.name}
                           </Link>
@@ -907,7 +907,7 @@ function WorkerHome({ secondary = false }: { secondary?: boolean }) {
           </div>
           <Link
             href="/engineering/my-tags"
-            className="text-sm text-brand-blue inline-flex items-center gap-1 mt-2"
+            className="text-sm text-brand-blueText inline-flex items-center gap-1 mt-2"
           >
             Everything you have submitted <ArrowRight size={14} />
           </Link>
