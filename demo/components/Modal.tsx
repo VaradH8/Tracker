@@ -42,7 +42,7 @@ export function Modal({
           <button
             onClick={onClose}
             aria-label="Close"
-            className="p-1 -m-1 rounded text-ink-400 hover:text-ink-700 hover:bg-ink-100 shrink-0"
+            className="tap-target p-1 -m-1 rounded text-ink-400 hover:text-ink-700 hover:bg-ink-100 shrink-0"
           >
             <X size={18} />
           </button>

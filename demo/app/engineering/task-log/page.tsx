@@ -10,6 +10,7 @@ import { DomainTaskCard, type TaskCardTask } from "@/components/DomainTaskCard";
 import { DomainTaskHistory } from "@/components/DomainTaskHistory";
 import { DomainSortToggle, type TaskSort } from "@/components/DomainSortToggle";
 import { useDomain } from "@/lib/domain-store";
+import { PageSkeleton } from "@/components/Skeleton";
 
 /**
  * The task log: three questions, three tabs.
@@ -130,7 +131,7 @@ export default function DomainTaskLogPage() {
             {t.label}
             {t.count != null && t.count > 0 ? (
               <span
-                className={`ml-1.5 px-1.5 rounded-pill text-[11px] ${
+                className={`ml-1.5 px-1.5 rounded-pill text-xs ${
                   tab === t.key ? "bg-brand-blue text-white" : "bg-ink-100 text-ink-600"
                 }`}
               >
@@ -174,7 +175,7 @@ export default function DomainTaskLogPage() {
 
       {tab === "mine" &&
         (mine === null ? (
-          <p className="text-sm text-ink-500">Loading…</p>
+          <PageSkeleton />
         ) : rows.length === 0 ? (
           <Empty
             icon={<ClipboardList size={20} className="text-ink-300" />}

@@ -690,7 +690,7 @@ function ForecastList({
                         e.stopPropagation();
                         void remove(f);
                       }}
-                      className="p-1.5 rounded text-ink-400 hover:text-brand-redText hover:bg-brand-redBg"
+                      className="tap-target p-1.5 rounded text-ink-400 hover:text-brand-redText hover:bg-brand-redBg"
                     >
                       <Trash2 size={15} />
                     </button>
@@ -741,7 +741,7 @@ function TeamsPanel({ data, reload }: { data: EngagementData; reload: () => Prom
           <li key={p.id} className="flex items-center justify-between gap-2 px-3 py-1.5">
             <span className="min-w-0">
               <span className="block text-sm truncate">{p.name}</span>
-              <span className="block text-[11px] text-ink-500">{p.designation || ROLE_LABELS[p.role]}</span>
+              <span className="block text-xs text-ink-500">{p.designation || ROLE_LABELS[p.role]}</span>
             </span>
             <select
               aria-label={`Track for ${p.name}`}

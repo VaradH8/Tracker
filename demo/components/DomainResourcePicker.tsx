@@ -249,7 +249,7 @@ function StatusChip({ a }: { a?: Availability }) {
   const free = a.status === "Free";
   return (
     <span
-      className={`px-1.5 py-0.5 rounded-pill text-[11px] font-medium shrink-0 ${
+      className={`px-1.5 py-0.5 rounded-pill text-xs font-medium shrink-0 ${
         free
           ? "bg-brand-greenBg text-brand-greenText"
           : "bg-brand-yellowBg text-brand-yellowText"
@@ -381,7 +381,7 @@ export function ResourceChecklist({
               key={key}
               type="button"
               onClick={() => setRole(key)}
-              className={`px-2 py-0.5 rounded-pill text-[11px] font-medium border ${
+              className={`px-2 py-0.5 rounded-pill text-xs font-medium border ${
                 role === key
                   ? "bg-brand-blueBg text-brand-blue border-brand-blue"
                   : "bg-white text-ink-600 border-ink-200"
@@ -412,7 +412,7 @@ export function ResourceChecklist({
           {/* z-10: the toggles below are `relative`, so without an explicit
               level they'd paint over this header as rows scroll under it —
               positioned siblings later in the DOM win at z-index auto. */}
-          <div className="sticky top-0 z-10 bg-ink-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-ink-500 border-b border-ink-200">
+          <div className="sticky top-0 z-10 bg-ink-50 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-ink-500 border-b border-ink-200">
             {DOMAIN_ROLE_LABELS[g.role]}s · {g.people.length}
           </div>
           {g.people.map((p, idx) => {
@@ -429,7 +429,7 @@ export function ResourceChecklist({
                 aria-checked={on}
                 aria-label={`Allocate ${p.name}`}
                 onClick={() => onToggle(p.id, !on)}
-                className={`w-full flex items-start gap-3 px-3 py-2.5 text-left border-b border-ink-100 transition ${
+                className={`tap-target w-full flex items-start gap-3 px-3 py-2.5 text-left border-b border-ink-100 transition ${
                   on ? "bg-brand-blueBg/50" : "hover:bg-ink-50"
                 }`}
               >
@@ -447,7 +447,7 @@ export function ResourceChecklist({
                         Hidden with the rate itself: a "fastest" badge next
                         to no number is a ranking nobody can check. */}
                     {showRate && idx === 0 && a?.rate !== null && a !== undefined && (
-                      <span className="text-[10px] font-medium text-brand-greenText bg-brand-greenBg px-1.5 py-0.5 rounded-pill shrink-0">
+                      <span className="text-xs font-medium text-brand-greenText bg-brand-greenBg px-1.5 py-0.5 rounded-pill shrink-0">
                         fastest
                       </span>
                     )}
@@ -659,7 +659,7 @@ export function RateField({
       />
       {/* Out of flow: in an items-end row, a status line under the input
           would push this control up out of line with its siblings. */}
-      <span className="absolute left-0 top-full mt-0.5 block text-[11px] whitespace-nowrap">
+      <span className="absolute left-0 top-full mt-0.5 block text-xs whitespace-nowrap">
         {error ? (
           <span className="text-brand-redText">{error}</span>
         ) : saving ? (

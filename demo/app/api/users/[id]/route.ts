@@ -7,7 +7,8 @@ import {
   requireUser,
   staffChangeRefusal,
 } from "@/lib/server-access";
-import { passwordIssue } from "@/lib/auth";
+import { loginRateKey, passwordIssue, revokeOtherSessions } from "@/lib/auth";
+import { clearRateLimit } from "@/lib/rate-limit";
 import { prisma } from "@/lib/db";
 import type { Role } from "@/lib/role";
 import { shortName } from "@/lib/short-name";
@@ -201,6 +202,13 @@ export async function PATCH(
     where: { id },
     data,
   });
+  // A password set by someone else is usually set because the old one is
+  // forgotten or suspect: end every session issued under it, and lift any
+  // login lockout so the new password works straight away.
+  if (data.passwordHash) {
+    await revokeOtherSessions(id);
+    clearRateLimit(loginRateKey(updated.email));
+  }
   // A rename can create or end a first-name clash — relabel now.
   if (data.name !== undefined) await refreshShortNames(true);
 

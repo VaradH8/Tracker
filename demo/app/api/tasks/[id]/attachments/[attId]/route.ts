@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import {
   canAccessProject,
   canEditTasks,
+  canUseTaskFiles,
   isTaskAssignee,
   requireUser,
 } from "@/lib/server-access";
@@ -13,7 +14,8 @@ const UPLOAD_DIR = process.env.UPLOAD_DIR || "/uploads";
 
 /** GET — download the file. Stream the bytes from disk with the
  *  Content-Disposition set so the browser shows a Save dialog.
- *  Permission: anyone with access to the project can download. */
+ *  Permission: project access, plus canUseTaskFiles (can see the task,
+ *  or rostered on its project). */
 export async function GET(
   _req: Request,
   context: { params: Promise<{ id: string; attId: string }> },
@@ -38,9 +40,13 @@ export async function GET(
   }
   const task = await prisma.task.findUnique({
     where: { id: taskId },
-    select: { projectId: true },
+    select: { id: true, projectId: true, responsibleId: true },
   });
-  if (!task || !(await canAccessProject(user, task.projectId))) {
+  if (
+    !task ||
+    !(await canAccessProject(user, task.projectId)) ||
+    !(await canUseTaskFiles(user, task))
+  ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   if (!att.storageKey) {
@@ -106,12 +112,18 @@ export async function DELETE(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  // The attachment must belong to the task the permission was checked on.
+  // Without this, being an assignee on ANY task let you delete any
+  // attachment in the system by its id.
   const att = await prisma.taskAttachment.findUnique({
     where: { id: attId },
-    select: { storageKey: true },
+    select: { taskId: true, storageKey: true },
   });
+  if (!att || att.taskId !== taskId) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   await prisma.taskAttachment.delete({ where: { id: attId } });
-  if (att?.storageKey) {
+  if (att.storageKey) {
     // Best-effort cleanup. If the file is already gone (e.g. an admin
     // wiped /uploads to reclaim space) we don't want to fail the API.
     await unlink(join(UPLOAD_DIR, att.storageKey)).catch(() => null);

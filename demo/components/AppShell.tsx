@@ -33,6 +33,8 @@ import { useRole, type Role, ROLE_LABELS, landingFor } from "@/lib/role";
 import { labelOf, useAccounts, type Account } from "@/lib/account-store";
 import { canAccess } from "@/lib/access";
 import { useNotifications } from "@/lib/notifications-store";
+import { SectionErrorBoundary } from "./SectionErrorBoundary";
+import { ShellSkeleton } from "./Skeleton";
 
 type NavItem = {
   href: string;
@@ -162,9 +164,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   if (!hydrated) {
     return (
-      <div className="min-h-screen bg-ink-50 grid place-items-center">
-        <div className="text-sm text-ink-400">Loading…</div>
-      </div>
+      <ShellSkeleton />
     );
   }
 
@@ -206,7 +206,12 @@ export function AppShell({ children }: { children: ReactNode }) {
             account={current!}
             onOpenNav={() => setMobileNavOpen(true)}
           />
-          <main className="flex-1 overflow-y-auto">{children}</main>
+          <main className="flex-1 overflow-y-auto">
+            {/* A crash in the page keeps the sidebar and top bar usable. */}
+            <SectionErrorBoundary label="This page" resetKey={pathname}>
+              {children}
+            </SectionErrorBoundary>
+          </main>
         </div>
       </div>
       <MobileNav
@@ -297,7 +302,7 @@ function MobileNav({
           <button
             onClick={onClose}
             aria-label="Close navigation"
-            className="p-1.5 -mr-1.5 rounded text-white/70 hover:text-white hover:bg-white/10"
+            className="tap-target p-1.5 -mr-1.5 rounded text-white/70 hover:text-white hover:bg-white/10"
           >
             <X size={18} />
           </button>
@@ -383,7 +388,7 @@ function TopBar({
         <button
           onClick={onOpenNav}
           aria-label="Open navigation"
-          className="p-2 -ml-2 rounded text-ink-700 hover:bg-ink-100"
+          className="tap-target p-2 -ml-2 rounded text-ink-700 hover:bg-ink-100"
         >
           <Menu size={20} />
         </button>
@@ -399,7 +404,7 @@ function TopBar({
       >
         <Search size={14} />
         <span>Search…</span>
-        <kbd className="border border-ink-200 rounded px-1 text-[10px]">
+        <kbd className="border border-ink-200 rounded px-1 text-xs">
           ⌘K
         </kbd>
       </button>
@@ -408,11 +413,11 @@ function TopBar({
         <button
           aria-label="Notifications"
           onClick={() => setNotifOpen((v) => !v)}
-          className="p-2 rounded-full text-ink-500 hover:bg-ink-100 relative"
+          className="tap-target p-2 rounded-full text-ink-500 hover:bg-ink-100 relative"
         >
           <Bell size={18} />
           {unread > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-brand-red text-white text-[10px] font-medium grid place-items-center">
+            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-brand-red text-white text-xs font-medium grid place-items-center">
               {unread}
             </span>
           )}

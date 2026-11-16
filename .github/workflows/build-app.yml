@@ -47,6 +47,12 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      # Also part of `npm test`; its own step so an accessibility failure is
+      # named as one in the run summary. axe-core over the shared components
+      # and the sign-in page (WCAG 2.x A/AA) — see __tests__/a11y.test.tsx.
+      - name: Accessibility check (axe)
+        run: npx vitest run __tests__/a11y.test.tsx
+
       - name: Production build
         # A placeholder DATABASE_URL is enough — the build doesn't connect,
         # it only needs the var to be present for module-load validation.

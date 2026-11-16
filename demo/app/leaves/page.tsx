@@ -225,7 +225,7 @@ export default function LeavesPage() {
                     key={i}
                     className="flex items-center gap-3 p-3 rounded border border-ink-200 text-sm"
                   >
-                    <div className="w-7 h-7 rounded-full bg-ink-100 grid place-items-center text-[10px] font-heading font-medium text-ink-700">
+                    <div className="w-7 h-7 rounded-full bg-ink-100 grid place-items-center text-xs font-heading font-medium text-ink-700">
                       {t.name[0]}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -236,7 +236,7 @@ export default function LeavesPage() {
                         {t.start === t.end ? t.start : `${t.start} → ${t.end}`}
                       </div>
                     </div>
-                    <span className="pill-grey text-[10px] py-0">Out</span>
+                    <span className="pill-grey text-xs py-0">Out</span>
                   </li>
                 ))}
               </ul>
@@ -278,7 +278,7 @@ function BalanceStat({
   return (
     <div className="bg-ink-50 rounded p-3">
       <div className={`font-heading text-2xl font-semibold ${cls}`}>{value}</div>
-      <div className="text-[11px] text-ink-500 uppercase tracking-wide">
+      <div className="text-xs text-ink-500 uppercase tracking-wide">
         {label}
       </div>
     </div>
@@ -427,7 +427,7 @@ function FullLeavesView({
                   </td>
                   <td className="py-2.5 pr-4">
                     <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded-pill text-[11px] font-medium ${leaveTypeColor(l.type)}`}
+                      className={`inline-flex items-center px-2 py-0.5 rounded-pill text-xs font-medium ${leaveTypeColor(l.type)}`}
                     >
                       {l.type}
                     </span>
@@ -576,7 +576,7 @@ function LeaveRow({
   return (
     <li className="card p-3 flex items-center gap-3">
       {!hideName && (
-        <div className="w-8 h-8 rounded-full bg-ink-100 grid place-items-center text-[10px] font-heading font-medium text-ink-700">
+        <div className="w-8 h-8 rounded-full bg-ink-100 grid place-items-center text-xs font-heading font-medium text-ink-700">
           {l.resourceName[0]}
         </div>
       )}
@@ -592,19 +592,19 @@ function LeaveRow({
         </div>
       </div>
       <span
-        className={`inline-flex items-center px-2 py-0.5 rounded-pill text-[11px] font-medium ${leaveTypeColor(l.type)}`}
+        className={`inline-flex items-center px-2 py-0.5 rounded-pill text-xs font-medium ${leaveTypeColor(l.type)}`}
       >
         {l.type}
       </span>
       {l.approved ? (
-        <span className="pill-green text-[10px] py-0">Approved</span>
+        <span className="pill-green text-xs py-0">Approved</span>
       ) : (
-        <span className="pill-yellow text-[10px] py-0">Pending</span>
+        <span className="pill-yellow text-xs py-0">Pending</span>
       )}
       {canDelete && (
         <button
           onClick={remove}
-          className="p-1 -m-1 rounded text-ink-400 hover:text-brand-redText hover:bg-brand-redBg"
+          className="tap-target p-1 -m-1 rounded text-ink-400 hover:text-brand-redText hover:bg-brand-redBg"
           title="Delete leave"
           aria-label="Delete leave"
         >

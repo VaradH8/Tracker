@@ -5,6 +5,7 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("@/lib/db", () => ({ prisma: {} }));
 vi.mock("@/lib/server-access", () => ({ userByFirstName: vi.fn() }));
 
+import * as XLSX from "xlsx";
 import { parseTaskRows, normalizeCell } from "@/lib/import/tasks";
 
 describe("normalizeCell", () => {
@@ -13,6 +14,27 @@ describe("normalizeCell", () => {
     // regardless of the machine timezone.
     expect(normalizeCell(new Date(2026, 5, 29))).toBe("2026-06-29");
     expect(normalizeCell(new Date(2026, 3, 30))).toBe("2026-04-30");
+  });
+
+  it("recovers the calendar day from a real workbook date cell", () => {
+    // End to end through the installed SheetJS. Excel stores a date as a
+    // serial day number with a date format — 46117 is 5 Apr 2026 — so build
+    // the cell that way, read it back the way import-tasks does
+    // (cellDates:true + sheet_to_json raw), and normalise it. SheetJS 0.18
+    // put IST dates ~10 s before local midnight — the previous day; 0.20
+    // lands exactly on local midnight.
+    const sheet = XLSX.utils.aoa_to_sheet([["Target date"], [0]]);
+    sheet.A2 = { t: "n", v: 46117, z: "m/d/yy" };
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book, sheet, "Tasks");
+    const buf = XLSX.write(book, { type: "buffer", bookType: "xlsx" });
+    const back = XLSX.read(buf, { type: "buffer", cellDates: true });
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(back.Sheets.Tasks, {
+      header: 1,
+      raw: true,
+      defval: "",
+    });
+    expect(normalizeCell(rows[1][0])).toBe("2026-04-05");
   });
 
   it("passes strings through and coerces numbers/empties", () => {

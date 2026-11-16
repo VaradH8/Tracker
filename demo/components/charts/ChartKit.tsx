@@ -9,6 +9,7 @@ import {
   type PointerEvent,
   type ReactNode,
 } from "react";
+import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 
 /**
  * Small SVG chart toolkit for the dashboard: palette, measured width,
@@ -180,7 +181,10 @@ export function ChartCard({
       {legend && (
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-500">{legend}</div>
       )}
-      {children}
+      {/* One broken chart shouldn't blank the dashboard. */}
+      <SectionErrorBoundary label="This chart" compact>
+        {children}
+      </SectionErrorBoundary>
       {table && table.rows.length > 0 && (
         <details className="text-xs text-ink-500 mt-auto">
           <summary className="cursor-pointer w-fit hover:text-ink-700">View data</summary>

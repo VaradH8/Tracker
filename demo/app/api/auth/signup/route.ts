@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { register } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { setupTokenOk, setupTokenRequired } from "@/lib/setup-token";
 
 /**
  * Open sign-up is intentionally limited to the **first** account on a
@@ -25,6 +26,12 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => ({}));
+  if (!setupTokenOk(body.setupToken)) {
+    return NextResponse.json(
+      { error: "That setup token is wrong. Ask whoever deployed the app." },
+      { status: 403 },
+    );
+  }
   const name = String(body.name ?? "");
   const email = String(body.email ?? "");
   const password = String(body.password ?? "");
@@ -42,5 +49,9 @@ export async function POST(req: Request) {
  */
 export async function GET() {
   const userCount = await prisma.user.count();
-  return NextResponse.json({ allowed: userCount === 0 });
+  const allowed = userCount === 0;
+  return NextResponse.json({
+    allowed,
+    setupTokenRequired: allowed && setupTokenRequired(),
+  });
 }

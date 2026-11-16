@@ -18,6 +18,7 @@ import {
   submissionStatusCls as statusCls,
 } from "@/lib/domain-format";
 import { SearchSelect } from "@/components/SearchSelect";
+import { PageSkeleton } from "@/components/Skeleton";
 
 type Submission = {
   id: number;
@@ -194,7 +195,7 @@ export default function ApprovalsPage() {
               </div>
               <div className="grid grid-cols-2 gap-5">
                 <div>
-                  <div className="text-[11px] text-ink-500 font-medium uppercase tracking-wide">
+                  <div className="text-xs text-ink-500 font-medium uppercase tracking-wide">
                     People
                   </div>
                   <div className="font-heading text-2xl font-semibold mt-0.5">
@@ -202,7 +203,7 @@ export default function ApprovalsPage() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-[11px] text-ink-500 font-medium uppercase tracking-wide">
+                  <div className="text-xs text-ink-500 font-medium uppercase tracking-wide">
                     Projects
                   </div>
                   <div className="font-heading text-2xl font-semibold mt-0.5">
@@ -255,7 +256,7 @@ export default function ApprovalsPage() {
       </div>
 
       {rows === null ? (
-        <p className="text-sm text-ink-500">Loading…</p>
+        <PageSkeleton />
       ) : tab === "history" && historyError ? (
         <div className="rounded border border-amber-300 bg-amber-50 px-4 py-3">
           <p className="text-sm font-medium text-amber-900">{historyError}</p>
@@ -937,7 +938,7 @@ function ReviewCard({ s, onReviewed }: { s: Submission; onReviewed: () => void }
             {/* Worth knowing before judging a count: a small number on a
                 complex batch may be a fine day's work. */}
             {s.complexity === "Complex" && (
-              <span className="ml-1.5 px-1.5 py-0.5 rounded-pill text-[11px] font-medium bg-brand-yellowBg text-brand-yellowText">
+              <span className="ml-1.5 px-1.5 py-0.5 rounded-pill text-xs font-medium bg-brand-yellowBg text-brand-yellowText">
                 Complex
               </span>
             )}

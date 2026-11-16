@@ -1,148 +1,117 @@
-# 06 — API Specification
+# 06 — API
 
-REST over HTTPS. JSON request/response bodies. Session cookie auth (`session_id` httpOnly, secure, SameSite=Lax, 12h sliding expiry).
-
-All endpoints validate authorization server-side using the matrix in `docs/02-roles-and-permissions.md`. Unauthorized requests return `403`. Unauthenticated requests return `401`.
+Every endpoint is a Next.js route handler under `demo/app/api/`. JSON in and out, except file uploads (`multipart/form-data`) and downloads.
 
 ## Conventions
 
-- All paths prefixed `/api/v1`
-- Pagination: `?page=1&page_size=50` (max 200)
-- Filtering: query params (e.g., `?status=Blocked&team_id=3`)
-- Error response shape: `{ "error": { "code": "string", "message": "string" } }`
-- Success response shape: bare resource OR `{ "data": ..., "meta": { "page": ..., "total": ... } }` for paginated
-- Date fields in ISO 8601 (`YYYY-MM-DD` for dates, full ISO for timestamps)
+- **Auth**: a cookie session — `tracker_session` for Tracker routes (`requireUser`), `domain_session` for `/api/domain/*` (`requireDomainUser`). No session → `401`; wrong role or object → `403` (or `404` when the object isn't the one named in the URL).
+- **CSRF**: `demo/middleware.ts` refuses any POST/PUT/PATCH/DELETE to `/api/*` whose `Origin` isn't this site, or that the browser marks `Sec-Fetch-Site: cross-site` (`lib/csrf.ts`). Requests without an Origin (scripts, probes) pass.
+- **Caching**: `/api/domain/*` answers `Cache-Control: no-store`.
+- **Rate limits** (in-process, per container): sign-in 5 failures per account and 50 per IP per 15 min; forgot-password 3 per email and 10 per IP per 15 min; notifications 30 per actor per 5 min. Client IP = right-most `X-Forwarded-For` hop (`lib/client-ip.ts`; `TRUSTED_PROXY_HOPS` for more than one proxy).
+- **Errors**: `{ "error": "<message for a person>" }` with the status code.
+- **Tests**: every route has a permission test in `demo/__tests__/` asserting the wrong role gets `403`.
 
-## Endpoints
+## Public endpoints
 
-### Authentication
+| Route | Why public | Protection |
+| --- | --- | --- |
+| `POST /api/auth/signin`, `POST /api/domain/auth/signin` | Sign-in | Failure-only lockout; generic errors |
+| `POST /api/auth/signup`, `POST /api/domain/auth/bootstrap` | First admin | Closed once the module has a user; `SETUP_TOKEN` if set |
+| `POST /api/auth/forgot-password`, `POST /api/auth/reset-password` | Password reset | Always 200; rate-limited; 256-bit hashed single-use 60-min token |
+| `POST /api/auth/signout`, `POST /api/domain/auth/signout` | Sign-out | POST only |
+| `GET /api/health` | Container and uptime probe | Reports only up/down |
 
-| Method | Path | Body / Notes | Returns |
-|---|---|---|---|
-| POST | `/auth/login` | `{ email, password }` | sets cookie, returns `{ user }` |
-| POST | `/auth/logout` | — | 204, clears cookie |
-| GET | `/auth/me` | — | `{ user, teams: [...], is_admin }` |
-| POST | `/auth/forgot-password` | `{ email }` | 204 (always, even if email not found) |
-| POST | `/auth/reset-password` | `{ token, new_password }` | 204 |
-| POST | `/auth/setup-account` | `{ token, name, password }` | 204 (sets initial password from invite) |
-| POST | `/auth/change-password` | `{ current_password, new_password }` | 204 |
+## Every route
 
-### Users (Admin only unless noted)
+Generated from the route files (`Extra checks` lists the permission helpers each one calls beyond the session).
 
-| Method | Path | Body / Notes | Returns |
-|---|---|---|---|
-| GET | `/users` | filter `?status=active`, `?team_id=` | list of users |
-| POST | `/users/invite` | `{ email, name, team_assignments: [{team_id, role}] }` | created user, sends invite email |
-| GET | `/users/:id` | — | user with team assignments |
-| PATCH | `/users/:id` | `{ name?, email?, is_active? }` | updated user |
-| POST | `/users/:id/reset-password-link` | — | 204, sends reset email |
-| POST | `/users/:id/team-assignments` | `{ team_id, role }` | adds row to user_team_roles |
-| DELETE | `/users/:id/team-assignments/:teamId` | — | 204, removes from team |
-| PATCH | `/users/:id/team-assignments/:teamId` | `{ role }` | updates role for that team |
-| POST | `/users/bulk-assign` | CSV multipart upload | results summary |
-| GET | `/users/me/notification-prefs` | (any user) | current prefs |
-| PATCH | `/users/me/notification-prefs` | `{ ... }` | updated prefs |
-
-### Teams
-
-| Method | Path | Body / Notes | Returns |
-|---|---|---|---|
-| GET | `/teams` | (all roles, filtered by access) | teams visible to caller |
-| POST | `/teams` | Admin only. `{ name, description?, manager_user_ids: [] }` | new team |
-| GET | `/teams/:id` | — | team with member count, project count |
-| PATCH | `/teams/:id` | Admin only. `{ name?, description? }` | updated team |
-| POST | `/teams/:id/archive` | Admin only | 204, soft-archive |
-| POST | `/teams/:id/unarchive` | Admin only | 204 |
-| GET | `/teams/:id/members` | — | list of (user, role) for this team |
-
-### Projects (within a team)
-
-| Method | Path | Body / Notes | Returns |
-|---|---|---|---|
-| GET | `/teams/:teamId/projects` | — | list |
-| POST | `/teams/:teamId/projects` | Manager+ only. `{ name }` | new project |
-| PATCH | `/teams/:teamId/projects/:id` | Manager+ only. `{ name }` | updated |
-| POST | `/teams/:teamId/projects/:id/archive` | Manager+ only | 204 |
-
-### Tasks
-
-| Method | Path | Body / Notes | Returns |
-|---|---|---|---|
-| GET | `/tasks` | filter `?team_id=`, `?project_id=`, `?status=`, `?assignee_id=`, `?important=true`, `?overdue=true`, `?due_today=true`, `?due_within_days=7`, `?created_within_days=`, `?search=` | paginated list |
-| GET | `/tasks/me` | tasks where caller is in task_assignees, optional `?team_id=` | paginated list |
-| POST | `/teams/:teamId/projects/:projectId/tasks` | Manager+. `{ priority, description, effort_hours?, effort_note?, start_date?, target_date?, status?, is_important?, assignee_user_ids: [] }` | new task; sr_no auto-assigned |
-| GET | `/tasks/:id` | — | full task with assignees, remarks count, audit count |
-| PATCH | `/tasks/:id` | role-checked per field | updated task |
-| DELETE | `/tasks/:id` | Manager+ | 204 |
-| POST | `/tasks/:id/status` | (any assignee) `{ status, actual_hours?, blocker_reason? }` | task with new status |
-| POST | `/tasks/:id/important` | Manager+. `{ is_important: bool }` | updated |
-| POST | `/tasks/:id/assignees` | Manager+. `{ user_ids: [] }` | replaces assignees |
-
-### Remarks
-
-| Method | Path | Body / Notes | Returns |
-|---|---|---|---|
-| GET | `/tasks/:id/remarks` | — | chronological list |
-| POST | `/tasks/:id/remarks` | (any assignee + Manager+ on team). `{ body, mentions?: [] }` | new remark |
-
-### Audit log
-
-| Method | Path | Body / Notes | Returns |
-|---|---|---|---|
-| GET | `/admin/audit` | Admin only. filter `?actor_id=`, `?action=`, `?team_id=`, `?from=`, `?to=` | paginated, reverse chronological |
-| GET | `/teams/:id/audit` | Manager of team OR Admin. same filters | paginated |
-| GET | `/tasks/:id/audit` | (any with task read access) | task-scoped audit |
-| GET | `/admin/audit/export` | Admin. same filters | CSV download |
-
-### Notifications
-
-| Method | Path | Body / Notes | Returns |
-|---|---|---|---|
-| GET | `/notifications` | caller's notifications. `?unread_only=true` | paginated |
-| POST | `/notifications/:id/read` | — | 204 |
-| POST | `/notifications/read-all` | — | 204 |
-
-### Excel import / export
-
-| Method | Path | Body / Notes | Returns |
-|---|---|---|---|
-| POST | `/admin/import/preview` | Admin. multipart xlsx | dry-run summary: `{ teams_to_create, projects_to_create, tasks_to_create, unmatched_names: [], warnings: [] }` |
-| POST | `/admin/import/confirm` | Admin. `{ import_session_id, name_mappings: [{raw, user_id?, create_user?}] }` | counts + invites_sent |
-| GET | `/admin/import/history` | Admin | last 20 imports |
-| GET | `/exports/team/:teamId.xlsx` | (Manager+ on team OR Admin) | xlsx download |
-| GET | `/exports/project/:projectId.xlsx` | (Manager+ on team OR Admin) | xlsx download |
-| GET | `/exports/org.xlsx` | Admin | full org xlsx |
-
-### Dashboard endpoints (aggregations)
-
-| Method | Path | Returns |
-|---|---|---|
-| GET | `/dashboard/admin` | `{ stats: {active, overdue, important, done_this_week}, important_tasks: [], teams_summary: [] }` |
-| GET | `/dashboard/my-day` | `{ greeting, stats: {due_today, overdue, important_mine, blocked_team?}, my_day: [], up_next: [] (User), team_attention: {} (Manager), recent_activity: [] }` |
-
-The shape adapts based on caller's primary role context (Manager response includes `blocked_team` and `team_attention`; User response includes `up_next`).
-
-### System (Admin only)
-
-| Method | Path | Body / Notes | Returns |
-|---|---|---|---|
-| GET | `/admin/settings` | — | system settings |
-| PATCH | `/admin/settings` | partial fields | updated settings |
-| GET | `/admin/health` | — | `{ db: 'ok', email: 'ok', last_backup_at, disk_usage }` |
-
-## Background jobs (not HTTP endpoints, but spec'd here)
-
-- **9 AM IST daily**: send overdue digest emails to users with at least one overdue task
-- **8 AM IST Monday**: send weekly team summary to all Managers (per team)
-- **Nightly 2 AM IST**: pg_dump → upload to S3, encrypted, with 14-day lifecycle
-- **Hourly**: clean up expired sessions, expired password reset tokens, expired invite tokens
-
-## Rate limits
-
-- `/auth/login`: 5 requests / minute / IP
-- `/auth/forgot-password`: 3 requests / minute / IP
-- All other endpoints: 120 requests / minute / authenticated session
-
-## CSRF protection
-
-POST/PATCH/DELETE require an `X-CSRF-Token` header that matches a token in the session. Token issued on login, returned in `/auth/me`.
+| Path | Methods | Auth | Extra checks |
+| --- | --- | --- | --- |
+| `/api/admin/backup` | GET, POST | Tracker session | Admin |
+| `/api/audit` | GET | Tracker session | oversight roles |
+| `/api/auth/[...nextauth]` | GET, POST | Public | — |
+| `/api/auth/change-password` | POST | Public | — |
+| `/api/auth/forgot-password` | POST | Public | rate-limited |
+| `/api/auth/reset-password` | POST | Public | — |
+| `/api/auth/signin` | POST | Public | — |
+| `/api/auth/signout` | GET, POST | Public | — |
+| `/api/auth/signup` | GET, POST | Public | setup token |
+| `/api/clients/[id]` | PATCH, DELETE | Tracker session | Admin |
+| `/api/clients` | GET, POST | Tracker session | — |
+| `/api/domain/allocations/[id]` | PATCH, DELETE | Engineering session | role list |
+| `/api/domain/allocations/conflicts` | GET | Engineering session | role list |
+| `/api/domain/allocations` | GET, POST | Engineering session | role list |
+| `/api/domain/auth/bootstrap` | POST | Public | setup token |
+| `/api/domain/auth/change-password` | POST | Engineering session | — |
+| `/api/domain/auth/signin` | POST | Public | — |
+| `/api/domain/auth/signout` | POST | Public | — |
+| `/api/domain/divisions` | GET, POST | Engineering session | role list |
+| `/api/domain/employees/[id]` | PATCH, DELETE | Engineering session | role list |
+| `/api/domain/employees` | GET, POST | Engineering session | role list |
+| `/api/domain/forecast` | GET | Engineering session | role list |
+| `/api/domain/forecast/simulate` | POST | Engineering session | role list |
+| `/api/domain/holidays/preview` | GET | Engineering session | — |
+| `/api/domain/holidays` | GET, POST, DELETE | Engineering session | role list |
+| `/api/domain/kpis` | GET | Engineering session | role list |
+| `/api/domain/me/preferences` | GET, PATCH | Engineering session | — |
+| `/api/domain/me` | GET, PATCH | Engineering session | — |
+| `/api/domain/projects/[id]/deliveries` | GET | Engineering session | role list |
+| `/api/domain/projects/[id]/free-resources` | POST | Engineering session | role list |
+| `/api/domain/projects/[id]` | PATCH, DELETE | Engineering session | — |
+| `/api/domain/projects` | GET, POST | Engineering session | role list |
+| `/api/domain/resources/availability` | GET | Engineering session | role list |
+| `/api/domain/tag-assignments/[id]` | PATCH, DELETE | Engineering session | role list |
+| `/api/domain/tag-assignments/impact` | GET | Engineering session | role list |
+| `/api/domain/tag-assignments` | GET, POST, DELETE | Engineering session | role list |
+| `/api/domain/tag-submissions/[id]` | PATCH | Engineering session | role list |
+| `/api/domain/tag-submissions` | GET, POST | Engineering session | — |
+| `/api/domain/tasks/[id]/attachments/[attId]` | GET, DELETE | Engineering session | — |
+| `/api/domain/tasks/[id]/attachments` | POST | Engineering session | — |
+| `/api/domain/tasks/[id]` | PATCH, DELETE | Engineering session | — |
+| `/api/domain/tasks` | GET, POST | Engineering session | role list |
+| `/api/domain/users/[id]/fix-signin` | POST | Engineering session | role list |
+| `/api/domain/users/[id]/password` | POST | Engineering session | role list |
+| `/api/domain/users/[id]` | PATCH, DELETE | Engineering session | role list |
+| `/api/domain/users` | GET, POST | Engineering session | role list |
+| `/api/emails` | GET, DELETE | Tracker session | Admin |
+| `/api/engagement/forecasts` | PUT, DELETE | Tracker session | oversight roles |
+| `/api/engagement` | GET | Tracker session | oversight roles |
+| `/api/engagement/track` | PATCH | Tracker session | oversight roles |
+| `/api/health` | GET | Public | — |
+| `/api/import` | POST | Tracker session | — |
+| `/api/leaves/[id]` | DELETE | Tracker session | — |
+| `/api/leaves` | GET, POST, PATCH | Tracker session | — |
+| `/api/me` | GET | Tracker session | — |
+| `/api/notifications/[id]` | PATCH | Tracker session | — |
+| `/api/notifications` | GET, POST, PATCH, DELETE | Tracker session | Admin, project access, rate-limited |
+| `/api/performance/me` | GET, PUT | Tracker session | — |
+| `/api/performance/people/[id]` | PATCH | Tracker session | — |
+| `/api/performance/people` | GET | Tracker session | — |
+| `/api/performance/report/download` | GET | Tracker session | — |
+| `/api/performance/report` | GET, PUT | Tracker session | — |
+| `/api/pipeline/[id]` | DELETE | Tracker session | — |
+| `/api/pipeline` | GET, POST, PATCH | Tracker session | — |
+| `/api/projects/[id]/import-tasks` | POST | Tracker session | project access |
+| `/api/projects/[id]/members` | POST | Tracker session | project lead/co-ord |
+| `/api/projects/[id]` | GET, PATCH, DELETE | Tracker session | Admin, project access |
+| `/api/projects` | GET, POST | Tracker session | — |
+| `/api/resources/hours` | GET | Tracker session | — |
+| `/api/settings` | GET, PATCH | Tracker session | Admin |
+| `/api/tasks/[id]/approve` | POST, DELETE | Tracker session | project access |
+| `/api/tasks/[id]/assignees` | POST | Tracker session | project access |
+| `/api/tasks/[id]/attachments/[attId]` | GET, DELETE | Tracker session | project access, task files |
+| `/api/tasks/[id]/attachments` | POST | Tracker session | project access, task files |
+| `/api/tasks/[id]/dependencies` | POST | Tracker session | project lead/co-ord |
+| `/api/tasks/[id]/fork` | POST | Tracker session | — |
+| `/api/tasks/[id]/remarks/[remarkId]` | DELETE | Tracker session | project access |
+| `/api/tasks/[id]/remarks` | POST | Tracker session | project access |
+| `/api/tasks/[id]` | GET, PATCH, DELETE | Tracker session | project access, project lead/co-ord |
+| `/api/tasks/[id]/status` | POST | Tracker session | project access |
+| `/api/tasks/[id]/time-entries` | GET, POST | Tracker session | project access |
+| `/api/tasks/[id]/timer` | POST | Tracker session | project access |
+| `/api/tasks` | GET, POST | Tracker session | — |
+| `/api/time-entries/[id]` | DELETE | Tracker session | project access |
+| `/api/time-entries` | GET | Tracker session | — |
+| `/api/timer/active` | GET | Tracker session | — |
+| `/api/users/[id]` | PATCH, DELETE | Tracker session | Admin, Admin/HR |
+| `/api/users` | GET, POST | Tracker session | Admin, Admin/HR |

@@ -298,7 +298,7 @@ export function DomainProjectResources({
                           onClick={() => setLeaving({ id: r.id, name: r.name })}
                           title={`Take ${r.name} off this project`}
                           aria-label={`Take ${r.name} off this project`}
-                          className="btn-ghost text-xs text-brand-redText"
+                          className="tap-target btn-ghost text-xs text-brand-redText"
                         >
                           <Trash2 size={13} />
                         </button>
@@ -540,7 +540,7 @@ function EditAllocationRow({
         {r.releasedAt && (
           <button
             onClick={() => save({ releasedAt: null })}
-            className="text-[11px] text-brand-blue mt-1"
+            className="text-xs text-brand-blue mt-1"
           >
             Undo early release ({fmt(r.releasedAt)})
           </button>

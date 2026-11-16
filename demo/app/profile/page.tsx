@@ -5,6 +5,7 @@ import { AppShell } from "@/components/AppShell";
 import { useToast } from "@/components/Toast";
 import { useAccounts } from "@/lib/account-store";
 import { ROLE_LABELS, type Role } from "@/lib/role";
+import { PageSkeleton } from "@/components/Skeleton";
 
 const NOTIF_PREFS: Record<Role, string[]> = {
   Admin: [
@@ -65,7 +66,7 @@ export default function ProfilePage() {
     return (
       <AppShell>
         <div className="max-w-3xl mx-auto px-6 py-8">
-          <p className="text-sm text-ink-500">Loading…</p>
+          <PageSkeleton />
         </div>
       </AppShell>
     );

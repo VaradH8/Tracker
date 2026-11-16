@@ -95,8 +95,9 @@ tracker.yourcompany.com {
 ```
 
 …or, if you'd rather run Caddy inside the same compose stack, add a
-second service to `compose.yml`. The repo's `caddy/` directory has a
-sample Caddyfile (from the original PRD scaffold) you can adapt.
+second service to `compose.yml` using the Caddyfile above. (The current
+production stack uses the shared Traefik instead — see
+[specs/08-deployment.md](./specs/08-deployment.md).)
 
 ---
 

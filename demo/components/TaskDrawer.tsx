@@ -249,13 +249,20 @@ export function TaskDrawer({
                 onClick={async () => {
                   const ok = await confirm({
                     title: `Delete "${task.title}"?`,
-                    body: "Remarks, time logs, attachments, and dependencies on this task go with it. There's no undo.",
+                    body: "Remarks, time logs, attachments, and dependencies on this task go with it. You'll have a few seconds to undo.",
                     confirmLabel: "Delete task",
                     danger: true,
                   });
                   if (!ok) return;
-                  const r = await store.deleteTask(task.id);
-                  if (r.ok) onClose();
+                  const title = task.title;
+                  const { undo } = store.deleteTaskWithUndo(task.id, (error) =>
+                    toast.show(error, "error"),
+                  );
+                  onClose();
+                  toast.show(`Deleted "${title}".`, "info", {
+                    label: "Undo",
+                    onClick: undo,
+                  });
                 }}
                 className="p-1.5 rounded text-ink-400 hover:text-brand-redText hover:bg-brand-redBg"
                 aria-label="Delete task"
@@ -267,7 +274,7 @@ export function TaskDrawer({
             {!backLabel && (
               <button
                 onClick={onClose}
-                className="p-1.5 rounded hover:bg-ink-100"
+                className="tap-target p-1.5 rounded hover:bg-ink-100"
                 aria-label="Close"
               >
                 <X size={18} />
@@ -394,7 +401,7 @@ export function TaskDrawer({
             hint="The person who assigned this task"
           >
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-brand-blue text-white grid place-items-center text-[10px] font-heading font-medium shrink-0">
+              <div className="w-7 h-7 rounded-full bg-brand-blue text-white grid place-items-center text-xs font-heading font-medium shrink-0">
                 {(task.responsible ?? "?")[0]}
               </div>
               <span className="text-sm text-ink-900 font-medium">
@@ -533,7 +540,7 @@ export function TaskDrawer({
                     {canEdit && (
                       <button
                         onClick={() => store.toggleDependency(task.id, depId)}
-                        className="text-ink-400 hover:text-brand-redText"
+                        className="tap-target text-ink-400 hover:text-brand-redText"
                         aria-label="Remove dependency"
                       >
                         <X size={12} />
@@ -624,7 +631,7 @@ export function TaskDrawer({
                   {canEdit && (
                     <button
                       onClick={() => store.removeAttachment(task.id, a.id)}
-                      className="text-ink-400 hover:text-brand-redText"
+                      className="tap-target text-ink-400 hover:text-brand-redText"
                       aria-label="Remove attachment"
                     >
                       <Trash2 size={12} />
@@ -758,7 +765,7 @@ export function TaskDrawer({
                 return (
                   <li key={r.id} className="flex gap-2.5 text-sm group">
                     <div
-                      className={`w-7 h-7 rounded-full text-white grid place-items-center text-[10px] font-heading font-medium shrink-0 ${AVATAR_COLORS[idx % AVATAR_COLORS.length]}`}
+                      className={`w-7 h-7 rounded-full text-white grid place-items-center text-xs font-heading font-medium shrink-0 ${AVATAR_COLORS[idx % AVATAR_COLORS.length]}`}
                     >
                       {initials(r.author)}
                     </div>
@@ -889,7 +896,7 @@ function Field({
         {icon}
         {label}
       </label>
-      {hint && <p className="text-[11px] text-ink-400 mb-1.5">{hint}</p>}
+      {hint && <p className="text-xs text-ink-400 mb-1.5">{hint}</p>}
       {children}
     </div>
   );

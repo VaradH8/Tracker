@@ -413,7 +413,7 @@ function StatusGroup({
         className="flex items-baseline gap-2 mb-2 group disabled:cursor-default"
       >
         <span
-          className={`text-[11px] font-semibold uppercase tracking-wide ${
+          className={`text-xs font-semibold uppercase tracking-wide ${
             doneTone
               ? "text-ink-600"
               : notStartedTone
@@ -429,7 +429,7 @@ function StatusGroup({
           {projects.length}
         </span>
         {projects.length > 0 && (
-          <span className="text-[11px] text-brand-blue opacity-0 group-hover:opacity-100 transition">
+          <span className="text-xs text-brand-blue opacity-0 group-hover:opacity-100 transition">
             show these
           </span>
         )}

@@ -33,18 +33,23 @@ whole sign-in throw here. If you ever reintroduce that argument on a
 query this path touches, local login breaks again.
 
 For Playwright it is still faster to skip the form and mint a session
-row directly, setting the `tracker_session` cookie to its id:
+row directly. The `Session` table stores only the SHA-256 of the cookie
+token (`lib/session-token.ts`), so create the row with the hash as its id
+and put the raw token in the cookie:
 
 ```js
 // node, from demo/, DATABASE_URL="file:./dev.db"
 const { PrismaClient } = require("@prisma/client");
+const { randomBytes, createHash } = require("node:crypto");
 const p = new PrismaClient();
 const u = await p.user.findUnique({ where: { email: "varad@example.com" } });
-const s = await p.session.create({ data: { userId: u.id, expiresAt: new Date(Date.now() + 864e5) } });
-console.log(s.id); // -> cookie value
+const token = randomBytes(32).toString("base64url");
+const id = createHash("sha256").update(token).digest("hex");
+await p.session.create({ data: { id, userId: u.id, expiresAt: new Date(Date.now() + 864e5) } });
+console.log(token); // -> cookie value (NOT the row id)
 ```
 
-`ctx.addCookies([{ name: "tracker_session", value: sid, url: "http://localhost:3111" }])`,
+`ctx.addCookies([{ name: "tracker_session", value: token, url: "http://localhost:3111" }])`,
 then navigate anywhere; the client hydrates itself from `/api/me`.
 
 ## Driving

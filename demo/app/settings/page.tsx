@@ -6,6 +6,7 @@ import { AppShell } from "@/components/AppShell";
 import { SettingsTabs } from "@/components/SettingsTabs";
 import { useToast } from "@/components/Toast";
 import { useRole } from "@/lib/role";
+import { PageSkeleton } from "@/components/Skeleton";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -76,7 +77,7 @@ export default function SettingsGeneralPage() {
         <SettingsTabs />
 
         {!s ? (
-          <p className="text-sm text-ink-500">Loading…</p>
+          <PageSkeleton />
         ) : (
           <div className="space-y-6">
             {/* Email */}
@@ -188,7 +189,7 @@ export default function SettingsGeneralPage() {
                           leaveTypes: s.leaveTypes.filter((x) => x !== t),
                         })
                       }
-                      className="p-0.5 rounded hover:bg-brand-blue/20"
+                      className="tap-target p-0.5 rounded hover:bg-brand-blue/20"
                       aria-label={`Remove ${t}`}
                     >
                       <X size={11} />
@@ -243,11 +244,18 @@ function BackupSection() {
   const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  // Off by default: a file with every password hash in it is worth more to
+  // an attacker than the data. Tick it only for a disaster-recovery copy
+  // you'll keep somewhere safe.
+  const [withCredentials, setWithCredentials] = useState(false);
 
   async function exportBackup() {
     setBusy(true);
     try {
-      const res = await fetch("/api/admin/backup", { cache: "no-store" });
+      const res = await fetch(
+        `/api/admin/backup${withCredentials ? "?credentials=1" : ""}`,
+        { cache: "no-store" },
+      );
       if (!res.ok) {
         toast.show("Couldn't generate backup.", "error");
         return;
@@ -303,8 +311,18 @@ function BackupSection() {
       <p className="text-xs text-ink-500 mb-4">
         Download a full JSON snapshot of every record to keep off this server.
         Import restores it into the database (tops up missing rows — run it on
-        a fresh deploy to recover).
+        a fresh deploy to recover). Without password hashes, restored accounts
+        sign in again through &ldquo;Forgot password&rdquo; or an admin reset.
       </p>
+      <label className="flex items-center gap-2 text-sm text-ink-700 mb-4 min-h-[44px] cursor-pointer">
+        <input
+          type="checkbox"
+          checked={withCredentials}
+          onChange={(e) => setWithCredentials(e.target.checked)}
+          className="h-4 w-4"
+        />
+        Include password hashes (keep that file somewhere safe)
+      </label>
       <div className="flex flex-wrap gap-2">
         <button
           onClick={exportBackup}

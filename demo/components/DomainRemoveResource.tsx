@@ -104,7 +104,7 @@ export function DomainRemoveResource({
           <h2 className="font-heading text-lg font-semibold text-ink-900">
             Take {person.name} off this project
           </h2>
-          <button onClick={onClose} className="btn-ghost p-1" aria-label="Close">
+          <button onClick={onClose} className="tap-target btn-ghost p-1" aria-label="Close">
             <X size={16} />
           </button>
         </div>

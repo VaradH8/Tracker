@@ -193,7 +193,7 @@ function Stat({
       >
         {value}
       </div>
-      <div className="text-[10px] text-ink-500 uppercase tracking-wide">
+      <div className="text-xs text-ink-500 uppercase tracking-wide">
         {label}
       </div>
     </div>

@@ -126,7 +126,7 @@ export default function CalendarPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={prevMonth}
-              className="p-2 rounded hover:bg-ink-100"
+              className="tap-target p-2 rounded hover:bg-ink-100"
               aria-label="Previous month"
             >
               <ChevronLeft size={16} />
@@ -136,7 +136,7 @@ export default function CalendarPage() {
             </div>
             <button
               onClick={nextMonth}
-              className="p-2 rounded hover:bg-ink-100"
+              className="tap-target p-2 rounded hover:bg-ink-100"
               aria-label="Next month"
             >
               <ChevronRight size={16} />
@@ -193,7 +193,7 @@ export default function CalendarPage() {
                       <Popover
                         trigger={() => (
                           <span
-                            className={`self-start inline-flex items-center gap-1 px-2 py-0.5 rounded-pill text-[11px] font-medium ${
+                            className={`self-start inline-flex items-center gap-1 px-2 py-0.5 rounded-pill text-xs font-medium ${
                               hasOverdue
                                 ? "bg-brand-redBg text-brand-redText"
                                 : "bg-brand-blueBg text-brand-blue"

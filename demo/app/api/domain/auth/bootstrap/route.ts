@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { countDomainUsers, createDomainAccount } from "@/lib/domain-auth";
+import { setupTokenOk } from "@/lib/setup-token";
 
 /** Create the very first domain admin. Only works while the domain has
  *  zero users — after that, accounts are added by an admin. */
@@ -11,6 +12,12 @@ export async function POST(req: Request) {
     );
   }
   const body = await req.json().catch(() => ({}));
+  if (!setupTokenOk(body.setupToken)) {
+    return NextResponse.json(
+      { error: "That setup token is wrong. Ask whoever deployed the app." },
+      { status: 403 },
+    );
+  }
   const name = String(body.name ?? "");
   const email = String(body.email ?? "");
   const password = String(body.password ?? "");

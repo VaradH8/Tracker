@@ -311,7 +311,7 @@ export function DomainExecutiveHome() {
                         delivered={p.deliveredTags}
                         pending={p.pendingApprovalTags}
                       />
-                      <span className="block text-[11px] text-ink-500 mt-1 tabular-nums">
+                      <span className="block text-xs text-ink-500 mt-1 tabular-nums">
                         {p.deliveredTags} of {p.totalTags} tags delivered
                       </span>
                     </span>
@@ -389,7 +389,7 @@ export function DomainExecutiveHome() {
                   <span className="block text-sm font-medium text-ink-900 truncate">
                     {r.name}
                   </span>
-                  <span className="block text-[11px] text-ink-500 truncate">
+                  <span className="block text-xs text-ink-500 truncate">
                     {r.openTags > 0 ? `${r.openTags} tags open` : "nothing open"}
                   </span>
                 </span>
@@ -420,7 +420,7 @@ export function DomainExecutiveHome() {
 
                 <span className="text-right whitespace-nowrap">
                   {r.status === "Free" ? (
-                    <span className="inline-block px-2 py-0.5 rounded-pill text-[11px] font-semibold bg-brand-greenBg text-brand-greenText">
+                    <span className="inline-block px-2 py-0.5 rounded-pill text-xs font-semibold bg-brand-greenBg text-brand-greenText">
                       Free
                     </span>
                   ) : (
@@ -486,12 +486,12 @@ function SegmentedBar({
 
 function SlackPill({ slack }: { slack: number | null }) {
   if (slack === null) {
-    return <span className="text-[11px] text-ink-400">no handover set</span>;
+    return <span className="text-xs text-ink-400">no handover set</span>;
   }
   const late = slack < 0;
   return (
     <span
-      className={`inline-block mt-0.5 px-2 py-0.5 rounded-pill text-[11px] font-semibold ${
+      className={`inline-block mt-0.5 px-2 py-0.5 rounded-pill text-xs font-semibold ${
         late
           ? "bg-brand-redBg text-brand-redText"
           : "bg-brand-greenBg text-brand-greenText"
@@ -523,7 +523,7 @@ function Headline({
           : "text-ink-900";
   const inner = (
     <>
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-500">
+      <div className="text-xs font-semibold uppercase tracking-wide text-ink-500">
         {label}
       </div>
       <div className={`font-heading text-3xl font-semibold mt-0.5 ${colour}`}>

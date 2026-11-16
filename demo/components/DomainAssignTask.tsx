@@ -437,7 +437,7 @@ export function DomainAssignTask({
             placeholder="—"
             className={inputClass("md", "w-full")}
           />
-          <span className="block text-[11px] text-ink-400 mt-1">
+          <span className="block text-xs text-ink-400 mt-1">
             {hoursTouched
               ? "Yours — the dates won't overwrite it now"
               : suggested !== null
@@ -541,7 +541,7 @@ export function DomainAssignTask({
             {chosenReviewers.map((r) => (
               <span
                 key={r.id}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-pill bg-brand-blueBg text-brand-blue text-[11px] font-medium"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-pill bg-brand-blueBg text-brand-blue text-xs font-medium"
               >
                 {r.name}
                 <button
@@ -549,7 +549,7 @@ export function DomainAssignTask({
                     setReviewerIds((ids) => ids.filter((x) => x !== r.id))
                   }
                   aria-label={`Remove ${r.name}`}
-                  className="hover:text-brand-redText"
+                  className="tap-target hover:text-brand-redText"
                 >
                   <X size={11} />
                 </button>
@@ -568,7 +568,7 @@ export function DomainAssignTask({
             />
           </div>
           <div className="flex items-start justify-between gap-3 flex-wrap">
-            <p className="text-[11px] text-ink-500">
+            <p className="text-xs text-ink-500">
               {reviewerIds.length === 0
                 ? "Nobody yet — the task will be done the moment it's submitted."
                 : reviewerIds.length === 1
@@ -593,7 +593,7 @@ export function DomainAssignTask({
                 type="button"
                 onClick={saveDefaults}
                 disabled={savingDefaults}
-                className="text-[11px] text-brand-blue hover:underline disabled:opacity-50 shrink-0"
+                className="text-xs text-brand-blue hover:underline disabled:opacity-50 shrink-0"
               >
                 {savingDefaults
                   ? "Saving…"
@@ -605,10 +605,10 @@ export function DomainAssignTask({
           </div>
 
           {defaultsNote && (
-            <p className="text-[11px] text-brand-greenText mt-1">{defaultsNote}</p>
+            <p className="text-xs text-brand-greenText mt-1">{defaultsNote}</p>
           )}
           {defaultReviewers.length > 0 && !defaultsDiffer && (
-            <p className="text-[11px] text-ink-400 mt-1">
+            <p className="text-xs text-ink-400 mt-1">
               Your standing reviewers, filled in for you. Change them here for
               this task only.
             </p>
@@ -636,13 +636,13 @@ export function DomainAssignTask({
             {files.map((f, i) => (
               <span
                 key={`${f.name}-${i}`}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-ink-100 text-[11px]"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-ink-100 text-xs"
               >
                 {f.name}
                 <button
                   onClick={() => setFiles((all) => all.filter((_, j) => j !== i))}
                   aria-label={`Remove ${f.name}`}
-                  className="hover:text-brand-redText"
+                  className="tap-target hover:text-brand-redText"
                 >
                   <X size={11} />
                 </button>

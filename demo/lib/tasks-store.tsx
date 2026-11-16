@@ -1,5 +1,6 @@
 "use client";
 
+import { deleteRequest, scheduleUndoableDelete } from "./undo-delete";
 import {
   createContext,
   useCallback,
@@ -83,6 +84,13 @@ type Ctx = {
   /** Take your own copy of someone else's task. The original is untouched. */
   forkTask: (id: number) => Promise<{ ok: boolean; error?: string }>;
   deleteTask: (id: number) => Promise<{ ok: boolean; error?: string }>;
+  /** Take the task off screen now and delete it after the undo window
+   *  (lib/undo-delete.ts). `onFailed` runs if the server refuses — the task
+   *  is put back first. */
+  deleteTaskWithUndo: (
+    id: number,
+    onFailed?: (error: string) => void,
+  ) => { undo: () => void };
   addRemark: (taskId: number, author: string, body: string) => Promise<void>;
   deleteRemark: (taskId: number, remarkId: number) => Promise<void>;
   logTime: (input: LogTimeInput) => Promise<void>;
@@ -383,6 +391,44 @@ export function TasksProvider({ children }: { children: ReactNode }) {
     return { ok: true };
   }, []);
 
+  const deleteTaskWithUndo = useCallback(
+    (id: number, onFailed?: (error: string) => void) => {
+      // Snapshot what leaves the screen, so Undo (or a refusal) can put it
+      // back exactly where it was.
+      let removed: { task: Task; index: number } | null = null;
+      let removedEntries: TimeEntry[] = [];
+      setTasks((prev) => {
+        const index = prev.findIndex((t) => t.id === id);
+        if (index >= 0) removed = { task: prev[index], index };
+        return prev.filter((t) => t.id !== id);
+      });
+      setTimeEntries((prev) => {
+        removedEntries = prev.filter((e) => e.taskId === id);
+        return prev.filter((e) => e.taskId !== id);
+      });
+      return scheduleUndoableDelete(`task:${id}`, {
+        commit: (keepalive) =>
+          deleteRequest(`/api/tasks/${id}`, keepalive, "Couldn't delete task."),
+        restore: () => {
+          const r = removed as { task: Task; index: number } | null;
+          if (r) {
+            setTasks((prev) => {
+              if (prev.some((t) => t.id === id)) return prev;
+              const next = [...prev];
+              next.splice(Math.min(r.index, next.length), 0, r.task);
+              return next;
+            });
+          }
+          if (removedEntries.length) {
+            setTimeEntries((prev) => [...prev, ...removedEntries]);
+          }
+        },
+        onFailed,
+      });
+    },
+    [],
+  );
+
   const deleteRemark = useCallback(
     async (taskId: number, remarkId: number) => {
       const res = await fetch(
@@ -664,6 +710,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         loadForkable,
         forkTask,
         deleteTask,
+        deleteTaskWithUndo,
         addRemark,
         deleteRemark,
         logTime,

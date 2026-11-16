@@ -81,10 +81,11 @@ export default function LoginPage() {
                 Use your email or first name to sign in.
               </p>
               <form onSubmit={submit}>
-                <label className="block text-xs font-medium text-ink-700 mb-1.5">
+                <label htmlFor="login-email-or-username" className="block text-xs font-medium text-ink-700 mb-1.5">
                   Email or username
                 </label>
                 <input
+                  id="login-email-or-username"
                   autoFocus
                   type="text"
                   value={user}
@@ -95,11 +96,12 @@ export default function LoginPage() {
                   placeholder="e.g. manasi@example.com or manasi"
                   className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
                 />
-                <label className="block text-xs font-medium text-ink-700 mb-1.5">
+                <label htmlFor="login-password" className="block text-xs font-medium text-ink-700 mb-1.5">
                   Password
                 </label>
                 <div className="relative mb-4">
                   <input
+                  id="login-password"
                     type={show ? "text" : "password"}
                     value={password}
                     onChange={(e) => {
@@ -113,7 +115,7 @@ export default function LoginPage() {
                     type="button"
                     onClick={() => setShow(!show)}
                     aria-label={show ? "Hide password" : "Show password"}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-ink-400 hover:text-ink-700"
+                    className="tap-target absolute right-2 top-1/2 -translate-y-1/2 p-1 text-ink-400 hover:text-ink-700"
                   >
                     {show ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
@@ -172,7 +174,7 @@ function ModuleBrandBand({ label }: { label: string }) {
       style={{ background: BRAND_NAVY }}
     >
       <InventiveLogo height={46} />
-      <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-white/55">
+      <span className="text-xs font-medium uppercase tracking-[0.18em] text-white/55">
         {label}
       </span>
     </div>
@@ -182,6 +184,8 @@ function ModuleBrandBand({ label }: { label: string }) {
 function DomainLogin() {
   const router = useRouter();
   const [needsBootstrap, setNeedsBootstrap] = useState<boolean | null>(null);
+  const [tokenRequired, setTokenRequired] = useState(false);
+  const [setupToken, setSetupToken] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -198,6 +202,7 @@ function DomainLogin() {
           return;
         }
         setNeedsBootstrap(!!b.needsBootstrap);
+        setTokenRequired(!!b.setupTokenRequired);
       })
       .catch(() => setNeedsBootstrap(false));
   }, [router]);
@@ -210,7 +215,7 @@ function DomainLogin() {
       ? "/api/domain/auth/bootstrap"
       : "/api/domain/auth/signin";
     const payload = needsBootstrap
-      ? { name, email, password }
+      ? { name, email, password, ...(tokenRequired ? { setupToken } : {}) }
       : { email, password };
     const res = await fetch(url, {
       method: "POST",
@@ -244,22 +249,39 @@ function DomainLogin() {
       <form onSubmit={submit}>
         {needsBootstrap && (
           <>
-            <label className="block text-xs font-medium text-ink-700 mb-1.5">
+            <label htmlFor="eng-name" className="block text-xs font-medium text-ink-700 mb-1.5">
               Your name
             </label>
             <input
+                  id="eng-name"
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Priya Sharma"
               className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
             />
+            {tokenRequired && (
+              <>
+                <label htmlFor="eng-setup-token" className="block text-xs font-medium text-ink-700 mb-1.5">
+                  Setup token
+                </label>
+                <input
+                  id="eng-setup-token"
+                  value={setupToken}
+                  onChange={(e) => setSetupToken(e.target.value)}
+                  autoComplete="off"
+                  placeholder="From whoever deployed the app"
+                  className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                />
+              </>
+            )}
           </>
         )}
-        <label className="block text-xs font-medium text-ink-700 mb-1.5">
+        <label htmlFor="eng-email" className="block text-xs font-medium text-ink-700 mb-1.5">
           Email
         </label>
         <input
+                  id="eng-email"
           type="email"
           value={email}
           onChange={(e) => {
@@ -269,11 +291,12 @@ function DomainLogin() {
           placeholder="you@example.com"
           className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
         />
-        <label className="block text-xs font-medium text-ink-700 mb-1.5">
+        <label htmlFor="eng-password" className="block text-xs font-medium text-ink-700 mb-1.5">
           Password
         </label>
         <div className="relative mb-4">
           <input
+                  id="eng-password"
             type={show ? "text" : "password"}
             value={password}
             onChange={(e) => {
@@ -287,7 +310,7 @@ function DomainLogin() {
             type="button"
             onClick={() => setShow(!show)}
             aria-label={show ? "Hide password" : "Show password"}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-ink-400 hover:text-ink-700"
+            className="tap-target absolute right-2 top-1/2 -translate-y-1/2 p-1 text-ink-400 hover:text-ink-700"
           >
             {show ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>

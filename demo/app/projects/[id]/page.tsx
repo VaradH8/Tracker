@@ -72,7 +72,7 @@ export default function ProjectDetailPage({
     projects,
     clients,
     hydrated: projectsHydrated,
-    deleteProject,
+    deleteProjectWithUndo,
     updateProject,
     toggleProjectMember,
   } = useProjects();
@@ -308,7 +308,7 @@ export default function ProjectDetailPage({
                 onClick={async () => {
                   const ok = await confirm({
                     title: `Delete "${project.name}"?`,
-                    body: "Every task, remark, time log, attachment, and audit entry on this project goes with it. There's no undo.",
+                    body: "Every task, remark, time log, attachment, and audit entry on this project goes with it. You'll have a few seconds to undo.",
                     confirmLabel: "Delete project",
                     danger: true,
                   });
@@ -321,16 +321,16 @@ export default function ProjectDetailPage({
                   const deletedName = project.name;
                   const deletedId = project.id;
                   setIsDeleting(true);
-                  const r = await deleteProject(deletedId);
-                  if (!r.ok) {
-                    setIsDeleting(false);
-                    toast.show(
-                      r.error ?? "Couldn't delete project.",
-                      "error",
-                    );
-                    return;
-                  }
-                  toast.show(`Project "${deletedName}" deleted.`, "info");
+                  // Off screen now; the DELETE goes out after the undo
+                  // window (lib/undo-delete.ts). A refusal puts it back
+                  // in the list and says why.
+                  const { undo } = deleteProjectWithUndo(deletedId, (error) =>
+                    toast.show(error, "error"),
+                  );
+                  toast.show(`Project "${deletedName}" deleted.`, "info", {
+                    label: "Undo",
+                    onClick: undo,
+                  });
                   // replace, not push — the deleted page shouldn't be
                   // reachable via the browser back button.
                   router.replace("/projects");
@@ -675,7 +675,7 @@ export default function ProjectDetailPage({
               <ul className="divide-y divide-ink-100">
                 {filteredAudit.map((a) => (
                   <li key={a.id} className="py-3 flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-full bg-ink-100 grid place-items-center text-[10px] font-heading font-medium text-ink-700 shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-ink-100 grid place-items-center text-xs font-heading font-medium text-ink-700 shrink-0">
                       {a.actor[0]}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -809,7 +809,7 @@ function ProjectRoleLane({
             {canEdit && (
               <button
                 onClick={() => onToggle(m, role)}
-                className="p-0.5 -m-0.5 rounded hover:bg-brand-blue/20"
+                className="tap-target p-0.5 -m-0.5 rounded hover:bg-brand-blue/20"
                 aria-label={`Remove ${m} from ${label}`}
               >
                 <X size={11} />
@@ -1269,7 +1269,7 @@ function CreateTaskModal({
               </div>
             )}
             {assignees.length > 0 && (
-              <p className="text-[11px] text-ink-500 px-2 pb-2">
+              <p className="text-xs text-ink-500 px-2 pb-2">
                 Assigned: {assignees.join(", ")}
               </p>
             )}

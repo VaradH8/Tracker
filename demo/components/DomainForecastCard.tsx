@@ -157,7 +157,7 @@ function Timeline({ p }: { p: ProjectRow }) {
   // rides up into it.
   return (
     <div className="mt-5 pb-5">
-      <div className="flex items-center justify-between text-[11px] text-ink-500 mb-1.5">
+      <div className="flex items-center justify-between text-xs text-ink-500 mb-1.5">
         <span>{fmtShort(start)}</span>
         <span className="uppercase tracking-wide">Delivery timeline</span>
         <span>{fmtShort(tEnd === days(handover) ? handover : projected)}</span>
@@ -192,7 +192,7 @@ function Timeline({ p }: { p: ProjectRow }) {
             card — which it did once these cards became two-up and
             narrow. */}
         <span
-          className="absolute top-full mt-0.5 text-[10px] font-medium text-ink-700 -translate-x-1/2 whitespace-nowrap"
+          className="absolute top-full mt-0.5 text-xs font-medium text-ink-700 -translate-x-1/2 whitespace-nowrap"
           style={{ left: `${Math.min(88, Math.max(12, handoverPct))}%` }}
         >
           Handover
@@ -223,7 +223,7 @@ function DateCell({
 }) {
   return (
     <div className="min-w-0">
-      <div className="text-[10px] text-ink-500 font-medium uppercase tracking-wide truncate">
+      <div className="text-xs text-ink-500 font-medium uppercase tracking-wide truncate">
         {label}
       </div>
       <div
@@ -256,7 +256,7 @@ function SlackChip({
   if (status === "Yet to be started") {
     return (
       <span
-        className={`px-2 py-0.5 rounded-pill text-[11px] font-semibold shrink-0 ${tone.chip}`}
+        className={`px-2 py-0.5 rounded-pill text-xs font-semibold shrink-0 ${tone.chip}`}
       >
         Yet to start
       </span>
@@ -264,7 +264,7 @@ function SlackChip({
   }
   if (slack === null) {
     return (
-      <span className="px-2 py-0.5 rounded-pill text-[11px] font-semibold shrink-0 bg-ink-100 text-ink-500">
+      <span className="px-2 py-0.5 rounded-pill text-xs font-semibold shrink-0 bg-ink-100 text-ink-500">
         No handover date
       </span>
     );
@@ -272,7 +272,7 @@ function SlackChip({
   const late = slack < 0;
   return (
     <span
-      className={`px-2 py-0.5 rounded-pill text-[11px] font-semibold shrink-0 ${tone.chip}`}
+      className={`px-2 py-0.5 rounded-pill text-xs font-semibold shrink-0 ${tone.chip}`}
     >
       {late ? `${Math.abs(slack)} days late` : `${slack} days spare`}
     </span>
@@ -367,7 +367,7 @@ export function DomainForecastCard({
             be given. Only shown when it adds something — a project with
             no contract figure says nothing here. */}
         {scope.withClientTags !== null && (
-          <p className="mt-1.5 text-[11px] text-ink-500">
+          <p className="mt-1.5 text-xs text-ink-500">
             {SCOPE_LABELS.contract}{" "}
             <strong className="text-ink-900 tabular-nums">
               {scope.contractTags}
@@ -381,7 +381,7 @@ export function DomainForecastCard({
         )}
 
         {/* One sentence, in words, instead of a colour key to decode. */}
-        <p className="mt-1.5 text-[11px] text-ink-500">
+        <p className="mt-1.5 text-xs text-ink-500">
           <strong className="font-medium text-ink-900">
             {p.deliveredTags} of {p.totalTags}
           </strong>{" "}
@@ -408,7 +408,7 @@ export function DomainForecastCard({
       {/* Stays visible when closed: a date built on an assumed rate must
           not look as firm as one built on measured throughput. */}
       {hasCaveats && !open && (
-        <p className="text-[11px] text-brand-yellowText mt-2 flex items-center gap-1">
+        <p className="text-xs text-brand-yellowText mt-2 flex items-center gap-1">
           <AlertTriangle size={11} className="shrink-0" />
           {noRate.length > 0
             ? `${noRate.length} without a set rate`

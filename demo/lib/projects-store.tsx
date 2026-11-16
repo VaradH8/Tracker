@@ -1,5 +1,6 @@
 "use client";
 
+import { deleteRequest, scheduleUndoableDelete } from "./undo-delete";
 import {
   createContext,
   useCallback,
@@ -68,6 +69,13 @@ type Ctx = {
       ProjectRolePatch,
   ) => Promise<{ ok: true } | { ok: false; error: string }>;
   deleteProject: (id: number) => Promise<{ ok: boolean; error?: string }>;
+  /** Take the project off screen now and delete it after the undo window
+   *  (lib/undo-delete.ts). `onFailed` runs if the server refuses — the
+   *  project is put back first. */
+  deleteProjectWithUndo: (
+    id: number,
+    onFailed?: (error: string) => void,
+  ) => { undo: () => void };
   toggleProjectMember: (
     id: number,
     name: string,
@@ -209,6 +217,33 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     return { ok: true };
   }, []);
 
+  const deleteProjectWithUndo = useCallback(
+    (id: number, onFailed?: (error: string) => void) => {
+      let removed: { project: Project; index: number } | null = null;
+      setProjects((prev) => {
+        const index = prev.findIndex((p) => p.id === id);
+        if (index >= 0) removed = { project: prev[index], index };
+        return prev.filter((p) => p.id !== id);
+      });
+      return scheduleUndoableDelete(`project:${id}`, {
+        commit: (keepalive) =>
+          deleteRequest(`/api/projects/${id}`, keepalive, "Couldn't delete project."),
+        restore: () => {
+          const r = removed as { project: Project; index: number } | null;
+          if (!r) return;
+          setProjects((prev) => {
+            if (prev.some((p) => p.id === id)) return prev;
+            const next = [...prev];
+            next.splice(Math.min(r.index, next.length), 0, r.project);
+            return next;
+          });
+        },
+        onFailed,
+      });
+    },
+    [],
+  );
+
   const toggleProjectMember = useCallback(
     async (id: number, name: string, role: ProjectMemberRole) => {
       const res = await fetch(`/api/projects/${id}/members`, {
@@ -314,6 +349,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
         createProject,
         updateProject,
         deleteProject,
+        deleteProjectWithUndo,
         toggleProjectMember,
         createClient,
         updateClient,

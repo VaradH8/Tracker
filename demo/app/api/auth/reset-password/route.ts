@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db";
-import { passwordIssue, hashResetToken } from "@/lib/auth";
+import { passwordIssue, hashResetToken, loginRateKey } from "@/lib/auth";
+import { clearRateLimit } from "@/lib/rate-limit";
 
 /** POST { token, password } — consumes a reset token and rewrites the
  *  user's passwordHash. The token from the link is the raw secret; we
@@ -47,6 +48,13 @@ export async function POST(req: Request) {
     // attacker) has to log in fresh with the new password.
     prisma.session.deleteMany({ where: { userId: token.userId } }),
   ]);
+  // The credential just changed, so any lockout counted against the old
+  // one is spent.
+  const owner = await prisma.user.findUnique({
+    where: { id: token.userId },
+    select: { email: true },
+  });
+  if (owner) clearRateLimit(loginRateKey(owner.email));
 
   return NextResponse.json({ ok: true });
 }

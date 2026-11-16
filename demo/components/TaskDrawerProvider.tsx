@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState } from "react";
 import { TaskDrawer } from "./TaskDrawer";
+import { SectionErrorBoundary } from "./SectionErrorBoundary";
 
 /** Extra context for an open() call made from inside another drawer.
  *  `backLabel` turns the task drawer's close control into a labelled
@@ -42,11 +43,14 @@ export function TaskDrawerProvider({
     >
       {children}
       {open && (
-        <TaskDrawer
-          taskId={open.taskId}
-          backLabel={open.backLabel}
-          onClose={() => setOpen(null)}
-        />
+        // A crash inside the drawer stays inside the drawer.
+        <SectionErrorBoundary label="This task" resetKey={open.taskId} compact>
+          <TaskDrawer
+            taskId={open.taskId}
+            backLabel={open.backLabel}
+            onClose={() => setOpen(null)}
+          />
+        </SectionErrorBoundary>
       )}
     </TaskDrawerCtx.Provider>
   );

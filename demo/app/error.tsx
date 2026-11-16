@@ -34,7 +34,7 @@ export default function Error({
           We hit an unexpected error. You can try again, or head back home.
         </p>
         {error.digest && (
-          <p className="text-[11px] font-mono text-ink-400 mb-4">
+          <p className="text-xs font-mono text-ink-400 mb-4">
             Reference: {error.digest}
           </p>
         )}

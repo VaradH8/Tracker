@@ -77,7 +77,7 @@ function CardHeader({
             <ShieldCheck size={22} />
           </span>
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
               {eyebrow}
             </p>
             <h1 className="truncate text-2xl font-bold" style={HEADING_FONT}>
@@ -85,7 +85,7 @@ function CardHeader({
             </h1>
           </div>
         </div>
-        <span className="shrink-0 rounded-full bg-white/15 px-3 py-1 text-[11px] ring-1 ring-white/25">
+        <span className="shrink-0 rounded-full bg-white/15 px-3 py-1 text-xs ring-1 ring-white/25">
           Secure
         </span>
       </div>

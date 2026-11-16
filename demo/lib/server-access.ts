@@ -295,6 +295,21 @@ export async function canSeeTask(
   return match !== null;
 }
 
+/** Who may upload or download a task's files. Project access alone is not
+ *  enough: it also reaches projects you're on only through one task
+ *  assignment, and would expose every other task's files there. So: anyone
+ *  who can see the task, plus anyone rostered on its project — the people
+ *  the attachment upload was always meant for ("anyone on the project can
+ *  attach"), who also see colleagues' tasks through the forkable feed.
+ *  Assumes project access has already been checked by the caller. */
+export async function canUseTaskFiles(
+  user: SessionUser,
+  task: { id: number; projectId: number; responsibleId: string | null },
+): Promise<boolean> {
+  if (await canSeeTask(user, task)) return true;
+  return isProjectMember(user.id, task.projectId);
+}
+
 /** The `completedAt` value to write when a task's status changes from
  *  `prev` to `next`. Stamps the completion time on the first move to Done,
  *  clears it if the task is reopened, and leaves it untouched otherwise.

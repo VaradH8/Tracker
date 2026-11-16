@@ -115,7 +115,7 @@ function ResetForm() {
                 type="button"
                 onClick={() => setShow(!show)}
                 aria-label={show ? "Hide password" : "Show password"}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-ink-400 hover:text-ink-700"
+                className="tap-target absolute right-2 top-1/2 -translate-y-1/2 p-1 text-ink-400 hover:text-ink-700"
               >
                 {show ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>

@@ -7,6 +7,7 @@ vi.mock("@/lib/db", () => ({
     task: { updateMany: vi.fn() },
     taskAttachment: { updateMany: vi.fn() },
     remark: { deleteMany: vi.fn() },
+    session: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
     $transaction: vi.fn(),
   },
 }));
@@ -214,6 +215,8 @@ describe("Users — editing", () => {
     expect(data).toMatchObject({ primaryRole: "Lead", isAdmin: false, isActive: false });
     expect(data.passwordHash).toEqual(expect.any(String));
     expect(data).not.toHaveProperty("hourlyRate");
+    // A password set by someone else ends the target's existing sessions.
+    expect(prisma.session.deleteMany).toHaveBeenCalledWith({ where: { userId: "dev-1" } });
   });
 
   it("still lets a Developer edit only themselves", async () => {

@@ -5,6 +5,7 @@ import { prisma } from "./db";
 import { passwordIssue } from "./auth";
 import { clearRateLimit, peekRateLimit, rateLimit } from "./rate-limit";
 import { DOMAIN_ROLES, type DomainRole } from "./domain";
+import { hashSessionToken, newSessionToken } from "./session-token";
 
 /**
  * Auth for the Domain module — a completely separate session system from
@@ -49,11 +50,14 @@ function cookieSecure(): boolean {
 
 async function createSession(userId: string) {
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
-  const session = await prisma.domainSession.create({
-    data: { userId, expiresAt },
+  // The cookie carries the token; the row stores only its hash
+  // (lib/session-token.ts).
+  const token = newSessionToken();
+  await prisma.domainSession.create({
+    data: { id: hashSessionToken(token), userId, expiresAt },
   });
   const jar = await cookies();
-  jar.set(DOMAIN_COOKIE, session.id, {
+  jar.set(DOMAIN_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: cookieSecure(),
@@ -64,8 +68,9 @@ async function createSession(userId: string) {
 
 export async function getDomainUser(): Promise<DomainSessionUser | null> {
   const jar = await cookies();
-  const sid = jar.get(DOMAIN_COOKIE)?.value;
-  if (!sid) return null;
+  const token = jar.get(DOMAIN_COOKIE)?.value;
+  if (!token) return null;
+  const sid = hashSessionToken(token);
   const session = await prisma.domainSession.findUnique({
     where: { id: sid },
     include: { user: true },
@@ -231,9 +236,11 @@ async function findByEmail(lowerEmail: string) {
 
 export async function domainSignOut(): Promise<void> {
   const jar = await cookies();
-  const sid = jar.get(DOMAIN_COOKIE)?.value;
-  if (sid) {
-    await prisma.domainSession.delete({ where: { id: sid } }).catch(() => null);
+  const token = jar.get(DOMAIN_COOKIE)?.value;
+  if (token) {
+    await prisma.domainSession
+      .delete({ where: { id: hashSessionToken(token) } })
+      .catch(() => null);
   }
   jar.delete(DOMAIN_COOKIE);
 }

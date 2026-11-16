@@ -172,7 +172,7 @@ export function ColumnChart({
             Array.from({ length: max / step + 1 }, (_, i) => i * step).map((t) => (
               <g key={t}>
                 <line x1={m.l} x2={width} y1={y(t)} y2={y(t)} stroke={t === 0 ? CHART.axis : CHART.grid} />
-                <text x={m.l - 8} y={y(t) + 4} textAnchor="end" fontSize={11} fill={CHART.muted}>
+                <text x={m.l - 8} y={y(t) + 4} textAnchor="end" fontSize={12} fill={CHART.muted}>
                   {t}
                 </text>
               </g>
@@ -185,12 +185,12 @@ export function ColumnChart({
               <g key={r.key}>
                 <path d={colPath(cx - bw / 2, y(r.value), bw, y(0) - y(r.value))} fill={r.color ?? CHART.accent} pointerEvents="none" />
                 {showValue && (
-                  <text x={cx} y={y(r.value) - 6} textAnchor="middle" fontSize={11.5} fill={CHART.ink2} pointerEvents="none">
+                  <text x={cx} y={y(r.value) - 6} textAnchor="middle" fontSize={12} fill={CHART.ink2} pointerEvents="none">
                     {r.value}
                   </text>
                 )}
                 {i % every === 0 && (
-                  <text x={cx} y={height - 8} textAnchor="middle" fontSize={11} fill={CHART.muted} pointerEvents="none">
+                  <text x={cx} y={height - 8} textAnchor="middle" fontSize={12} fill={CHART.muted} pointerEvents="none">
                     {r.label}
                   </text>
                 )}
@@ -297,7 +297,7 @@ export function ProgressBudgetChart({ rows }: { rows: ProgressRow[] }) {
           {ticks.map((t) => (
             <g key={t}>
               <line x1={sx(t)} x2={sx(t)} y1={head - 4} y2={h} stroke={t === 1 ? CHART.axis : CHART.grid} />
-              <text x={sx(t)} y={11} textAnchor="middle" fontSize={11} fill={CHART.muted}>
+              <text x={sx(t)} y={11} textAnchor="middle" fontSize={12} fill={CHART.muted}>
                 {Math.round(t * 100)}%
               </text>
             </g>
@@ -335,7 +335,7 @@ export function ProgressBudgetChart({ rows }: { rows: ProgressRow[] }) {
                   x={width}
                   y={y + 4}
                   textAnchor="end"
-                  fontSize={11.5}
+                  fontSize={12}
                   fill={gapPts !== null && gapPts >= 20 ? "#C5221F" : CHART.ink3}
                   fontWeight={gapPts !== null && gapPts >= 20 ? 600 : 400}
                   pointerEvents="none"
@@ -406,14 +406,14 @@ export function ProjectTimelineChart({ rows, today }: { rows: TimelineRow[]; tod
             <g key={t.d}>
               <line x1={sx(t.d)} x2={sx(t.d)} y1={head - 6} y2={h} stroke={CHART.grid} />
               {Math.abs(sx(t.d) + 16 - sx(t0)) > 44 && (
-                <text x={sx(t.d) + 4} y={12} fontSize={11} fill={CHART.muted}>
+                <text x={sx(t.d) + 4} y={12} fontSize={12} fill={CHART.muted}>
                   {t.label}
                 </text>
               )}
             </g>
           ))}
           <line x1={sx(t0)} x2={sx(t0)} y1={head - 6} y2={h} stroke={CHART.ink3} strokeWidth={1.5} />
-          <text x={sx(t0)} y={12} textAnchor="middle" fontSize={11} fill={CHART.ink2} fontWeight={500}>
+          <text x={sx(t0)} y={12} textAnchor="middle" fontSize={12} fill={CHART.ink2} fontWeight={500}>
             Today
           </text>
           {rows.map((r, i) => {
@@ -447,7 +447,7 @@ export function ProjectTimelineChart({ rows, today }: { rows: TimelineRow[]; tod
                 {late && (
                   <path d={barPath(xe + 2, y - 6, Math.max(0, sx(t0) - xe - 2), 12, 3)} fill={CHART.critical} pointerEvents="none" />
                 )}
-                <text x={width} y={y + 4} textAnchor="end" fontSize={11.5} fill={late ? "#C5221F" : CHART.ink3} fontWeight={late ? 600 : 400} pointerEvents="none">
+                <text x={width} y={y + 4} textAnchor="end" fontSize={12} fill={late ? "#C5221F" : CHART.ink3} fontWeight={late ? 600 : 400} pointerEvents="none">
                   {note}
                 </text>
                 <rect
@@ -500,7 +500,7 @@ export function LeaveGrid({
         <svg width={width} height={h} className="block overflow-visible">
           {days.map((d, j) =>
             cw >= 40 || j % 2 === 0 ? (
-              <text key={d} x={labelW + cw * j + cw / 2} y={13} textAnchor="middle" fontSize={10.5} fill={CHART.muted}>
+              <text key={d} x={labelW + cw * j + cw / 2} y={13} textAnchor="middle" fontSize={12} fill={CHART.muted}>
                 {dayLabel(d)}
               </text>
             ) : null,

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { canEditTasks, requireUser } from "@/lib/server-access";
+import { canAccessProject, canEditTasks, requireUser } from "@/lib/server-access";
 
 /** Owner can delete their own time log; Coord/Admin can delete any.
  *  Also rolls the hours back off the task's actualHours. */
@@ -19,13 +19,20 @@ export async function DELETE(
   }
   const entry = await prisma.timeEntry.findUnique({
     where: { id },
-    include: { task: { select: { id: true, actualHours: true } } },
+    include: { task: { select: { id: true, actualHours: true, projectId: true } } },
   });
   if (!entry) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  if (entry.userId !== user.id && !canEditTasks(user.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (entry.userId !== user.id) {
+    // Someone else's log: an editor role, and only on a project they can
+    // reach — the global role alone used to cover every project.
+    if (
+      !canEditTasks(user.role) ||
+      !(await canAccessProject(user, entry.task.projectId))
+    ) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
   }
 
   const rollback = entry.hours ?? 0;

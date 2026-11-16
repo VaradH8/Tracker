@@ -357,7 +357,7 @@ export function DomainTaskCard({
           {t.editedAt && (
             <span
               title={t.editedBy ? `Edited by ${t.editedBy}` : undefined}
-              className="px-1.5 py-0.5 rounded-pill text-[10px] font-medium bg-ink-100 text-ink-500"
+              className="px-1.5 py-0.5 rounded-pill text-xs font-medium bg-ink-100 text-ink-500"
             >
               edited {fmtEditedStamp(t.editedAt)}
             </span>
@@ -372,13 +372,13 @@ export function DomainTaskCard({
           */}
           {t.priority && t.priority !== "Medium" && t.status !== "Approved" && (
             <span
-              className={`px-2 py-0.5 rounded-pill text-[11px] font-semibold ${PRIORITY_TONE[t.priority] ?? ""}`}
+              className={`px-2 py-0.5 rounded-pill text-xs font-semibold ${PRIORITY_TONE[t.priority] ?? ""}`}
             >
               {t.priority}
             </span>
           )}
           <span
-            className={`px-2 py-0.5 rounded-pill text-[11px] font-semibold ${STATUS_TONE[t.status] ?? ""}`}
+            className={`px-2 py-0.5 rounded-pill text-xs font-semibold ${STATUS_TONE[t.status] ?? ""}`}
           >
             {t.status === "Rejected" ? "Sent back" : t.status}
           </span>
@@ -543,7 +543,7 @@ export function DomainTaskCard({
               Cancel
             </button>
           </div>
-          <p className="text-[11px] text-ink-400">
+          <p className="text-xs text-ink-400">
             {t.assignee} has already been told about this one — the task will
             show that it was edited.
           </p>
@@ -584,7 +584,7 @@ export function DomainTaskCard({
                   buttons explain themselves; "approved, so no editing"
                   does not. */}
               {!canEdit && (
-                <span className="text-[11px] text-ink-500">
+                <span className="text-xs text-ink-500">
                   Approved — the brief is fixed, but it&apos;s yours to remove.
                 </span>
               )}
@@ -683,7 +683,7 @@ export function DomainTaskCard({
                 {reviewers.map((r) => (
                   <li
                     key={r.id}
-                    className={`px-2 py-0.5 rounded-pill text-[11px] font-medium ${
+                    className={`px-2 py-0.5 rounded-pill text-xs font-medium ${
                       r.decision === "Approved"
                         ? "bg-brand-greenBg text-brand-greenText"
                         : r.decision === "Rejected"
@@ -700,7 +700,7 @@ export function DomainTaskCard({
             {/* The weakness of any-one-approves, said out loud rather than
                 left for somebody to assume three people read it. */}
             {untouched.length > 0 && (
-              <p className="text-[11px] text-ink-400 mt-1">
+              <p className="text-xs text-ink-400 mt-1">
                 {decided?.name} decided it — {untouched.map((r) => r.name).join(", ")}{" "}
                 did not review it.
               </p>
@@ -710,7 +710,7 @@ export function DomainTaskCard({
                 close this has to be spelt out or it looks like the
                 reviewers alone. */}
             {reviewers.length > 0 && t.status !== "Approved" && (
-              <p className="text-[11px] text-ink-400 mt-1">
+              <p className="text-xs text-ink-400 mt-1">
                 {isCreator ? "You" : t.createdBy} assigned it, so
                 {isCreator ? " you" : " they"} can approve it too — any one
                 of them is enough.
@@ -814,7 +814,7 @@ export function DomainTaskCard({
                 </button>
               </div>
               {files.length > 0 && (
-                <p className="text-[11px] text-ink-500">
+                <p className="text-xs text-ink-500">
                   {files.map((f) => f.name).join(", ")}
                 </p>
               )}
@@ -849,7 +849,7 @@ export function DomainTaskCard({
                 >
                   <Undo2 size={13} className="mr-1.5" /> Send back
                 </button>
-                <span className="text-[11px] text-ink-400 ml-auto">
+                <span className="text-xs text-ink-400 ml-auto">
                   {reviewers.length > 1
                     ? "Approving closes it — the others won't be asked."
                     : "Sending it back returns it to be redone."}
@@ -881,7 +881,7 @@ function Fact({
       <dt className="text-ink-500">{label}</dt>
       <dd className={`font-medium tabular-nums ${tone ?? "text-ink-900"}`}>
         {value}
-        {note && <span className="block text-[11px] font-normal">{note}</span>}
+        {note && <span className="block text-xs font-normal">{note}</span>}
       </dd>
     </div>
   );
@@ -904,7 +904,7 @@ function Fact({
  */
 function Label({ children }: { children: React.ReactNode }) {
   return (
-    <span className="block text-[10px] font-semibold uppercase tracking-wider text-ink-400 mb-0.5">
+    <span className="block text-xs font-semibold uppercase tracking-wider text-ink-400 mb-0.5">
       {children}
     </span>
   );
@@ -934,7 +934,7 @@ function Chip({
 }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-pill text-[11px] border ${
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-pill text-xs border ${
         tone || "bg-ink-50 text-ink-600 border-ink-200"
       }`}
     >
@@ -1085,7 +1085,7 @@ function FileViewer({
             <button
               onClick={onClose}
               aria-label="Close"
-              className="btn-ghost text-xs"
+              className="tap-target btn-ghost text-xs"
             >
               <X size={14} />
             </button>

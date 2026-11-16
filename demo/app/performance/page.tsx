@@ -34,6 +34,7 @@ import {
   type Draft,
   type FieldProps,
 } from "@/components/performance/ReviewParts";
+import { CardSkeleton } from "@/components/Skeleton";
 
 /* ------------------------------------------------------------------ types */
 
@@ -260,7 +261,7 @@ export default function PerformancePage() {
             type="button"
             onClick={() => setHelp((v) => !v)}
             aria-label="How this review is built"
-            className="p-1 rounded-full text-ink-400 hover:text-brand-blue hover:bg-ink-100"
+            className="tap-target p-1 rounded-full text-ink-400 hover:text-brand-blue hover:bg-ink-100"
           >
             <Info size={18} />
           </button>
@@ -350,7 +351,7 @@ export default function PerformancePage() {
         ) : people && people.people.length === 0 ? (
           <div className="card p-6 text-center text-sm text-ink-400">No employees to review yet.</div>
         ) : !r || loading ? (
-          <div className="card p-6 text-center text-sm text-ink-400">Loading…</div>
+          <CardSkeleton />
         ) : (
           <>
             <p className="text-xs text-ink-500">
@@ -383,7 +384,7 @@ export default function PerformancePage() {
                     <Detail label="Review Month" value={r.periodLabel} />
                     <Detail label="Review Period" value={`${fmtDay(r.from)} – ${fmtDay(r.to)}`} />
                     <div>
-                      <dt className="text-[11px] uppercase tracking-wide text-ink-500">Date of Review</dt>
+                      <dt className="text-xs uppercase tracking-wide text-ink-500">Date of Review</dt>
                       <dd>
                         {editable ? (
                           <input
@@ -519,7 +520,7 @@ export default function PerformancePage() {
             <Section n={7} title={r.kind === "Monthly" ? "Monthly Summary" : "Annual Performance Summary"}>
               <div className="grid gap-4 md:grid-cols-3 mb-4">
                 <div>
-                  <div className="text-[11px] uppercase tracking-wide text-ink-500">
+                  <div className="text-xs uppercase tracking-wide text-ink-500">
                     Overall {r.kind === "Monthly" ? "Monthly" : "Annual"} Rating
                   </div>
                   <div className="font-heading text-2xl font-semibold">
@@ -565,7 +566,7 @@ export default function PerformancePage() {
                   ["HR", data?.hrName || "No active HR account"],
                 ].map(([who, name]) => (
                   <div key={who} className="rounded border border-ink-200 p-3">
-                    <div className="text-[11px] uppercase tracking-wide text-ink-500">{who}</div>
+                    <div className="text-xs uppercase tracking-wide text-ink-500">{who}</div>
                     <div className="font-medium">{name}</div>
                   </div>
                 ))}
@@ -645,7 +646,7 @@ function Choice({ label, options, auto, k, draft, set, editable }: FieldProps & 
   const v = draft[k] ?? "";
   return (
     <div>
-      <div className="text-[11px] uppercase tracking-wide text-ink-500">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-ink-500">{label}</div>
       {editable ? (
         <select aria-label={label} className={`${inputCls} mt-1`} value={v} onChange={(e) => set(k)(e.target.value)}>
           <option value="">From the ratings{auto ? ` — ${auto}` : ""}</option>

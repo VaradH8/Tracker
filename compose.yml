@@ -57,6 +57,13 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-}
       UPLOAD_DIR: /uploads
+      # Optional: if set, creating the FIRST admin of either module (Tracker
+      # sign-up, Engineering bootstrap) also asks for this value. Blank keeps
+      # today's behaviour. See demo/lib/setup-token.ts.
+      SETUP_TOKEN: ${SETUP_TOKEN:-}
+      # Proxies in front of the app whose X-Forwarded-For entries we trust,
+      # for login rate limiting. 1 = Traefik only. See demo/lib/client-ip.ts.
+      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
     volumes:
       - tracker_uploads:/uploads
     # Liveness/readiness via the app's own /api/health (checks Postgres).

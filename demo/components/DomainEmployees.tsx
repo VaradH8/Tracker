@@ -5,6 +5,7 @@ import { Plus, Trash2, X } from "lucide-react";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { inputClass, selectClass } from "@/lib/domain-ui";
 import type { EmployeeRow } from "@/lib/domain-employee";
+import { ListSkeleton } from "./Skeleton";
 
 type Account = { id: string; name: string; email: string };
 
@@ -130,7 +131,7 @@ export function DomainEmployees({
       {error && (
         <div className="mb-4 flex items-start gap-2 rounded border border-brand-red bg-brand-redBg px-3 py-2 text-sm text-brand-redText">
           <span className="flex-1">{error}</span>
-          <button onClick={() => setError(null)} aria-label="Dismiss">
+          <button className="tap-target" onClick={() => setError(null)} aria-label="Dismiss">
             <X size={14} />
           </button>
         </div>
@@ -221,7 +222,7 @@ export function DomainEmployees({
       )}
 
       {loading ? (
-        <p className="text-sm text-ink-500">Loading…</p>
+        <ListSkeleton />
       ) : rows.length === 0 ? (
         <div className="card p-8 text-center text-sm text-ink-500">
           No employees on file yet.
@@ -249,7 +250,7 @@ export function DomainEmployees({
                   <td className="px-4 py-2">
                     {e.name}
                     {!e.isActive && (
-                      <span className="ml-2 text-[11px] px-1.5 py-0.5 rounded bg-ink-100 text-ink-500">
+                      <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-ink-100 text-ink-500">
                         inactive
                       </span>
                     )}

@@ -449,7 +449,7 @@ function ManageRow({
                 >
                   {u.isActive ? "Deactivate" : "Reactivate"}
                 </button>
-                <p className="text-[11px] text-ink-400 mt-1">
+                <p className="text-xs text-ink-400 mt-1">
                   Deactivating removes them from every picker and signs them out.
                 </p>
               </Field>
@@ -473,7 +473,7 @@ function ManageRow({
                     {busy === "password" ? "…" : "Set"}
                   </button>
                 </div>
-                <p className="text-[11px] text-ink-400 mt-1">
+                <p className="text-xs text-ink-400 mt-1">
                   Signs them out everywhere. Read it back to them — it is not
                   shown again.
                 </p>
@@ -488,7 +488,7 @@ function ManageRow({
                   <KeyRound size={13} />
                   {busy === "fix" ? "Fixing…" : "Fix their sign-in"}
                 </button>
-                <p className="text-[11px] text-ink-400 mt-1">
+                <p className="text-xs text-ink-400 mt-1">
                   Tidies their address, switches the account back on, and
                   clears the login lockout. Type a password above first and it
                   sets that too. Use this when a reset alone hasn&apos;t worked.
@@ -505,7 +505,7 @@ function ManageRow({
                   >
                     <Trash2 size={13} /> Delete
                   </ConfirmButton>
-                  <p className="text-[11px] text-ink-400 mt-1">
+                  <p className="text-xs text-ink-400 mt-1">
                     Refused if they own projects or have assigned work —
                     deactivate instead, which keeps the history.
                   </p>

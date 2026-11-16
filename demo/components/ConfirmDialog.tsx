@@ -93,7 +93,7 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
               </div>
               <button
                 onClick={() => close(false)}
-                className="p-1 -m-1 text-ink-400 hover:text-ink-700"
+                className="tap-target p-1 -m-1 text-ink-400 hover:text-ink-700"
                 aria-label="Cancel"
               >
                 <X size={16} />

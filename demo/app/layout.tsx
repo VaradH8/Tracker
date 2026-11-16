@@ -11,6 +11,7 @@ import { ToastProvider } from "@/components/Toast";
 import { NewAssignmentToaster } from "@/components/NewAssignmentToaster";
 import { ConfirmDialogProvider } from "@/components/ConfirmDialog";
 import { BlockDialogProvider } from "@/components/BlockDialogProvider";
+import { OfflineBanner } from "@/components/OfflineBanner";
 
 const heading = Space_Grotesk({
   subsets: ["latin"],
@@ -89,6 +90,7 @@ export default function RootLayout({
                       <BlockDialogProvider>
                         <TaskDrawerProvider>
                           <NewAssignmentToaster />
+                          <OfflineBanner />
                           {children}
                         </TaskDrawerProvider>
                       </BlockDialogProvider>

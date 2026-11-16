@@ -25,6 +25,7 @@ import {
   previousMonth,
   type Draft,
 } from "@/components/performance/ReviewParts";
+import { CardSkeleton } from "@/components/Skeleton";
 
 type Data = { view: SelfView; savedAt: string | null; notified?: string[] };
 
@@ -198,7 +199,7 @@ export default function MyPerformancePage() {
         {error ? (
           <div className="card p-6 text-center text-sm text-brand-redText">{error}</div>
         ) : !v ? (
-          <div className="card p-6 text-center text-sm text-ink-400">Loading…</div>
+          <CardSkeleton />
         ) : (
           <>
             <div className="card p-3 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
