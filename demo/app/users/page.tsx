@@ -291,8 +291,22 @@ export default function UsersPage() {
           managers={managers.filter((m) => m.id !== editing.id)}
           canSetRate={viewerIsAdmin}
           onClose={() => setEditing(null)}
-          onSave={(patch) => {
-            updateAccount(editing.id, patch);
+          onSave={async (patch) => {
+            const r = await updateAccount(editing.id, patch);
+            if (!r.ok) {
+              toast.show(r.error, "error");
+              return;
+            }
+            // The server drops this quietly for anyone but an Admin, so
+            // check it actually stuck rather than claim it did.
+            if (
+              patch.canAssignAnyone !== undefined &&
+              r.account &&
+              !!r.account.canAssignAnyone !== patch.canAssignAnyone
+            ) {
+              toast.show("Only an Admin can change “Can assign tasks to anyone”.", "error");
+              return;
+            }
             toast.show(`${patch.name ?? editing.name}'s details updated.`);
             setEditing(null);
           }}
