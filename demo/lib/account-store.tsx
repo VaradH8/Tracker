@@ -91,7 +91,7 @@ type Ctx = {
         password?: string;
       }
     >,
-  ) => Promise<void>;
+  ) => Promise<{ ok: true; account: Account | null } | { ok: false; error: string }>;
   createAccount: (
     input: RegisterInput,
   ) => Promise<{ ok: true; account: Account } | { ok: false; error: string }>;
@@ -168,7 +168,14 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
         return { ok: false, error: body.error ?? "Sign-in failed." };
       }
       const body = (await res.json()) as {
-        user: { id: string; name: string; email: string; role: Role; isAdmin: boolean };
+        user: {
+          id: string;
+          name: string;
+          email: string;
+          role: Role;
+          isAdmin: boolean;
+          canAssignAnyone?: boolean;
+        };
       };
       const acc: Account = {
         id: body.user.id,
@@ -177,6 +184,9 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
         role: body.user.role,
         active: true,
         isAdmin: body.user.isAdmin,
+        // Dropping this left the pickers on Developers only until a full
+        // reload re-read /api/me.
+        canAssignAnyone: !!body.user.canAssignAnyone,
       };
       setCurrent(acc);
       void refreshAccounts();
@@ -263,14 +273,19 @@ export function AccountsProvider({ children }: { children: ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patch),
       });
-      if (!res.ok) return;
       const body = await res.json().catch(() => ({}));
+      // Report a refusal instead of swallowing it — callers used to say
+      // "updated" while the server had kept nothing.
+      if (!res.ok) {
+        return { ok: false as const, error: body.error ?? "Couldn't save the changes." };
+      }
       if (body.user) {
         setAccounts((prev) =>
           prev.map((a) => (a.id === id ? (body.user as Account) : a)),
         );
         if (current && current.id === id) setCurrent(body.user as Account);
       }
+      return { ok: true as const, account: (body.user as Account) ?? null };
     },
     [current],
   );
