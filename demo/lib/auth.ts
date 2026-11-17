@@ -174,7 +174,8 @@ export async function signIn(
   // Single generic error for "no such user", "wrong password", and
   // "deactivated" — leaks no information about which accounts exist.
   const GENERIC = "Wrong account or password.";
-  if (!user || !user.isActive) {
+  // API service accounts authenticate with bearer tokens on /api/v1 only.
+  if (!user || !user.isActive || user.isServiceAccount) {
     chargeFailure();
     return { ok: false, error: GENERIC };
   }
@@ -286,7 +287,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     await prisma.session.delete({ where: { id: sid } }).catch(() => null);
     return null;
   }
-  if (!session.user.isActive) return null;
+  if (!session.user.isActive || session.user.isServiceAccount) return null;
   return toSessionUser(session.user);
 }
 

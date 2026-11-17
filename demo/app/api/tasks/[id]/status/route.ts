@@ -12,7 +12,7 @@ import {
 } from "@/lib/server-access";
 
 const schema = z.object({
-  status: z.enum(["To Do", "In Progress", "Blocked", "In review", "Done"]),
+  status: z.enum(["To Do", "In Progress", "Blocked", "In review", "Done", "Cancelled"]),
   actualHours: z.number().optional(),
   blockerReason: z.string().optional(),
 });

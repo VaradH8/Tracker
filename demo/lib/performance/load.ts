@@ -126,6 +126,9 @@ export async function loadReport(
     prisma.task.findMany({
       where: {
         assignees: { some: { userId: employeeId } },
+        // Cancelled work was dropped, not delivered or missed: it is left
+        // out of evaluation entirely.
+        status: { not: "Cancelled" },
         // Anything that started after the period can't belong to it.
         OR: [{ startDate: null }, { startDate: { lte: endOf(to) } }],
       },

@@ -21,7 +21,15 @@ export type TableSpec = {
 };
 
 /** Transient auth state: never backed up, never restored. */
-export const SKIP = new Set(["Session", "DomainSession", "PasswordResetToken"]);
+// API tokens and idempotency replays are transient auth state too: a
+// restored backup should never carry live bearer-token hashes.
+export const SKIP = new Set([
+  "Session",
+  "DomainSession",
+  "PasswordResetToken",
+  "ApiToken",
+  "ApiIdempotency",
+]);
 
 /** Models that hold a passwordHash column. */
 export const CREDENTIAL_MODELS = new Set(["User", "DomainUser"]);

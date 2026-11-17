@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   FolderKanban,
+  Repeat,
   Users,
   Settings,
   CalendarCheck,
@@ -51,6 +52,7 @@ const NAV: Record<Role, NavItem[]> = {
   Admin: [
     { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
     { href: "/projects", label: "Projects", Icon: FolderKanban },
+    { href: "/sprints", label: "Sprints", Icon: Repeat },
     { href: "/calendar", label: "Calendar", Icon: CalendarClock },
     { href: "/resources", label: "Resources", Icon: Users },
     { href: "/engagement", label: "Engagement", Icon: CalendarRange },
@@ -62,6 +64,7 @@ const NAV: Record<Role, NavItem[]> = {
   Lead: [
     { href: "/my-day", label: "My Day", Icon: Sun },
     { href: "/projects", label: "Projects", Icon: FolderKanban },
+    { href: "/sprints", label: "Sprints", Icon: Repeat },
     { href: "/my-tasks", label: "My Tasks", Icon: ListTodo },
     { href: "/team", label: "My team", Icon: Users2 },
     { href: "/calendar", label: "Calendar", Icon: CalendarClock },
@@ -73,6 +76,7 @@ const NAV: Record<Role, NavItem[]> = {
   Coordinator: [
     { href: "/my-day", label: "My Day", Icon: Sun },
     { href: "/projects", label: "Projects", Icon: FolderKanban },
+    { href: "/sprints", label: "Sprints", Icon: Repeat },
     { href: "/my-tasks", label: "My Tasks", Icon: ListTodo },
     { href: "/team", label: "My team", Icon: Users2 },
     { href: "/calendar", label: "Calendar", Icon: CalendarClock },
@@ -87,6 +91,7 @@ const NAV: Record<Role, NavItem[]> = {
   HR: [
     { href: "/my-day", label: "My Day", Icon: Sun },
     { href: "/projects", label: "Projects", Icon: FolderKanban },
+    { href: "/sprints", label: "Sprints", Icon: Repeat },
     { href: "/my-tasks", label: "My Tasks", Icon: ListTodo },
     { href: "/team", label: "My team", Icon: Users2 },
     { href: "/calendar", label: "Calendar", Icon: CalendarClock },
@@ -106,6 +111,7 @@ const NAV: Record<Role, NavItem[]> = {
   Developer: [
     { href: "/my-tasks", label: "My Tasks", Icon: ListTodo },
     { href: "/projects", label: "Projects", Icon: FolderKanban },
+    { href: "/sprints", label: "Sprints", Icon: Repeat },
     { href: "/my-performance", label: "My Performance", Icon: UserCheck },
     { href: "/calendar", label: "Calendar", Icon: CalendarClock },
     { href: "/leaves", label: "Leaves", Icon: CalendarCheck },

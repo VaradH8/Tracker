@@ -318,15 +318,17 @@ export function completedAtUpdate(
   prev: string,
   next: string,
 ): Date | null | undefined {
-  if (next === "Done" && prev !== "Done") return new Date();
-  if (next !== "Done" && prev === "Done") return null;
+  // Closed = Done or Cancelled; completedAt is the day it closed.
+  const closed = (s: string) => s === "Done" || s === "Cancelled";
+  if (closed(next) && !closed(prev)) return new Date();
+  if (!closed(next) && closed(prev)) return null;
   return undefined;
 }
 
 /** True when a status change takes a finished task back to open work —
  *  counted on Task.reopenCount as rework for performance reviews. */
 export function isReopen(prev: string, next: string): boolean {
-  return prev === "Done" && next !== "Done";
+  return prev === "Done" && next !== "Done" && next !== "Cancelled";
 }
 
 export async function visibleProjectIds(

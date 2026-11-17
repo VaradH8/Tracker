@@ -147,7 +147,7 @@ export async function POST(req: Request) {
       // Created straight into Done: stamp the completion time now, as the
       // status route would. Without it the task has no finish day and
       // reads as still in progress on the performance review.
-      completedAt: status === "Done" ? new Date() : null,
+      completedAt: status === "Done" || status === "Cancelled" ? new Date() : null,
       priority: String(body.priority ?? "Medium"),
       // No date supplied means the task genuinely has no deadline yet.
       // Never invent one — it stays null until a user sets it.

@@ -29,6 +29,7 @@ const STATUSES: Status[] = [
   "Blocked",
   "In review",
   "Done",
+  "Cancelled",
 ];
 const PRIORITIES: Priority[] = ["Critical", "High", "Medium", "Low"];
 
@@ -492,6 +493,7 @@ export function QuickActions({
       });
       break;
     case "Done":
+    case "Cancelled":
       buttons.push({
         label: "Reopen",
         tip: "Move back to In Progress",
