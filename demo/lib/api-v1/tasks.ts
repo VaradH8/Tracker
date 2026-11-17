@@ -24,6 +24,8 @@ export const WRITABLE_TASK_FIELDS = new Set([
   "sprint_id",
   "parent_id",
   "assignee_id",
+  "assignee_ids",
+  "remove_assignee_id",
   "status",
   "priority",
   "estimate_hours",
@@ -98,7 +100,10 @@ type TaskPatch = {
   projectId?: number;
   sprintId?: number | null;
   parentId?: number | null;
-  assigneeId?: string | null;
+  /** Final assignee list after the request's add / remove / replace. */
+  assigneeIds?: string[];
+  /** People newly on the task, to notify. */
+  addedAssignees?: string[];
   status?: string;
   priority?: string;
   estimatedHours?: number | null;
@@ -157,12 +162,41 @@ async function validateTaskPatch(
   const parentId = optId(body, "parent_id");
   if (parentId !== undefined) p.parentId = parentId;
 
-  if (body.assignee_id !== undefined) {
-    const v = body.assignee_id;
-    if (v !== null && typeof v !== "string" && typeof v !== "number") {
-      throw invalid("assignee_id", "assignee_id must be a user id or null");
+  // Assignees. A task can have several:
+  //   assignee_id         adds that person (no-op if already on it)
+  //   remove_assignee_id  takes one person off
+  //   assignee_ids        replaces the whole list (applied first)
+  const oneId = (field: string): string | undefined => {
+    const v = body[field];
+    if (v === undefined) return undefined;
+    if ((typeof v !== "string" && typeof v !== "number") || v === "") {
+      throw invalid(
+        field,
+        `${field} must be a user id. To take people off a task use remove_assignee_id or assignee_ids`,
+      );
     }
-    p.assigneeId = v === null || v === "" ? null : String(v);
+    return String(v);
+  };
+  const add = oneId("assignee_id");
+  const remove = oneId("remove_assignee_id");
+  let replace: string[] | undefined;
+  if (body.assignee_ids !== undefined) {
+    const v = body.assignee_ids;
+    if (!Array.isArray(v) || v.length > 50 || v.some((x) => (typeof x !== "string" && typeof x !== "number") || x === "")) {
+      throw invalid("assignee_ids", "assignee_ids must be an array of user ids");
+    }
+    replace = [...new Set(v.map(String))];
+  }
+  if (add !== undefined || remove !== undefined || replace !== undefined) {
+    if (add !== undefined && add === remove) {
+      throw invalid("remove_assignee_id", "Cannot add and remove the same person");
+    }
+    const current = existing ? existing.assignees.map((a) => a.userId) : [];
+    let next = replace ?? current;
+    if (add !== undefined && !next.includes(add)) next = [...next, add];
+    if (remove !== undefined) next = next.filter((id) => id !== remove);
+    p.assigneeIds = next;
+    p.addedAssignees = next.filter((id) => !current.includes(id));
   }
   if (body.status !== undefined) {
     const s = canonicalStatus(body.status);
@@ -237,13 +271,18 @@ async function validateTaskPatch(
     if (parent.projectId !== finalProjectId) throw invalid("parent_id", "Parent task is in a different project");
     if (existing && parent.parentId === existing.id) throw invalid("parent_id", "That would make a parent/subtask loop");
   }
-  if (p.assigneeId) {
-    const person = await prisma.user.findUnique({
-      where: { id: p.assigneeId },
-      select: { isActive: true, isServiceAccount: true },
+  // Only people being added need to be active team members; someone who
+  // has since left can stay on a task they were already on.
+  if (p.addedAssignees?.length) {
+    const people = await prisma.user.findMany({
+      where: { id: { in: p.addedAssignees }, isActive: true, isServiceAccount: false },
+      select: { id: true },
     });
-    if (!person || !person.isActive || person.isServiceAccount) {
-      throw invalid("assignee_id", "assignee_id must be an active team member");
+    const ok = new Set(people.map((u) => u.id));
+    const bad = p.addedAssignees.find((id) => !ok.has(id));
+    if (bad) {
+      const field = body.assignee_ids !== undefined && body.assignee_id !== bad ? "assignee_ids" : "assignee_id";
+      throw invalid(field, `${bad} is not an active team member`);
     }
   }
 
@@ -282,7 +321,7 @@ function apiView(p: TaskPatch): Record<string, unknown> {
   if (p.projectId !== undefined) out.project_id = p.projectId;
   if (p.sprintId !== undefined) out.sprint_id = p.sprintId;
   if (p.parentId !== undefined) out.parent_id = p.parentId;
-  if (p.assigneeId !== undefined) out.assignee_id = p.assigneeId;
+  if (p.assigneeIds !== undefined) out.assignee_ids = p.assigneeIds;
   if (p.status !== undefined) out.status = p.status;
   if (p.priority !== undefined) out.priority = p.priority;
   if (p.estimatedHours !== undefined) out.estimate_hours = p.estimatedHours;
@@ -298,11 +337,6 @@ function diff(before: ApiTask, p: TaskPatch): Change[] {
   const changes: Change[] = [];
   for (const [field, next] of Object.entries(apiView(p))) {
     const prev = (before as Record<string, unknown>)[field];
-    // A task with several assignees changes when it collapses to one.
-    if (field === "assignee_id" && before.assignee_ids.length > 1) {
-      changes.push({ field, old: prev, new: next });
-      continue;
-    }
     if (JSON.stringify(prev ?? null) !== JSON.stringify(next ?? null)) {
       changes.push({ field, old: prev ?? null, new: next ?? null });
     }
@@ -370,7 +404,7 @@ export async function updateTask(
   if (changes.length === 0) return before;
 
   const data = prismaData(patch, existing.status);
-  const assigneeChange = changes.find((c) => c.field === "assignee_id");
+  const assigneeChange = changes.find((c) => c.field === "assignee_ids");
   const reasonChange = changes.find((c) => c.field === "blocked_reason" && c.new);
   const project = await prisma.project.findUnique({
     where: { id: patch.projectId ?? existing.projectId },
@@ -380,9 +414,13 @@ export async function updateTask(
   await prisma.$transaction(async (tx) => {
     await tx.task.update({ where: { id: taskId }, data });
     if (assigneeChange) {
-      await tx.taskAssignee.deleteMany({ where: { taskId } });
-      if (patch.assigneeId) {
-        await tx.taskAssignee.create({ data: { taskId, userId: patch.assigneeId } });
+      // Touch only the rows that change, so existing assignees keep
+      // their original "assigned at" time and order.
+      const next = patch.assigneeIds ?? [];
+      await tx.taskAssignee.deleteMany({ where: { taskId, userId: { notIn: next } } });
+      const added = patch.addedAssignees ?? [];
+      if (added.length) {
+        await tx.taskAssignee.createMany({ data: added.map((userId) => ({ taskId, userId })) });
       }
     }
     await tx.taskHistory.createMany({
@@ -425,8 +463,12 @@ export async function updateTask(
     }
   });
 
-  if (assigneeChange && patch.assigneeId && patch.assigneeId !== attr.onBehalfOfUserId) {
-    await notifyAssigned(patch.assigneeId, patch.title ?? existing.title, taskId, actor, origin);
+  if (assigneeChange) {
+    for (const userId of patch.addedAssignees ?? []) {
+      if (userId !== attr.onBehalfOfUserId) {
+        await notifyAssigned(userId, patch.title ?? existing.title, taskId, actor, origin);
+      }
+    }
   }
   return serializeTask(await loadTask(taskId));
 }
@@ -459,9 +501,11 @@ export async function createTask(
         targetDate: p.targetDate ?? null,
         blockedReason: p.blockedReason ?? null,
         tags: JSON.stringify(p.tags ?? []),
-        completedAt: status === "Done" ? new Date() : null,
+        completedAt: status === "Done" || status === "Cancelled" ? new Date() : null,
         responsibleId: actor.id,
-        ...(p.assigneeId ? { assignees: { create: [{ userId: p.assigneeId }] } } : {}),
+        ...(p.assigneeIds?.length
+          ? { assignees: { create: p.assigneeIds.map((userId) => ({ userId })) } }
+          : {}),
       },
       include: { project: { select: { name: true } } },
     });
@@ -488,8 +532,10 @@ export async function createTask(
     return task;
   });
 
-  if (p.assigneeId && p.assigneeId !== attr.onBehalfOfUserId) {
-    await notifyAssigned(p.assigneeId, created.title, created.id, actor, origin);
+  for (const userId of p.assigneeIds ?? []) {
+    if (userId !== attr.onBehalfOfUserId) {
+      await notifyAssigned(userId, created.title, created.id, actor, origin);
+    }
   }
   return serializeTask(await loadTask(created.id));
 }

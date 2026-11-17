@@ -11,7 +11,7 @@ vi.mock("next/headers", () => ({
 
 const tx = {
   task: { update: vi.fn(), create: vi.fn() },
-  taskAssignee: { deleteMany: vi.fn(), create: vi.fn() },
+  taskAssignee: { deleteMany: vi.fn(), create: vi.fn(), createMany: vi.fn() },
   taskHistory: { createMany: vi.fn(), create: vi.fn() },
   auditEntry: { create: vi.fn() },
   remark: { create: vi.fn() },
@@ -22,7 +22,7 @@ vi.mock("@/lib/db", () => ({
     apiToken: { findUnique: vi.fn(), update: vi.fn(() => Promise.resolve()) },
     apiRequestLog: { create: vi.fn(() => Promise.resolve()) },
     apiIdempotency: { findUnique: vi.fn(), upsert: vi.fn(() => Promise.resolve()), deleteMany: vi.fn(() => Promise.resolve()) },
-    user: { findUnique: vi.fn(), findUniqueOrThrow: vi.fn() },
+    user: { findUnique: vi.fn(), findUniqueOrThrow: vi.fn(), findMany: vi.fn() },
     task: { findUnique: vi.fn() },
     project: { findUnique: vi.fn() },
     sprint: { findUnique: vi.fn() },
@@ -107,6 +107,10 @@ beforeEach(() => {
         ? { id: "u-ravi", name: "Ravi Kumar", isActive: true, isServiceAccount: false }
         : null,
     ),
+  );
+  const ACTIVE = ["u-ravi", "u-asha"];
+  db.user.findMany.mockImplementation(({ where }: { where: { id: { in: string[] } } }) =>
+    Promise.resolve(where.id.in.filter((id) => ACTIVE.includes(id)).map((id) => ({ id }))),
   );
 });
 
@@ -289,6 +293,51 @@ describe("PATCH /tasks/{id}", () => {
     db.task.findUnique.mockResolvedValue(taskRow());
     const res = await taskPATCH(req("PATCH", "/tasks/101", { assignee_id: "ghost" }), ctx({ id: "101" }));
     expect(res.status).toBe(422);
+  });
+
+  it("assignee_id adds a person and keeps the existing assignees", async () => {
+    db.task.findUnique.mockResolvedValue(taskRow());
+    const res = await taskPATCH(req("PATCH", "/tasks/101", { assignee_id: "u-asha" }), ctx({ id: "101" }));
+    expect(res.status).toBe(200);
+    expect(tx.taskAssignee.deleteMany).toHaveBeenCalledWith({
+      where: { taskId: 101, userId: { notIn: ["u-ravi", "u-asha"] } },
+    });
+    expect(tx.taskAssignee.createMany).toHaveBeenCalledWith({ data: [{ taskId: 101, userId: "u-asha" }] });
+    expect(tx.taskHistory.createMany.mock.calls[0][0].data[0]).toMatchObject({
+      field: "assignee_ids",
+      oldValue: JSON.stringify(["u-ravi"]),
+      newValue: JSON.stringify(["u-ravi", "u-asha"]),
+    });
+  });
+
+  it("assignee_id for someone already on the task changes nothing", async () => {
+    db.task.findUnique.mockResolvedValue(taskRow());
+    const res = await taskPATCH(req("PATCH", "/tasks/101", { assignee_id: "u-ravi" }), ctx({ id: "101" }));
+    expect(res.status).toBe(200);
+    expect(tx.task.update).not.toHaveBeenCalled();
+    expect(tx.taskAssignee.createMany).not.toHaveBeenCalled();
+  });
+
+  it("remove_assignee_id takes one person off", async () => {
+    db.task.findUnique.mockResolvedValue(taskRow({ assignees: [{ userId: "u-ravi" }, { userId: "u-asha" }] }));
+    const res = await taskPATCH(req("PATCH", "/tasks/101", { remove_assignee_id: "u-ravi" }), ctx({ id: "101" }));
+    expect(res.status).toBe(200);
+    expect(tx.taskAssignee.deleteMany).toHaveBeenCalledWith({ where: { taskId: 101, userId: { notIn: ["u-asha"] } } });
+    expect(tx.taskAssignee.createMany).not.toHaveBeenCalled();
+  });
+
+  it("assignee_id: null is 422 (use remove_assignee_id or assignee_ids)", async () => {
+    db.task.findUnique.mockResolvedValue(taskRow());
+    const res = await taskPATCH(req("PATCH", "/tasks/101", { assignee_id: null }), ctx({ id: "101" }));
+    expect(res.status).toBe(422);
+    expect((await res.json()).error.field).toBe("assignee_id");
+  });
+
+  it("accepts Cancelled as a status (any case)", async () => {
+    db.task.findUnique.mockResolvedValue(taskRow());
+    const res = await taskPATCH(req("PATCH", "/tasks/101", { status: "cancelled" }), ctx({ id: "101" }));
+    expect(res.status).toBe(200);
+    expect(tx.task.update.mock.calls[0][0].data).toMatchObject({ status: "Cancelled" });
   });
 
   it("404s an unknown task", async () => {

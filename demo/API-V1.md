@@ -62,7 +62,7 @@ All 21 from the PRD, plus `GET /sprints/{id}` and `GET /openapi.json`.
 | `target_end_date` | `Project.targetDate` | |
 | `member_ids` | `ProjectMember.userId` | |
 | task `key` | — | `<project key>-<task id>`, e.g. `CRM-142`. `q=CRM-142` finds it |
-| `assignee_id` | `TaskAssignee` | Tasks can have several assignees. Read: first assignee, plus `assignee_ids` with all of them. Write: replaces all assignees with that one person |
+| `assignee_id` | `TaskAssignee` | Tasks can have several assignees. Read: `assignee_id` is the first, `assignee_ids` lists all. Write: `assignee_id` **adds** that person (no-op if already on it); `remove_assignee_id` takes one off; `assignee_ids` replaces the whole list (`[]` = unassigned). `assignee_id: null` is 422. History records the change as `assignee_ids` old → new |
 | `reporter_id` | `Task.responsibleId` | "Person Responsible" |
 | `estimate_hours` | `Task.estimatedHours` | |
 | `logged_hours` | sum of `TimeEntry.hours`, else `Task.actualHours` | read-only |
@@ -72,9 +72,11 @@ All 21 from the PRD, plus `GET /sprints/{id}` and `GET /openapi.json`.
 | comments | `Remark` | plus new `onBehalfOfUserId`, `sourceNote` |
 | history | `TaskHistory` (new) | Field-level, API writes only. UI-made changes are in the project History tab (`AuditEntry`) |
 
-**Statuses** (workflow order): `To Do`, `In Progress`, `In review`, `Blocked`, `Done`.
+**Statuses** (workflow order): `To Do`, `In Progress`, `In review`, `Blocked`, `Done`, `Cancelled`.
 Input is matched without regard to case or spacing, so `In Review` and `done` are accepted.
-There is **no `Cancelled`** status in the tracker.
+`Cancelled` is dropped work: it closes the task like `Done` (no longer open, never overdue,
+not carried forward) but is **left out of performance evaluation** entirely and out of sprint
+planned/done counts (`cancelled_tasks` in the sprint summary).
 
 **Priorities** (low → high): `Low`, `Medium`, `High`, `Critical`.
 
@@ -88,6 +90,15 @@ There is **no `Cancelled`** status in the tracker.
 | S-4 | Any body field outside the writable list → 403 `forbidden_field` naming the field |
 | S-5 | Each task write → `TaskHistory` rows (`changed_by` = service account, `on_behalf_of_user_id`, `source_note`) **and** an `AuditEntry` by "PM Inventive", which shows in the UI History tab |
 | S-6 | Kill switch: see above |
+
+## Sprints in the UI
+
+The **Sprints** page (`/sprints`, in the sidebar for Admin, Lead, Co-ordinator, HR and
+Developer) lists sprints by Active / Planned / Closed with planned-vs-done progress. The
+project's managers (Admin, Lead, Co-ordinator, or the project's own Lead/Co-ordinator) can
+create a sprint, edit it, start / close / reopen it, add open tasks and move tasks back to the
+backlog. Everyone else sees it read-only. Sprints are never deleted. It uses the cookie
+routes `GET/POST /api/sprints`, `PATCH /api/sprints/{id}` and `GET/POST /api/sprints/{id}/tasks`.
 
 ## Data safety
 

@@ -7,7 +7,7 @@ import type { Prisma } from "@prisma/client";
 import { fmtDate, fmtTs } from "./http";
 
 /** Workflow order — what /meta/statuses returns. */
-export const STATUSES = ["To Do", "In Progress", "In review", "Blocked", "Done"] as const;
+export const STATUSES = ["To Do", "In Progress", "In review", "Blocked", "Done", "Cancelled"] as const;
 /** Lowest to highest — what /meta/priorities returns. */
 export const PRIORITIES = ["Low", "Medium", "High", "Critical"] as const;
 export const OPEN_STATUSES = ["To Do", "In Progress", "In review", "Blocked"];

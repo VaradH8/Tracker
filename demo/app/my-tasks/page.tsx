@@ -24,6 +24,7 @@ const COLUMNS: { id: Status; title: string; accent: string }[] = [
   { id: "Blocked", title: "Blocked", accent: "bg-brand-red" },
   { id: "In review", title: "In review", accent: "bg-brand-yellow" },
   { id: "Done", title: "Done", accent: "bg-brand-green" },
+  { id: "Cancelled", title: "Cancelled", accent: "bg-ink-700" },
 ];
 
 const FOCUS_KEY = "tracker-mytasks-focus";
@@ -45,7 +46,7 @@ function formatRange(from: string, to: string): string {
 
 /** Focus = what needs attention now: due today, overdue, or in progress. */
 function inFocus(t: Task): boolean {
-  if (t.status === "Done") return false;
+  if (t.status === "Done" || t.status === "Cancelled") return false;
   // An undated task has no deadline pressure — only its status can pull
   // it into focus.
   return (
@@ -200,7 +201,7 @@ export default function MyTasksPage() {
             }
           />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
             {COLUMNS.map((col) => {
               const cards = shown.filter((t) => t.status === col.id);
               return (

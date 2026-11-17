@@ -1,5 +1,6 @@
 "use client";
 
+import { isClosed } from "@/lib/mock";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Users2, ArrowRight, FolderKanban } from "lucide-react";
@@ -62,7 +63,7 @@ export default function TeamPage() {
 
   function tasksFor(person: string): Task[] {
     return teamTasks.filter(
-      (t) => t.assignees.includes(person) && t.status !== "Done",
+      (t) => t.assignees.includes(person) && !isClosed(t.status),
     );
   }
   function overdueFor(person: string): number {
@@ -95,7 +96,7 @@ export default function TeamPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
               {myProjects.map((p) => {
                 const open = tasks.filter(
-                  (t) => t.projectId === p.id && t.status !== "Done",
+                  (t) => t.projectId === p.id && !isClosed(t.status),
                 ).length;
                 return (
                   <Link

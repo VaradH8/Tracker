@@ -1,5 +1,6 @@
 "use client";
 
+import { isClosed } from "@/lib/mock";
 import Link from "next/link";
 import {
   Plus,
@@ -182,7 +183,7 @@ function ActiveProjects({ role }: { role: Role }) {
             <tbody>
               {visible.map((p) => {
                 const projectTasks = tasks.filter((t) => t.projectId === p.id);
-                const openTasks = projectTasks.filter((t) => t.status !== "Done");
+                const openTasks = projectTasks.filter((t) => !isClosed(t.status));
                 const overdue = openTasks.filter((t) => !!t.overdueDays).length;
                 const leads = p.leads.map(fullNameOf);
                 return (

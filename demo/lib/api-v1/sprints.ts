@@ -48,14 +48,21 @@ function validate(body: Record<string, unknown>): SprintPatch {
   return p;
 }
 
-function summary(actor: ApiUser, attr: Attribution, what: string) {
+/** attr = null for a change made by a person in the UI: the audit row's
+ *  actor already says who, so no "via" suffix. */
+function summary(actor: Pick<ApiUser, "id" | "name">, attr: Attribution | null, what: string) {
+  if (!attr) return what;
   let s = `${what} — via ${actor.name}`;
   if (attr.onBehalfOfName) s += ` on behalf of ${attr.onBehalfOfName}`;
   if (attr.sourceNote) s += `: ${attr.sourceNote}`;
   return s;
 }
 
-export async function createSprint(body: Record<string, unknown>, actor: ApiUser, attr: Attribution) {
+export async function createSprint(
+  body: Record<string, unknown>,
+  actor: Pick<ApiUser, "id" | "name">,
+  attr: Attribution | null,
+) {
   rejectForbiddenFields(body, CREATE_FIELDS);
   for (const f of ["project_id", "name", "start_date", "end_date"]) {
     if (body[f] === undefined || body[f] === null || body[f] === "") {
@@ -97,8 +104,8 @@ export async function createSprint(body: Record<string, unknown>, actor: ApiUser
 export async function updateSprint(
   id: number,
   body: Record<string, unknown>,
-  actor: ApiUser,
-  attr: Attribution,
+  actor: Pick<ApiUser, "id" | "name">,
+  attr: Attribution | null,
 ) {
   rejectForbiddenFields(body, WRITABLE_SPRINT_FIELDS);
   const existing = await prisma.sprint.findUnique({

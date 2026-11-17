@@ -1,5 +1,6 @@
 "use client";
 
+import { isClosed } from "@/lib/mock";
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
@@ -58,6 +59,7 @@ const COLUMNS: { id: Status; title: string; accent: string }[] = [
   { id: "Blocked", title: "Blocked", accent: "bg-brand-red" },
   { id: "In review", title: "In review", accent: "bg-brand-yellow" },
   { id: "Done", title: "Done", accent: "bg-brand-green" },
+  { id: "Cancelled", title: "Cancelled", accent: "bg-ink-700" },
 ];
 
 type Tab = "tasks" | "details" | "history";
@@ -486,7 +488,7 @@ export default function ProjectDetailPage({
                 </button>
               ))}
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
               {COLUMNS.map((col) => {
                 const colTasks = tasks
                   .filter((t) => t.status === col.id)
@@ -496,7 +498,7 @@ export default function ProjectDetailPage({
                   .filter(
                     (t) =>
                       taskView === "all" ||
-                      (taskView === "open" && t.status !== "Done") ||
+                      (taskView === "open" && !isClosed(t.status)) ||
                       (taskView === "overdue" && !!t.overdueDays),
                   );
                 return (
@@ -1181,6 +1183,7 @@ function CreateTaskModal({
             <option>Blocked</option>
             <option>In review</option>
             <option>Done</option>
+            <option>Cancelled</option>
           </select>
         </div>
         <div>

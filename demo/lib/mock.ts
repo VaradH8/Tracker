@@ -6,7 +6,15 @@ export type Status =
   | "In Progress"
   | "Blocked"
   | "In review"
-  | "Done";
+  | "Done"
+  | "Cancelled";
+
+/** Statuses that end a task: no longer open work, never carried forward,
+ *  never overdue. Cancelled is dropped work — it does not count as done. */
+export const CLOSED_STATUSES: readonly string[] = ["Done", "Cancelled"];
+export function isClosed(status: string): boolean {
+  return status === "Done" || status === "Cancelled";
+}
 export type ProjectStatus = "Discovery" | "Active" | "On Hold" | "Delivered";
 export type PerformanceFlag = "On track" | "Watch" | "Idle";
 
@@ -382,6 +390,8 @@ export function statusPill(s: Status): string {
       return "pill-yellow";
     case "Done":
       return "pill-green";
+    case "Cancelled":
+      return "pill-grey";
   }
 }
 
@@ -475,7 +485,7 @@ export function currentWeek(): number {
  * visible in the current week until completed. "Done" ends the carry.
  */
 export function isCarriedForward(status: Status): boolean {
-  return status !== "Done";
+  return !isClosed(status);
 }
 
 /**
@@ -498,7 +508,7 @@ export function isCarriedForward(status: Status): boolean {
  * still open carries into the current week and beyond; once Done it stops.
  */
 export function taskInWeek(task: Task, week: number): boolean {
-  if (task.status === "Done") return weekAnchorOf(task) === week;
+  if (isClosed(task.status)) return weekAnchorOf(task) === week;
   const native = weekAnchorOf(task);
   // No target date — unscheduled work is native to no week at all, so it
   // rides along with the current week and every week after, exactly the
@@ -527,7 +537,7 @@ export function finishedOn(
  *  completion week once Done (see finishedOn), otherwise its target week.
  *  Use this to populate a week picker so every task's week is selectable. */
 export function weekAnchorOf(task: Task): number | null {
-  const anchor = task.status === "Done" ? finishedOn(task) : task.targetDate;
+  const anchor = isClosed(task.status) ? finishedOn(task) : task.targetDate;
   return anchor ? weekNumberOf(anchor) : null;
 }
 
@@ -561,7 +571,7 @@ function localISO(d: Date): string {
  *  finished. An unscheduled task has no day of its own, so it rides along
  *  with any window that reaches the present. */
 export function taskInRange(task: Task, from: string, to: string): boolean {
-  if (task.status === "Done") {
+  if (isClosed(task.status)) {
     const done = finishedOn(task);
     return done >= from && done <= to;
   }
@@ -637,7 +647,8 @@ export function loggedHours(
 /** Auto-calculated project progress: % of the project's tasks that are
  *  Done. Replaces the old manually-typed progress field. */
 export function projectProgress(projectId: number, tasks: Task[]): number {
-  const own = tasks.filter((t) => t.projectId === projectId);
+  // Cancelled work is out of scope, so it counts neither way.
+  const own = tasks.filter((t) => t.projectId === projectId && t.status !== "Cancelled");
   if (own.length === 0) return 0;
   const done = own.filter((t) => t.status === "Done").length;
   return Math.round((done / own.length) * 100);

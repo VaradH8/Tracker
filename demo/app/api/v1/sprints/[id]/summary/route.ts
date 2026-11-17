@@ -16,8 +16,14 @@ export const GET = v1<{ id: string }>(async (_req, { params }) => {
   let plannedHours = 0;
   let doneHours = 0;
   let done = 0;
+  let cancelled = 0;
   for (const t of sprint.tasks) {
     byStatus[t.status] = (byStatus[t.status] ?? 0) + 1;
+    // Dropped work leaves the plan: it is neither planned nor done.
+    if (t.status === "Cancelled") {
+      cancelled += 1;
+      continue;
+    }
     plannedHours += t.estimatedHours ?? 0;
     if (t.status === "Done") {
       done += 1;
@@ -27,8 +33,9 @@ export const GET = v1<{ id: string }>(async (_req, { params }) => {
   return NextResponse.json({
     sprint_id: sprint.id,
     status: sprint.status,
-    planned_tasks: sprint.tasks.length,
+    planned_tasks: sprint.tasks.length - cancelled,
     done_tasks: done,
+    cancelled_tasks: cancelled,
     planned_hours: Math.round(plannedHours * 100) / 100,
     done_hours: Math.round(doneHours * 100) / 100,
     by_status: byStatus,
