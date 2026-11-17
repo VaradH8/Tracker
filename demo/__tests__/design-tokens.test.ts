@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync, globSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { chart, palette } from "@/lib/design-tokens";
 
 /**
@@ -67,7 +68,13 @@ describe("text colours meet WCAG AA (4.5:1)", () => {
 });
 
 describe("components use tokens, not one-off values", () => {
-  const files = [...globSync("app/**/*.tsx"), ...globSync("components/**/*.tsx")];
+  // readdirSync({ recursive }) rather than fs.globSync: CI and the
+  // production image run Node 20, and globSync only arrived in Node 22.
+  const tsxUnder = (dir: string) =>
+    (readdirSync(dir, { recursive: true }) as string[])
+      .filter((f) => f.endsWith(".tsx"))
+      .map((f) => join(dir, f));
+  const files = [...tsxUnder("app"), ...tsxUnder("components")];
   const offenders = (re: RegExp) =>
     files.flatMap((f) =>
       readFileSync(f, "utf8")
