@@ -262,7 +262,7 @@ function SprintCard({
           <div className="flex items-center gap-2 flex-wrap">
             {open ? <ChevronDown size={16} className="text-ink-400" /> : <ChevronRight size={16} className="text-ink-400" />}
             <h3 className="font-heading font-semibold text-ink-900">{s.name}</h3>
-            <span className={`${SPRINT_PILL[s.status] ?? "pill-grey"} text-[10px] py-0 capitalize`}>{s.status}</span>
+            <span className={`${SPRINT_PILL[s.status] ?? "pill-grey"} text-xs py-0 capitalize`}>{s.status}</span>
           </div>
           <div className="text-xs text-ink-500 mt-1 ml-6">
             {s.projectName} · {formatDateLong(s.startDate)} → {formatDateLong(s.endDate)}
@@ -317,7 +317,7 @@ function SprintCard({
                 <Plus size={13} className="mr-1" /> Add tasks
               </button>
             )}
-            <button disabled={busy} onClick={onEdit} className="btn-ghost text-xs" aria-label="Edit sprint">
+            <button disabled={busy} onClick={onEdit} className="btn-ghost text-xs tap-target" aria-label="Edit sprint">
               <Pencil size={13} />
             </button>
           </div>
@@ -351,21 +351,21 @@ function SprintCard({
                   <span className="text-xs font-mono text-ink-500 w-20 shrink-0">{t.key}</span>
                   <Link
                     href={`/projects/${s.projectId}`}
-                    className={`flex-1 min-w-[160px] truncate hover:text-brand-blue ${t.status === "Cancelled" ? "line-through text-ink-400" : "text-ink-900"}`}
+                    className={`flex-1 min-w-[160px] truncate hover:text-brand-blueText ${t.status === "Cancelled" ? "line-through text-ink-400" : "text-ink-900"}`}
                   >
                     {t.title}
                   </Link>
                   <span className="text-xs text-ink-500 truncate max-w-[160px]">
                     {t.assignees.length ? t.assignees.join(", ") : "Unassigned"}
                   </span>
-                  <span className={`${priorityPill(t.priority as Priority)} text-[10px] py-0`}>{t.priority}</span>
-                  <span className={`${statusPill(t.status as Status) ?? "pill-grey"} text-[10px] py-0`}>{t.status}</span>
+                  <span className={`${priorityPill(t.priority as Priority)} text-xs py-0`}>{t.priority}</span>
+                  <span className={`${statusPill(t.status as Status) ?? "pill-grey"} text-xs py-0`}>{t.status}</span>
                   <span className="text-xs text-ink-500 w-10 text-right">{t.estimatedHours != null ? `${t.estimatedHours}h` : "—"}</span>
                   {s.canManage && s.status !== "closed" && (
                     <button
                       disabled={busy}
                       onClick={() => run(`/api/sprints/${s.id}/tasks`, "POST", { remove: [t.id] })}
-                      className="p-1 rounded text-ink-400 hover:text-brand-redText hover:bg-ink-100"
+                      className="tap-target p-1 rounded text-ink-400 hover:text-brand-redText hover:bg-ink-100"
                       aria-label={`Move ${t.key} to backlog`}
                       title="Move to backlog"
                     >
@@ -424,8 +424,9 @@ function SprintForm({
       <div className="space-y-4 mt-4">
         {!sprint && (
           <div>
-            <label className="block text-xs font-medium text-ink-700 mb-1.5">Project</label>
+            <label htmlFor="sprint-project" className="block text-xs font-medium text-ink-700 mb-1.5">Project</label>
             <select
+              id="sprint-project"
               value={projectId}
               onChange={(e) => setProjectId(e.target.value ? Number(e.target.value) : "")}
               className="w-full px-3 py-2 rounded border border-ink-200 text-sm bg-white"
@@ -440,8 +441,9 @@ function SprintForm({
           </div>
         )}
         <div>
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">Name</label>
+          <label htmlFor="sprint-name" className="block text-xs font-medium text-ink-700 mb-1.5">Name</label>
           <input
+            id="sprint-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder={`Week of ${formatDateLong(startDate)}`}
@@ -450,8 +452,9 @@ function SprintForm({
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-ink-700 mb-1.5">Goal</label>
+          <label htmlFor="sprint-goal" className="block text-xs font-medium text-ink-700 mb-1.5">Goal</label>
           <textarea
+            id="sprint-goal"
             value={goal}
             onChange={(e) => setGoal(e.target.value)}
             rows={2}
@@ -562,7 +565,7 @@ function AddTasks({
                   {t.estimatedHours != null ? ` · ${t.estimatedHours}h` : ""}
                 </span>
               </span>
-              <span className={`${priorityPill(t.priority as Priority)} text-[10px] py-0`}>{t.priority}</span>
+              <span className={`${priorityPill(t.priority as Priority)} text-xs py-0`}>{t.priority}</span>
             </label>
           </li>
         ))}

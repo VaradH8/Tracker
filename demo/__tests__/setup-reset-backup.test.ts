@@ -18,6 +18,7 @@ vi.mock("@/lib/db", () => {
     "domainAllocation", "domainTagAssignment", "domainDeliveryCorrection", "domainTagSubmission",
     "domainTask", "domainDefaultReviewer", "domainTaskReviewer", "domainTaskAttachment",
     "domainTaskEvent", "domainWorkLog", "domainHoliday", "domainLeave",
+    "sprint", "taskHistory", "apiRequestLog",
   ];
   const prisma: Record<string, unknown> = Object.fromEntries(models.map((m) => [m, delegate()]));
   prisma.user = { ...delegate(), findUnique: vi.fn(), count: vi.fn() };
@@ -92,7 +93,7 @@ describe("JSON backup (E7)", () => {
     const keys = backupTables().map((t) => t.model);
     const expected = Prisma.dmmf.datamodel.models
       .map((m) => m.name)
-      .filter((n) => !["Session", "DomainSession", "PasswordResetToken"].includes(n));
+      .filter((n) => !["Session", "DomainSession", "PasswordResetToken", "ApiToken", "ApiIdempotency"].includes(n));
     expect(keys.sort()).toEqual(expected.sort());
   });
 
