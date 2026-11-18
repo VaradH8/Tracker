@@ -54,7 +54,7 @@ export async function GET() {
       }),
       prisma.task.findMany({
         where: {
-          status: { notIn: ["Done", "Cancelled"] },
+          status: { notIn: ["Done", "Cancelled", "Hold"] },
           project: { status: { in: [...ENGAGING_PROJECT_STATUSES] } },
         },
         select: {
@@ -88,7 +88,7 @@ export async function GET() {
           loggedHours: true,
           client: { select: { name: true } },
           tasks: {
-            where: { status: { notIn: ["Done", "Cancelled"] } },
+            where: { status: { notIn: ["Done", "Cancelled", "Hold"] } },
             select: { estimatedHours: true },
           },
         },

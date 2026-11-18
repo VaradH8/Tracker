@@ -23,6 +23,7 @@ const COLUMNS: { id: Status; title: string; accent: string }[] = [
   { id: "In Progress", title: "In Progress", accent: "bg-brand-blue" },
   { id: "Blocked", title: "Blocked", accent: "bg-brand-red" },
   { id: "In review", title: "In review", accent: "bg-brand-yellow" },
+  { id: "Hold", title: "Hold", accent: "bg-ink-500" },
   { id: "Done", title: "Done", accent: "bg-brand-green" },
   { id: "Cancelled", title: "Cancelled", accent: "bg-ink-700" },
 ];
@@ -46,7 +47,7 @@ function formatRange(from: string, to: string): string {
 
 /** Focus = what needs attention now: due today, overdue, or in progress. */
 function inFocus(t: Task): boolean {
-  if (t.status === "Done" || t.status === "Cancelled") return false;
+  if (t.status === "Done" || t.status === "Cancelled" || t.status === "Hold") return false;
   // An undated task has no deadline pressure — only its status can pull
   // it into focus.
   return (

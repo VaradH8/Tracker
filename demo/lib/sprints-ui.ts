@@ -28,7 +28,7 @@ type Row = Prisma.SprintGetPayload<{ include: typeof UI_SPRINT_INCLUDE }>;
 const ymd = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 
 export function serializeUiSprint(s: Row, canManage: boolean) {
-  const live = s.tasks.filter((t) => t.status !== "Cancelled");
+  const live = s.tasks.filter((t) => t.status !== "Cancelled" && t.status !== "Hold");
   const done = live.filter((t) => t.status === "Done");
   const hours = (ts: typeof live) => Math.round(ts.reduce((n, t) => n + (t.estimatedHours ?? 0), 0) * 10) / 10;
   return {

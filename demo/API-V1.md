@@ -72,11 +72,15 @@ All 21 from the PRD, plus `GET /sprints/{id}` and `GET /openapi.json`.
 | comments | `Remark` | plus new `onBehalfOfUserId`, `sourceNote` |
 | history | `TaskHistory` (new) | Field-level, API writes only. UI-made changes are in the project History tab (`AuditEntry`) |
 
-**Statuses** (workflow order): `To Do`, `In Progress`, `In review`, `Blocked`, `Done`, `Cancelled`.
+**Statuses** (workflow order): `To Do`, `In Progress`, `In review`, `Blocked`, `Hold`, `Done`, `Cancelled`.
 Input is matched without regard to case or spacing, so `In Review` and `done` are accepted.
 `Cancelled` is dropped work: it closes the task like `Done` (no longer open, never overdue,
 not carried forward) but is **left out of performance evaluation** entirely and out of sprint
 planned/done counts (`cancelled_tasks` in the sprint summary).
+`Hold` is paused work: it is not finished (no `completed_at`) but is never overdue, not carried
+forward and can't be added to a sprint. While on hold it is left out of performance evaluation,
+project progress and sprint planned/done counts (`on_hold_tasks` in the sprint summary). Move it
+back to any open status to resume.
 
 **Priorities** (low → high): `Low`, `Medium`, `High`, `Critical`.
 

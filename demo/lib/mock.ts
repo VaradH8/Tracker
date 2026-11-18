@@ -1,4 +1,5 @@
 import type { Role } from "./role";
+import { isActiveWork, isClosed, isEvaluated } from "./task-status";
 
 export type Priority = "Critical" | "High" | "Medium" | "Low";
 export type Status =
@@ -6,15 +7,18 @@ export type Status =
   | "In Progress"
   | "Blocked"
   | "In review"
+  | "Hold"
   | "Done"
   | "Cancelled";
 
-/** Statuses that end a task: no longer open work, never carried forward,
- *  never overdue. Cancelled is dropped work — it does not count as done. */
-export const CLOSED_STATUSES: readonly string[] = ["Done", "Cancelled"];
-export function isClosed(status: string): boolean {
-  return status === "Done" || status === "Cancelled";
-}
+/** Closed = Done or Cancelled (finished). Hold = paused. See lib/task-status.ts. */
+export {
+  CLOSED_STATUSES,
+  isActiveWork,
+  isClosed,
+  isEvaluated,
+  isOnHold,
+} from "./task-status";
 export type ProjectStatus = "Discovery" | "Active" | "On Hold" | "Delivered";
 export type PerformanceFlag = "On track" | "Watch" | "Idle";
 
@@ -390,6 +394,8 @@ export function statusPill(s: Status): string {
       return "pill-yellow";
     case "Done":
       return "pill-green";
+    case "Hold":
+      return "pill-grey";
     case "Cancelled":
       return "pill-grey";
   }
@@ -485,7 +491,8 @@ export function currentWeek(): number {
  * visible in the current week until completed. "Done" ends the carry.
  */
 export function isCarriedForward(status: Status): boolean {
-  return !isClosed(status);
+  // Finished work stops; paused (Hold) work waits in its own week.
+  return isActiveWork(status);
 }
 
 /**
@@ -576,6 +583,8 @@ export function taskInRange(task: Task, from: string, to: string): boolean {
     return done >= from && done <= to;
   }
   if (!task.targetDate) return to >= todayISO();
+  // Paused work isn't overdue, so it doesn't carry into later windows.
+  if (!isActiveWork(task.status)) return task.targetDate >= from && task.targetDate <= to;
   // Still in the future relative to this window; everything else is either
   // inside it or overdue into it.
   return task.targetDate <= to;
@@ -647,8 +656,8 @@ export function loggedHours(
 /** Auto-calculated project progress: % of the project's tasks that are
  *  Done. Replaces the old manually-typed progress field. */
 export function projectProgress(projectId: number, tasks: Task[]): number {
-  // Cancelled work is out of scope, so it counts neither way.
-  const own = tasks.filter((t) => t.projectId === projectId && t.status !== "Cancelled");
+  // Cancelled and on-hold work is out of scope, so it counts neither way.
+  const own = tasks.filter((t) => t.projectId === projectId && isEvaluated(t.status));
   if (own.length === 0) return 0;
   const done = own.filter((t) => t.status === "Done").length;
   return Math.round((done / own.length) * 100);

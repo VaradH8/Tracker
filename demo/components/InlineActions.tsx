@@ -28,6 +28,7 @@ const STATUSES: Status[] = [
   "In Progress",
   "Blocked",
   "In review",
+  "Hold",
   "Done",
   "Cancelled",
 ];
@@ -490,6 +491,15 @@ export function QuickActions({
         icon: Play,
         tone: "text-brand-blueText hover:bg-brand-blueBg",
         next: "In Progress",
+      });
+      break;
+    case "Hold":
+      buttons.push({
+        label: "Resume",
+        tip: "Take off hold: move back to To Do",
+        icon: Play,
+        tone: "text-brand-blueText hover:bg-brand-blueBg",
+        next: "To Do",
       });
       break;
     case "Done":

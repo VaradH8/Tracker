@@ -238,7 +238,7 @@ function SprintCard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pct = s.plannedHours > 0 ? Math.round((s.doneHours / s.plannedHours) * 100) : s.plannedTasks > 0 ? Math.round((s.doneTasks / s.plannedTasks) * 100) : 0;
-  const unfinished = s.tasks.filter((t) => t.status !== "Done" && t.status !== "Cancelled").length;
+  const unfinished = s.tasks.filter((t) => t.status !== "Done" && t.status !== "Cancelled" && t.status !== "Hold").length;
 
   async function run(url: string, method: string, body: unknown, confirmText?: string) {
     if (confirmText && !window.confirm(confirmText)) return;

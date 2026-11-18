@@ -58,6 +58,7 @@ const COLUMNS: { id: Status; title: string; accent: string }[] = [
   { id: "In Progress", title: "In Progress", accent: "bg-brand-blue" },
   { id: "Blocked", title: "Blocked", accent: "bg-brand-red" },
   { id: "In review", title: "In review", accent: "bg-brand-yellow" },
+  { id: "Hold", title: "Hold", accent: "bg-ink-500" },
   { id: "Done", title: "Done", accent: "bg-brand-green" },
   { id: "Cancelled", title: "Cancelled", accent: "bg-ink-700" },
 ];
@@ -1182,6 +1183,7 @@ function CreateTaskModal({
             <option>In Progress</option>
             <option>Blocked</option>
             <option>In review</option>
+            <option>Hold</option>
             <option>Done</option>
             <option>Cancelled</option>
           </select>
