@@ -1,6 +1,6 @@
 "use client";
 
-import { isClosed } from "@/lib/mock";
+import { isClosed, isActiveWork } from "@/lib/mock";
 import { useEffect, useState } from "react";
 import {
   AlertTriangle,
@@ -49,9 +49,9 @@ function deriveResource(
 ): Resource {
   const label = labelOf(a);
   const myTasks = tasks.filter((t) => isAssignedTo(t, a));
-  const tasksOpen = myTasks.filter((t) => !isClosed(t.status)).length;
+  const tasksOpen = myTasks.filter((t) => isActiveWork(t.status)).length;
   const tasksOverdue = myTasks.filter(
-    (t) => !!t.overdueDays && !isClosed(t.status),
+    (t) => !!t.overdueDays && isActiveWork(t.status),
   ).length;
   // Honour the "(30d)" label: only work finished in the last 30 days.
   // Older imports have no completedAt, so fall back to the target date.
@@ -356,7 +356,7 @@ export default function ResourcesPage() {
               const myTasks = tasks.filter((t) =>
                 isAssignedTo(t, { id: r.id as unknown as string, name: r.name }),
               );
-              const open = myTasks.filter((t) => !isClosed(t.status)).length;
+              const open = myTasks.filter((t) => isActiveWork(t.status)).length;
               return (
                 <ResourceCard
                   key={r.id}

@@ -1,6 +1,6 @@
 "use client";
 
-import { isClosed } from "@/lib/mock";
+import { isActiveWork } from "@/lib/mock";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
@@ -23,7 +23,7 @@ import {
   type Task,
 } from "@/lib/mock";
 
-const STATUSES = ["To Do", "In Progress", "Blocked", "In review", "Done", "Cancelled"];
+const STATUSES = ["To Do", "In Progress", "Blocked", "In review", "Hold", "Done", "Cancelled"];
 const PRIORITIES = ["Critical", "High", "Medium", "Low"];
 
 type Deal = {
@@ -66,7 +66,7 @@ export default function AnalyticsPage() {
 
   const stats = useMemo(() => {
     const today = todayISO();
-    const openTasks = tasks.filter((t) => !isClosed(t.status));
+    const openTasks = tasks.filter((t) => isActiveWork(t.status));
     const overdue = openTasks.filter((t) => !!t.overdueDays);
     const blocked = tasks.filter((t) => t.status === "Blocked");
     const activeProjects = projects.filter((p) => p.status === "Active");

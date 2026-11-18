@@ -1,6 +1,6 @@
 "use client";
 
-import { isClosed } from "@/lib/mock";
+import { isActiveWork } from "@/lib/mock";
 import Link from "next/link";
 import type { Task } from "@/lib/mock";
 import { useProjects } from "@/lib/projects-store";
@@ -96,7 +96,7 @@ export function TaskCard({
   // Same editors as the drawer and the server (canEditTasks): a Lead runs
   // the task without being on it, so they must be able to move it here.
   const canEdit = role === "Admin" || role === "Lead" || role === "Coordinator";
-  const overdue = !!task.overdueDays && !isClosed(task.status);
+  const overdue = !!task.overdueDays && isActiveWork(task.status);
   const project = projectById(task.projectId);
 
   const cls = [

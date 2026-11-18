@@ -1,6 +1,6 @@
 "use client";
 
-import { isClosed } from "@/lib/mock";
+import { isActiveWork } from "@/lib/mock";
 import { useState } from "react";
 import {
   CalendarClock,
@@ -83,11 +83,11 @@ function CoordinatorMyDay() {
   const teamTasks = tasks.filter((t) => myProjectIds.has(t.projectId));
 
   const deliveries = teamTasks
-    .filter((t) => isDueToday(t.targetDate) && !isClosed(t.status))
+    .filter((t) => isDueToday(t.targetDate) && isActiveWork(t.status))
     .sort((a, b) => PRIO_ORDER[a.priority] - PRIO_ORDER[b.priority]);
 
   const overdue = teamTasks
-    .filter((t) => isOverdue(t.targetDate) && !isClosed(t.status))
+    .filter((t) => isOverdue(t.targetDate) && isActiveWork(t.status))
     .sort(byTargetDate);
 
   const blocked = teamTasks.filter((t) => t.status === "Blocked");
@@ -583,7 +583,7 @@ function DeveloperMyDay() {
   const { tasks, auditLog } = useTasks();
   const me = useMyFirstName();
   const myTasks = tasks.filter(
-    (t) => t.assignees.includes(me) && !isClosed(t.status),
+    (t) => t.assignees.includes(me) && isActiveWork(t.status),
   );
   // Recent activity that mentions tasks the developer is on.
   const myTaskTitles = new Set(tasks.filter((t) => t.assignees.includes(me)).map((t) => t.title));

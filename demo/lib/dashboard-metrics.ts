@@ -1,4 +1,4 @@
-import { isClosed } from "./mock";
+import { isActiveWork } from "./mock";
 import type { Account } from "./account-store";
 import { isAssignedTo, type Client, type LeaveEntry, type Project, type ProjectStatus, type Task } from "./mock";
 import type { Role } from "./role";
@@ -206,7 +206,7 @@ export function openTasksByPerson(accounts: Account[], tasks: Task[]): WorkloadR
     .filter((a) => a.active)
     .map((a) => {
       const first = a.shortName ?? firstName(a.name);
-      const open = tasks.filter((t) => !isClosed(t.status) && isAssignedTo(t, a));
+      const open = tasks.filter((t) => isActiveWork(t.status) && isAssignedTo(t, a));
       const overdue = open.filter((t) => (t.overdueDays ?? 0) > 0).length;
       return { name: first, onTime: open.length - overdue, overdue };
     })

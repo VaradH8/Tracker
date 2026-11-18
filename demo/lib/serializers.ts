@@ -373,7 +373,8 @@ export function overdueDaysFor(
 ): number | undefined {
   // No deadline, nothing to be late for.
   if (!targetDate) return undefined;
-  if (status === "Done" || status === "Cancelled") return undefined;
+  // Finished or paused (Hold) work is never late.
+  if (status === "Done" || status === "Cancelled" || status === "Hold") return undefined;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const target = new Date(targetDate);

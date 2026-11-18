@@ -72,7 +72,8 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
   const tasks = await prisma.task.findMany({
     where: {
       projectId: sprint.projectId,
-      status: { notIn: ["Done", "Cancelled"] },
+      // Paused (Hold) work isn't planned: move it back to an open status first.
+      status: { notIn: ["Done", "Cancelled", "Hold"] },
       OR: [{ sprintId: null }, { sprintId: { not: id } }],
     },
     select: {

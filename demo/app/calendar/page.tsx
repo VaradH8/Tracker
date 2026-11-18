@@ -1,6 +1,6 @@
 "use client";
 
-import { isClosed } from "@/lib/mock";
+import { isActiveWork } from "@/lib/mock";
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, CalendarClock } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -169,7 +169,7 @@ export default function CalendarPage() {
                 const isToday = c.iso === today;
                 const isSelected = c.iso === selected;
                 const isOverdueDay = c.iso < today;
-                const openCount = list.filter((t) => !isClosed(t.status)).length;
+                const openCount = list.filter((t) => isActiveWork(t.status)).length;
                 const hasOverdue = isOverdueDay && openCount > 0;
                 return (
                   <div

@@ -1,6 +1,6 @@
 "use client";
 
-import { isClosed } from "@/lib/mock";
+import { isActiveWork } from "@/lib/mock";
 import { use, useState } from "react";
 import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
@@ -149,7 +149,7 @@ export default function ClientDetailPage({
                 <ul className="divide-y divide-ink-100">
                   {projects.map((p) => {
                     const open = tasks.filter(
-                      (t) => t.projectId === p.id && !isClosed(t.status),
+                      (t) => t.projectId === p.id && isActiveWork(t.status),
                     ).length;
                     return (
                       <li key={p.id}>
