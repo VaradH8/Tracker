@@ -2,6 +2,7 @@
 
 import { isActiveWork } from "@/lib/mock";
 import Link from "next/link";
+import { CornerLeftUp, ListTree } from "lucide-react";
 import type { Task } from "@/lib/mock";
 import { useProjects } from "@/lib/projects-store";
 import { useTaskDrawer } from "./TaskDrawerProvider";
@@ -98,6 +99,8 @@ export function TaskCard({
   const canEdit = role === "Admin" || role === "Lead" || role === "Coordinator";
   const overdue = !!task.overdueDays && isActiveWork(task.status);
   const project = projectById(task.projectId);
+  const parent = task.parentId != null ? store.byId(task.parentId) : undefined;
+  const subtasks = store.tasks.filter((t) => t.parentId === task.id);
 
   const cls = [
     "card p-3 text-left w-full transition-shadow hover:shadow-md",
@@ -133,13 +136,37 @@ export function TaskCard({
         </div>
       </div>
 
+      {parent && (
+        <button
+          type="button"
+          onClick={() => drawer.open(parent.id)}
+          className="flex items-center gap-1 text-xs text-ink-500 hover:text-brand-blueText mb-1 max-w-full text-left"
+          title={`Subtask of ${parent.title}`}
+        >
+          <CornerLeftUp size={11} className="shrink-0" />
+          <span className="truncate">{parent.title}</span>
+        </button>
+      )}
       <button
         type="button"
         onClick={() => drawer.open(task.id)}
         className="text-left w-full min-w-0 break-words text-sm text-ink-900 leading-snug mb-3 hover:text-brand-blueText"
       >
-        {task.title}
+        {parent && task.title.startsWith(parent.title + ": ")
+          ? task.title.slice(parent.title.length + 2)
+          : task.title}
       </button>
+      {subtasks.length > 0 && (
+        <button
+          type="button"
+          onClick={() => drawer.open(task.id)}
+          className="flex items-center gap-1.5 text-xs text-ink-500 hover:text-brand-blueText mb-2"
+          title="Open to see the subtasks"
+        >
+          <ListTree size={12} />
+          {subtasks.filter((t) => t.status === "Done").length}/{subtasks.length} subtasks done
+        </button>
+      )}
 
       <div className="flex items-center justify-between gap-x-2 gap-y-1.5 mb-2 flex-wrap">
         <AssigneePicker

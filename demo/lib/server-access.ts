@@ -266,10 +266,13 @@ export async function ledProjectIds(userId: string): Promise<number[]> {
  *  sees all tasks on the projects they lead or co-ordinate. */
 export async function taskVisibilityFilter(user: SessionUser) {
   if (canSeeAllProjectTasks(user.role)) return null;
-  const own =
+  const base =
     user.role === "Lead"
       ? await teamTaskFilter(user.id)
       : taskAssignmentFilter(user.id);
+  // A parent task is visible to whoever can see one of its subtasks, so
+  // people see which output their subtask belongs to.
+  const own = { OR: [...base.OR, { subtasks: { some: base } }] };
   const led = await ledProjectIds(user.id);
   if (!led.length) return own;
   return { OR: [{ projectId: { in: led } }, ...own.OR] };
@@ -287,9 +290,18 @@ export async function canSeeTask(
   if (canSeeAllProjectTasks(user.role)) return true;
   if (task.responsibleId === user.id) return true;
   if ((await ledProjectIds(user.id)).includes(task.projectId)) return true;
-  if (user.role !== "Lead") return isTaskAssignee(user.id, task.id);
+  if (user.role !== "Lead") {
+    if (await isTaskAssignee(user.id, task.id)) return true;
+    // The parent of a subtask they can see (see taskVisibilityFilter).
+    const sub = await prisma.task.findFirst({
+      where: { parentId: task.id, ...taskAssignmentFilter(user.id) },
+      select: { id: true },
+    });
+    return sub !== null;
+  }
+  const team = await teamTaskFilter(user.id);
   const match = await prisma.task.findFirst({
-    where: { id: task.id, ...(await teamTaskFilter(user.id)) },
+    where: { id: task.id, OR: [...team.OR, { subtasks: { some: team } }] },
     select: { id: true },
   });
   return match !== null;

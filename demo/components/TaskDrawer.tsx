@@ -18,8 +18,12 @@ import {
   CheckCircle2,
   ShieldCheck,
   Timer,
+  ListTree,
+  CornerLeftUp,
+  Tag,
 } from "lucide-react";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { useTaskDrawer } from "./TaskDrawerProvider";
 import {
   AssigneePicker,
   DateField,
@@ -83,9 +87,22 @@ export function TaskDrawer({
   const [editingEstimate, setEditingEstimate] = useState(false);
   const [depPickerOpen, setDepPickerOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const drawer = useTaskDrawer();
   const task = store.byId(taskId);
+  const meta = useTaskMeta(taskId, [
+    task?.status,
+    task?.targetDate,
+    task?.startDate,
+    task?.priority,
+    task?.title,
+    task?.description,
+    task?.estimatedHours,
+    task?.important,
+  ]);
 
   if (!task) return null;
+  const subtasks = store.tasks.filter((t) => t.parentId === task.id);
+  const subtasksDone = subtasks.filter((t) => t.status === "Done").length;
 
   // A refused status change (the server said no) is shown, rather than
   // silently leaving the task where it was.
@@ -284,9 +301,39 @@ export function TaskDrawer({
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
-          <h2 className="font-heading text-lg font-semibold leading-tight break-words">
-            {task.title}
-          </h2>
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5 flex-wrap text-xs">
+              {meta?.key && <span className="pill-grey font-mono">{meta.key}</span>}
+              <span className={statusPill(task.status)}>{task.status}</span>
+              {meta?.sprint ? (
+                <span className="pill-blue" title={`${meta.sprint.startDate} → ${meta.sprint.endDate} (${meta.sprint.status})`}>
+                  {meta.sprint.name}
+                </span>
+              ) : (
+                <span className="pill-grey">Backlog</span>
+              )}
+            </div>
+            {task.parentId != null && (
+              <button
+                type="button"
+                onClick={() => store.byId(task.parentId!) && drawer.open(task.parentId!)}
+                disabled={!store.byId(task.parentId)}
+                className="flex items-center gap-1.5 text-xs text-ink-500 hover:text-brand-blueText disabled:hover:text-ink-500 text-left"
+                title="Open the parent task"
+              >
+                <CornerLeftUp size={12} className="shrink-0" />
+                <span className="truncate">
+                  Subtask of{" "}
+                  <strong className="font-medium">
+                    {meta?.parent?.title ?? store.byId(task.parentId)?.title ?? `task #${task.parentId}`}
+                  </strong>
+                </span>
+              </button>
+            )}
+            <h2 className="font-heading text-lg font-semibold leading-tight break-words">
+              {task.title}
+            </h2>
+          </div>
 
           {(canEdit || isAssignee) && (
             <div className="flex items-center justify-between gap-2 p-3 rounded-card bg-ink-50">
@@ -499,6 +546,69 @@ export function TaskDrawer({
               )}
             </Field>
           </div>
+
+          {((task.tags?.length ?? 0) > 0 || (task.progressPercent ?? 0) > 0 || (task.status === "Blocked" && task.blockedReason)) && (
+            <div className="space-y-3">
+              {(task.progressPercent ?? 0) > 0 && (
+                <Field label={`Progress · ${task.progressPercent}%`}>
+                  <div className="h-1.5 rounded-full bg-ink-100 overflow-hidden">
+                    <div className="h-full bg-brand-blue" style={{ width: `${Math.min(100, task.progressPercent ?? 0)}%` }} />
+                  </div>
+                </Field>
+              )}
+              {task.status === "Blocked" && task.blockedReason && (
+                <Field label="Blocked reason">
+                  <p className="text-sm text-brand-redText">{task.blockedReason}</p>
+                </Field>
+              )}
+              {(task.tags?.length ?? 0) > 0 && (
+                <Field label="Tags" icon={<Tag size={14} />}>
+                  <div className="flex flex-wrap gap-1">
+                    {task.tags!.map((t) => (
+                      <span key={t} className="pill-grey text-xs">{t}</span>
+                    ))}
+                  </div>
+                </Field>
+              )}
+            </div>
+          )}
+
+          {subtasks.length > 0 && (
+            <section>
+              <h3 className="text-xs font-semibold text-ink-700 uppercase tracking-wide mb-2 flex items-center gap-2">
+                <ListTree size={12} /> Subtasks
+                <span className="font-medium normal-case text-ink-400">
+                  ({subtasksDone} of {subtasks.length} done)
+                </span>
+              </h3>
+              <div className="h-1.5 rounded-full bg-ink-100 overflow-hidden mb-2">
+                <div className="h-full bg-brand-green" style={{ width: `${(subtasksDone / subtasks.length) * 100}%` }} />
+              </div>
+              <ul className="divide-y divide-ink-100 border border-ink-100 rounded-card">
+                {subtasks.map((st) => (
+                  <li key={st.id}>
+                    <button
+                      type="button"
+                      onClick={() => drawer.open(st.id)}
+                      className="w-full text-left px-3 py-2 hover:bg-ink-50 flex items-start gap-2"
+                    >
+                      <span className={`${statusPill(st.status)} shrink-0`}>{st.status}</span>
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-sm text-ink-900 break-words">
+                          {st.title.startsWith(task.title + ": ") ? st.title.slice(task.title.length + 2) : st.title}
+                        </span>
+                        <span className="block text-xs text-ink-500">
+                          {st.assignees.join(", ") || "Unassigned"}
+                          {st.startDate ? ` · from ${st.startDate}` : ""}
+                          {st.targetDate ? ` · due ${st.targetDate}` : ""}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           <section>
             <div className="flex items-center justify-between mb-2">
@@ -753,7 +863,7 @@ export function TaskDrawer({
 
           <section>
             <h3 className="text-xs font-semibold text-ink-700 uppercase tracking-wide mb-2 flex items-center gap-2">
-              <MessageSquare size={12} /> Remarks
+              <MessageSquare size={12} /> Comments
               <span className="font-medium normal-case text-ink-400">
                 ({task.remarks?.length ?? 0})
               </span>
@@ -779,14 +889,14 @@ export function TaskDrawer({
                           <button
                             onClick={async () => {
                               const ok = await confirm({
-                                title: "Delete this remark?",
+                                title: "Delete this comment?",
                                 confirmLabel: "Delete",
                                 danger: true,
                               });
                               if (ok) void store.deleteRemark(task.id, r.id);
                             }}
                             className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity p-1 -m-1 text-ink-400 hover:text-brand-redText"
-                            aria-label="Delete remark"
+                            aria-label="Delete comment"
                           >
                             <Trash2 size={12} />
                           </button>
@@ -799,7 +909,7 @@ export function TaskDrawer({
               })}
               {(task.remarks ?? []).length === 0 && (
                 <li className="text-xs text-ink-400 italic">
-                  No remarks yet.
+                  No comments yet.
                 </li>
               )}
             </ul>
@@ -809,7 +919,7 @@ export function TaskDrawer({
                   value={newRemark}
                   onChange={(e) => setNewRemark(e.target.value)}
                   rows={2}
-                  placeholder="Add a remark…  (use @ to mention)"
+                  placeholder="Add a comment…  (use @ to mention)"
                   className="w-full text-sm focus:outline-none resize-none"
                 />
                 <div className="flex justify-end pt-1.5 border-t border-ink-100 mt-1.5">
@@ -825,9 +935,38 @@ export function TaskDrawer({
             )}
           </section>
 
+          <section>
+            <h3 className="text-xs font-semibold text-ink-700 uppercase tracking-wide mb-2 flex items-center gap-2">
+              <History size={12} /> Status &amp; change history
+              <span className="font-medium normal-case text-ink-400">
+                ({meta?.history.length ?? 0})
+              </span>
+            </h3>
+            <ul className="space-y-2 text-xs text-ink-500">
+              {!meta ? (
+                <li className="italic">Loading…</li>
+              ) : meta.history.length === 0 ? (
+                <li className="italic">No recorded changes yet.</li>
+              ) : (
+                meta.history.map((h) => (
+                  <li key={h.id} className="flex gap-2">
+                    <span className="mt-1 w-1.5 h-1.5 rounded-full bg-ink-300 shrink-0" />
+                    <span className="min-w-0">
+                      <span className="font-medium text-ink-900">{h.by ?? "Someone"}</span>
+                      {h.onBehalfOf && <span> for {h.onBehalfOf}</span>}{" "}
+                      {historyText(h)}
+                      <span className="text-ink-400"> · {fmtWhen(h.at)}</span>
+                      {h.note && <span className="block text-ink-400 italic break-words">{h.note}</span>}
+                    </span>
+                  </li>
+                ))
+              )}
+            </ul>
+          </section>
+
           <details>
             <summary className="text-xs font-semibold text-ink-700 uppercase tracking-wide cursor-pointer flex items-center gap-2">
-              <History size={12} /> Audit timeline
+              <History size={12} /> Activity log
               <span className="font-medium normal-case text-ink-400">
                 ({taskAudit.length})
               </span>
@@ -858,6 +997,78 @@ export function TaskDrawer({
       </aside>
     </div>
   );
+}
+
+type TaskMeta = {
+  key: string;
+  parent: { id: number; title: string; status: string } | null;
+  sprint: { id: number; name: string; status: string; startDate: string | null; endDate: string | null } | null;
+  history: {
+    id: number;
+    at: string;
+    field: string;
+    old: unknown;
+    new: unknown;
+    by: string | null;
+    onBehalfOf: string | null;
+    note: string | null;
+  }[];
+};
+
+/** Key, sprint, parent and change history for the open task, refetched
+ *  whenever one of the task's tracked fields changes. */
+function useTaskMeta(taskId: number, deps: unknown[]): TaskMeta | null {
+  const [meta, setMeta] = useState<TaskMeta | null>(null);
+  const depKey = JSON.stringify(deps);
+  useEffect(() => {
+    let live = true;
+    fetch(`/api/tasks/${taskId}/history`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => live && setMeta(d))
+      .catch(() => live && setMeta(null));
+    return () => {
+      live = false;
+    };
+  }, [taskId, depKey]);
+  return meta;
+}
+
+const FIELD_LABELS: Record<string, string> = {
+  status: "status",
+  due_date: "due date",
+  start_date: "start date",
+  priority: "priority",
+  title: "title",
+  estimate_hours: "estimate",
+  progress_percent: "progress",
+  sprint_id: "sprint",
+  parent_id: "parent task",
+  assignee_ids: "assignees",
+  blocked_reason: "blocked reason",
+  important: "important flag",
+  tags: "tags",
+};
+
+function showValue(field: string, v: unknown): string {
+  if (v == null || v === "") return "none";
+  if (Array.isArray(v)) return v.length ? `${v.length} selected` : "none";
+  if (field === "estimate_hours") return `${v} hrs`;
+  if (field === "progress_percent") return `${v}%`;
+  return String(v);
+}
+
+function historyText(h: TaskMeta["history"][number]): string {
+  if (h.field === "created") return "created the task";
+  if (h.field === "description") return "edited the description";
+  const label = FIELD_LABELS[h.field] ?? h.field.replace(/_/g, " ");
+  return `changed ${label}: ${showValue(h.field, h.old)} → ${showValue(h.field, h.new)}`;
+}
+
+function fmtWhen(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? iso
+    : d.toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 function auditVerb(action: string): string {

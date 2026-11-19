@@ -52,6 +52,7 @@ import { ImportTasksModal } from "@/components/ImportTasksModal";
 import { toCsv, downloadCsv } from "@/lib/csv";
 import { DateInput } from "@/components/DateInput";
 import { PageSkeleton } from "@/components/Skeleton";
+import { useBlockDialog } from "@/components/BlockDialogProvider";
 
 const COLUMNS: { id: Status; title: string; accent: string }[] = [
   { id: "To Do", title: "To Do", accent: "bg-ink-300" },
@@ -102,7 +103,12 @@ export default function ProjectDetailPage({
     auditLog,
     refresh: refreshTasks,
     hydrated: tasksHydrated,
+    setStatus,
   } = useTasks();
+  const blockDialog = useBlockDialog();
+  // Drag and drop on the board: drop a card on a column to change its status.
+  const [dragId, setDragId] = useState<number | null>(null);
+  const [overCol, setOverCol] = useState<Status | null>(null);
 
   const me = useMyFirstName();
   const showFinancials = canSeeProjectFinancials(role);
@@ -198,6 +204,42 @@ export default function ProjectDetailPage({
     }
     return true;
   });
+
+  // Who may move a card: the same people the server lets change status —
+  // editors (Admin / Lead / Co-ordinator, or Lead / Co-ordinator on this
+  // project) and the task's own assignees. The server has the final say.
+  const canMoveTask = (t: { assignees: string[] }) =>
+    canManageTeam ||
+    (project?.leads ?? []).includes(me) ||
+    (project?.coordinators ?? []).includes(me) ||
+    t.assignees.includes(me);
+
+  async function dropOn(status: Status) {
+    const id = dragId;
+    setDragId(null);
+    setOverCol(null);
+    const t = id != null ? allTasks.find((x) => x.id === id) : undefined;
+    if (!t || t.status === status) return;
+    if (!canMoveTask(t)) {
+      toast.show("Only the task's assignees and the project's leads or co-ordinators can move it.", "error");
+      return;
+    }
+    // Blocked needs a reason, so it goes through the usual dialog.
+    if (status === "Blocked") {
+      blockDialog.requestBlock(t.id);
+      return;
+    }
+    const prev = t.status;
+    const res = await setStatus(t.id, status);
+    if (!res.ok) {
+      toast.show(res.error, "error");
+      return;
+    }
+    toast.show(`“${t.title}” → ${status}`, "success", {
+      label: "Undo",
+      onClick: () => void setStatus(t.id, prev),
+    });
+  }
 
   const tabs: Tab[] = ["tasks", "details"];
   if (showAudit) tabs.push("history");
@@ -505,7 +547,26 @@ export default function ProjectDetailPage({
                 return (
                   <div
                     key={col.id}
-                    className="bg-ink-50 rounded-card p-3 min-h-[400px] flex flex-col"
+                    onDragOver={(e) => {
+                      if (dragId == null) return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                      if (overCol !== col.id) setOverCol(col.id);
+                    }}
+                    onDragLeave={(e) => {
+                      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                        setOverCol((c) => (c === col.id ? null : c));
+                      }
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      void dropOn(col.id);
+                    }}
+                    className={`rounded-card p-3 min-h-[400px] flex flex-col transition-colors ${
+                      overCol === col.id
+                        ? "bg-brand-blueBg ring-2 ring-brand-blue"
+                        : "bg-ink-50"
+                    }`}
                   >
                     <div className="flex items-center gap-2 mb-3 px-1">
                       <span className={`w-2 h-2 rounded-full ${col.accent}`} />
@@ -517,9 +578,35 @@ export default function ProjectDetailPage({
                       </span>
                     </div>
                     <div className="space-y-2 flex-1">
-                      {colTasks.map((t) => (
-                        <TaskCard key={t.id} task={t} hideProject />
-                      ))}
+                      {colTasks.map((t) => {
+                        const movable = canMoveTask(t);
+                        return (
+                          <div
+                            key={t.id}
+                            draggable={movable}
+                            onDragStart={(e) => {
+                              e.dataTransfer.effectAllowed = "move";
+                              e.dataTransfer.setData("text/plain", String(t.id));
+                              setDragId(t.id);
+                            }}
+                            onDragEnd={() => {
+                              setDragId(null);
+                              setOverCol(null);
+                            }}
+                            className={`${movable ? "cursor-grab active:cursor-grabbing" : ""} ${
+                              dragId === t.id ? "opacity-50" : ""
+                            }`}
+                            title={movable ? "Drag to another column to change its status" : undefined}
+                          >
+                            <TaskCard task={t} hideProject />
+                          </div>
+                        );
+                      })}
+                      {dragId != null && colTasks.length === 0 && (
+                        <div className="border-2 border-dashed border-ink-200 rounded-card p-4 text-center text-xs text-ink-400">
+                          Drop here
+                        </div>
+                      )}
                     </div>
                   </div>
                 );

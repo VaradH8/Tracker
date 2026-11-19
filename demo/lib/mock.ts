@@ -100,6 +100,13 @@ export type Task = {
   forkedFromOwner?: string;
   /** Date (YYYY-MM-DD) the fork was taken. */
   forkedAt?: string | null;
+  /** Parent task id when this is a subtask; null/absent for a top-level task. */
+  parentId?: number | null;
+  /** Sprint the task is planned into; null = backlog. */
+  sprintId?: number | null;
+  tags?: string[];
+  progressPercent?: number;
+  blockedReason?: string | null;
 };
 
 export type Remark = {
