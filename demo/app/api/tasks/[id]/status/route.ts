@@ -10,6 +10,7 @@ import {
   requireUser,
   writeAudit,
 } from "@/lib/server-access";
+import { recordTaskHistory } from "@/lib/task-history";
 
 const schema = z.object({
   status: z.enum(["To Do", "In Progress", "Blocked", "In review", "Hold", "Done", "Cancelled"]),
@@ -73,6 +74,7 @@ export async function POST(
     include: { assignees: { include: { user: true } }, project: true },
   });
 
+  await recordTaskHistory(taskId, user.id, [{ field: "status", old: existing.status, new: body.status }]);
   await writeAudit(user.id, "task.status_change", {
     scope: existing.project.name,
     taskTitle: existing.title,

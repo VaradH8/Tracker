@@ -121,7 +121,22 @@ type PrismaTask = {
   // Only present when the caller included the relation; the lineage badge
   // falls back to the bare id when it wasn't asked for.
   forkedFrom?: { responsible?: { name: string } | null } | null;
+  parentId?: number | null;
+  sprintId?: number | null;
+  tags?: string;
+  progressPercent?: number;
+  blockedReason?: string | null;
 };
+
+function parseTags(raw: string | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
 
 export function serializeTask(t: PrismaTask): Task {
   return {
@@ -153,6 +168,11 @@ export function serializeTask(t: PrismaTask): Task {
       ? shortName(t.forkedFrom.responsible.name)
       : undefined,
     forkedAt: t.forkedAt ? t.forkedAt.toISOString().slice(0, 10) : null,
+    parentId: t.parentId ?? null,
+    sprintId: t.sprintId ?? null,
+    tags: parseTags(t.tags),
+    progressPercent: t.progressPercent ?? 0,
+    blockedReason: t.blockedReason ?? null,
   };
 }
 

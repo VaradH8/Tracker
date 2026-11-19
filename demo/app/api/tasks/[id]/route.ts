@@ -12,6 +12,8 @@ import {
   writeAudit,
 } from "@/lib/server-access";
 import { serializeTask } from "@/lib/serializers";
+import { recordTaskHistory, ymd } from "@/lib/task-history";
+import { TASK_STATUSES } from "@/lib/task-status";
 
 const TASK_INCLUDE = {
   assignees: { include: { user: true } },
@@ -119,6 +121,9 @@ export async function PATCH(
   }
 
   if (typeof body.status === "string") {
+    if (!(TASK_STATUSES as readonly string[]).includes(body.status)) {
+      return NextResponse.json({ error: `Unknown status '${body.status}'.` }, { status: 400 });
+    }
     if (!editor && !isAssignee) {
       return NextResponse.json(
         { error: "Only assignees + co-ordinators can change status." },
@@ -174,6 +179,19 @@ export async function PATCH(
     data,
     include: TASK_INCLUDE,
   });
+
+  // Per-task history: who changed what, when, from what to what. The
+  // status record is what evaluation and the drawer's history rely on.
+  await recordTaskHistory(taskId, user.id, [
+    ...("status" in data ? [{ field: "status", old: existing.status, new: data.status }] : []),
+    ...("targetDate" in data ? [{ field: "due_date", old: ymd(existing.targetDate), new: ymd(data.targetDate as Date | null) }] : []),
+    ...("startDate" in data ? [{ field: "start_date", old: ymd(existing.startDate), new: ymd(data.startDate as Date | null) }] : []),
+    ...("priority" in data ? [{ field: "priority", old: existing.priority, new: data.priority }] : []),
+    ...("title" in data ? [{ field: "title", old: existing.title, new: data.title }] : []),
+    ...("description" in data ? [{ field: "description", old: existing.description, new: data.description }] : []),
+    ...("estimatedHours" in data ? [{ field: "estimate_hours", old: existing.estimatedHours, new: data.estimatedHours }] : []),
+    ...("important" in data ? [{ field: "important", old: existing.important, new: data.important }] : []),
+  ]);
 
   if (data.status && data.status !== existing.status) {
     await writeAudit(user.id, "task.status_change", {

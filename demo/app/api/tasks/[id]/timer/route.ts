@@ -8,6 +8,7 @@ import {
   requireUser,
   writeAudit,
 } from "@/lib/server-access";
+import { recordTaskHistory } from "@/lib/task-history";
 import { serializeTask, serializeTimeEntry } from "@/lib/serializers";
 
 const TASK_INCLUDE = {
@@ -127,6 +128,7 @@ export async function POST(
           where: { id: taskId },
           data: { status: "In Progress" },
         });
+        await recordTaskHistory(taskId, user.id, [{ field: "status", old: "To Do", new: "In Progress" }]);
         await writeAudit(user.id, "task.status_change", {
           scope: task.project.name,
           taskTitle: task.title,
@@ -208,6 +210,7 @@ export async function POST(
       where: { id: taskId },
       data: { status: "Done", completedAt: new Date() },
     });
+    await recordTaskHistory(taskId, user.id, [{ field: "status", old: task.status, new: "Done" }]);
     await writeAudit(user.id, "task.status_change", {
       scope: task.project.name,
       taskTitle: task.title,

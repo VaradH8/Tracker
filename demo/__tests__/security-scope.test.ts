@@ -54,6 +54,7 @@ describe("canUseTaskFiles (E5)", () => {
   });
 
   it("refuses a Developer who only reaches the project through another task", async () => {
+    vi.mocked(prisma.task.findFirst).mockResolvedValue(null as never); // no subtask of theirs
     const { canUseTaskFiles } = await import("@/lib/server-access");
     expect(await canUseTaskFiles(user("Developer"), task)).toBe(false);
   });

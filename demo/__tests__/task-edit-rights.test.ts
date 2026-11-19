@@ -4,6 +4,7 @@ import type { SessionUser } from "@/lib/auth";
 vi.mock("@/lib/db", () => ({
   prisma: {
     task: { findUnique: vi.fn(), update: vi.fn() },
+    taskHistory: { createMany: vi.fn() },
   },
 }));
 

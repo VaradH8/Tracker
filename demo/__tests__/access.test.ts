@@ -94,6 +94,27 @@ describe("canSeeTask", () => {
     // Not Lead/Co-ordinator on any project unless a test says otherwise.
     vi.mocked(prisma.projectMember.findMany).mockReset();
     vi.mocked(prisma.projectMember.findMany).mockResolvedValue([] as never);
+    // No subtask of the task is theirs unless a test says otherwise.
+    vi.mocked(prisma.task.findFirst).mockReset();
+    vi.mocked(prisma.task.findFirst).mockResolvedValue(null as never);
+  });
+
+  it("Developer sees the parent of a subtask they're on", async () => {
+    vi.mocked(prisma.taskAssignee.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.task.findFirst).mockResolvedValue({ id: 2 } as never);
+    const ok = await canSeeTask(userWithRole("Developer"), {
+      id: 1,
+      projectId: 1,
+      responsibleId: "someone-else",
+    });
+    expect(ok).toBe(true);
+    expect(vi.mocked(prisma.task.findFirst).mock.calls[0][0]!.where).toEqual({
+      parentId: 1,
+      OR: [
+        { assignees: { some: { userId: "user-developer" } } },
+        { responsibleId: "user-developer" },
+      ],
+    });
   });
 
   it("oversight role sees any task without a DB lookup", async () => {
@@ -171,13 +192,13 @@ describe("canSeeTask", () => {
       where: { reportingManagerId: "user-lead", isAdmin: false, primaryRole: { not: "Admin" } },
     });
     const where = vi.mocked(prisma.task.findFirst).mock.calls[0][0]!.where as Record<string, unknown>;
-    expect(where).toEqual({
-      id: 1,
+    const team = {
       OR: [
         { assignees: { some: { userId: { in: ["user-lead", "dev-on-team"] } } } },
         { responsibleId: { in: ["user-lead", "dev-on-team"] } },
       ],
-    });
+    };
+    expect(where).toEqual({ id: 1, OR: [...team.OR, { subtasks: { some: team } }] });
   });
 
   it("Lead cannot see a task outside their team", async () => {
@@ -213,11 +234,12 @@ describe("taskVisibilityFilter — Leads/Co-ordinators of a project see all its 
     expect(prisma.projectMember.findMany).not.toHaveBeenCalled();
   });
 
-  it("Developer on no roster as Lead/Co-ord → just their own tasks", async () => {
+  it("Developer on no roster as Lead/Co-ord → just their own tasks (and their parents)", async () => {
     vi.mocked(prisma.projectMember.findMany).mockResolvedValue([] as never);
-    expect(await taskVisibilityFilter(userWithRole("Developer"))).toEqual(
-      taskAssignmentFilter("user-developer"),
-    );
+    const own = taskAssignmentFilter("user-developer");
+    expect(await taskVisibilityFilter(userWithRole("Developer"))).toEqual({
+      OR: [...own.OR, { subtasks: { some: own } }],
+    });
   });
 
   it("Developer designated Lead on project 7 → own tasks OR anything on 7", async () => {
@@ -230,6 +252,7 @@ describe("taskVisibilityFilter — Leads/Co-ordinators of a project see all its 
         { projectId: { in: [7] } },
         { assignees: { some: { userId: "user-developer" } } },
         { responsibleId: "user-developer" },
+        { subtasks: { some: taskAssignmentFilter("user-developer") } },
       ],
     });
   });
@@ -242,6 +265,16 @@ describe("taskVisibilityFilter — Leads/Co-ordinators of a project see all its 
         { projectId: { in: [3] } },
         { assignees: { some: { userId: { in: ["user-lead", "dev-on-team"] } } } },
         { responsibleId: { in: ["user-lead", "dev-on-team"] } },
+        {
+          subtasks: {
+            some: {
+              OR: [
+                { assignees: { some: { userId: { in: ["user-lead", "dev-on-team"] } } } },
+                { responsibleId: { in: ["user-lead", "dev-on-team"] } },
+              ],
+            },
+          },
+        },
       ],
     });
   });
