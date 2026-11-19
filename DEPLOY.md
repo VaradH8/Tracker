@@ -103,16 +103,28 @@ production stack uses the shared Traefik instead — see
 
 ## 3. Updates
 
-On a normal code push:
+**Automatic.** Every merge to `main` that touches `demo/` runs
+`.github/workflows/build-app.yml`: typecheck, tests and a production build,
+then the image is pushed to GHCR (`:latest` and `:<sha>`), then the `deploy`
+job calls the Portainer stack webhook and waits for `/api/health` to return
+200. Postgres data persists in the `tracker_pgdata` named volume across
+redeploys.
 
-```sh
-cd /opt/tracker
-git pull
-```
+One-time setup (operator):
 
-Then in Portainer, **Stack → Editor → Update the stack** (toggle
-"Re-pull image and redeploy" so the build is fresh). Postgres data
-persists in the `tracker_pgdata` named volume across redeploys.
+1. Portainer → stack `tracker` → **GitOps updates** on → mechanism
+   **Webhook** → save, and copy the webhook URL.
+2. `gh secret set PORTAINER_WEBHOOK_URL --env Production -R VaradH8/Tracker`
+   and paste the URL at the prompt (never on the command line).
+3. Leave `APP_IMAGE_TAG` unset in the stack env so it runs `:latest`.
+
+Without the secret, CI still pushes the image and skips the deploy with a
+notice.
+
+**Manual / rollback.** To pin a version, set `APP_IMAGE_TAG=<sha>` in the
+stack env and **Update the stack**; to go back to automatic, remove it. A
+re-run of an already-deployed commit doesn't redeploy (the webhook only acts
+on a new commit), so use **Pull and redeploy** in Portainer for that.
 
 If the schema changes (new column, new table), `prisma db push` on
 boot will sync it automatically without dropping data.
