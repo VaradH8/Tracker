@@ -9,7 +9,7 @@ One Next.js app in `demo/` with two modules that share a database but not a logi
 - **Tracker** (`/my-day`, `/projects`, `/dashboard`, …) — roles `Admin`, `Lead`, `Coordinator`, `HR`, `BusinessDeveloper`, `Developer`. Session cookie `tracker_session`, table `Session`, users in `User`.
 - **Engineering** (`/engineering/*`, API under `/api/domain/*`) — roles `Admin`, `CEO`, `Lead`, `TeamLead`, `SME`, `Actionee`. Session cookie `domain_session`, table `DomainSession`, users in `DomainUser`. In code it is still called "domain".
 
-Read `README.md`, then `docs/` and `specs/` in numbered order, before larger changes.
+Read `docs/architecture.md` first (layers, request flow, change recipes), then `docs/` and `specs/` in numbered order, before larger changes.
 
 ## Hard rules
 

@@ -41,6 +41,8 @@ import {
   parseMentions,
   activeFirstNames,
   statusPill,
+  type Priority,
+  type Project,
   type Status,
   type TaskAttachment,
 } from "@/lib/mock";
@@ -75,7 +77,7 @@ export function TaskDrawer({
   onClose: () => void;
 }) {
   const store = useTasks();
-  const { projectById } = useProjects();
+  const { projects, projectById } = useProjects();
   const [role] = useRole();
   const me = useMyFirstName();
   const blockDialog = useBlockDialog();
@@ -88,6 +90,7 @@ export function TaskDrawer({
   const [depPickerOpen, setDepPickerOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const drawer = useTaskDrawer();
+  const projectFieldId = useId();
   const task = store.byId(taskId);
   const meta = useTaskMeta(taskId, [
     task?.status,
@@ -108,6 +111,10 @@ export function TaskDrawer({
   // silently leaving the task where it was.
   const changeStatus = async (s: Status) => {
     const res = await store.setStatus(task.id, s);
+    if (!res.ok) toast.show(res.error, "error");
+  };
+  const changePriority = async (p: Priority) => {
+    const res = await store.setPriority(task.id, p);
     if (!res.ok) toast.show(res.error, "error");
   };
 
@@ -149,6 +156,38 @@ export function TaskDrawer({
   // so it stays right across start/stop cycles.
   const totalLogged = task.actualHours ?? 0;
   const project = projectById(task.projectId);
+  // Priority and project are the plan's, so they follow the server's
+  // editor rule: a global Admin/Lead/Co-ordinator, or someone rostered as
+  // Lead/Co-ordinator on this project.
+  const runs = (p?: Project) =>
+    !!p && (p.leads.includes(me) || p.coordinators.includes(me));
+  const canPlan = canEdit || runs(project);
+  // Where it can go: projects this person can also manage. The server
+  // checks both ends again.
+  const moveTargets = projects
+    .filter((p) => p.id === task.projectId || canEdit || runs(p))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  async function moveToProject(projectId: number) {
+    if (!task || projectId === task.projectId) return;
+    const dest = projectById(projectId);
+    const n = subtasks.length;
+    const ok = await confirm({
+      title: `Move "${task.title}" to ${dest?.name ?? "another project"}?`,
+      body: [
+        n > 0 ? `Its ${n} subtask${n === 1 ? "" : "s"} move${n === 1 ? "s" : ""} with it.` : null,
+        task.sprintId ? "It leaves its current sprint and lands in the new project's backlog." : null,
+        "Time logs, remarks, files and history stay with the task.",
+      ]
+        .filter(Boolean)
+        .join(" "),
+      confirmLabel: "Move task",
+    });
+    if (!ok) return;
+    const res = await store.setProject(task.id, projectId);
+    if (res.ok) toast.show(`Moved to ${dest?.name ?? "the new project"}.`);
+    else toast.show(res.error, "error");
+  }
   // Sign-off is the Person Responsible (assigner), any project Lead, or
   // a Coordinator/Admin. Doers can't approve their own work.
   const canApprove =
@@ -244,8 +283,8 @@ export function TaskDrawer({
           )}
           <PriorityPicker
             value={task.priority}
-            onChange={(p) => store.setPriority(task.id, p)}
-            readOnly={!canEdit}
+            onChange={changePriority}
+            readOnly={!canPlan}
           />
           {project && (
             <span
@@ -335,23 +374,65 @@ export function TaskDrawer({
             </h2>
           </div>
 
-          {(canEdit || isAssignee) && (
-            <div className="flex items-center justify-between gap-2 p-3 rounded-card bg-ink-50">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-ink-500">Status</span>
-                <StatusPicker
-                  value={task.status}
-                  onChange={changeStatus}
-                  onBlock={() => blockDialog.requestBlock(task.id)}
-                />
-              </div>
-              <QuickActions
-                task={task}
-                isAssignee={isAssignee}
-                canEdit={canEdit}
-                onStatus={changeStatus}
-                onBlock={() => blockDialog.requestBlock(task.id)}
-              />
+          {(canEdit || isAssignee || canPlan) && (
+            <div className="p-3 rounded-card bg-ink-50 space-y-3">
+              {(canEdit || isAssignee) && (
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-ink-500">Status</span>
+                    <StatusPicker
+                      value={task.status}
+                      onChange={changeStatus}
+                      onBlock={() => blockDialog.requestBlock(task.id)}
+                    />
+                  </div>
+                  <QuickActions
+                    task={task}
+                    isAssignee={isAssignee}
+                    canEdit={canEdit}
+                    onStatus={changeStatus}
+                    onBlock={() => blockDialog.requestBlock(task.id)}
+                  />
+                </div>
+              )}
+              {/* Priority and project, changed the same way as status. */}
+              {canPlan && (
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-ink-500">Priority</span>
+                    <PriorityPicker value={task.priority} onChange={changePriority} />
+                  </div>
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    {task.parentId ? (
+                      // A subtask lives in its parent's project.
+                      <>
+                        <span className="text-xs text-ink-500 shrink-0">Project</span>
+                        <span className="text-xs text-ink-500 truncate">
+                          {project?.name ?? "—"} · moves with its parent task
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <label htmlFor={projectFieldId} className="text-xs text-ink-500 shrink-0">
+                          Project
+                        </label>
+                        <select
+                          id={projectFieldId}
+                          value={task.projectId}
+                          onChange={(e) => void moveToProject(Number(e.target.value))}
+                          className="min-w-0 flex-1 max-w-xs text-sm rounded border border-ink-200 bg-white px-2 py-1 focus:outline-none focus:ring-2 focus:ring-brand-blue"
+                        >
+                          {moveTargets.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}
+                            </option>
+                          ))}
+                        </select>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
