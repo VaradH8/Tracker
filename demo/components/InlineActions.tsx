@@ -113,6 +113,7 @@ export function PriorityPicker({
   }
   return (
     <Popover
+      label={`Priority: ${value}. Change priority`}
       trigger={() => (
         <span
           className={

@@ -6,10 +6,14 @@ export function Popover({
   trigger,
   children,
   align = "left",
+  label,
 }: {
   trigger: (open: boolean) => ReactNode;
   children: (close: () => void) => ReactNode;
   align?: "left" | "right";
+  /** Accessible name for the trigger when its visible content alone
+   *  (e.g. just "High") doesn't say what it changes. */
+  label?: string;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -36,6 +40,8 @@ export function Popover({
     <div ref={ref} className="relative inline-flex">
       <button
         type="button"
+        aria-label={label}
+        aria-expanded={open}
         onClick={(e) => {
           e.stopPropagation();
           setOpen((v) => !v);

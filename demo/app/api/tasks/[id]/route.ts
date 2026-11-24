@@ -14,6 +14,7 @@ import {
 import { serializeTask } from "@/lib/serializers";
 import { recordTaskHistory, ymd } from "@/lib/task-history";
 import { TASK_STATUSES } from "@/lib/task-status";
+import { PRIORITIES } from "@/lib/api-v1/serialize";
 
 const TASK_INCLUDE = {
   assignees: { include: { user: true } },
@@ -146,7 +147,12 @@ export async function PATCH(
     if (typeof body.description === "string" || body.description === null) {
       data.description = body.description;
     }
-    if (typeof body.priority === "string") data.priority = body.priority;
+    if (typeof body.priority === "string") {
+      if (!(PRIORITIES as readonly string[]).includes(body.priority)) {
+        return NextResponse.json({ error: `Unknown priority '${body.priority}'.` }, { status: 400 });
+      }
+      data.priority = body.priority;
+    }
     if (typeof body.startDate === "string" || body.startDate === null) {
       data.startDate = body.startDate ? new Date(body.startDate) : null;
     }
@@ -170,15 +176,83 @@ export async function PATCH(
     }
   }
 
+  /**
+   * Moving the task to another project. It has to be run by the person on
+   * BOTH sides: an editor here, and someone who can reach and manage tasks
+   * on the destination — otherwise a Lead could drop work into a project
+   * they have nothing to do with, or pull it out of one they can't see.
+   *
+   * What travels with it, and what doesn't:
+   * - Subtasks move with their parent, so a parent and its subtasks never
+   *   sit in different projects. A subtask can't be moved on its own.
+   * - A sprint belongs to one project, so the task (and its subtasks)
+   *   leave theirs and land in the new project's backlog.
+   * - Time logs, remarks, attachments, history, assignees and dependencies
+   *   hang off the task itself and stay as they are.
+   */
+  let moveTo: { id: number; name: string } | null = null;
+  if (body.projectId !== undefined && body.projectId !== null) {
+    const targetId = Number(body.projectId);
+    if (!Number.isInteger(targetId) || targetId <= 0) {
+      return NextResponse.json({ error: "Invalid project." }, { status: 400 });
+    }
+    if (targetId !== existing.projectId) {
+      if (!editor) {
+        return NextResponse.json(
+          { error: "Only the project's leads and co-ordinators can move a task." },
+          { status: 403 },
+        );
+      }
+      if (existing.parentId) {
+        return NextResponse.json(
+          { error: "This is a subtask — move its parent task instead, and it comes along." },
+          { status: 400 },
+        );
+      }
+      const target = await prisma.project.findUnique({
+        where: { id: targetId },
+        select: { id: true, name: true },
+      });
+      if (!target) {
+        return NextResponse.json({ error: "That project doesn't exist." }, { status: 404 });
+      }
+      if (
+        !(await canAccessProject(user, targetId)) ||
+        !(await canManageProjectTasks(user, targetId))
+      ) {
+        return NextResponse.json(
+          { error: "You can only move tasks into projects you lead or co-ordinate." },
+          { status: 403 },
+        );
+      }
+      data.projectId = targetId;
+      if (existing.sprintId !== null) data.sprintId = null;
+      moveTo = target;
+    }
+  }
+
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
   }
 
-  const updated = await prisma.task.update({
+  const updateTask = prisma.task.update({
     where: { id: taskId },
     data,
     include: TASK_INCLUDE,
   });
+  // On a move, the task and its subtasks change project together or not
+  // at all; subtasks also leave the old project's sprint.
+  const updated = moveTo
+    ? (
+        await prisma.$transaction([
+          updateTask,
+          prisma.task.updateMany({
+            where: { parentId: taskId },
+            data: { projectId: moveTo.id, sprintId: null },
+          }),
+        ])
+      )[0]
+    : await updateTask;
 
   // Per-task history: who changed what, when, from what to what. The
   // status record is what evaluation and the drawer's history rely on.
@@ -191,7 +265,17 @@ export async function PATCH(
     ...("description" in data ? [{ field: "description", old: existing.description, new: data.description }] : []),
     ...("estimatedHours" in data ? [{ field: "estimate_hours", old: existing.estimatedHours, new: data.estimatedHours }] : []),
     ...("important" in data ? [{ field: "important", old: existing.important, new: data.important }] : []),
+    ...(moveTo ? [{ field: "project", old: existing.project.name, new: moveTo.name }] : []),
   ]);
+
+  if (moveTo) {
+    await writeAudit(user.id, "task.move_project", {
+      scope: moveTo.name,
+      taskTitle: existing.title,
+      before: existing.project.name,
+      after: moveTo.name,
+    });
+  }
 
   if (data.status && data.status !== existing.status) {
     await writeAudit(user.id, "task.status_change", {

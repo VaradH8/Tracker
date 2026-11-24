@@ -22,6 +22,7 @@ Both modules are one Next.js app in [`demo/`](./demo), on PostgreSQL, deployed a
 
 ## Reading order
 
+0. **[docs/architecture.md](./docs/architecture.md) — start here: how the app is built, request flow, security layers, and how to make common changes**
 1. [docs/01-overview.md](./docs/01-overview.md) — what the product is and why
 2. [docs/02-roles-and-permissions.md](./docs/02-roles-and-permissions.md) — who can do what, in both modules
 3. [docs/03-workflows.md](./docs/03-workflows.md) — the everyday journeys

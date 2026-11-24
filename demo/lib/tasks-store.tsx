@@ -60,6 +60,8 @@ type Ctx = {
   entriesForTask: (taskId: number) => TimeEntry[];
   setStatus: (id: number, status: Status) => Promise<SaveResult>;
   setPriority: (id: number, priority: Priority) => Promise<SaveResult>;
+  /** Move the task (and its subtasks) to another project. */
+  setProject: (id: number, projectId: number) => Promise<SaveResult>;
   /** Pass "" to clear the deadline back to none. */
   setTargetDate: (id: number, date: string) => Promise<SaveResult>;
   setStartDate: (id: number, date: string) => Promise<SaveResult>;
@@ -199,6 +201,15 @@ export function TasksProvider({ children }: { children: ReactNode }) {
   const setStatus = useCallback(
     (id: number, status: Status) => patchTask(id, { status }),
     [],
+  );
+  const setProject = useCallback(
+    async (id: number, projectId: number) => {
+      const res = await patchTask(id, { projectId });
+      // Subtasks moved with it on the server; reload so they follow here too.
+      if (res.ok) await refresh();
+      return res;
+    },
+    [refresh],
   );
   const setPriority = useCallback(
     (id: number, priority: Priority) => patchTask(id, { priority }),
@@ -694,6 +705,7 @@ export function TasksProvider({ children }: { children: ReactNode }) {
         entriesForTask,
         setStatus,
         setPriority,
+        setProject,
         setTargetDate,
         setStartDate,
         setDescription,
