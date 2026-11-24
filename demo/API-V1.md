@@ -41,13 +41,20 @@ Admin-only management endpoints (cookie session):
 
 ## Endpoints
 
-All 21 from the PRD, plus `GET /sprints/{id}` and `GET /openapi.json`.
+All 21 from the PRD, plus `GET /sprints/{id}`, `POST /projects` and `GET /openapi.json`.
 
-`/auth/me` · `/users` · `/users/{id}` · `/projects` · `/projects/{id}` ·
+`/auth/me` · `/users` · `/users/{id}` · `/projects` (GET, POST) · `/projects/{id}` ·
 `/sprints` (GET, POST) · `/sprints/{id}` (GET, PATCH) · `/sprints/{id}/summary` ·
 `/tasks` (GET, POST) · `/tasks/{id}` (GET, PATCH) · `/tasks/bulk-update` ·
 `/tasks/{id}/comments` (GET, POST) · `/tasks/{id}/history` ·
 `/tasks/{id}/dependencies` (GET, POST) · `/meta/statuses` · `/meta/priorities`
+
+`POST /projects` needs `name`, `client` (an existing client's name), `target_end_date` and
+`on_behalf_of_user_id`. That person must be able to create projects in the UI (Admin, Lead,
+Coordinator or Business Developer), or the request is a 403. They become the project's Lead
+unless `lead_ids` is given. `member_ids` join as Developers. Optional: `key` (unique, 409 if
+taken), `description`, `start_date` (default today), `budget_hours` (default 80). The new
+project is `Active` and gets a `project.create` audit entry.
 
 ## Field mapping (PRD name → tracker)
 
