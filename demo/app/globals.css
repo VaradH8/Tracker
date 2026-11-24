@@ -170,3 +170,52 @@ textarea::placeholder {
     scroll-behavior: auto !important;
   }
 }
+
+/*
+ * Task descriptions written in the rich text editor (components/
+ * RichTextEditor.tsx). Preflight strips list bullets and heading sizes, so
+ * the formatting the toolbar offers is drawn back here, in tokens only.
+ */
+@layer components {
+  .rich-text {
+    @apply text-ink-700 leading-relaxed break-words;
+  }
+  .rich-text > * + * {
+    @apply mt-2;
+  }
+  .rich-text h2 {
+    @apply text-base font-semibold text-ink-900;
+  }
+  .rich-text h3 {
+    @apply text-sm font-semibold text-ink-900;
+  }
+  .rich-text ul {
+    @apply list-disc pl-5;
+  }
+  .rich-text ol {
+    @apply list-decimal pl-5;
+  }
+  .rich-text li > p {
+    @apply m-0;
+  }
+  .rich-text blockquote {
+    @apply border-l-2 border-ink-200 pl-3 text-ink-500;
+  }
+  .rich-text code {
+    @apply rounded bg-ink-100 px-1 font-mono text-xs text-ink-900;
+  }
+  .rich-text pre {
+    @apply overflow-x-auto rounded bg-ink-100 p-3;
+  }
+  .rich-text pre code {
+    @apply bg-transparent p-0;
+  }
+  .rich-text a {
+    @apply text-brand-blueText underline;
+  }
+  /* The placeholder, drawn by Tiptap's Placeholder extension. */
+  .rich-text p.is-editor-empty:first-child::before {
+    @apply pointer-events-none float-left h-0 text-ink-400;
+    content: attr(data-placeholder);
+  }
+}
