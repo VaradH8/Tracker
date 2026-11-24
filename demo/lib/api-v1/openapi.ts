@@ -198,6 +198,29 @@ export const openapi = {
         parameters: [q("status", { type: "string" }), q("member_id", { type: "string" }), q("updated_since", { type: "string", format: "date-time" }), ...paging],
         responses: { "200": ok(list("Project")), ...errors },
       },
+      post: {
+        summary: "Create a project on behalf of a person who may create projects in the UI",
+        parameters: [idem],
+        requestBody: {
+          content: json({
+            type: "object",
+            required: ["name", "client", "target_end_date", "on_behalf_of_user_id"],
+            properties: {
+              name: { type: "string" },
+              key: { type: "string", description: "2-10 letters/digits, unique; task key prefix" },
+              client: { type: "string", description: "Name of an existing client" },
+              description: { type: "string" },
+              start_date: { type: "string", format: "date", description: "Defaults to today" },
+              target_end_date: { type: "string", format: "date" },
+              budget_hours: { type: "integer", description: "Defaults to 80" },
+              lead_ids: { type: "array", items: { type: "string" }, description: "Defaults to on_behalf_of_user_id" },
+              member_ids: { type: "array", items: { type: "string" } },
+              ...attribution,
+            },
+          }),
+        },
+        responses: { "201": ok(ref("Project"), "Created"), ...errors },
+      },
     },
     "/projects/{id}": { get: { parameters: [idParam()], responses: { "200": ok(ref("Project")), ...errors } } },
     "/sprints": {

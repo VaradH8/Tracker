@@ -1,8 +1,11 @@
+import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { forbidDelete, v1 } from "@/lib/api-v1/handler";
-import { pageParams, paginated, timestampParam } from "@/lib/api-v1/http";
+import { jsonBody, pageParams, paginated, timestampParam } from "@/lib/api-v1/http";
+import { createProject } from "@/lib/api-v1/projects";
 import { PROJECT_INCLUDE, serializeProject } from "@/lib/api-v1/serialize";
+import { readAttribution } from "@/lib/api-v1/tasks";
 
 export const GET = v1(async (_req, { url }) => {
   const page = pageParams(url);
@@ -26,4 +29,14 @@ export const GET = v1(async (_req, { url }) => {
   ]);
   return paginated(rows.map(serializeProject), total, page);
 });
+
+export const POST = v1(
+  async (req, { user }) => {
+    const body = await jsonBody(req);
+    const attr = await readAttribution(body);
+    return NextResponse.json(await createProject(body, user, attr), { status: 201 });
+  },
+  { idempotent: true },
+);
+
 export const DELETE = forbidDelete;
