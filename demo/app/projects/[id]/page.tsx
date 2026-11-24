@@ -53,6 +53,13 @@ import { toCsv, downloadCsv } from "@/lib/csv";
 import { DateInput } from "@/components/DateInput";
 import { PageSkeleton } from "@/components/Skeleton";
 import { useBlockDialog } from "@/components/BlockDialogProvider";
+import dynamic from "next/dynamic";
+
+// Loaded when the New task form first opens, not with the project page.
+const RichTextEditor = dynamic(() => import("@/components/RichTextEditor"), {
+  ssr: false,
+  loading: () => null,
+});
 
 const COLUMNS: { id: Status; title: string; accent: string }[] = [
   { id: "To Do", title: "To Do", accent: "bg-ink-300" },
@@ -1244,17 +1251,18 @@ function CreateTaskModal({
         className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
       />
 
-      <label htmlFor="projects-detail-description-optional" className="block text-xs font-medium text-ink-700 mb-1.5">
+      <p id="projects-detail-description-optional" className="block text-xs font-medium text-ink-700 mb-1.5">
         Description{" "}
         <span className="text-ink-400 font-normal">(optional)</span>
-      </label>
-      <textarea id="projects-detail-description-optional"
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        rows={2}
-        placeholder="A line or two about what this needs."
-        className="w-full px-3 py-2 mb-4 rounded border border-ink-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue"
-      />
+      </p>
+      <div className="mb-4">
+        <RichTextEditor
+          value={description}
+          onChange={setDescription}
+          labelledBy="projects-detail-description-optional"
+          placeholder="A line or two about what this needs."
+        />
+      </div>
 
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div>

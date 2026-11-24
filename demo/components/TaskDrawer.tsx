@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { useTaskDrawer } from "./TaskDrawerProvider";
+import dynamic from "next/dynamic";
 import {
   AssigneePicker,
   DateField,
@@ -49,6 +50,14 @@ import { useToast } from "./Toast";
 import { useConfirm } from "./ConfirmDialog";
 import { useProjects } from "@/lib/projects-store";
 import { useNotifications } from "@/lib/notifications-store";
+
+// The editor is loaded with the drawer's first open, not with every page:
+// the drawer is mounted app-wide. It takes a moment
+// to arrive, so the field is briefly empty on that first open.
+const RichTextEditor = dynamic(() => import("./RichTextEditor"), {
+  ssr: false,
+  loading: () => null,
+});
 
 const AVATAR_COLORS = [
   "bg-brand-blue",
@@ -420,25 +429,28 @@ export function TaskDrawer({
 
           {canEdit && (
             <Field label="Description">
-              <textarea
-                defaultValue={task.description ?? ""}
-                onBlur={(e) => {
-                  if (e.target.value !== (task.description ?? "")) {
-                    store.setDescription(task.id, e.target.value);
+              <RichTextEditor
+                key={task.id}
+                value={task.description ?? ""}
+                onCommit={(md) => {
+                  if (md !== (task.description ?? "")) {
+                    store.setDescription(task.id, md);
                   }
                 }}
                 placeholder="What needs to be done?"
-                rows={3}
-                className="w-full px-3 py-2 rounded border border-ink-200 text-sm"
+                ariaLabel="Description"
               />
             </Field>
           )}
 
           {!canEdit && task.description && (
             <Field label="Description">
-              <p className="text-sm text-ink-700 leading-relaxed">
-                {task.description}
-              </p>
+              <RichTextEditor
+                key={task.id}
+                value={task.description}
+                editable={false}
+                ariaLabel="Description"
+              />
             </Field>
           )}
 
